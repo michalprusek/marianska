@@ -195,6 +195,7 @@ input:checked + .slider:before {
     box-shadow: var(--shadow-md);
 }
 
+
 .calendar-header {
     display: flex;
     justify-content: space-between;
@@ -639,6 +640,7 @@ input:checked + .slider:before {
         position: static;
     }
 }
+
 
 @media (max-width: 640px) {
     .header-content {

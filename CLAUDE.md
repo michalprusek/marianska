@@ -8,10 +8,21 @@ Rezervační systém pro horskou chatu s 9 pokoji, navržený pro zaměstnance �
 
 ## Commands
 
+### Development (Local)
 ```bash
 npm install          # Install dependencies
 npm start           # Start production server on port 3000
 npm run dev         # Start development server with auto-reload
+```
+
+### Production (Docker)
+```bash
+docker-compose up -d                    # Start containers
+docker-compose down                     # Stop containers
+docker-compose up --build -d           # Rebuild and start containers
+
+# IMPORTANT: After any code changes, you MUST rebuild the Docker containers:
+docker-compose down && docker-compose up --build -d
 ```
 
 ## Architektura
