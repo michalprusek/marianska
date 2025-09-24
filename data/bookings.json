@@ -1,0 +1,395 @@
+{
+  "bookings": [
+    {
+      "name": "michal",
+      "email": "test@test.com",
+      "phone": "+420728109020",
+      "company": "",
+      "address": "ulice",
+      "city": "milovice",
+      "zip": "12345",
+      "ico": "",
+      "dic": "",
+      "notes": "dawdaw",
+      "startDate": "2025-09-19",
+      "endDate": "2025-09-19",
+      "rooms": [
+        "24"
+      ],
+      "guestType": "utia",
+      "adults": 1,
+      "children": 0,
+      "toddlers": 0,
+      "totalPrice": 400,
+      "id": "BK175819844886268HRE",
+      "editToken": "gnfdnjiz2ikpq8lz4lyvh",
+      "createdAt": "2025-09-18T12:27:28.862Z",
+      "updatedAt": "2025-09-18T12:27:28.862Z"
+    },
+    {
+      "name": "michal",
+      "email": "gym@gym.com",
+      "phone": "+420123456789",
+      "company": "",
+      "address": "milovice",
+      "city": "milo",
+      "zip": "12345",
+      "ico": "",
+      "dic": "",
+      "notes": "",
+      "startDate": "2025-09-28",
+      "endDate": "2025-09-30",
+      "rooms": [
+        "12",
+        "13",
+        "14",
+        "22",
+        "23",
+        "24",
+        "42",
+        "43",
+        "44"
+      ],
+      "guestType": "utia",
+      "adults": 1,
+      "children": 0,
+      "toddlers": 0,
+      "totalPrice": 6300,
+      "isBulkBooking": true,
+      "bulkDates": [
+        "2025-09-28",
+        "2025-09-29",
+        "2025-09-30"
+      ],
+      "id": "BK1758225382356ZOUHW",
+      "editToken": "883z3oxc1f8pwlbhuzprva",
+      "createdAt": "2025-09-18T19:56:22.356Z",
+      "updatedAt": "2025-09-18T19:56:22.356Z"
+    }
+  ],
+  "blockedDates": [
+    {
+      "date": "2025-09-18",
+      "roomId": "12",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.063Z"
+    },
+    {
+      "date": "2025-09-19",
+      "roomId": "12",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.088Z"
+    },
+    {
+      "date": "2025-09-20",
+      "roomId": "12",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.097Z"
+    },
+    {
+      "date": "2025-09-21",
+      "roomId": "12",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.100Z"
+    },
+    {
+      "date": "2025-09-22",
+      "roomId": "12",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.103Z"
+    },
+    {
+      "date": "2025-09-23",
+      "roomId": "12",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.107Z"
+    },
+    {
+      "date": "2025-09-24",
+      "roomId": "12",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.113Z"
+    },
+    {
+      "date": "2025-09-25",
+      "roomId": "12",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.118Z"
+    },
+    {
+      "date": "2025-09-18",
+      "roomId": "13",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.124Z"
+    },
+    {
+      "date": "2025-09-19",
+      "roomId": "13",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.130Z"
+    },
+    {
+      "date": "2025-09-20",
+      "roomId": "13",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.134Z"
+    },
+    {
+      "date": "2025-09-21",
+      "roomId": "13",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.138Z"
+    },
+    {
+      "date": "2025-09-22",
+      "roomId": "13",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.145Z"
+    },
+    {
+      "date": "2025-09-23",
+      "roomId": "13",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.149Z"
+    },
+    {
+      "date": "2025-09-24",
+      "roomId": "13",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.152Z"
+    },
+    {
+      "date": "2025-09-25",
+      "roomId": "13",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.156Z"
+    },
+    {
+      "date": "2025-09-18",
+      "roomId": "14",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.161Z"
+    },
+    {
+      "date": "2025-09-19",
+      "roomId": "14",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.166Z"
+    },
+    {
+      "date": "2025-09-20",
+      "roomId": "14",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.173Z"
+    },
+    {
+      "date": "2025-09-21",
+      "roomId": "14",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.180Z"
+    },
+    {
+      "date": "2025-09-22",
+      "roomId": "14",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.184Z"
+    },
+    {
+      "date": "2025-09-23",
+      "roomId": "14",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.188Z"
+    },
+    {
+      "date": "2025-09-24",
+      "roomId": "14",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.193Z"
+    },
+    {
+      "date": "2025-09-25",
+      "roomId": "14",
+      "reason": "důvod",
+      "blockageId": "BLK1758198375063GHZ2H",
+      "blockedAt": "2025-09-18T12:26:15.219Z"
+    }
+  ],
+  "settings": {
+    "adminPassword": "admin123",
+    "christmasAccessCodes": [
+      "vanoce2025"
+    ],
+    "rooms": [
+      {
+        "id": "12",
+        "name": "Pokoj 12",
+        "type": "small",
+        "beds": 2
+      },
+      {
+        "id": "13",
+        "name": "Pokoj 13",
+        "type": "small",
+        "beds": 3
+      },
+      {
+        "id": "14",
+        "name": "Pokoj 14",
+        "type": "large",
+        "beds": 4
+      },
+      {
+        "id": "22",
+        "name": "Pokoj 22",
+        "type": "small",
+        "beds": 2
+      },
+      {
+        "id": "23",
+        "name": "Pokoj 23",
+        "type": "small",
+        "beds": 3
+      },
+      {
+        "id": "24",
+        "name": "Pokoj 24",
+        "type": "large",
+        "beds": 4
+      },
+      {
+        "id": "42",
+        "name": "Pokoj 42",
+        "type": "small",
+        "beds": 2
+      },
+      {
+        "id": "43",
+        "name": "Pokoj 43",
+        "type": "small",
+        "beds": 2
+      },
+      {
+        "id": "44",
+        "name": "Pokoj 44",
+        "type": "large",
+        "beds": 4
+      }
+    ],
+    "prices": {
+      "utia": {
+        "small": {
+          "base": 300,
+          "adult": 50,
+          "child": 25
+        },
+        "large": {
+          "base": 400,
+          "adult": 50,
+          "child": 25
+        }
+      },
+      "external": {
+        "small": {
+          "base": 500,
+          "adult": 100,
+          "child": 50
+        },
+        "large": {
+          "base": 600,
+          "adult": 100,
+          "child": 50
+        }
+      }
+    },
+    "christmasPeriods": [
+      {
+        "start": "2025-09-20",
+        "end": "2025-09-27",
+        "year": 2025
+      }
+    ],
+    "emailTemplate": {
+      "subject": "Potvrzení rezervace - Chata Mariánská",
+      "template": "Dobrý den,\n\nděkujeme za Vaši rezervaci v chatě Mariánská.\n\nDETAIL REZERVACE:\n================\nČíslo rezervace: {booking_id}\nDatum příjezdu: {start_date}\nDatum odjezdu: {end_date}\nPokoje: {rooms}\nPočet hostů: {adults} dospělých, {children} dětí, {toddlers} batolat\nCelková cena: {total_price} Kč\n\nDŮLEŽITÉ INFORMACE:\n==================\n- minimálně den předem je povinnost se spojit se správci chaty kvůli předání klíčů\n- Check-in: od 14:00\n- Check-out: do 10:00\n- Adresa: Mariánská 1234, 543 21 Pec pod Sněžkou\n- Telefon: +420 123 456 789\n\nPro úpravu nebo zrušení rezervace použijte tento odkaz:\n{edit_url}\n\nBude vystavena faktura a zaslána emailem.\n\nTěšíme se na Vaši návštěvu!\n\nS pozdravem,\nTým Chata Mariánská"
+    }
+  },
+  "rooms": [
+    {
+      "id": "12",
+      "name": "Pokoj 12",
+      "type": "small",
+      "beds": 2
+    },
+    {
+      "id": "13",
+      "name": "Pokoj 13",
+      "type": "small",
+      "beds": 3
+    },
+    {
+      "id": "14",
+      "name": "Pokoj 14",
+      "type": "large",
+      "beds": 4
+    },
+    {
+      "id": "22",
+      "name": "Pokoj 22",
+      "type": "small",
+      "beds": 2
+    },
+    {
+      "id": "23",
+      "name": "Pokoj 23",
+      "type": "small",
+      "beds": 3
+    },
+    {
+      "id": "24",
+      "name": "Pokoj 24",
+      "type": "large",
+      "beds": 4
+    },
+    {
+      "id": "42",
+      "name": "Pokoj 42",
+      "type": "small",
+      "beds": 2
+    },
+    {
+      "id": "43",
+      "name": "Pokoj 43",
+      "type": "small",
+      "beds": 2
+    },
+    {
+      "id": "44",
+      "name": "Pokoj 44",
+      "type": "large",
+      "beds": 4
+    }
+  ]
+}
