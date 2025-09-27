@@ -338,27 +338,36 @@ class CalendarModule {
 
       // Smooth scroll to legend after a slight delay to ensure animation starts
       setTimeout(() => {
-        const legendRect = legend.getBoundingClientRect();
-        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-        // Calculate position to show the entire legend
-        const viewportHeight = window.innerHeight;
-        const legendHeight = legendRect.height;
+        // Wait a bit more for animation to complete and get accurate height
+        setTimeout(() => {
+          const legendRect = legend.getBoundingClientRect();
+          const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+          const viewportHeight = window.innerHeight;
+          const legendHeight = legendRect.height;
 
-        // If legend fits in viewport, center it; otherwise scroll to top of legend with small offset
-        let targetPosition;
-        if (legendHeight < viewportHeight - 100) {
-          // Center the legend in viewport
-          targetPosition = scrollTop + legendRect.top - ((viewportHeight - legendHeight) / 2);
-        } else {
-          // Scroll to show top of legend with 20px offset
-          targetPosition = scrollTop + legendRect.top - 20;
-        }
+          // Calculate position to show the entire legend at the bottom of viewport
+          let targetPosition;
 
-        window.scrollTo({
-          top: targetPosition,
-          behavior: 'smooth'
-        });
-      }, 150);
+          if (legendHeight < viewportHeight - 50) {
+            // If legend fits in viewport, position it so the bottom is visible with padding
+            targetPosition = scrollTop + legendRect.bottom - viewportHeight + 30;
+          } else {
+            // If legend is too tall, just scroll to the top of it
+            targetPosition = scrollTop + legendRect.top - 20;
+          }
+
+          // Make sure we don't scroll up if legend is already fully visible
+          const legendBottom = legendRect.bottom;
+          const viewportBottom = viewportHeight;
+
+          if (legendBottom > viewportBottom) {
+            window.scrollTo({
+              top: targetPosition,
+              behavior: 'smooth'
+            });
+          }
+        }, 300); // Extra delay to let CSS animation complete
+      }, 100);
     } else {
       // Hide legend with smooth animation
       legend.classList.add('legend-hidden');

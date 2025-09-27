@@ -35,7 +35,7 @@ class BulkBookingModule {
       if (!this.airbnbCalendar) {
         this.airbnbCalendar = new AirbnbCalendarModule(this.app);
       }
-      await this.airbnbCalendar.initCalendar('bulkCalendar', null, 'bulk');
+      await this.airbnbCalendar.initCalendar('bulkMiniCalendar', null, 'bulk');
 
       // Listen for date selection events
       this.airbnbCalendar.addEventListener('dates-selected', async (event) => {
@@ -70,53 +70,21 @@ class BulkBookingModule {
       return;
     }
 
-    const year = this.app.currentMonth.getFullYear();
-    const month = this.app.currentMonth.getMonth();
+    // Use shared calendar utilities
+    const calendarData = CalendarUtils.getCalendarDays(this.app.currentMonth);
+    const { year, month, startDay, daysInMonth, daysInPrevMonth } = calendarData;
 
-    // Update month title
-    const monthNames =
-      this.app.currentLanguage === 'cs'
-        ? [
-            'Leden',
-            'Únor',
-            'Březen',
-            'Duben',
-            'Květen',
-            'Červen',
-            'Červenec',
-            'Srpen',
-            'Září',
-            'Říjen',
-            'Listopad',
-            'Prosinec',
-          ]
-        : [
-            'January',
-            'February',
-            'March',
-            'April',
-            'May',
-            'June',
-            'July',
-            'August',
-            'September',
-            'October',
-            'November',
-            'December',
-          ];
-
+    // Update month title using shared utility
+    const monthName = CalendarUtils.getMonthName(month, this.app.currentLanguage);
     if (monthTitle) {
-      monthTitle.textContent = `${monthNames[month]} ${year}`;
+      monthTitle.textContent = `${monthName} ${year}`;
     }
 
     // Clear and build calendar
     bulkCalendar.innerHTML = '';
 
-    // Add day headers
-    const dayHeaders =
-      this.app.currentLanguage === 'cs'
-        ? ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne']
-        : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    // Add day headers using shared utility
+    const dayHeaders = CalendarUtils.getWeekdayHeaders(this.app.currentLanguage);
 
     const headerRow = document.createElement('div');
     headerRow.className = 'mini-calendar-week';
@@ -127,16 +95,6 @@ class BulkBookingModule {
       headerRow.appendChild(dayHeader);
     });
     bulkCalendar.appendChild(headerRow);
-
-    // Get first day of month
-    const firstDay = new Date(year, month, 1);
-    let startDay = firstDay.getDay() - 1;
-    if (startDay < 0) {
-      startDay = 6;
-    }
-
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const daysInPrevMonth = new Date(year, month, 0).getDate();
 
     // Create calendar grid
     let currentWeek = document.createElement('div');

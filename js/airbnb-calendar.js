@@ -55,7 +55,7 @@ class AirbnbCalendarModule {
     container.innerHTML = '';
 
     // Add calendar styling class
-    container.classList.add('airbnb-calendar');
+    container.classList.add('airbnb-calendar-container');
 
     // Create calendar structure
     const calendarWrapper = this.createCalendarWrapper();
@@ -172,11 +172,11 @@ class AirbnbCalendarModule {
         : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
     const headerRow = document.createElement('div');
-    headerRow.className = 'airbnb-calendar-week airbnb-calendar-header-row';
+    headerRow.className = 'airbnb-calendar-weekdays';
 
     dayHeaders.forEach((day) => {
       const dayHeader = document.createElement('div');
-      dayHeader.className = 'airbnb-day-header';
+      dayHeader.className = 'airbnb-calendar-weekday';
       dayHeader.textContent = day;
       headerRow.appendChild(dayHeader);
     });
@@ -193,40 +193,34 @@ class AirbnbCalendarModule {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const daysInPrevMonth = new Date(year, month, 0).getDate();
 
-    // Create calendar weeks
-    let currentWeek = document.createElement('div');
-    currentWeek.className = 'airbnb-calendar-week';
+    // Create days container
+    const daysContainer = document.createElement('div');
+    daysContainer.className = 'airbnb-calendar-days';
 
     // Previous month days
     for (let i = startDay - 1; i >= 0; i--) {
       const date = new Date(year, month - 1, daysInPrevMonth - i);
       const dayEl = await this.createDayElement(date, true);
-      currentWeek.appendChild(dayEl);
+      daysContainer.appendChild(dayEl);
     }
 
     // Current month days
     for (let day = 1; day <= daysInMonth; day++) {
-      if (currentWeek.children.length === 7) {
-        calendar.appendChild(currentWeek);
-        currentWeek = document.createElement('div');
-        currentWeek.className = 'airbnb-calendar-week';
-      }
-
       const date = new Date(year, month, day);
       const dayEl = await this.createDayElement(date, false);
-      currentWeek.appendChild(dayEl);
+      daysContainer.appendChild(dayEl);
     }
 
-    // Next month days
-    let nextMonthDay = 1;
-    while (currentWeek.children.length < 7) {
-      const date = new Date(year, month + 1, nextMonthDay);
+    // Next month days to complete the grid
+    const totalCells = daysContainer.children.length;
+    const remainingCells = 42 - totalCells; // 6 weeks * 7 days
+    for (let i = 1; i <= remainingCells; i++) {
+      const date = new Date(year, month + 1, i);
       const dayEl = await this.createDayElement(date, true);
-      currentWeek.appendChild(dayEl);
-      nextMonthDay++;
+      daysContainer.appendChild(dayEl);
     }
 
-    calendar.appendChild(currentWeek);
+    calendar.appendChild(daysContainer);
   }
 
   /**
@@ -421,13 +415,11 @@ class AirbnbCalendarModule {
           })
         );
       } else {
-        // Generate array of all selected dates
-        const dates = [];
-        const currentDate = new Date(checkIn);
-        while (currentDate < checkOut) {
-          dates.push(dataManager.formatDate(new Date(currentDate)));
-          currentDate.setDate(currentDate.getDate() + 1);
-        }
+        // Generate array of all selected dates using utility
+        const dates = CalendarUtils.getDateRange(
+          dataManager.formatDate(checkIn),
+          dataManager.formatDate(new Date(checkOut.getTime() - 24 * 60 * 60 * 1000))
+        );
 
         this.events.dispatchEvent(
           new CustomEvent('dates-selected', {
@@ -667,7 +659,7 @@ class AirbnbCalendarModule {
     const container = document.getElementById(this.containerId);
     if (container) {
       container.innerHTML = '';
-      container.classList.remove('airbnb-calendar');
+      container.classList.remove('airbnb-calendar-container');
     }
 
     // Remove all event listeners
@@ -675,242 +667,18 @@ class AirbnbCalendarModule {
   }
 }
 
-// Add CSS styles for Airbnb calendar
-function addAirbnbCalendarStyles() {
+// Load external CSS styles for Airbnb calendar
+function loadAirbnbCalendarStyles() {
   if (document.getElementById('airbnb-calendar-styles')) {
     return;
   }
 
-  const style = document.createElement('style');
-  style.id = 'airbnb-calendar-styles';
-  style.textContent = `
-    .airbnb-calendar {
-      font-family: inherit;
-      max-width: 400px;
-      margin: 0 auto;
-    }
-
-    .airbnb-calendar-wrapper {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      overflow: hidden;
-    }
-
-    .airbnb-calendar-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 20px;
-      background: #f7f7f7;
-      border-bottom: 1px solid #e0e0e0;
-    }
-
-    .airbnb-nav-btn {
-      background: none;
-      border: none;
-      font-size: 18px;
-      cursor: pointer;
-      padding: 8px;
-      border-radius: 50%;
-      transition: background-color 0.2s;
-      color: #717171;
-    }
-
-    .airbnb-nav-btn:hover {
-      background: #e0e0e0;
-    }
-
-    .airbnb-month-title {
-      font-size: 16px;
-      font-weight: 600;
-      margin: 0;
-      color: #222;
-    }
-
-    .airbnb-calendar-grid {
-      padding: 0;
-    }
-
-    .airbnb-calendar-week {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-    }
-
-    .airbnb-calendar-header-row {
-      background: #f7f7f7;
-      border-bottom: 1px solid #e0e0e0;
-    }
-
-    .airbnb-day-header {
-      padding: 12px 4px;
-      text-align: center;
-      font-size: 12px;
-      font-weight: 600;
-      color: #717171;
-      text-transform: uppercase;
-    }
-
-    .airbnb-calendar-day {
-      position: relative;
-      aspect-ratio: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 40px;
-      border: 1px solid transparent;
-      transition: all 0.2s ease;
-      cursor: default;
-      background: white;
-    }
-
-    .airbnb-calendar-day.selectable {
-      cursor: pointer;
-    }
-
-    .airbnb-calendar-day.selectable:hover {
-      background: #f7f7f7;
-      border-color: #ddd;
-    }
-
-    .airbnb-calendar-day.other-month {
-      color: #ccc;
-      background: #fafafa;
-    }
-
-    .airbnb-calendar-day.disabled {
-      color: #ccc;
-      background: #f5f5f5;
-      cursor: not-allowed;
-    }
-
-    .airbnb-calendar-day.booked {
-      background: #ff385c;
-      color: white;
-      cursor: not-allowed;
-    }
-
-    .airbnb-calendar-day.blocked {
-      background: #6c757d;
-      color: white;
-      cursor: not-allowed;
-    }
-
-    .airbnb-calendar-day.no-rooms-available {
-      background: #f8f9fa;
-      color: #6c757d;
-      cursor: not-allowed;
-    }
-
-    .airbnb-calendar-day.check-in {
-      background: #ff385c;
-      color: white;
-      border-radius: 50%;
-      font-weight: 600;
-    }
-
-    .airbnb-calendar-day.check-out {
-      background: #ff385c;
-      color: white;
-      border-radius: 50%;
-      font-weight: 600;
-    }
-
-    .airbnb-calendar-day.in-range {
-      background: rgba(255, 56, 92, 0.1);
-      color: #ff385c;
-    }
-
-    .airbnb-calendar-day.hover-range {
-      background: rgba(255, 56, 92, 0.05);
-      color: #ff385c;
-    }
-
-    .airbnb-calendar-day.christmas {
-      position: relative;
-    }
-
-    .airbnb-calendar-day.christmas::before {
-      content: '';
-      position: absolute;
-      top: 2px;
-      right: 2px;
-      width: 6px;
-      height: 6px;
-      background: #ffc107;
-      border-radius: 50%;
-    }
-
-    .airbnb-day-number {
-      font-size: 14px;
-      font-weight: 400;
-    }
-
-    .christmas-icon {
-      position: absolute;
-      top: 2px;
-      right: 2px;
-      font-size: 8px;
-    }
-
-    .airbnb-date-labels {
-      padding: 16px 20px;
-      background: #f7f7f7;
-      border-top: 1px solid #e0e0e0;
-    }
-
-    .date-labels-wrapper {
-      display: flex;
-      gap: 20px;
-      justify-content: center;
-    }
-
-    .date-label {
-      text-align: center;
-    }
-
-    .label-text {
-      display: block;
-      font-size: 12px;
-      color: #717171;
-      margin-bottom: 4px;
-      text-transform: uppercase;
-      font-weight: 600;
-    }
-
-    .label-date {
-      display: block;
-      font-size: 14px;
-      color: #222;
-      font-weight: 600;
-    }
-
-    .check-in-label .label-text {
-      color: #ff385c;
-    }
-
-    .check-out-label .label-text {
-      color: #ff385c;
-    }
-
-    /* Range connectors */
-    .airbnb-calendar-day.in-range:not(.check-in):not(.check-out) {
-      border-radius: 0;
-    }
-
-    .airbnb-calendar-day.check-in.in-range {
-      border-top-right-radius: 0;
-      border-bottom-right-radius: 0;
-    }
-
-    .airbnb-calendar-day.check-out.in-range {
-      border-top-left-radius: 0;
-      border-bottom-left-radius: 0;
-    }
-  `;
-
-  document.head.appendChild(style);
+  const link = document.createElement('link');
+  link.id = 'airbnb-calendar-styles';
+  link.rel = 'stylesheet';
+  link.href = 'css/airbnb-calendar.css';
+  document.head.appendChild(link);
 }
 
-// Initialize styles when module loads
-addAirbnbCalendarStyles();
+// Load styles when module loads
+loadAirbnbCalendarStyles();
