@@ -9,6 +9,7 @@ Rezervační systém pro horskou chatu s 9 pokoji, navržený pro zaměstnance �
 ## Commands
 
 ### Development (Local)
+
 ```bash
 npm install          # Install dependencies
 npm start           # Start production server on port 3000
@@ -16,6 +17,7 @@ npm run dev         # Start development server with auto-reload
 ```
 
 ### Production (Docker)
+
 ```bash
 docker-compose up -d                    # Start containers
 docker-compose down                     # Stop containers
@@ -28,6 +30,7 @@ docker-compose down && docker-compose up --build -d
 ## Architektura
 
 ### Backend API (server.js)
+
 - Express server na portu 3000
 - Data storage v `data/bookings.json`
 - Endpoints:
@@ -40,9 +43,11 @@ docker-compose down && docker-compose up --build -d
 ### Klíčové komponenty
 
 #### 1. DataManager (data.js)
+
 Centrální komponenta pro správu dat a business logiku.
 
 **Hlavní funkce:**
+
 - `initStorage()` - Inicializace LocalStorage s výchozími daty
 - `createBooking()` - Vytvoření nové rezervace s unikátním ID a edit tokenem
 - `getRoomAvailability()` - Kontrola dostupnosti pokoje pro daný den
@@ -51,6 +56,7 @@ Centrální komponenta pro správu dat a business logiku.
 - `sendBookingConfirmation()` - Mock email systém
 
 **Datová struktura v LocalStorage:**
+
 ```javascript
 {
   bookings: [
@@ -112,10 +118,12 @@ Centrální komponenta pro správu dat a business logiku.
 }
 ```
 
-#### 2. Kalendář (app.js)
+#### 2. Kalendář (js/booking-app.js + js/calendar.js)
+
 Interaktivní kalendář s pokročilými funkcemi.
 
 **Funkce:**
+
 - Zobrazení dostupnosti jednotlivých pokojů
 - Barevné rozlišení podle emailu rezervace
 - Výběr více dnů a pokojů
@@ -124,15 +132,18 @@ Interaktivní kalendář s pokročilými funkcemi.
 - Omezení na aktuální a následující rok
 
 **Barvy a stavy:**
+
 - 🟢 Zelená - volný pokoj
 - 🔴 Červená - obsazený pokoj
 - ⬜ Šedá - blokovaný pokoj
 - 🎄 Zlatý rámeček - vánoční období
 
-#### 3. Rezervační formulář
+#### 3. Rezervační formulář (js/booking-form.js)
+
 Dvoustupňový proces s validací v reálném čase.
 
 **Krok 1: Výběr termínu a pokojů**
+
 - Výběr dat v kalendáři
 - Výběr pokojů (kontrola kapacity)
 - Nastavení typu hosta (ÚTIA/Externí)
@@ -140,6 +151,7 @@ Dvoustupňový proces s validací v reálném čase.
 - Automatický výpočet ceny
 
 **Krok 2: Fakturační údaje**
+
 - Validace v reálném čase:
   - Email: kontrola @, formát
   - Telefon: 9 číslic pro +420/+421
@@ -148,9 +160,11 @@ Dvoustupňový proces s validací v reálném čase.
   - DIČ: formát CZ12345678 (volitelné)
 
 #### 4. Administrace (admin.html)
+
 Kompletní správa systému rozdělená do tabů.
 
 **Taby:**
+
 1. **Rezervace**
    - Přehled všech rezervací
    - Detail rezervace se všemi údaji
@@ -184,9 +198,19 @@ Kompletní správa systému rozdělená do tabů.
    - Změna admin hesla
    - Email konfigurace
 
+#### 5. Modularní JS architektura (js/)
+
+- `booking-app.js` - Hlavní orchestrátor, koordinuje moduly
+- `calendar.js` - Kalendářní logika a rendering
+- `booking-form.js` - Formulářová logika a validace
+- `bulk-booking.js` - Hromadné rezervace
+- `single-room-booking.js` - Single pokoj režim
+- `utils.js` - Pomocné funkce a utility
+
 ## Business pravidla
 
 ### Cenová politika
+
 ```
 ÚTIA zaměstnanci:
 - Malý pokoj: 300 Kč/noc základní cena + 50 Kč/další dospělý + 25 Kč/dítě
@@ -200,6 +224,7 @@ Děti do 3 let: zdarma
 ```
 
 ### Vánoční období
+
 - Defaultně: 23.12. - 2.1.
 - Admin může nastavit vlastní rozsah
 - Rezervace pouze s přístupovým kódem
@@ -207,6 +232,7 @@ Děti do 3 let: zdarma
 - Maximálně 1-2 pokoje pro ÚTIA zaměstnance do 30.9.
 
 ### Kapacita pokojů
+
 ```
 Patro 1: Pokoje 12 (2 lůžka), 13 (3 lůžka), 14 (4 lůžka)
 Patro 2: Pokoje 22 (2 lůžka), 23 (3 lůžka), 24 (4 lůžka)
@@ -225,11 +251,14 @@ Celkem: 26 lůžek
 ## Důležité implementační detaily
 
 ### Dual Storage Mode
+
 Systém podporuje dva režimy ukládání:
+
 1. **Server mode** (preferovaný): Data v `data/bookings.json` přes Express API
 2. **LocalStorage fallback**: Pro offline použití, klíč `chataMarianska`
 
 ### DataManager API
+
 - `dataManager.initStorage()` - inicializace úložiště
 - `dataManager.createBooking()` - vytvoření rezervace s ID a edit tokenem
 - `dataManager.getRoomAvailability()` - kontrola dostupnosti
@@ -237,6 +266,7 @@ Systém podporuje dva režimy ukládání:
 - `dataManager.formatDate(date)` - formátování na YYYY-MM-DD
 
 ### Validace vstupů
+
 - Email: obsahuje @, validní formát
 - Telefon: +420/+421 + 9 číslic
 - PSČ: přesně 5 číslic
@@ -244,9 +274,11 @@ Systém podporuje dva režimy ukládání:
 - DIČ: formát CZ12345678 (volitelné)
 
 ### Editace rezervací
+
 Každá rezervace má unikátní `editToken`. Přístup k editaci: `edit.html?token=XXX`
 
 ### Admin přístup
+
 - URL: `/admin.html`
 - Výchozí heslo: `admin123`
 - Session-based autentizace (SessionStorage)

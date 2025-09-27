@@ -63,3 +63,8 @@ temp/
 # Data backup files
 data/*.bak
 data/*.backup
+
+# Pre-commit report
+report/
+.playwright-mcp/
+*.backup

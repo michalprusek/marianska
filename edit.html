@@ -1,358 +1,476 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="cs">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
     <title>Upravit rezervaci - Chata Mariánská</title>
-    <link rel="stylesheet" href="styles-modern.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+      rel="stylesheet"
+      href="styles-modern.css"
+    />
+    <link
+      rel="preconnect"
+      href="https://fonts.googleapis.com"
+    />
+    <link
+      rel="preconnect"
+      href="https://fonts.gstatic.com"
+      crossorigin
+    />
     <style>
-        .edit-container {
-            max-width: 800px;
-            margin: 2rem auto;
-            padding: 2rem;
-        }
+      .edit-container {
+        max-width: 800px;
+        margin: 2rem auto;
+        padding: 2rem;
+      }
 
-        .booking-info {
-            background: white;
-            border-radius: var(--radius-xl);
-            padding: 2rem;
-            box-shadow: var(--shadow-md);
-            margin-bottom: 2rem;
-        }
+      .booking-info {
+        background: white;
+        border-radius: var(--radius-xl);
+        padding: 2rem;
+        box-shadow: var(--shadow-md);
+        margin-bottom: 2rem;
+      }
 
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5rem;
-            margin-top: 1.5rem;
-        }
+      .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-top: 1.5rem;
+      }
 
-        .info-item {
-            display: flex;
-            flex-direction: column;
-        }
+      .info-item {
+        display: flex;
+        flex-direction: column;
+      }
 
-        .info-label {
-            font-size: 0.9rem;
-            color: var(--gray-600);
-            margin-bottom: 0.25rem;
-        }
+      .info-label {
+        font-size: 0.9rem;
+        color: var(--gray-600);
+        margin-bottom: 0.25rem;
+      }
 
-        .info-value {
-            font-size: 1.1rem;
-            font-weight: 500;
-            color: var(--gray-900);
-        }
+      .info-value {
+        font-size: 1.1rem;
+        font-weight: 500;
+        color: var(--gray-900);
+      }
 
-        .status-badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: var(--radius-sm);
-            font-size: 0.9rem;
-            font-weight: 600;
-        }
+      .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: var(--radius-sm);
+        font-size: 0.9rem;
+        font-weight: 600;
+      }
 
-        .status-badge.active {
-            background: var(--success-color);
-            color: white;
-        }
+      .status-badge.active {
+        background: var(--success-color);
+        color: white;
+      }
 
-        .status-badge.cancelled {
-            background: var(--danger-color);
-            color: white;
-        }
+      .status-badge.cancelled {
+        background: var(--danger-color);
+        color: white;
+      }
 
-        .edit-form {
-            background: white;
-            border-radius: var(--radius-xl);
-            padding: 2rem;
-            box-shadow: var(--shadow-md);
-        }
+      .edit-form {
+        background: white;
+        border-radius: var(--radius-xl);
+        padding: 2rem;
+        box-shadow: var(--shadow-md);
+      }
 
-        .action-section {
-            margin-top: 2rem;
-            padding-top: 2rem;
-            border-top: 2px solid var(--gray-200);
-        }
+      .action-section {
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 2px solid var(--gray-200);
+      }
 
-        .danger-zone {
-            margin-top: 3rem;
-            padding: 1.5rem;
-            background: #FFF5F5;
-            border: 2px solid var(--danger-color);
-            border-radius: var(--radius-md);
-        }
+      .danger-zone {
+        margin-top: 3rem;
+        padding: 1.5rem;
+        background: #fff5f5;
+        border: 2px solid var(--danger-color);
+        border-radius: var(--radius-md);
+      }
 
-        .danger-zone h3 {
-            color: var(--danger-color);
-            margin-bottom: 1rem;
-        }
+      .danger-zone h3 {
+        color: var(--danger-color);
+        margin-bottom: 1rem;
+      }
 
-        .error-container {
-            background: white;
-            border-radius: var(--radius-xl);
-            padding: 3rem;
-            text-align: center;
-            box-shadow: var(--shadow-md);
-        }
+      .error-container {
+        background: white;
+        border-radius: var(--radius-xl);
+        padding: 3rem;
+        text-align: center;
+        box-shadow: var(--shadow-md);
+      }
 
-        .error-icon {
-            font-size: 4rem;
-            color: var(--danger-color);
-            margin-bottom: 1rem;
-        }
+      .error-icon {
+        font-size: 4rem;
+        color: var(--danger-color);
+        margin-bottom: 1rem;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="app-container">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-content">
-                <h1 class="logo">Upravit rezervaci</h1>
-                <nav class="nav">
-                    <button onclick="window.location.href='index.html'" class="btn-secondary">
-                        Zpět na hlavní stránku
-                    </button>
-                </nav>
-            </div>
-        </header>
+      <!-- Header -->
+      <header class="header">
+        <div class="header-content">
+          <h1 class="logo">Upravit rezervaci</h1>
+          <nav class="nav">
+            <button
+              onclick="window.location.href='index.html'"
+              class="btn-secondary"
+            >
+              Zpět na hlavní stránku
+            </button>
+          </nav>
+        </div>
+      </header>
 
-        <!-- Main Content -->
-        <main class="edit-container">
-            <!-- Loading State -->
-            <div id="loadingState" style="text-align: center; padding: 3rem;">
-                <div style="font-size: 2rem; color: var(--primary-color); margin-bottom: 1rem;">⏳</div>
-                <p>Načítám rezervaci...</p>
+      <!-- Main Content -->
+      <main class="edit-container">
+        <!-- Loading State -->
+        <div
+          id="loadingState"
+          style="text-align: center; padding: 3rem"
+        >
+          <div style="font-size: 2rem; color: var(--primary-color); margin-bottom: 1rem">⏳</div>
+          <p>Načítám rezervaci...</p>
+        </div>
+
+        <!-- Error State -->
+        <div
+          id="errorState"
+          class="error-container"
+          style="display: none"
+        >
+          <div class="error-icon">⚠️</div>
+          <h2>Rezervace nenalezena</h2>
+          <p style="color: var(--gray-600); margin: 1rem 0">
+            Zadaný odkaz není platný nebo rezervace již neexistuje.
+          </p>
+          <button
+            onclick="window.location.href='index.html'"
+            class="btn-primary"
+          >
+            Přejít na hlavní stránku
+          </button>
+        </div>
+
+        <!-- Edit Content -->
+        <div
+          id="editContent"
+          style="display: none"
+        >
+          <!-- Booking Info -->
+          <div class="booking-info">
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 1.5rem;
+              "
+            >
+              <h2>Informace o rezervaci</h2>
+              <span
+                id="bookingStatus"
+                class="status-badge active"
+                >Aktivní</span
+              >
             </div>
 
-            <!-- Error State -->
-            <div id="errorState" class="error-container" style="display: none;">
-                <div class="error-icon">⚠️</div>
-                <h2>Rezervace nenalezena</h2>
-                <p style="color: var(--gray-600); margin: 1rem 0;">
-                    Zadaný odkaz není platný nebo rezervace již neexistuje.
-                </p>
-                <button onclick="window.location.href='index.html'" class="btn-primary">
-                    Přejít na hlavní stránku
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">Číslo rezervace</span>
+                <span
+                  id="bookingId"
+                  class="info-value"
+                ></span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Vytvořeno</span>
+                <span
+                  id="createdAt"
+                  class="info-value"
+                ></span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Termín</span>
+                <span
+                  id="dateRange"
+                  class="info-value"
+                ></span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Pokoje</span>
+                <span
+                  id="rooms"
+                  class="info-value"
+                ></span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Celková cena</span>
+                <span
+                  id="totalPrice"
+                  class="info-value"
+                  style="color: var(--primary-color); font-size: 1.25rem"
+                ></span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Typ hosta</span>
+                <span
+                  id="guestType"
+                  class="info-value"
+                ></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Edit Form -->
+          <div class="edit-form">
+            <h2>Upravit údaje</h2>
+            <form id="updateForm">
+              <div class="form-grid">
+                <div class="input-group">
+                  <label for="name">Jméno a příjmení *</label>
+                  <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    required
+                  />
+                </div>
+
+                <div class="input-group">
+                  <label for="email">Email *</label>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    required
+                  />
+                </div>
+
+                <div class="input-group">
+                  <label for="phone">Telefon *</label>
+                  <input
+                    type="tel"
+                    id="phone"
+                    name="phone"
+                    required
+                  />
+                </div>
+
+                <div class="input-group">
+                  <label for="company">Firma</label>
+                  <input
+                    type="text"
+                    id="company"
+                    name="company"
+                  />
+                </div>
+
+                <div class="input-group full-width">
+                  <label for="address">Adresa *</label>
+                  <input
+                    type="text"
+                    id="address"
+                    name="address"
+                    required
+                  />
+                </div>
+
+                <div class="input-group">
+                  <label for="city">Město *</label>
+                  <input
+                    type="text"
+                    id="city"
+                    name="city"
+                    required
+                  />
+                </div>
+
+                <div class="input-group">
+                  <label for="zip">PSČ *</label>
+                  <input
+                    type="text"
+                    id="zip"
+                    name="zip"
+                    required
+                    pattern="[0-9]{5}"
+                  />
+                </div>
+
+                <div class="input-group">
+                  <label for="ico">IČO</label>
+                  <input
+                    type="text"
+                    id="ico"
+                    name="ico"
+                  />
+                </div>
+
+                <div class="input-group">
+                  <label for="dic">DIČ</label>
+                  <input
+                    type="text"
+                    id="dic"
+                    name="dic"
+                  />
+                </div>
+              </div>
+
+              <div class="input-group full-width">
+                <label for="notes">Poznámky</label>
+                <textarea
+                  id="notes"
+                  name="notes"
+                  rows="3"
+                ></textarea>
+              </div>
+
+              <div class="action-section">
+                <button
+                  type="submit"
+                  class="btn-primary"
+                >
+                  Uložit změny
                 </button>
+              </div>
+            </form>
+
+            <!-- Danger Zone -->
+            <div class="danger-zone">
+              <h3>Nebezpečná zóna</h3>
+              <p style="color: var(--gray-700); margin-bottom: 1rem">
+                Zrušení rezervace je nevratná akce. Ujistěte se, že opravdu chcete rezervaci zrušit.
+              </p>
+              <button
+                id="cancelBooking"
+                class="btn-danger"
+              >
+                Zrušit rezervaci
+              </button>
             </div>
+          </div>
+        </div>
+      </main>
 
-            <!-- Edit Content -->
-            <div id="editContent" style="display: none;">
-                <!-- Booking Info -->
-                <div class="booking-info">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                        <h2>Informace o rezervaci</h2>
-                        <span id="bookingStatus" class="status-badge active">Aktivní</span>
-                    </div>
-
-                    <div class="info-grid">
-                        <div class="info-item">
-                            <span class="info-label">Číslo rezervace</span>
-                            <span id="bookingId" class="info-value"></span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Vytvořeno</span>
-                            <span id="createdAt" class="info-value"></span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Termín</span>
-                            <span id="dateRange" class="info-value"></span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Pokoje</span>
-                            <span id="rooms" class="info-value"></span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Celková cena</span>
-                            <span id="totalPrice" class="info-value" style="color: var(--primary-color); font-size: 1.25rem;"></span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Typ hosta</span>
-                            <span id="guestType" class="info-value"></span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Edit Form -->
-                <div class="edit-form">
-                    <h2>Upravit údaje</h2>
-                    <form id="updateForm">
-                        <div class="form-grid">
-                            <div class="input-group">
-                                <label for="name">Jméno a příjmení *</label>
-                                <input type="text" id="name" name="name" required>
-                            </div>
-
-                            <div class="input-group">
-                                <label for="email">Email *</label>
-                                <input type="email" id="email" name="email" required>
-                            </div>
-
-                            <div class="input-group">
-                                <label for="phone">Telefon *</label>
-                                <input type="tel" id="phone" name="phone" required>
-                            </div>
-
-                            <div class="input-group">
-                                <label for="company">Firma</label>
-                                <input type="text" id="company" name="company">
-                            </div>
-
-                            <div class="input-group full-width">
-                                <label for="address">Adresa *</label>
-                                <input type="text" id="address" name="address" required>
-                            </div>
-
-                            <div class="input-group">
-                                <label for="city">Město *</label>
-                                <input type="text" id="city" name="city" required>
-                            </div>
-
-                            <div class="input-group">
-                                <label for="zip">PSČ *</label>
-                                <input type="text" id="zip" name="zip" required pattern="[0-9]{5}">
-                            </div>
-
-                            <div class="input-group">
-                                <label for="ico">IČO</label>
-                                <input type="text" id="ico" name="ico">
-                            </div>
-
-                            <div class="input-group">
-                                <label for="dic">DIČ</label>
-                                <input type="text" id="dic" name="dic">
-                            </div>
-                        </div>
-
-                        <div class="input-group full-width">
-                            <label for="notes">Poznámky</label>
-                            <textarea id="notes" name="notes" rows="3"></textarea>
-                        </div>
-
-                        <div class="action-section">
-                            <button type="submit" class="btn-primary">Uložit změny</button>
-                        </div>
-                    </form>
-
-                    <!-- Danger Zone -->
-                    <div class="danger-zone">
-                        <h3>Nebezpečná zóna</h3>
-                        <p style="color: var(--gray-700); margin-bottom: 1rem;">
-                            Zrušení rezervace je nevratná akce. Ujistěte se, že opravdu chcete rezervaci zrušit.
-                        </p>
-                        <button id="cancelBooking" class="btn-danger">
-                            Zrušit rezervaci
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </main>
-
-        <!-- Success Message -->
-        <div id="successMessage" class="success-message"></div>
+      <!-- Success Message -->
+      <div
+        id="successMessage"
+        class="success-message"
+      ></div>
     </div>
 
     <script src="data.js"></script>
     <script>
-        class EditBooking {
-            constructor() {
-                this.booking = null;
-                this.token = null;
-                this.init();
-            }
+      class EditBooking {
+        constructor() {
+          this.booking = null;
+          this.token = null;
+          this.init();
+        }
 
-            init() {
-                // Get token from URL
-                const urlParams = new URLSearchParams(window.location.search);
-                this.token = urlParams.get('token');
+        init() {
+          // Get token from URL
+          const urlParams = new URLSearchParams(window.location.search);
+          this.token = urlParams.get('token');
 
-                if (!this.token) {
-                    this.showError();
-                    return;
-                }
+          if (!this.token) {
+            this.showError();
+            return;
+          }
 
-                this.loadBooking();
-                this.setupEventListeners();
-            }
+          this.loadBooking();
+          this.setupEventListeners();
+        }
 
-            loadBooking() {
-                this.booking = dataManager.getBookingByEditToken(this.token);
+        loadBooking() {
+          this.booking = dataManager.getBookingByEditToken(this.token);
 
-                if (!this.booking) {
-                    this.showError();
-                    return;
-                }
+          if (!this.booking) {
+            this.showError();
+            return;
+          }
 
-                this.displayBooking();
-                document.getElementById('loadingState').style.display = 'none';
-                document.getElementById('editContent').style.display = 'block';
-            }
+          this.displayBooking();
+          document.getElementById('loadingState').style.display = 'none';
+          document.getElementById('editContent').style.display = 'block';
+        }
 
-            displayBooking() {
-                // Display booking info
-                document.getElementById('bookingId').textContent = this.booking.id;
-                document.getElementById('createdAt').textContent =
-                    new Date(this.booking.createdAt).toLocaleDateString('cs-CZ');
-                document.getElementById('dateRange').textContent =
-                    `${new Date(this.booking.startDate).toLocaleDateString('cs-CZ')} -
+        displayBooking() {
+          // Display booking info
+          document.getElementById('bookingId').textContent = this.booking.id;
+          document.getElementById('createdAt').textContent = new Date(
+            this.booking.createdAt
+          ).toLocaleDateString('cs-CZ');
+          document.getElementById('dateRange').textContent =
+            `${new Date(this.booking.startDate).toLocaleDateString('cs-CZ')} -
                      ${new Date(this.booking.endDate).toLocaleDateString('cs-CZ')}`;
-                document.getElementById('rooms').textContent = this.booking.rooms.join(', ');
-                document.getElementById('totalPrice').textContent = `${this.booking.totalPrice} Kč`;
-                document.getElementById('guestType').textContent =
-                    this.booking.guestType === 'utia' ? 'Zaměstnanec ÚTIA' : 'Externí host';
+          document.getElementById('rooms').textContent = this.booking.rooms.join(', ');
+          document.getElementById('totalPrice').textContent = `${this.booking.totalPrice} Kč`;
+          document.getElementById('guestType').textContent =
+            this.booking.guestType === 'utia' ? 'Zaměstnanec ÚTIA' : 'Externí host';
 
-                // Fill form
-                document.getElementById('name').value = this.booking.name;
-                document.getElementById('email').value = this.booking.email;
-                document.getElementById('phone').value = this.booking.phone;
-                document.getElementById('company').value = this.booking.company || '';
-                document.getElementById('address').value = this.booking.address;
-                document.getElementById('city').value = this.booking.city;
-                document.getElementById('zip').value = this.booking.zip;
-                document.getElementById('ico').value = this.booking.ico || '';
-                document.getElementById('dic').value = this.booking.dic || '';
-                document.getElementById('notes').value = this.booking.notes || '';
-            }
+          // Fill form
+          document.getElementById('name').value = this.booking.name;
+          document.getElementById('email').value = this.booking.email;
+          document.getElementById('phone').value = this.booking.phone;
+          document.getElementById('company').value = this.booking.company || '';
+          document.getElementById('address').value = this.booking.address;
+          document.getElementById('city').value = this.booking.city;
+          document.getElementById('zip').value = this.booking.zip;
+          document.getElementById('ico').value = this.booking.ico || '';
+          document.getElementById('dic').value = this.booking.dic || '';
+          document.getElementById('notes').value = this.booking.notes || '';
+        }
 
-            setupEventListeners() {
-                document.getElementById('updateForm').addEventListener('submit', (e) => {
-                    e.preventDefault();
-                    this.updateBooking();
-                });
+        setupEventListeners() {
+          document.getElementById('updateForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.updateBooking();
+          });
 
-                document.getElementById('cancelBooking').addEventListener('click', () => {
-                    this.cancelBooking();
-                });
-            }
+          document.getElementById('cancelBooking').addEventListener('click', () => {
+            this.cancelBooking();
+          });
+        }
 
-            updateBooking() {
-                const formData = new FormData(document.getElementById('updateForm'));
-                const updates = {};
+        updateBooking() {
+          const formData = new FormData(document.getElementById('updateForm'));
+          const updates = {};
 
-                for (let [key, value] of formData.entries()) {
-                    updates[key] = value;
-                }
+          for (let [key, value] of formData.entries()) {
+            updates[key] = value;
+          }
 
-                dataManager.updateBooking(this.booking.id, updates);
-                this.showSuccess('Rezervace byla úspěšně aktualizována');
+          dataManager.updateBooking(this.booking.id, updates);
+          this.showSuccess('Rezervace byla úspěšně aktualizována');
 
-                // Reload booking data
-                this.loadBooking();
-            }
+          // Reload booking data
+          this.loadBooking();
+        }
 
-            cancelBooking() {
-                if (!confirm('Opravdu chcete zrušit tuto rezervaci? Tato akce je nevratná.')) {
-                    return;
-                }
+        cancelBooking() {
+          if (!confirm('Opravdu chcete zrušit tuto rezervaci? Tato akce je nevratná.')) {
+            return;
+          }
 
-                dataManager.deleteBooking(this.booking.id);
+          dataManager.deleteBooking(this.booking.id);
 
-                // Send cancellation email
-                const subject = `Zrušení rezervace - ${this.booking.id}`;
-                const body = `
+          // Send cancellation email
+          const subject = `Zrušení rezervace - ${this.booking.id}`;
+          const body = `
                     Dobrý den,
 
                     Vaše rezervace ${this.booking.id} byla úspěšně zrušena.
@@ -360,36 +478,36 @@
                     S pozdravem,
                     Chata Mariánská
                 `;
-                dataManager.sendEmail(this.booking.email, subject, body);
+          dataManager.sendEmail(this.booking.email, subject, body);
 
-                this.showSuccess('Rezervace byla úspěšně zrušena');
+          this.showSuccess('Rezervace byla úspěšně zrušena');
 
-                // Redirect after 2 seconds
-                setTimeout(() => {
-                    window.location.href = 'index.html';
-                }, 2000);
-            }
-
-            showError() {
-                document.getElementById('loadingState').style.display = 'none';
-                document.getElementById('errorState').style.display = 'block';
-            }
-
-            showSuccess(message) {
-                const messageEl = document.getElementById('successMessage');
-                messageEl.textContent = message;
-                messageEl.classList.add('active');
-
-                setTimeout(() => {
-                    messageEl.classList.remove('active');
-                }, 3000);
-            }
+          // Redirect after 2 seconds
+          setTimeout(() => {
+            window.location.href = 'index.html';
+          }, 2000);
         }
 
-        // Initialize edit page
-        document.addEventListener('DOMContentLoaded', () => {
-            new EditBooking();
-        });
+        showError() {
+          document.getElementById('loadingState').style.display = 'none';
+          document.getElementById('errorState').style.display = 'block';
+        }
+
+        showSuccess(message) {
+          const messageEl = document.getElementById('successMessage');
+          messageEl.textContent = message;
+          messageEl.classList.add('active');
+
+          setTimeout(() => {
+            messageEl.classList.remove('active');
+          }, 3000);
+        }
+      }
+
+      // Initialize edit page
+      document.addEventListener('DOMContentLoaded', () => {
+        new EditBooking();
+      });
     </script>
-</body>
+  </body>
 </html>
