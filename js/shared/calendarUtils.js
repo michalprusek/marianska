@@ -10,13 +10,11 @@ class CalendarUtils {
       } else {
         newMonth = currentMonth - 1;
       }
+    } else if (currentMonth === 11) {
+      newMonth = 0;
+      newYear = currentYear + 1;
     } else {
-      if (currentMonth === 11) {
-        newMonth = 0;
-        newYear = currentYear + 1;
-      } else {
-        newMonth = currentMonth + 1;
-      }
+      newMonth = currentMonth + 1;
     }
 
     return { month: newMonth, year: newYear };
@@ -46,7 +44,9 @@ class CalendarUtils {
         }
       }
       grid.push(weekDays);
-      if (currentDate > daysInMonth) break;
+      if (currentDate > daysInMonth) {
+        break;
+      }
     }
 
     return {
@@ -54,7 +54,7 @@ class CalendarUtils {
       daysInMonth,
       firstDay,
       lastDay,
-      startDayOfWeek
+      startDayOfWeek,
     };
   }
 

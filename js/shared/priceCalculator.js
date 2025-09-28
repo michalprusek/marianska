@@ -2,7 +2,7 @@ class PriceCalculator {
   static calculateRoomPrice(roomType, guestType, adults, children, nights, settings) {
     const prices = settings.prices[guestType][roomType];
 
-    const adultsPrice = prices.base + (Math.max(0, adults - 1) * prices.adult);
+    const adultsPrice = prices.base + Math.max(0, adults - 1) * prices.adult;
     const childrenPrice = children * prices.child;
     const nightPrice = adultsPrice + childrenPrice;
 
@@ -16,11 +16,12 @@ class PriceCalculator {
     const externalAdultPrice = 250;
     const externalChildPrice = 50;
 
-    const nightlyPrice = basePrice +
-      (utiaAdults * utiaAdultPrice) +
-      (utiaChildren * utiaChildPrice) +
-      (externalAdults * externalAdultPrice) +
-      (externalChildren * externalChildPrice);
+    const nightlyPrice =
+      basePrice +
+      utiaAdults * utiaAdultPrice +
+      utiaChildren * utiaChildPrice +
+      externalAdults * externalAdultPrice +
+      externalChildren * externalChildPrice;
 
     return nightlyPrice * nights;
   }
@@ -28,8 +29,8 @@ class PriceCalculator {
   static calculateTotalPrice(rooms, guestType, adults, children, nights, settings) {
     let totalPrice = 0;
 
-    rooms.forEach(roomId => {
-      const room = settings.rooms.find(r => r.id === roomId);
+    rooms.forEach((roomId) => {
+      const room = settings.rooms.find((r) => r.id === roomId);
       if (room) {
         const roomType = room.type;
         const roomAdults = Math.min(adults, room.beds);
@@ -57,7 +58,7 @@ class PriceCalculator {
       style: 'currency',
       currency: 'CZK',
       minimumFractionDigits: 0,
-      maximumFractionDigits: 0
+      maximumFractionDigits: 0,
     }).format(price);
   }
 
@@ -66,8 +67,8 @@ class PriceCalculator {
     let remainingAdults = adults;
     let remainingChildren = children;
 
-    rooms.forEach(roomId => {
-      const room = settings.rooms.find(r => r.id === roomId);
+    rooms.forEach((roomId) => {
+      const room = settings.rooms.find((r) => r.id === roomId);
       if (room) {
         const roomAdults = Math.min(remainingAdults, room.beds);
         const roomChildren = Math.max(0, Math.min(remainingChildren, room.beds - roomAdults));
@@ -86,7 +87,7 @@ class PriceCalculator {
           adults: roomAdults,
           children: roomChildren,
           price: roomPrice,
-          priceFormatted: this.formatPrice(roomPrice, lang)
+          priceFormatted: this.formatPrice(roomPrice, lang),
         });
 
         remainingAdults -= roomAdults;

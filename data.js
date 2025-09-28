@@ -143,7 +143,7 @@ class DataManager {
       bookings: [],
       blockedDates: [],
       settings: {
-        adminPassword: 'admin123',
+        adminPassword: '', // Now using bcrypt hash on server
         christmasAccessCodes: ['XMAS2024'],
         christmasPeriod: {
           start: '2024-12-23',
@@ -186,11 +186,19 @@ class DataManager {
 
     // Try to save to server
     try {
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+
+      // Add API key if available for admin operations
+      const apiKey = this.getApiKey();
+      if (apiKey) {
+        headers['x-api-key'] = apiKey;
+      }
+
       const response = await fetch(`${this.apiUrl}/data`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(data),
       });
       if (response.ok) {
@@ -250,6 +258,34 @@ class DataManager {
   }
 
   async deleteBooking(bookingId) {
+    // Try server API first if available
+    if (this.serverAvailable) {
+      try {
+        const headers = {};
+        const apiKey = this.getApiKey();
+        if (apiKey) {
+          headers['x-api-key'] = apiKey;
+        }
+
+        const response = await fetch(`${this.apiUrl}/booking/${bookingId}`, {
+          method: 'DELETE',
+          headers,
+        });
+
+        if (response.ok) {
+          // Update local cache
+          const data = await this.getData();
+          data.bookings = data.bookings.filter((b) => b.id !== bookingId);
+          this.cachedData = data;
+          localStorage.setItem(this.storageKey, JSON.stringify(data));
+          return true;
+        }
+      } catch (error) {
+        console.error('Error deleting booking via API:', error);
+      }
+    }
+
+    // Fallback to local deletion
     const data = await this.getData();
     const initialLength = data.bookings.length;
     data.bookings = data.bookings.filter((b) => b.id !== bookingId);
@@ -528,10 +564,41 @@ class DataManager {
     return data.settings;
   }
 
-  // Admin authentication
+  // Admin authentication - now using server API
   async authenticateAdmin(password) {
-    const data = await this.getData();
-    return data.settings.adminPassword === password;
+    try {
+      const response = await fetch(`${this.apiUrl}/admin/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Store API key for subsequent requests
+        if (data.apiKey) {
+          sessionStorage.setItem('apiKey', data.apiKey);
+        }
+        return data.success;
+      }
+      return false;
+    } catch (error) {
+      console.error('Authentication error:', error);
+      // Fallback to local check for backward compatibility
+      const data = await this.getData();
+      // Check if password field exists (old format)
+      if (data.settings.adminPassword) {
+        return data.settings.adminPassword === password;
+      }
+      return false;
+    }
+  }
+
+  // Get API key from session
+  getApiKey() {
+    return sessionStorage.getItem('apiKey');
   }
 
   // Utility functions

@@ -22,12 +22,7 @@ class BookingFormModule {
     step2.style.display = 'block';
 
     // Pre-fill guest type if selected
-    const guestTypeSelect = document.getElementById('bookingGuestType');
-    const firstRoom = Array.from(this.app.selectedRooms)[0];
-    const roomGuestType = this.app.roomGuestTypes.get(firstRoom);
-    if (roomGuestType) {
-      guestTypeSelect.value = roomGuestType;
-    }
+    // Note: Guest type is handled by radio buttons in the modal, not here
 
     this.updatePriceSummary();
   }
@@ -47,7 +42,23 @@ class BookingFormModule {
     }
 
     const sortedDates = Array.from(this.app.selectedDates).sort();
-    const guestType = document.getElementById('bookingGuestType').value;
+
+    // Get guest type based on which booking mode is active
+    let guestType = 'utia'; // default
+    const singleRoomModal = document.getElementById('singleRoomBookingModal');
+    const bulkModal = document.getElementById('bulkBookingModal');
+
+    if (singleRoomModal && singleRoomModal.classList.contains('active')) {
+      // Single room booking mode
+      const singleGuestTypeInput = document.querySelector(
+        'input[name="singleRoomGuestType"]:checked'
+      );
+      guestType = singleGuestTypeInput ? singleGuestTypeInput.value : 'utia';
+    } else if (bulkModal && bulkModal.classList.contains('active')) {
+      // Bulk booking mode
+      const bulkGuestTypeInput = document.querySelector('input[name="bulkGuestType"]:checked');
+      guestType = bulkGuestTypeInput ? bulkGuestTypeInput.value : 'utia';
+    }
 
     let html = `
             <div class="booking-summary-section">
@@ -81,11 +92,12 @@ class BookingFormModule {
 
       const guests = this.app.roomGuests.get(roomId) || { adults: 1, children: 0, toddlers: 0 };
       const roomPrice = await dataManager.calculatePrice(
-        room.type,
         guestType,
         guests.adults,
         guests.children,
-        guests.toddlers
+        guests.toddlers,
+        1, // price per night
+        1 // single room
       );
 
       totalPrice += roomPrice * sortedDates.length;
@@ -121,17 +133,32 @@ class BookingFormModule {
 
   async submitBooking() {
     // Get form values
-    const name = document.getElementById('bookingName').value.trim();
-    const email = document.getElementById('bookingEmail').value.trim();
-    const phone = document.getElementById('bookingPhone').value.trim();
-    const company = document.getElementById('bookingCompany')?.value.trim() || '';
-    const address = document.getElementById('bookingAddress')?.value.trim() || '';
-    const city = document.getElementById('bookingCity')?.value.trim() || '';
-    const zip = document.getElementById('bookingZip')?.value.trim() || '';
-    const ico = document.getElementById('bookingICO')?.value.trim() || '';
-    const dic = document.getElementById('bookingDIC')?.value.trim() || '';
-    const guestType = document.getElementById('bookingGuestType').value;
-    const notes = document.getElementById('bookingNotes').value.trim();
+    const name = document.getElementById('name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    const company = document.getElementById('company')?.value.trim() || '';
+    const address = document.getElementById('address')?.value.trim() || '';
+    const city = document.getElementById('city')?.value.trim() || '';
+    const zip = document.getElementById('zip')?.value.trim() || '';
+    const ico = document.getElementById('ico')?.value.trim() || '';
+    const dic = document.getElementById('dic')?.value.trim() || '';
+    // Get guest type based on which booking mode is active
+    let guestType = 'utia'; // default
+    const singleRoomModal = document.getElementById('singleRoomBookingModal');
+    const bulkModal = document.getElementById('bulkBookingModal');
+
+    if (singleRoomModal && singleRoomModal.classList.contains('active')) {
+      // Single room booking mode
+      const singleGuestTypeInput = document.querySelector(
+        'input[name="singleRoomGuestType"]:checked'
+      );
+      guestType = singleGuestTypeInput ? singleGuestTypeInput.value : 'utia';
+    } else if (bulkModal && bulkModal.classList.contains('active')) {
+      // Bulk booking mode
+      const bulkGuestTypeInput = document.querySelector('input[name="bulkGuestType"]:checked');
+      guestType = bulkGuestTypeInput ? bulkGuestTypeInput.value : 'utia';
+    }
+    const notes = document.getElementById('notes').value.trim();
 
     // Validate required fields
     if (!name || !email || !phone) {

@@ -21,13 +21,17 @@ class ValidationUtils {
   }
 
   static validateICO(ico) {
-    if (!ico) return true;
+    if (!ico) {
+      return true;
+    }
     const cleanIco = ico.replace(/\s/g, '');
     return cleanIco.length === 8 && /^\d+$/.test(cleanIco);
   }
 
   static validateDIC(dic) {
-    if (!dic) return true;
+    if (!dic) {
+      return true;
+    }
     const cleanDic = dic.replace(/\s/g, '');
     return /^CZ\d{8,10}$/.test(cleanDic);
   }
@@ -60,7 +64,7 @@ class ValidationUtils {
         zip: 'PSČ musí obsahovat přesně 5 číslic',
         ico: 'IČO musí obsahovat přesně 8 číslic',
         dic: 'DIČ musí být ve formátu CZ následované 8-10 číslicemi',
-        required: 'Toto pole je povinné'
+        required: 'Toto pole je povinné',
       },
       en: {
         email: 'Invalid email format',
@@ -68,8 +72,8 @@ class ValidationUtils {
         zip: 'ZIP code must contain exactly 5 digits',
         ico: 'Company ID must contain exactly 8 digits',
         dic: 'VAT ID must be in format CZ followed by 8-10 digits',
-        required: 'This field is required'
-      }
+        required: 'This field is required',
+      },
     };
 
     switch (field) {

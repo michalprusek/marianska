@@ -265,27 +265,53 @@ class UtilsModule {
   }
 
   showNotification(message, type = 'info', duration = 5000) {
+    // Create notification element
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
-    notification.textContent = message;
+    notification.style.setProperty('--duration', `${duration / 1000}s`);
 
+    // Create icon based on type
+    const iconMap = {
+      success: '✓',
+      error: '✕',
+      warning: '⚠',
+      info: 'ℹ',
+    };
+
+    // Build notification HTML structure
+    notification.innerHTML = `
+      <span class="notification-icon">${iconMap[type] || iconMap.info}</span>
+      <span class="notification-content">${message}</span>
+      <span class="notification-close">×</span>
+    `;
+
+    // Get or create container
     const container =
       document.getElementById('notificationContainer') ||
       (() => {
         const c = document.createElement('div');
         c.id = 'notificationContainer';
-        c.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 10000;';
         document.body.appendChild(c);
         return c;
       })();
 
     container.appendChild(notification);
 
+    // Click to dismiss functionality
+    notification.addEventListener('click', () => {
+      notification.classList.add('removing');
+      setTimeout(() => notification.remove(), 300);
+    });
+
+    // Animate in
     requestAnimationFrame(() => notification.classList.add('show'));
 
+    // Auto dismiss after duration
     setTimeout(() => {
-      notification.classList.remove('show');
-      setTimeout(() => notification.remove(), 300);
+      if (notification.parentElement) {
+        notification.classList.add('removing');
+        setTimeout(() => notification.remove(), 300);
+      }
     }, duration);
   }
 
@@ -311,16 +337,30 @@ class UtilsModule {
 
   async updateSelectedDatesDisplay() {
     const display = document.getElementById('selectedDatesDisplay');
+    const confirmBtn = document.getElementById('confirmSingleRoomBtn');
+
     if (!display) {
       return;
     }
 
     if (this.app.selectedDates.size === 0) {
       display.style.display = 'none';
+      // Disable the confirm button when no dates are selected
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+      }
       return;
     }
 
     display.style.display = 'block';
+
+    // Calculate total nights (selected days - 1)
+    const totalNights = Math.max(0, this.app.selectedDates.size - 1);
+
+    // Enable/disable the confirm button based on nights
+    if (confirmBtn) {
+      confirmBtn.disabled = totalNights === 0;
+    }
 
     const sortedDates = Array.from(this.app.selectedDates).sort();
     const ranges = this.getDateRanges(sortedDates);
@@ -329,12 +369,13 @@ class UtilsModule {
     ranges.forEach((range) => {
       const start = new Date(range.start);
       const end = new Date(range.end);
-      const nights = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+      const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+      const nights = days - 1; // nights = days - 1
 
       if (range.start === range.end) {
         html += `<div class="selected-date-range">
                     <span>${this.formatDateDisplay(start)}</span>
-                    <span class="nights-count">1 ${this.app.currentLanguage === 'cs' ? 'noc' : 'night'}</span>
+                    <span class="nights-count">0 ${this.app.currentLanguage === 'cs' ? 'nocí' : 'nights'}</span>
                 </div>`;
       } else {
         html += `<div class="selected-date-range">
@@ -352,16 +393,47 @@ class UtilsModule {
     const priceEl = document.getElementById('totalPrice');
     const nightsEl = document.getElementById('nightsMultiplier');
     const perNightEl = document.getElementById('pricePerNight');
+    const basePriceEl = document.getElementById('basePrice');
 
     if (!priceEl) {
       return;
     }
 
-    const nights = this.app.selectedDates.size;
-    if (nights === 0) {
+    // Get current settings and prices
+    const settings = await dataManager.getSettings();
+    const prices = settings.prices || {
+      utia: { base: 300, adult: 50, child: 25 },
+      external: { base: 500, adult: 100, child: 50 },
+    };
+
+    // Determine the current guest type for base price display
+    let currentGuestType = 'utia';
+    if (this.app.currentBookingRoom) {
+      currentGuestType = this.app.roomGuestTypes.get(this.app.currentBookingRoom) || 'utia';
+    } else if (this.app.selectedRooms.size > 0) {
+      const firstRoom = Array.from(this.app.selectedRooms)[0];
+      currentGuestType = this.app.roomGuestTypes.get(firstRoom) || 'utia';
+    }
+
+    // Get base price based on current guest type
+    const guestKey = currentGuestType === 'utia' ? 'utia' : 'external';
+    const baseRoomPrice = prices[guestKey].base;
+
+    // Always update base price display
+    if (basePriceEl) {
+      basePriceEl.textContent = `${baseRoomPrice.toLocaleString('cs-CZ')} Kč`;
+    }
+
+    // Calculate nights as selected days - 1
+    const nights = Math.max(0, this.app.selectedDates.size - 1);
+
+    if (this.app.selectedDates.size === 0 || nights === 0) {
       priceEl.textContent = '0 Kč';
       if (nightsEl) {
         nightsEl.textContent = '0';
+      }
+      if (perNightEl) {
+        perNightEl.textContent = '0 Kč';
       }
       return;
     }
@@ -370,7 +442,15 @@ class UtilsModule {
     let totalPrice = 0;
     let pricePerNight = 0;
 
-    for (const roomId of this.app.selectedRooms || [this.app.currentBookingRoom]) {
+    // Determine which rooms to calculate price for
+    const roomsToCalculate =
+      this.app.selectedRooms.size > 0
+        ? this.app.selectedRooms
+        : this.app.currentBookingRoom
+          ? new Set([this.app.currentBookingRoom])
+          : new Set();
+
+    for (const roomId of roomsToCalculate) {
       const guests = this.app.roomGuests.get(roomId) || { adults: 1, children: 0, toddlers: 0 };
       const guestType = this.app.roomGuestTypes.get(roomId) || 'utia';
 
@@ -381,11 +461,12 @@ class UtilsModule {
       }
 
       const roomPrice = await dataManager.calculatePrice(
-        room.type,
         guestType,
         guests.adults,
         guests.children,
-        guests.toddlers
+        guests.toddlers,
+        1, // nights per room calculation
+        1 // single room
       );
 
       pricePerNight += roomPrice;
@@ -393,12 +474,98 @@ class UtilsModule {
 
     totalPrice = pricePerNight * nights;
 
+    // Update all price displays
     priceEl.textContent = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
     if (nightsEl) {
       nightsEl.textContent = nights;
     }
     if (perNightEl) {
       perNightEl.textContent = `${pricePerNight.toLocaleString('cs-CZ')} Kč`;
+    }
+
+    // Also update single room modal price displays
+    const modal = document.getElementById('singleRoomBookingModal');
+    if (modal && modal.classList.contains('active')) {
+      // Find the "Celkem:" element in the modal and update its sibling
+      const modalTotalEl = modal.querySelector('#totalPrice');
+      const modalNightsText = modal.querySelector('.price-breakdown .nights-display');
+
+      if (modalTotalEl) {
+        modalTotalEl.textContent = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
+      }
+
+      // Update guest counts and surcharges display
+      if (this.app.currentBookingRoom) {
+        const guests = this.app.roomGuests.get(this.app.currentBookingRoom) || {
+          adults: 1,
+          children: 0,
+          toddlers: 0,
+        };
+        const guestType = this.app.roomGuestTypes.get(this.app.currentBookingRoom) || 'utia';
+        const guestKey = guestType === 'utia' ? 'utia' : 'external';
+        const priceConfig = prices[guestKey];
+
+        // Update guest counts summary
+        const guestCountsSummary = document.getElementById('guestCountsSummary');
+        if (guestCountsSummary) {
+          const parts = [];
+          if (guests.adults > 0) {
+            parts.push(`${guests.adults} dosp.`);
+          }
+          if (guests.children > 0) {
+            parts.push(`${guests.children} děti`);
+          }
+          if (guests.toddlers > 0) {
+            parts.push(`${guests.toddlers} bat.`);
+          }
+          guestCountsSummary.textContent = parts.join(', ') || '0';
+        }
+
+        // Calculate and show adult surcharge
+        const adultsPrice = document.getElementById('adultsPrice');
+        const adultsSurcharge = document.getElementById('adultsSurcharge');
+        if (adultsPrice && adultsSurcharge) {
+          const extraAdults = Math.max(0, guests.adults - 1);
+          if (extraAdults > 0) {
+            const surcharge = extraAdults * priceConfig.adult;
+            adultsSurcharge.textContent = `${surcharge.toLocaleString('cs-CZ')} Kč (${extraAdults} × ${priceConfig.adult} Kč)`;
+            adultsPrice.style.display = 'flex';
+          } else {
+            adultsPrice.style.display = 'none';
+          }
+        }
+
+        // Calculate and show children surcharge
+        const childrenPrice = document.getElementById('childrenPrice');
+        const childrenSurcharge = document.getElementById('childrenSurcharge');
+        if (childrenPrice && childrenSurcharge) {
+          if (guests.children > 0) {
+            const surcharge = guests.children * priceConfig.child;
+            childrenSurcharge.textContent = `${surcharge.toLocaleString('cs-CZ')} Kč (${guests.children} × ${priceConfig.child} Kč)`;
+            childrenPrice.style.display = 'flex';
+          } else {
+            childrenPrice.style.display = 'none';
+          }
+        }
+
+        // Update toddlers info
+        const toddlersSummary = document.getElementById('toddlersSummary');
+        const toddlersInfo = document.getElementById('toddlersInfo');
+        if (toddlersSummary && toddlersInfo) {
+          if (guests.toddlers > 0) {
+            toddlersSummary.textContent = `${guests.toddlers} zdarma`;
+            toddlersInfo.style.display = 'flex';
+          } else {
+            toddlersInfo.style.display = 'none';
+          }
+        }
+      }
+
+      // Also enable/disable the confirm button based on selection
+      const confirmBtn = document.getElementById('confirmSingleRoomBtn');
+      if (confirmBtn) {
+        confirmBtn.disabled = nights === 0;
+      }
     }
   }
 

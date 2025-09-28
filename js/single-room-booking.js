@@ -25,9 +25,36 @@ class SingleRoomBookingModule {
     this.app.roomGuests.clear();
     this.app.roomGuestTypes.clear();
 
-    // Set default guest configuration
-    this.app.roomGuests.set(roomId, { adults: 1, children: 0, toddlers: 0 });
+    // Set default guest configuration - ensure it respects room capacity
+    const defaultGuests = { adults: 1, children: 0, toddlers: 0 };
+
+    // Validate against room capacity
+    const totalGuests = defaultGuests.adults + defaultGuests.children;
+    if (totalGuests > room.beds) {
+      // Adjust to fit room capacity
+      defaultGuests.children = 0;
+      defaultGuests.adults = Math.min(1, room.beds);
+    }
+
+    this.app.roomGuests.set(roomId, defaultGuests);
     this.app.roomGuestTypes.set(roomId, 'utia');
+
+    // Update display of guest counts
+    const adultsEl = document.getElementById('singleRoomAdults');
+    const childrenEl = document.getElementById('singleRoomChildren');
+    const toddlersEl = document.getElementById('singleRoomToddlers');
+
+    if (adultsEl) {
+      adultsEl.textContent = defaultGuests.adults.toString();
+    }
+    if (childrenEl) {
+      childrenEl.textContent = defaultGuests.children.toString();
+    }
+    if (toddlersEl) {
+      toddlersEl.textContent = defaultGuests.toddlers.toString();
+    }
+
+    // Room capacity initialized with guest defaults
 
     // Initialize drag selection state
     this.app.isDragging = false;
@@ -74,7 +101,7 @@ class SingleRoomBookingModule {
       this.airbnbCalendar.addEventListener('dates-selected', async (event) => {
         const { checkIn, checkOut, dates } = event.detail;
         this.app.selectedDates.clear();
-        dates.forEach(date => this.app.selectedDates.add(date));
+        dates.forEach((date) => this.app.selectedDates.add(date));
         await this.app.updateSelectedDatesDisplay();
         await this.app.updatePriceCalculation();
       });
@@ -84,6 +111,10 @@ class SingleRoomBookingModule {
       await this.app.updateSelectedDatesDisplay();
       await this.app.updatePriceCalculation();
     }
+
+    // Ensure room is selected for price calculation
+    this.app.selectedRooms.add(roomId);
+    await this.app.updatePriceCalculation();
   }
 
   async renderMiniCalendar(roomId) {

@@ -6,9 +6,7 @@ class IdGenerator {
   }
 
   static generateEditToken() {
-    return Array.from({ length: 32 }, () =>
-      Math.random().toString(36)[2] || '0'
-    ).join('');
+    return Array.from({ length: 32 }, () => Math.random().toString(36)[2] || '0').join('');
   }
 
   static generateBlockageId() {
@@ -18,16 +16,12 @@ class IdGenerator {
   }
 
   static generateSessionId() {
-    return Array.from({ length: 16 }, () =>
-      Math.random().toString(36)[2] || '0'
-    ).join('');
+    return Array.from({ length: 16 }, () => Math.random().toString(36)[2] || '0').join('');
   }
 
   static generateRandomCode(length = 8) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    return Array.from({ length }, () =>
-      chars[Math.floor(Math.random() * chars.length)]
-    ).join('');
+    return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
   }
 }
 

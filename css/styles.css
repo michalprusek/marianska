@@ -245,10 +245,11 @@ input:checked + .slider:before {
 
 .calendar-day {
   background: white;
-  padding: 0.75rem;
-  min-height: 100px;
+  padding: 0.5rem;
+  min-height: 80px;
   position: relative;
   transition: all 0.2s;
+  cursor: pointer;
 }
 
 .calendar-day.other-month {
@@ -592,6 +593,25 @@ input:checked + .slider:before {
   flex-direction: column;
 }
 
+/* Přidání speciálního stylu pro kalendářní modály */
+.modal-content.calendar-modal {
+  padding: 1rem;
+}
+
+/* Zajištění správného zobrazení vánočního období v modálech */
+#bookingFormModal .calendar-day.christmas-period,
+#singleRoomBookingModal .calendar-day.christmas-period {
+  border: 1px solid #ffd700;
+  background: linear-gradient(135deg, #fff9e6, #fffaf0);
+}
+
+/* Hover efekt pro kalendářní políčka v modálech */
+#bookingFormModal .calendar-day:not(.disabled):hover,
+#singleRoomBookingModal .calendar-day:not(.disabled):hover {
+  background: rgba(33, 150, 243, 0.1);
+  transform: scale(1.05);
+}
+
 @keyframes slideUp {
   from {
     opacity: 0;
@@ -665,12 +685,12 @@ input:checked + .slider:before {
   }
 }
 
-/* Modal calendar styles */
+/* Modal calendar styles - base */
 .modal .calendar-grid {
   flex: 1;
   overflow-y: auto;
-  max-height: 50vh;
-  margin: 1rem 0;
+  max-height: 70vh;
+  margin: 0.5rem 0;
 }
 
 .modal .calendar-week {
@@ -681,8 +701,8 @@ input:checked + .slider:before {
 }
 
 .modal .calendar-day {
-  padding: 0.5rem;
-  min-height: 60px;
+  padding: 0.3rem;
+  min-height: 45px;
 }
 
 .modal .room-cell {
@@ -691,37 +711,209 @@ input:checked + .slider:before {
   margin: 2px;
 }
 
-/* Compact modal calendar for better visibility */
+/* Compact modal calendar for better visibility - optimalizované pro malé obrazovky */
+#bookingFormModal .modal-content,
+#singleRoomBookingModal .modal-content {
+  max-width: 95vw;
+  width: 95%;
+  max-height: 95vh;
+  padding: 1rem;
+}
+
 #bookingFormModal .calendar-container,
 #singleRoomBookingModal .calendar-container {
-  max-height: 60vh;
+  max-height: calc(95vh - 150px); /* Odečst prostor pro hlavičku a tlačítka */
   overflow-y: auto;
   flex: 1;
+  padding: 0.25rem;
 }
 
 #bookingFormModal .calendar-grid,
 #singleRoomBookingModal .calendar-grid {
-  padding: 0.5rem;
+  padding: 0.25rem;
+  gap: 1px;
+  background: var(--gray-200);
 }
 
 #bookingFormModal .calendar-week,
 #singleRoomBookingModal .calendar-week {
-  gap: 0.25rem;
+  gap: 1px;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
 }
 
 #bookingFormModal .calendar-day,
 #singleRoomBookingModal .calendar-day {
-  font-size: 0.9rem;
-  padding: 0.25rem;
-  min-height: auto;
+  font-size: 0.75rem;
+  padding: 0.1rem;
+  min-height: 32px;
+  height: 32px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: white;
+  border: none;
+  position: relative;
+}
+
+#bookingFormModal .calendar-day-number,
+#singleRoomBookingModal .calendar-day-number {
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1;
+  margin-bottom: 2px;
 }
 
 #bookingFormModal .room-cell,
-#singleRoomBookingModal .room-cell {
-  font-size: 0.75rem;
-  padding: 2px 4px;
-  margin: 1px;
-  line-height: 1.2;
+#singleRoomBookingModal .room-cell,
+#bookingFormModal .room-indicator,
+#singleRoomBookingModal .room-indicator {
+  font-size: 0.6rem;
+  padding: 0px 2px;
+  margin: 0;
+  line-height: 1;
+  height: 14px;
+  min-width: 14px;
+  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#bookingFormModal .calendar-day-rooms,
+#singleRoomBookingModal .calendar-day-rooms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  justify-content: center;
+  width: 100%;
+}
+
+/* Calendar header optimization */
+#bookingFormModal .calendar-header,
+#singleRoomBookingModal .calendar-header {
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#bookingFormModal .calendar-header h3,
+#singleRoomBookingModal .calendar-header h3,
+#bookingFormModal .month-title,
+#singleRoomBookingModal .month-title {
+  font-size: 1rem;
+  margin: 0;
+}
+
+#bookingFormModal .nav-btn,
+#singleRoomBookingModal .nav-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  font-size: 0.9rem;
+}
+
+/* Weekday headers */
+#bookingFormModal .weekday-header,
+#singleRoomBookingModal .weekday-header {
+  font-size: 0.7rem;
+  padding: 0.25rem;
+  text-align: center;
+  font-weight: 600;
+  background: var(--gray-100);
+}
+
+/* Room badge optimization */
+#bookingFormModal .room-badge,
+#singleRoomBookingModal .room-badge {
+  font-size: 0.6rem;
+  padding: 0px 2px;
+  border-radius: 2px;
+  display: inline-block;
+  margin: 0;
+}
+
+/* Responsive adjustments for modal calendars - tablets */
+@media (max-width: 768px) {
+  #bookingFormModal .modal-content,
+  #singleRoomBookingModal .modal-content {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 0;
+    height: 100vh;
+    max-height: 100vh;
+  }
+
+  #bookingFormModal .calendar-container,
+  #singleRoomBookingModal .calendar-container {
+    max-height: calc(100vh - 120px);
+  }
+
+  #bookingFormModal .calendar-day,
+  #singleRoomBookingModal .calendar-day {
+    min-height: 28px;
+    height: 28px;
+    padding: 0.05rem;
+    font-size: 0.7rem;
+  }
+
+  #bookingFormModal .calendar-day-number,
+  #singleRoomBookingModal .calendar-day-number {
+    font-size: 0.65rem;
+  }
+
+  #bookingFormModal .room-cell,
+  #singleRoomBookingModal .room-cell,
+  #bookingFormModal .room-indicator,
+  #singleRoomBookingModal .room-indicator {
+    font-size: 0.55rem;
+    height: 12px;
+    min-width: 12px;
+  }
+}
+
+/* Ultra-compact mode for very small screens - phones */
+@media (max-width: 480px) {
+  #bookingFormModal .calendar-day,
+  #singleRoomBookingModal .calendar-day {
+    min-height: 25px;
+    height: 25px;
+    padding: 0;
+    font-size: 0.65rem;
+  }
+
+  #bookingFormModal .calendar-day-number,
+  #singleRoomBookingModal .calendar-day-number {
+    font-size: 0.6rem;
+    margin-bottom: 1px;
+  }
+
+  #bookingFormModal .room-cell,
+  #singleRoomBookingModal .room-cell,
+  #bookingFormModal .room-indicator,
+  #singleRoomBookingModal .room-indicator {
+    font-size: 0.5rem;
+    height: 10px;
+    min-width: 10px;
+    padding: 0 1px;
+  }
+
+  #bookingFormModal .calendar-header h3,
+  #singleRoomBookingModal .calendar-header h3,
+  #bookingFormModal .month-title,
+  #singleRoomBookingModal .month-title {
+    font-size: 0.9rem;
+  }
+
+  #bookingFormModal .nav-btn,
+  #singleRoomBookingModal .nav-btn {
+    width: 25px;
+    height: 25px;
+    font-size: 0.8rem;
+  }
 }
 
 /* Responsive Design */

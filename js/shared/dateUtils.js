@@ -43,9 +43,11 @@ class DateUtils {
   static isToday(date) {
     const today = new Date();
     const d = new Date(date);
-    return d.getFullYear() === today.getFullYear() &&
-           d.getMonth() === today.getMonth() &&
-           d.getDate() === today.getDate();
+    return (
+      d.getFullYear() === today.getFullYear() &&
+      d.getMonth() === today.getMonth() &&
+      d.getDate() === today.getDate()
+    );
   }
 
   static isPast(date) {

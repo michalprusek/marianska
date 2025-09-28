@@ -41,7 +41,7 @@ class BulkBookingModule {
       this.airbnbCalendar.addEventListener('dates-selected', async (event) => {
         const { checkIn, checkOut, dates } = event.detail;
         this.bulkSelectedDates.clear();
-        dates.forEach(date => this.bulkSelectedDates.add(date));
+        dates.forEach((date) => this.bulkSelectedDates.add(date));
         await this.updateBulkSelectedDatesDisplay();
         await this.updateBulkPriceCalculation();
         this.updateBulkCapacityCheck();
@@ -140,6 +140,12 @@ class BulkBookingModule {
     const isFullyAvailable = await this.isDateFullyAvailable(date);
     const isChristmas = await dataManager.isChristmasPeriod(date);
 
+    // Check if it's Christmas period and after October 1st for bulk bookings
+    const today = new Date();
+    const oct1 = new Date(today.getFullYear(), 9, 1); // October 1st
+    const isAfterOct1 = today >= oct1;
+    const isChristmasBlocked = isChristmas && isAfterOct1;
+
     // Styling
     if (isOtherMonth) {
       dayEl.classList.add('other-month');
@@ -147,6 +153,13 @@ class BulkBookingModule {
 
     if (isPast) {
       dayEl.classList.add('disabled');
+    } else if (isChristmasBlocked) {
+      // Block Christmas period for bulk bookings after October 1st
+      dayEl.classList.add('blocked');
+      dayEl.title =
+        this.app.currentLanguage === 'cs'
+          ? 'Vánoční období - hromadné rezervace nejsou po 1.10. povoleny'
+          : 'Christmas period - bulk bookings not allowed after Oct 1';
     } else if (!isFullyAvailable) {
       dayEl.classList.add('partial-booked');
     } else {
@@ -164,7 +177,14 @@ class BulkBookingModule {
         Math.min(new Date(this.bulkDragStart), new Date(this.bulkDragEnd))
       );
       const endDate = new Date(Math.max(new Date(this.bulkDragStart), new Date(this.bulkDragEnd)));
-      if (date >= startDate && date <= endDate && !isPast && isFullyAvailable) {
+      const isChristmasBlockedDrag = isChristmas && isAfterOct1;
+      if (
+        date >= startDate &&
+        date <= endDate &&
+        !isPast &&
+        isFullyAvailable &&
+        !isChristmasBlockedDrag
+      ) {
         dayEl.classList.add('in-range');
       }
     }
@@ -178,7 +198,7 @@ class BulkBookingModule {
     }
 
     // Event handlers
-    if (!isPast && !isOtherMonth && isFullyAvailable) {
+    if (!isPast && !isOtherMonth && isFullyAvailable && !isChristmasBlocked) {
       dayEl.style.cursor = 'pointer';
       dayEl.style.userSelect = 'none';
       dayEl.style.webkitUserSelect = 'none';
@@ -264,13 +284,20 @@ class BulkBookingModule {
 
     this.bulkSelectedDates.clear();
 
+    // Check if it's after October 1st
+    const today = new Date();
+    const oct1 = new Date(today.getFullYear(), 9, 1);
+    const isAfterOct1 = today >= oct1;
+
     const currentDate = new Date(actualStart);
     while (currentDate <= actualEnd) {
       const dateStr = dataManager.formatDate(currentDate);
       const isAvailable = await this.isDateFullyAvailable(currentDate);
       const isPast = currentDate < this.app.today;
+      const isChristmas = await dataManager.isChristmasPeriod(currentDate);
+      const isChristmasBlocked = isChristmas && isAfterOct1;
 
-      if (!isPast && isAvailable) {
+      if (!isPast && isAvailable && !isChristmasBlocked) {
         this.bulkSelectedDates.add(dateStr);
       }
 
@@ -323,8 +350,13 @@ class BulkBookingModule {
     if (display) {
       display.style.display = 'block';
     }
+
+    // Calculate total nights (selected days - 1)
+    const totalNights = Math.max(0, this.bulkSelectedDates.size - 1);
+
+    // Enable/disable the confirm button based on nights
     if (confirmBtn) {
-      confirmBtn.disabled = false;
+      confirmBtn.disabled = totalNights === 0;
     }
 
     const sortedDates = Array.from(this.bulkSelectedDates).sort();
@@ -334,12 +366,13 @@ class BulkBookingModule {
     ranges.forEach((range) => {
       const start = new Date(range.start);
       const end = new Date(range.end);
-      const nights = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+      const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+      const nights = days - 1; // nights = days - 1
 
       if (range.start === range.end) {
         html += `<div class="selected-date-range">
                     <span>${this.app.formatDateDisplay(start)}</span>
-                    <span class="nights-count">1 ${this.app.currentLanguage === 'cs' ? 'noc' : 'night'}</span>
+                    <span class="nights-count">0 ${this.app.currentLanguage === 'cs' ? 'nocí' : 'nights'}</span>
                 </div>`;
       } else {
         html += `<div class="selected-date-range">
@@ -374,7 +407,8 @@ class BulkBookingModule {
       return;
     }
 
-    const nights = sortedDates.length;
+    // Calculate nights as selected days - 1
+    const nights = Math.max(0, sortedDates.length - 1);
     const rooms = await dataManager.getRooms();
     const adults = parseInt(document.getElementById('bulkAdults')?.textContent) || 0;
     const children = parseInt(document.getElementById('bulkChildren')?.textContent) || 0;
@@ -497,6 +531,28 @@ class BulkBookingModule {
     const sortedDates = Array.from(this.bulkSelectedDates).sort();
     const startDate = sortedDates[0];
     const endDate = sortedDates[sortedDates.length - 1];
+
+    // Check if trying to book Christmas period after October 1st
+    const today = new Date();
+    const oct1 = new Date(today.getFullYear(), 9, 1);
+    const isAfterOct1 = today >= oct1;
+
+    if (isAfterOct1) {
+      // Check if any of the selected dates are in the Christmas period
+      for (const dateStr of sortedDates) {
+        const date = new Date(dateStr);
+        const isChristmas = await dataManager.isChristmasPeriod(date);
+        if (isChristmas) {
+          this.app.showNotification(
+            this.app.currentLanguage === 'cs'
+              ? 'Hromadné rezervace v období vánočních prázdnin nejsou po 1.10. povoleny'
+              : 'Bulk bookings during Christmas period are not allowed after October 1st',
+            'error'
+          );
+          return;
+        }
+      }
+    }
 
     // Create booking
     const booking = {

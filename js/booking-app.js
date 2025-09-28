@@ -142,7 +142,7 @@ class BookingApp {
       nextMini.addEventListener('click', () => this.singleRoomBooking.navigateMiniCalendar(1));
     }
 
-    // Guest type change
+    // Guest type change for booking form
     const guestTypeSelect = document.getElementById('bookingGuestType');
     if (guestTypeSelect) {
       guestTypeSelect.addEventListener('change', async () => {
@@ -152,6 +152,17 @@ class BookingApp {
         }
       });
     }
+
+    // Guest type change for single room booking modal
+    const singleRoomGuestRadios = document.querySelectorAll('input[name="singleRoomGuestType"]');
+    singleRoomGuestRadios.forEach((radio) => {
+      radio.addEventListener('change', async () => {
+        if (this.currentBookingRoom) {
+          this.roomGuestTypes.set(this.currentBookingRoom, radio.value);
+          await this.updatePriceCalculation();
+        }
+      });
+    });
 
     // Guest count controls
     ['adults', 'children', 'toddlers'].forEach((type) => {
@@ -269,30 +280,51 @@ class BookingApp {
       children: 0,
       toddlers: 0,
     };
-    guests[type] = Math.max(type === 'adults' ? 1 : 0, guests[type] + change);
 
-    // Check room capacity
+    // Calculate new value
+    const newValue = guests[type] + change;
+
+    // Check minimum values
+    if (type === 'adults' && newValue < 1) {
+      return; // Must have at least 1 adult
+    }
+    if (newValue < 0) {
+      return; // Can't have negative values
+    }
+
+    // Check room capacity (toddlers don't count towards capacity)
     const rooms = await dataManager.getRooms();
     const room = rooms.find((r) => r.id === this.currentBookingRoom);
-    if (room) {
-      const totalGuests = guests.adults + guests.children;
-      if (totalGuests > room.beds) {
+    if (room && type !== 'toddlers') {
+      const currentOthers = type === 'adults' ? guests.children : guests.adults;
+      const newTotal = newValue + currentOthers;
+
+      if (newTotal > room.beds) {
         this.showNotification(
           this.currentLanguage === 'cs'
-            ? `Pokoj má kapacitu pouze ${room.beds} lůžek`
-            : `Room capacity is only ${room.beds} beds`,
+            ? `${room.name} má kapacitu pouze ${room.beds} lůžek (batolata se nepočítají)`
+            : `${room.name} has capacity of only ${room.beds} beds (toddlers don't count)`,
           'warning'
         );
         return;
       }
     }
 
+    // Update the value
+    guests[type] = newValue;
     this.roomGuests.set(this.currentBookingRoom, guests);
 
-    // Update display
-    const input = document.getElementById(`${type}Count`);
-    if (input) {
-      input.value = guests[type];
+    // Update display - check for both single room and general IDs
+    const singleRoomEl = document.getElementById(
+      `singleRoom${type.charAt(0).toUpperCase() + type.slice(1)}`
+    );
+    const generalEl = document.getElementById(`${type}Count`);
+
+    if (singleRoomEl) {
+      singleRoomEl.textContent = guests[type].toString();
+    }
+    if (generalEl) {
+      generalEl.value = guests[type].toString();
     }
 
     await this.updatePriceCalculation();

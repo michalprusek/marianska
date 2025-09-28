@@ -9,8 +9,8 @@ class AdminPanel {
   createRoomBadge(roomId, inline = false) {
     // Use cached rooms data
     const data = JSON.parse(localStorage.getItem('chataMarianska') || '{}');
-    const rooms = data.settings?.rooms || [];
-    const room = rooms.find((r) => r.id === roomId);
+    // const rooms = data.settings?.rooms || []; // Reserved for future use
+    // const room = rooms.find((r) => r.id === roomId); // Reserved for future use
     return `<span style="
             display: ${inline ? 'inline-block' : 'inline-block'};
             margin: ${inline ? '0 0.25rem' : '0.25rem'};
@@ -39,7 +39,7 @@ class AdminPanel {
     // Login
     document
       .getElementById('loginForm')
-      .addEventListener('submit', async (e) => await this.handleLogin(e));
+      .addEventListener('submit', (e) => this.handleLogin(e));
 
     // Navigation
     document.getElementById('backBtn').addEventListener('click', () => {
@@ -50,7 +50,7 @@ class AdminPanel {
 
     // Tabs
     document.querySelectorAll('.tab-button').forEach((btn) => {
-      btn.addEventListener('click', async (e) => await this.switchTab(e.target.dataset.tab));
+      btn.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
     });
 
     // Search
@@ -61,31 +61,31 @@ class AdminPanel {
     // Forms
     document
       .getElementById('blockDateForm')
-      .addEventListener('submit', async (e) => await this.handleBlockDate(e));
+      .addEventListener('submit', (e) => this.handleBlockDate(e));
     document
       .getElementById('addCodeForm')
-      .addEventListener('submit', async (e) => await this.handleAddCode(e));
+      .addEventListener('submit', (e) => this.handleAddCode(e));
     document
       .getElementById('christmasPeriodForm')
-      .addEventListener('submit', async (e) => await this.handleChristmasPeriod(e));
+      .addEventListener('submit', (e) => this.handleChristmasPeriod(e));
     document
       .getElementById('roomConfigForm')
-      .addEventListener('submit', async (e) => await this.handleRoomConfig(e));
+      .addEventListener('submit', (e) => this.handleRoomConfig(e));
     document
       .getElementById('priceConfigForm')
-      .addEventListener('submit', async (e) => await this.handlePriceConfig(e));
+      .addEventListener('submit', (e) => this.handlePriceConfig(e));
     document
       .getElementById('bulkPriceConfigForm')
-      .addEventListener('submit', async (e) => await this.handleBulkPriceConfig(e));
+      .addEventListener('submit', (e) => this.handleBulkPriceConfig(e));
     document
       .getElementById('changePasswordForm')
-      .addEventListener('submit', async (e) => await this.handleChangePassword(e));
+      .addEventListener('submit', (e) => this.handleChangePassword(e));
     document
       .getElementById('editBookingForm')
-      .addEventListener('submit', async (e) => await this.handleEditBooking(e));
+      .addEventListener('submit', (e) => this.handleEditBooking(e));
     document
       .getElementById('emailTemplateForm')
-      .addEventListener('submit', async (e) => await this.handleEmailTemplate(e));
+      .addEventListener('submit', (e) => this.handleEmailTemplate(e));
 
     // Modal close
     document.querySelectorAll('.modal-close').forEach((btn) => {
@@ -174,6 +174,9 @@ class AdminPanel {
       case 'settings':
         await this.loadEmailTemplate();
         break;
+      default:
+        // Unknown tab - do nothing
+        break;
     }
   }
 
@@ -214,7 +217,8 @@ class AdminPanel {
 
     rows.forEach((row) => {
       const text = row.textContent.toLowerCase();
-      row.style.display = text.includes(term) ? '' : 'none';
+      const displayRow = row;
+      displayRow.style.display = text.includes(term) ? '' : 'none';
     });
   }
 
@@ -510,7 +514,8 @@ class AdminPanel {
   toggleAllRooms(checkbox) {
     const roomCheckboxes = document.querySelectorAll('.room-checkbox');
     roomCheckboxes.forEach((cb) => {
-      cb.checked = checkbox.checked;
+      const checkBox = cb;
+      checkBox.checked = checkbox.checked;
     });
   }
 
@@ -543,13 +548,15 @@ class AdminPanel {
 
     if (selectedRooms.length === 0) {
       // Block all rooms for this date range with same blockage ID
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const endTime = end.getTime();
+      for (let d = new Date(start); d.getTime() <= endTime; d.setDate(d.getDate() + 1)) {
         await dataManager.blockDate(new Date(d), null, reason, blockageId);
       }
     } else {
       // Block specific rooms for this date range
+      const endTime = end.getTime();
       for (const roomId of selectedRooms) {
-        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        for (let d = new Date(start); d.getTime() <= endTime; d.setDate(d.getDate() + 1)) {
           await dataManager.blockDate(new Date(d), roomId, reason, blockageId);
         }
       }
@@ -572,7 +579,7 @@ class AdminPanel {
   }
 
   async unblockRange(blockageId) {
-    const blockedDates = await dataManager.getBlockedDates();
+    // const blockedDates = await dataManager.getBlockedDates(); // Reserved for future use
     const data = await dataManager.getData();
 
     // Remove all dates with this blockage ID
@@ -846,7 +853,7 @@ class AdminPanel {
     if (rooms && Array.isArray(rooms)) {
       rooms.forEach((room) => {
         const bedsInput = document.getElementById(`room${room.id}_beds`);
-        const typeSelect = document.getElementById(`room${room.id}_type`);
+        // const typeSelect = document.getElementById(`room${room.id}_type`); // Reserved for future use
         if (bedsInput) {
           // Use room.beds if it exists and is a valid number, otherwise use default
           const bedsValue =
@@ -874,7 +881,7 @@ class AdminPanel {
     const newRooms = [];
 
     roomIds.forEach((id) => {
-      const beds = parseInt(document.getElementById(`room${id}_beds`).value);
+      const beds = parseInt(document.getElementById(`room${id}_beds`).value, 10);
       newRooms.push({
         id,
         name: `Pokoj ${id}`,
@@ -959,14 +966,14 @@ class AdminPanel {
 
     const prices = {
       utia: {
-        base: parseInt(document.getElementById('utia_base').value),
-        adult: parseInt(document.getElementById('utia_adult').value),
-        child: parseInt(document.getElementById('utia_child').value),
+        base: parseInt(document.getElementById('utia_base').value, 10),
+        adult: parseInt(document.getElementById('utia_adult').value, 10),
+        child: parseInt(document.getElementById('utia_child').value, 10),
       },
       external: {
-        base: parseInt(document.getElementById('external_base').value),
-        adult: parseInt(document.getElementById('external_adult').value),
-        child: parseInt(document.getElementById('external_child').value),
+        base: parseInt(document.getElementById('external_base').value, 10),
+        adult: parseInt(document.getElementById('external_adult').value, 10),
+        child: parseInt(document.getElementById('external_child').value, 10),
       },
     };
 
@@ -1021,11 +1028,11 @@ class AdminPanel {
     e.preventDefault();
 
     const bulkPrices = {
-      basePrice: parseInt(document.getElementById('bulk_base_price').value),
-      utiaAdult: parseInt(document.getElementById('bulk_utia_adult').value),
-      utiaChild: parseInt(document.getElementById('bulk_utia_child').value),
-      externalAdult: parseInt(document.getElementById('bulk_external_adult').value),
-      externalChild: parseInt(document.getElementById('bulk_external_child').value),
+      basePrice: parseInt(document.getElementById('bulk_base_price').value, 10),
+      utiaAdult: parseInt(document.getElementById('bulk_utia_adult').value, 10),
+      utiaChild: parseInt(document.getElementById('bulk_utia_child').value, 10),
+      externalAdult: parseInt(document.getElementById('bulk_external_adult').value, 10),
+      externalChild: parseInt(document.getElementById('bulk_external_child').value, 10),
     };
 
     const settings = await dataManager.getSettings();
@@ -1047,7 +1054,9 @@ class AdminPanel {
     const newPassword = document.getElementById('newPassword').value;
     const confirmPassword = document.getElementById('confirmPassword').value;
 
-    if (!dataManager.authenticateAdmin(currentPassword)) {
+    // First verify current password
+    const isAuthenticated = await dataManager.authenticateAdmin(currentPassword);
+    if (!isAuthenticated) {
       alert('Nesprávné současné heslo');
       return;
     }
@@ -1057,12 +1066,34 @@ class AdminPanel {
       return;
     }
 
-    const settings = await dataManager.getSettings();
-    settings.adminPassword = newPassword;
-    await dataManager.updateSettings(settings);
+    if (newPassword.length < 8) {
+      alert('Nové heslo musí mít alespoň 8 znaků');
+      return;
+    }
 
-    e.target.reset();
-    this.showSuccessMessage('Heslo bylo úspěšně změněno');
+    // Use the new API endpoint to update password
+    try {
+      const apiKey = dataManager.getApiKey();
+      const response = await fetch('/api/admin/update-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+        },
+        body: JSON.stringify({ newPassword }),
+      });
+
+      if (response.ok) {
+        e.target.reset();
+        this.showSuccessMessage('Heslo bylo úspěšně změněno');
+      } else {
+        const error = await response.json();
+        alert(`Chyba při změně hesla: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Error updating password:', error);
+      alert('Nepodařilo se změnit heslo');
+    }
   }
 
   async loadStatistics() {

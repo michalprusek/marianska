@@ -12,7 +12,9 @@ class CalendarUtils {
     const month = date.getMonth();
     const firstDay = new Date(year, month, 1);
     let startDay = firstDay.getDay() - 1; // Monday = 0
-    if (startDay < 0) startDay = 6;
+    if (startDay < 0) {
+      startDay = 6;
+    }
 
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const daysInPrevMonth = new Date(year, month, 0).getDate();
@@ -23,7 +25,7 @@ class CalendarUtils {
       firstDay,
       startDay,
       daysInMonth,
-      daysInPrevMonth
+      daysInPrevMonth,
     };
   }
 
@@ -36,13 +38,33 @@ class CalendarUtils {
   static getMonthName(month, language = 'cs') {
     const months = {
       cs: [
-        'Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen',
-        'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'
+        'Leden',
+        'Únor',
+        'Březen',
+        'Duben',
+        'Květen',
+        'Červen',
+        'Červenec',
+        'Srpen',
+        'Září',
+        'Říjen',
+        'Listopad',
+        'Prosinec',
       ],
       en: [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'
-      ]
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
+      ],
     };
     return months[language][month];
   }
@@ -76,9 +98,11 @@ class CalendarUtils {
    */
   static isToday(date) {
     const today = new Date();
-    return date.getDate() === today.getDate() &&
-           date.getMonth() === today.getMonth() &&
-           date.getFullYear() === today.getFullYear();
+    return (
+      date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear()
+    );
   }
 
   /**
@@ -152,10 +176,9 @@ class CalendarUtils {
     if (direction === 'prev') {
       const prevMonth = new Date(targetMonth.getFullYear(), targetMonth.getMonth() - 1, 1);
       return prevMonth < new Date(currentYear, today.getMonth(), 1);
-    } else {
-      const nextMonth = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 1);
-      return nextMonth > new Date(nextYear, 11, 31);
     }
+    const nextMonth = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 1);
+    return nextMonth > new Date(nextYear, 11, 31);
   }
 
   /**
@@ -172,23 +195,27 @@ class CalendarUtils {
     const sortedDates = Array.from(selectedDates).sort();
     const dateRanges = this.groupConsecutiveDates(sortedDates);
 
-    return dateRanges.map(range => {
-      const start = new Date(range[0]);
-      const end = new Date(range[range.length - 1]);
-      const nights = range.length;
+    return dateRanges
+      .map((range) => {
+        const start = new Date(range[0]);
+        const end = new Date(range[range.length - 1]);
+        const nights = range.length;
 
-      const startStr = start.toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit' });
-      const endStr = end.toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit' });
+        const startStr = start.toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit' });
+        const endStr = end.toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit' });
 
-      return `<div class="date-range">
+        return `<div class="date-range">
         ${startStr} - ${endStr}
         <span class="nights-count">(${nights} ${
-          nights === 1 ? translations.night :
-          nights < 5 ? translations.nights2_4 :
-          translations.nights5plus
+          nights === 1
+            ? translations.night
+            : nights < 5
+              ? translations.nights2_4
+              : translations.nights5plus
         })</span>
       </div>`;
-    }).join('');
+      })
+      .join('');
   }
 
   /**
@@ -197,7 +224,9 @@ class CalendarUtils {
    * @returns {Array<string[]>} Array of date ranges
    */
   static groupConsecutiveDates(dates) {
-    if (!dates.length) return [];
+    if (!dates.length) {
+      return [];
+    }
 
     const ranges = [];
     let currentRange = [dates[0]];

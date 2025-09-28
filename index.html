@@ -9,7 +9,7 @@
     <title>Rezervační systém - Chata Mariánská</title>
     <link
       rel="stylesheet"
-      href="styles-modern.css"
+      href="css/styles-unified.css"
     />
     <link
       rel="preconnect"
@@ -1094,16 +1094,17 @@
                       <span id="basePrice">0 Kč</span>
                     </div>
                     <div
-                      id="nightsPrice"
+                      id="guestCountsDisplay"
                       style="
                         display: flex;
                         justify-content: space-between;
                         margin-bottom: 0.5rem;
                         font-size: 0.9rem;
+                        color: #666;
                       "
                     >
-                      <span>Počet nocí:</span>
-                      <span>× <span id="nightsMultiplier">0</span></span>
+                      <span>Počet osob:</span>
+                      <span id="guestCountsSummary">-</span>
                     </div>
                     <div
                       id="adultsPrice"
@@ -1111,7 +1112,6 @@
                         display: flex;
                         justify-content: space-between;
                         margin-bottom: 0.5rem;
-                        display: none;
                         font-size: 0.9rem;
                       "
                     >
@@ -1124,12 +1124,36 @@
                         display: flex;
                         justify-content: space-between;
                         margin-bottom: 0.5rem;
-                        display: none;
                         font-size: 0.9rem;
                       "
                     >
                       <span>Příplatek za děti:</span>
                       <span id="childrenSurcharge">0 Kč</span>
+                    </div>
+                    <div
+                      id="toddlersInfo"
+                      style="
+                        display: flex;
+                        justify-content: space-between;
+                        margin-bottom: 0.5rem;
+                        font-size: 0.9rem;
+                        color: #666;
+                      "
+                    >
+                      <span>Batolata (do 3 let):</span>
+                      <span id="toddlersSummary">zdarma</span>
+                    </div>
+                    <div
+                      id="nightsPrice"
+                      style="
+                        display: flex;
+                        justify-content: space-between;
+                        margin-bottom: 0.5rem;
+                        font-size: 0.9rem;
+                      "
+                    >
+                      <span>Počet nocí:</span>
+                      <span>× <span id="nightsMultiplier">0</span></span>
                     </div>
                     <div
                       style="
@@ -1671,7 +1695,6 @@
 
     <!-- Modular JS files -->
     <script src="js/calendar.js"></script>
-    <script src="js/airbnb-calendar.js"></script>
     <script src="js/single-room-booking.js"></script>
     <script src="js/bulk-booking.js"></script>
     <script src="js/booking-form.js"></script>

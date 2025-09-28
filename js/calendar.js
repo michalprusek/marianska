@@ -363,7 +363,7 @@ class CalendarModule {
           if (legendBottom > viewportBottom) {
             window.scrollTo({
               top: targetPosition,
-              behavior: 'smooth'
+              behavior: 'smooth',
             });
           }
         }, 300); // Extra delay to let CSS animation complete

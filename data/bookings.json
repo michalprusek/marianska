@@ -13,42 +13,32 @@
       "notes": "",
       "startDate": "2025-09-28",
       "endDate": "2025-09-30",
-      "rooms": ["12", "13", "14", "22", "23", "24", "42", "43", "44"],
+      "rooms": [
+        "12",
+        "13",
+        "14",
+        "22",
+        "23",
+        "24",
+        "42",
+        "43",
+        "44"
+      ],
       "guestType": "utia",
       "adults": 1,
       "children": 0,
       "toddlers": 0,
       "totalPrice": 6300,
       "isBulkBooking": true,
-      "bulkDates": ["2025-09-28", "2025-09-29", "2025-09-30"],
+      "bulkDates": [
+        "2025-09-28",
+        "2025-09-29",
+        "2025-09-30"
+      ],
       "id": "BK1758225382356ZOUHW",
       "editToken": "883z3oxc1f8pwlbhuzprva",
       "createdAt": "2025-09-18T19:56:22.356Z",
       "updatedAt": "2025-09-18T19:56:22.356Z"
-    },
-    {
-      "name": "michal",
-      "email": "test@test.com",
-      "phone": "+420728109020",
-      "company": "",
-      "address": "ulice",
-      "city": "milovice",
-      "zip": "12345",
-      "ico": "",
-      "dic": "",
-      "notes": "dawdaw",
-      "startDate": "2025-09-19",
-      "endDate": "2025-09-19",
-      "rooms": ["24"],
-      "guestType": "utia",
-      "adults": 1,
-      "children": 0,
-      "toddlers": 0,
-      "totalPrice": 400,
-      "id": "BK175819844886268HRE",
-      "editToken": "gnfdnjiz2ikpq8lz4lyvh",
-      "createdAt": "2025-09-18T12:27:28.862Z",
-      "updatedAt": "2025-09-18T12:27:28.862Z"
     }
   ],
   "blockedDates": [
@@ -223,7 +213,9 @@
   ],
   "settings": {
     "adminPassword": "admin123",
-    "christmasAccessCodes": ["vanoce2025"],
+    "christmasAccessCodes": [
+      "vanoce2025"
+    ],
     "rooms": [
       {
         "id": "12",

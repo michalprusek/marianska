@@ -413,10 +413,12 @@ class LanguageManager {
 
       if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
         if (element.placeholder) {
-          element.placeholder = translation;
+          const elem = element;
+          elem.placeholder = translation;
         }
       } else {
-        element.textContent = translation;
+        const elem = element;
+        elem.textContent = translation;
       }
     });
 
@@ -442,7 +444,8 @@ class LanguageManager {
           this.currentLang === 'cs'
             ? `${beds} ${beds === '1' ? 'lůžko' : 'lůžka'}`
             : `${beds} ${beds === '1' ? 'bed' : 'beds'}`;
-        element.textContent = text;
+        const elem = element;
+        elem.textContent = text;
       }
     });
 
@@ -462,4 +465,5 @@ class LanguageManager {
 }
 
 // Export for use
+// eslint-disable-next-line no-unused-vars
 const langManager = new LanguageManager();

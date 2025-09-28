@@ -1888,12 +1888,13 @@ input:checked + .slider:before {
 /* Compact Booking Modal */
 .compact-booking-modal {
   max-width: 95vw;
-  max-height: 95vh;
+  max-height: 90vh;
   width: 1200px;
   padding: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  margin: auto;
 }
 
 .booking-modal-header {
@@ -1972,7 +1973,8 @@ input:checked + .slider:before {
   padding: 1rem;
   flex: 1;
   overflow-y: auto;
-  max-height: 400px;
+  max-height: 500px;
+  min-height: 380px;
 }
 
 /* Mini calendar styles */
@@ -1999,10 +2001,12 @@ input:checked + .slider:before {
   border: 1px solid #e2e8f0;
   border-radius: 4px;
   cursor: default;
-  font-size: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
   background: white;
   transition: all 0.2s;
-  min-height: 30px;
+  min-height: 36px;
+  min-width: 36px;
 }
 
 .mini-calendar-day.other-month {
@@ -2111,6 +2115,7 @@ input:checked + .slider:before {
 @media (max-width: 1024px) {
   .compact-booking-modal {
     width: 95vw;
+    max-height: 95vh;
   }
 
   .booking-modal-content {
@@ -2120,6 +2125,281 @@ input:checked + .slider:before {
 
   .date-selection-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .compact-booking-modal {
+    width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .modal-content {
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .booking-modal-content {
+    height: calc(100vh - 60px);
+    overflow-y: auto;
+  }
+
+  .interactive-calendar {
+    max-height: 350px;
+    min-height: 300px;
+  }
+
+  .mini-calendar-week {
+    gap: 0.125rem;
+  }
+
+  .mini-calendar-day {
+    min-height: 32px;
+    min-width: 32px;
+    font-size: 0.8rem;
+  }
+
+  .mini-calendar-day-header {
+    font-size: 0.75rem;
+    padding: 0.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .mini-calendar-day {
+    min-height: 28px;
+    min-width: 28px;
+    font-size: 0.75rem;
+  }
+
+  .booking-left-column,
+  .booking-right-column {
+    padding: 0.75rem;
+  }
+
+  .guest-selector {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .guest-counter {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+/* ========================================================================== */
+/* Toast Notification System                                                  */
+/* ========================================================================== */
+
+#notificationContainer {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.notification {
+  min-width: 320px;
+  max-width: 450px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  background: white;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
+  transform: translateX(calc(100% + 20px));
+  transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+  pointer-events: auto;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.notification::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: currentColor;
+  opacity: 0.8;
+}
+
+.notification::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: currentColor;
+  opacity: 0.3;
+  animation: toast-progress linear forwards;
+  animation-duration: var(--duration, 5s);
+}
+
+@keyframes toast-progress {
+  from { width: 100%; }
+  to { width: 0; }
+}
+
+.notification.show {
+  transform: translateX(0);
+}
+
+.notification-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 16px;
+}
+
+.notification-content {
+  flex: 1;
+}
+
+.notification-close {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.1);
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-left: 8px;
+}
+
+.notification-close:hover {
+  background: rgba(0, 0, 0, 0.2);
+  color: rgba(0, 0, 0, 0.8);
+}
+
+/* Success Toast */
+.notification-success {
+  color: #059669;
+  background: linear-gradient(135deg, #ffffff, #f0fdf4);
+  border: 1px solid #86efac;
+}
+
+.notification-success .notification-icon {
+  background: #10b981;
+  color: white;
+}
+
+.notification-success::before {
+  background: #10b981;
+}
+
+.notification-success::after {
+  background: #10b981;
+}
+
+/* Error Toast */
+.notification-error {
+  color: #dc2626;
+  background: linear-gradient(135deg, #ffffff, #fef2f2);
+  border: 1px solid #fca5a5;
+}
+
+.notification-error .notification-icon {
+  background: #ef4444;
+  color: white;
+}
+
+.notification-error::before {
+  background: #ef4444;
+}
+
+.notification-error::after {
+  background: #ef4444;
+}
+
+/* Warning Toast */
+.notification-warning {
+  color: #d97706;
+  background: linear-gradient(135deg, #ffffff, #fffbeb);
+  border: 1px solid #fcd34d;
+}
+
+.notification-warning .notification-icon {
+  background: #f59e0b;
+  color: white;
+}
+
+.notification-warning::before {
+  background: #f59e0b;
+}
+
+.notification-warning::after {
+  background: #f59e0b;
+}
+
+/* Info Toast */
+.notification-info {
+  color: #0284c7;
+  background: linear-gradient(135deg, #ffffff, #f0f9ff);
+  border: 1px solid #7dd3fc;
+}
+
+.notification-info .notification-icon {
+  background: #0ea5e9;
+  color: white;
+}
+
+.notification-info::before {
+  background: #0ea5e9;
+}
+
+.notification-info::after {
+  background: #0ea5e9;
+}
+
+/* Animation for removal */
+@keyframes toast-exit {
+  to {
+    opacity: 0;
+    transform: translateX(calc(100% + 20px));
+  }
+}
+
+.notification.removing {
+  animation: toast-exit 0.3s ease-in forwards;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 480px) {
+  #notificationContainer {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+  }
+
+  .notification {
+    min-width: auto;
+    max-width: 100%;
+    font-size: 14px;
   }
 }
 
