@@ -37,9 +37,7 @@ class AdminPanel {
 
   setupEventListeners() {
     // Login
-    document
-      .getElementById('loginForm')
-      .addEventListener('submit', (e) => this.handleLogin(e));
+    document.getElementById('loginForm').addEventListener('submit', (e) => this.handleLogin(e));
 
     // Navigation
     document.getElementById('backBtn').addEventListener('click', () => {
@@ -62,9 +60,7 @@ class AdminPanel {
     document
       .getElementById('blockDateForm')
       .addEventListener('submit', (e) => this.handleBlockDate(e));
-    document
-      .getElementById('addCodeForm')
-      .addEventListener('submit', (e) => this.handleAddCode(e));
+    document.getElementById('addCodeForm').addEventListener('submit', (e) => this.handleAddCode(e));
     document
       .getElementById('christmasPeriodForm')
       .addEventListener('submit', (e) => this.handleChristmasPeriod(e));
@@ -198,7 +194,10 @@ class AdminPanel {
                 <td>${new Date(booking.startDate).toLocaleDateString('cs-CZ')} -
                     ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}</td>
                 <td>${booking.rooms.map((roomId) => this.createRoomBadge(roomId, true)).join('')}</td>
-                <td>${booking.totalPrice} Kč</td>
+                <td>
+                    ${booking.totalPrice} Kč
+                    ${booking.payFromBenefit ? '<span style="margin-left: 0.5rem; padding: 0.15rem 0.5rem; background: #17a2b8; color: white; border-radius: 3px; font-size: 0.75rem; font-weight: 600;">💳 Benefit</span>' : ''}
+                </td>
                 <td>
                     <div class="action-buttons">
                         <button class="btn-secondary btn-small" onclick="adminPanel.viewBookingDetails('${booking.id}')">Detail</button>
@@ -292,11 +291,33 @@ class AdminPanel {
                         </div>
                     </div>
 
-                    <div>
-                        <strong style="color: var(--gray-600); font-size: 0.9rem;">Celková cena:</strong>
-                        <div style="margin-top: 0.25rem; font-size: 1.25rem; font-weight: 600; color: var(--primary-color);">
-                            ${booking.totalPrice} Kč
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                        <div>
+                            <strong style="color: var(--gray-600); font-size: 0.9rem;">Celková cena:</strong>
+                            <div style="margin-top: 0.25rem; font-size: 1.25rem; font-weight: 600; color: var(--primary-color);">
+                                ${booking.totalPrice} Kč
+                            </div>
                         </div>
+                        ${
+                          booking.payFromBenefit
+                            ? `
+                        <div>
+                            <strong style="color: var(--gray-600); font-size: 0.9rem;">Platba:</strong>
+                            <div style="margin-top: 0.25rem;">
+                                <span style="
+                                    display: inline-block;
+                                    padding: 0.25rem 0.75rem;
+                                    background: #17a2b8;
+                                    color: white;
+                                    border-radius: 4px;
+                                    font-weight: 600;
+                                    font-size: 0.9rem;
+                                ">💳 Z benefitů</span>
+                            </div>
+                        </div>
+                        `
+                            : ''
+                        }
                     </div>
 
                     ${
@@ -356,6 +377,7 @@ class AdminPanel {
     document.getElementById('editIco').value = booking.ico || '';
     document.getElementById('editDic').value = booking.dic || '';
     document.getElementById('editNotes').value = booking.notes || '';
+    document.getElementById('editPayFromBenefit').checked = booking.payFromBenefit || false;
 
     document.getElementById('editBookingModal').classList.add('active');
   }
@@ -375,6 +397,7 @@ class AdminPanel {
       ico: document.getElementById('editIco').value,
       dic: document.getElementById('editDic').value,
       notes: document.getElementById('editNotes').value,
+      payFromBenefit: document.getElementById('editPayFromBenefit').checked,
     };
 
     await dataManager.updateBooking(bookingId, updates);

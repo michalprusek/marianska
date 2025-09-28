@@ -135,13 +135,137 @@ class BookingFormModule {
     // Get form values
     const name = document.getElementById('name').value.trim();
     const email = document.getElementById('email').value.trim();
-    const phone = document.getElementById('phone').value.trim();
+    // Combine phone prefix with number (remove spaces from number)
+    const phonePrefix = document.getElementById('phonePrefix')?.value || '+420';
+    const phoneNumber = document.getElementById('phone').value.trim().replace(/\s/g, '');
+    const phone = phonePrefix + phoneNumber;
     const company = document.getElementById('company')?.value.trim() || '';
     const address = document.getElementById('address')?.value.trim() || '';
     const city = document.getElementById('city')?.value.trim() || '';
     const zip = document.getElementById('zip')?.value.trim() || '';
     const ico = document.getElementById('ico')?.value.trim() || '';
     const dic = document.getElementById('dic')?.value.trim() || '';
+    const notes = document.getElementById('notes').value.trim();
+    // Check both possible checkbox IDs (main form and final booking form)
+    const payFromBenefit =
+      document.getElementById('payFromBenefit')?.checked ||
+      document.getElementById('finalBookingBenefit')?.checked ||
+      false;
+
+    // Validate required fields (IČO is optional)
+    if (!name || !email || !phoneNumber || !company || !address || !city || !zip) {
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? 'Vyplňte prosím všechna povinná pole označená hvězdičkou (*)'
+          : 'Please fill in all required fields marked with asterisk (*)',
+        'error'
+      );
+      return;
+    }
+
+    // Validate email
+    if (!email.includes('@')) {
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? 'Zadejte prosím platný email'
+          : 'Please enter a valid email',
+        'error'
+      );
+      return;
+    }
+
+    // Check if we're finalizing temporary reservations
+    if (
+      this.app.isFinalizingReservations &&
+      this.app.tempReservations &&
+      this.app.tempReservations.length > 0
+    ) {
+      // Create bookings for all temporary reservations
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const tempReservation of this.app.tempReservations) {
+        const booking = {
+          name,
+          email,
+          phone,
+          company,
+          address,
+          city,
+          zip,
+          ico,
+          dic,
+          startDate: tempReservation.startDate,
+          endDate: tempReservation.endDate,
+          rooms: [tempReservation.roomId],
+          guestType: tempReservation.guestType,
+          adults: tempReservation.guests.adults,
+          children: tempReservation.guests.children,
+          toddlers: tempReservation.guests.toddlers,
+          notes,
+          payFromBenefit,
+          roomGuests: { [tempReservation.roomId]: tempReservation.guests },
+        };
+
+        try {
+          await dataManager.createBooking(booking);
+          successCount++;
+        } catch (error) {
+          console.error('Error creating booking for room', tempReservation.roomName, error);
+          errorCount++;
+        }
+      }
+
+      // Clear temporary reservations
+      this.app.tempReservations = [];
+      this.app.isFinalizingReservations = false;
+
+      // Hide the modal
+      const modal = document.getElementById('bookingFormModal');
+      if (modal) {
+        modal.classList.remove('active');
+      }
+
+      // Hide temp reservations container and finalize button
+      const tempContainer = document.getElementById('tempReservationsContainer');
+      if (tempContainer) {
+        tempContainer.style.display = 'none';
+      }
+      const finalizeDiv = document.getElementById('finalizeReservationsDiv');
+      if (finalizeDiv) {
+        finalizeDiv.style.display = 'none';
+      }
+
+      // Show result notification
+      if (successCount > 0 && errorCount === 0) {
+        this.app.showNotification(
+          this.app.currentLanguage === 'cs'
+            ? `✓ Všechny rezervace (${successCount}) byly úspěšně vytvořeny`
+            : `✓ All reservations (${successCount}) created successfully`,
+          'success'
+        );
+      } else if (successCount > 0 && errorCount > 0) {
+        this.app.showNotification(
+          this.app.currentLanguage === 'cs'
+            ? `Částečný úspěch: ${successCount} rezervací vytvořeno, ${errorCount} selhalo`
+            : `Partial success: ${successCount} reservations created, ${errorCount} failed`,
+          'warning'
+        );
+      } else {
+        this.app.showNotification(
+          this.app.currentLanguage === 'cs'
+            ? 'Chyba při vytváření rezervací'
+            : 'Error creating reservations',
+          'error'
+        );
+      }
+
+      // Reload the calendar to show new bookings
+      await this.app.calendar.render();
+      return;
+    }
+
+    // Regular booking flow (not finalization)
     // Get guest type based on which booking mode is active
     let guestType = 'utia'; // default
     const singleRoomModal = document.getElementById('singleRoomBookingModal');
@@ -157,29 +281,6 @@ class BookingFormModule {
       // Bulk booking mode
       const bulkGuestTypeInput = document.querySelector('input[name="bulkGuestType"]:checked');
       guestType = bulkGuestTypeInput ? bulkGuestTypeInput.value : 'utia';
-    }
-    const notes = document.getElementById('notes').value.trim();
-
-    // Validate required fields
-    if (!name || !email || !phone) {
-      this.app.showNotification(
-        this.app.currentLanguage === 'cs'
-          ? 'Vyplňte prosím všechna povinná pole'
-          : 'Please fill in all required fields',
-        'error'
-      );
-      return;
-    }
-
-    // Validate email
-    if (!email.includes('@')) {
-      this.app.showNotification(
-        this.app.currentLanguage === 'cs'
-          ? 'Zadejte prosím platný email'
-          : 'Please enter a valid email',
-        'error'
-      );
-      return;
     }
 
     // Get dates
@@ -220,6 +321,7 @@ class BookingFormModule {
       children: totalChildren,
       toddlers: totalToddlers,
       notes,
+      payFromBenefit,
       roomGuests: Object.fromEntries(this.app.roomGuests),
     };
 
@@ -281,33 +383,26 @@ class BookingFormModule {
   }
 
   validatePhoneNumber(input) {
-    let value = input.value.replace(/\s/g, '');
+    const value = input.value.replace(/\s/g, '');
 
-    if (!value.startsWith('+')) {
-      value = `+420${value.replace(/^\+?420/, '')}`;
-    }
+    // Check if the number has exactly 9 digits (ignoring spaces)
+    const digitsOnly = value.replace(/[^0-9]/g, '');
 
-    const czechPattern = /^\+420\d{9}$/;
-    const slovakPattern = /^\+421\d{9}$/;
-
-    if (czechPattern.test(value) || slovakPattern.test(value)) {
+    if (digitsOnly.length === 9) {
       input.setCustomValidity('');
       input.classList.remove('error');
+
+      // Format for display (3-3-3 pattern)
+      if (digitsOnly.length === 9) {
+        input.value = `${digitsOnly.slice(0, 3)} ${digitsOnly.slice(3, 6)} ${digitsOnly.slice(6, 9)}`;
+      }
     } else {
       input.setCustomValidity(
         this.app.currentLanguage === 'cs'
-          ? 'Zadejte platné telefonní číslo (9 číslic)'
-          : 'Enter a valid phone number (9 digits)'
+          ? 'Zadejte přesně 9 číslic telefonního čísla'
+          : 'Enter exactly 9 digits for phone number'
       );
       input.classList.add('error');
-    }
-
-    // Format for display
-    if (value.length >= 7) {
-      input.value = `${value.slice(0, 4)} ${value.slice(4, 7)} ${value.slice(7, 10)} ${value.slice(
-        10,
-        13
-      )}`;
     }
   }
 

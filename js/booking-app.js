@@ -452,6 +452,270 @@ class BookingApp {
     this.singleRoomBooking.showRoomBookingModal(roomId);
   }
 
+  displayTempReservations() {
+    const sectionDiv = document.getElementById('tempReservationsSection');
+    const containerDiv = document.getElementById('tempReservationsContainer');
+    const listDiv = document.getElementById('tempReservationsList');
+    const totalPriceSpan = document.getElementById('tempReservationsTotalPrice');
+
+    if (!containerDiv || !listDiv) {
+      return;
+    }
+
+    // Show/hide entire section based on whether we have reservations
+    if (!this.tempReservations || this.tempReservations.length === 0) {
+      // Hide the entire booking section
+      if (sectionDiv) {
+        sectionDiv.style.display = 'none';
+      }
+      containerDiv.style.display = 'none';
+      if (listDiv) {
+        listDiv.innerHTML = '';
+      }
+      if (totalPriceSpan) {
+        totalPriceSpan.textContent = '0 Kč';
+      }
+      // Update calendar to clear any red highlighting when no temp reservations
+      if (this.calendar) {
+        this.calendar.renderCalendar();
+      }
+      return;
+    }
+
+    // Show the entire section and container
+    if (sectionDiv) {
+      sectionDiv.style.display = 'block';
+    }
+    containerDiv.style.display = 'block';
+
+    let html = '';
+    let totalPrice = 0;
+
+    this.tempReservations.forEach((booking) => {
+      const dateStart = new Date(booking.startDate);
+      const dateEnd = new Date(booking.endDate);
+      totalPrice += booking.totalPrice;
+
+      const guestText = [];
+      guestText.push(
+        `${booking.guests.adults} ${this.currentLanguage === 'cs' ? (booking.guests.adults === 1 ? 'dospělý' : 'dospělí') : booking.guests.adults === 1 ? 'adult' : 'adults'}`
+      );
+      if (booking.guests.children > 0) {
+        guestText.push(
+          `${booking.guests.children} ${this.currentLanguage === 'cs' ? (booking.guests.children === 1 ? 'dítě' : 'děti') : booking.guests.children === 1 ? 'child' : 'children'}`
+        );
+      }
+      if (booking.guests.toddlers > 0) {
+        guestText.push(
+          `${booking.guests.toddlers} ${this.currentLanguage === 'cs' ? (booking.guests.toddlers === 1 ? 'batole' : 'batolata') : booking.guests.toddlers === 1 ? 'toddler' : 'toddlers'}`
+        );
+      }
+
+      const nightsText =
+        this.currentLanguage === 'cs'
+          ? `${booking.nights} ${booking.nights === 1 ? 'noc' : booking.nights < 5 ? 'noci' : 'nocí'}`
+          : `${booking.nights} ${booking.nights === 1 ? 'night' : 'nights'}`;
+
+      const guestTypeText = booking.guestType === 'utia' ? 'ÚTIA zaměstnanec' : 'Externí host';
+
+      html += `
+        <div class="temp-reservation-item" style="background: #fff8f0; border: 1px solid #ffd4a3; padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;">
+          <div style="display: flex; justify-content: space-between; align-items: start; width: 100%;">
+            <div style="flex: 1;">
+              <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <span style="background: #ff4444; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">NAVRHOVANÁ</span>
+                <strong style="color: var(--primary-color); font-size: 1.1rem;">${booking.roomName}</strong>
+              </div>
+              <div style="background: white; padding: 0.75rem; border-radius: 6px; border: 1px solid #e0e0e0;">
+                <div style="color: var(--gray-700); font-size: 0.95rem; margin-bottom: 0.5rem;">
+                  📅 ${dateStart.toLocaleDateString(this.currentLanguage === 'cs' ? 'cs-CZ' : 'en-US')} - ${dateEnd.toLocaleDateString(this.currentLanguage === 'cs' ? 'cs-CZ' : 'en-US')}
+                  <span style="color: var(--primary-color); font-weight: 600;">(${nightsText})</span>
+                </div>
+                <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
+                  👥 ${guestText.join(', ')}
+                </div>
+                <div style="font-size: 0.9rem; color: var(--gray-600);">
+                  🏷️ Typ: <span style="font-weight: 600;">${guestTypeText}</span>
+                </div>
+                <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e0e0e0;">
+                  <div style="font-size: 0.85rem; color: var(--gray-500);">Cena za pobyt:</div>
+                  <div style="font-size: 1.25rem; font-weight: 700; color: var(--primary-color);">
+                    ${booking.totalPrice.toLocaleString('cs-CZ')} Kč
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button
+              onclick="window.app.removeTempReservation('${booking.id}')"
+              style="padding: 0.5rem; background: white; color: var(--danger-color); border: 1px solid var(--danger-color); border-radius: 6px; cursor: pointer; transition: all 0.2s; min-width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;"
+              title="${this.currentLanguage === 'cs' ? 'Odebrat rezervaci' : 'Remove reservation'}"
+              onmouseover="this.style.background='var(--danger-color)'; this.style.color='white';"
+              onmouseout="this.style.background='white'; this.style.color='var(--danger-color)';"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      `;
+    });
+
+    listDiv.innerHTML = html;
+
+    // Update total price
+    if (totalPriceSpan) {
+      totalPriceSpan.textContent = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
+    }
+
+    // Update calendar to show proposed reservations in red
+    this.calendar.renderCalendar();
+  }
+
+  removeTempReservation(bookingId) {
+    if (!this.tempReservations) {
+      return;
+    }
+
+    // Find the reservation to remove
+    const removedReservation = this.tempReservations.find((b) => b.id === bookingId);
+
+    // Remove it from the list
+    this.tempReservations = this.tempReservations.filter((b) => b.id !== bookingId);
+
+    // Update the display
+    this.displayTempReservations();
+
+    // Hide finalize button and entire section if no reservations left
+    if (this.tempReservations.length === 0) {
+      const finalizeDiv = document.getElementById('finalizeReservationsDiv');
+      if (finalizeDiv) {
+        finalizeDiv.style.display = 'none';
+      }
+
+      const sectionDiv = document.getElementById('tempReservationsSection');
+      if (sectionDiv) {
+        sectionDiv.style.display = 'none';
+      }
+
+      const containerDiv = document.getElementById('tempReservationsContainer');
+      if (containerDiv) {
+        containerDiv.style.display = 'none';
+      }
+
+      // Clear the calendar highlighting when no temp reservations remain
+      // Re-render the calendar to remove red highlighting
+      if (this.calendar) {
+        this.calendar.renderCalendar();
+      }
+    }
+
+    // Show notification with room name
+    const roomName = removedReservation ? removedReservation.roomName : '';
+    this.showNotification(
+      this.currentLanguage === 'cs'
+        ? `Rezervace pokoje ${roomName} byla odebrána`
+        : `Reservation for room ${roomName} has been removed`,
+      'info'
+    );
+  }
+
+  // Finalize all temporary reservations - show booking form modal for contact details
+  async finalizeAllReservations() {
+    // Check if we have any temporary reservations
+    if (!this.tempReservations || this.tempReservations.length === 0) {
+      this.showNotification(
+        this.currentLanguage === 'cs'
+          ? 'Nejsou žádné rezervace k dokončení'
+          : 'No reservations to finalize',
+        'warning'
+      );
+      return;
+    }
+
+    // Show the booking form modal for contact details
+    const modal = document.getElementById('bookingFormModal');
+    if (!modal) {
+      console.error('Booking form modal not found');
+      return;
+    }
+
+    // Prepare summary for the booking form modal
+    const summaryEl = document.getElementById('bookingSummary');
+    if (summaryEl) {
+      let summaryHTML = '';
+      let totalPrice = 0;
+
+      // Group reservations by room
+      this.tempReservations.forEach((reservation) => {
+        totalPrice += reservation.totalPrice;
+
+        summaryHTML += `
+          <div style="padding: 0.75rem; background: var(--gray-50); border-radius: var(--radius-sm); margin-bottom: 0.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <strong>${reservation.roomName}</strong><br>
+                <span style="font-size: 0.9rem; color: var(--gray-600);">
+                  ${reservation.startDate} → ${reservation.endDate} (${reservation.nights} ${
+                    this.currentLanguage === 'cs' ? 'nocí' : 'nights'
+                  })
+                </span><br>
+                <span style="font-size: 0.9rem; color: var(--gray-600);">
+                  ${reservation.guests.adults} ${
+                    this.currentLanguage === 'cs' ? 'dospělí' : 'adults'
+                  }${
+                    reservation.guests.children > 0
+                      ? `, ${reservation.guests.children} ${
+                          this.currentLanguage === 'cs' ? 'děti' : 'children'
+                        }`
+                      : ''
+                  }${
+                    reservation.guests.toddlers > 0
+                      ? `, ${reservation.guests.toddlers} ${
+                          this.currentLanguage === 'cs' ? 'batolata' : 'toddlers'
+                        }`
+                      : ''
+                  }
+                </span>
+              </div>
+              <div style="text-align: right;">
+                <strong style="color: var(--primary-color);">${reservation.totalPrice.toLocaleString(
+                  'cs-CZ'
+                )} Kč</strong>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      // Add total
+      summaryHTML += `
+        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 2px solid var(--gray-200);">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <strong style="font-size: 1.1rem;">${
+              this.currentLanguage === 'cs' ? 'Celkem' : 'Total'
+            }:</strong>
+            <strong style="font-size: 1.2rem; color: var(--primary-color);">${totalPrice.toLocaleString(
+              'cs-CZ'
+            )} Kč</strong>
+          </div>
+        </div>
+      `;
+
+      summaryEl.innerHTML = summaryHTML;
+    }
+
+    // Clear form fields
+    const form = document.getElementById('bookingForm');
+    if (form) {
+      form.reset();
+    }
+
+    // Show the modal
+    modal.classList.add('active');
+
+    // Store that we're in finalization mode
+    this.isFinalizingReservations = true;
+  }
+
   // Load room information for the modal
   async loadRoomInfo() {
     const rooms = await dataManager.getRooms();
@@ -567,6 +831,198 @@ class BookingApp {
             `;
     }
   }
+
+  // Finalize all temporary reservations
+  async finalizeAllReservations() {
+    if (!this.tempReservations || this.tempReservations.length === 0) {
+      this.showNotification(
+        this.currentLanguage === 'cs'
+          ? 'Nejsou žádné rezervace k dokončení'
+          : 'No reservations to finalize',
+        'warning'
+      );
+      return;
+    }
+
+    // Show the final booking modal
+    const modal = document.getElementById('finalBookingModal');
+    if (!modal) {
+      console.error('Final booking modal not found');
+      return;
+    }
+
+    // Populate the summary
+    this.populateFinalBookingSummary();
+
+    // Setup form submission
+    const form = document.getElementById('finalBookingForm');
+    if (form) {
+      // Remove any existing listener
+      form.onsubmit = null;
+      // Add new listener
+      form.onsubmit = (e) => {
+        e.preventDefault();
+        this.submitFinalBooking();
+      };
+    }
+
+    // Show modal
+    modal.classList.add('active');
+  }
+
+  populateFinalBookingSummary() {
+    const summaryDiv = document.getElementById('finalBookingSummary');
+    const totalPriceSpan = document.getElementById('finalBookingTotalPrice');
+
+    if (!summaryDiv || !totalPriceSpan) {
+      return;
+    }
+
+    let totalPrice = 0;
+    let summaryHTML = '';
+
+    this.tempReservations.forEach((reservation) => {
+      const guestTypeLabel = reservation.guestType === 'utia' ? 'ÚTIA' : 'Externí';
+      const guestDetails = reservation.guests;
+      const guestCount = guestDetails.adults + guestDetails.children;
+
+      summaryHTML += `
+        <div style="padding: 0.5rem; margin-bottom: 0.5rem; background: white; border-radius: 4px; border-left: 3px solid var(--primary-color);">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <strong>${reservation.roomName}</strong> | ${guestTypeLabel}
+              <div style="font-size: 0.85rem; color: var(--gray-600); margin-top: 0.25rem;">
+                ${new Date(reservation.startDate).toLocaleDateString('cs-CZ')} - ${new Date(reservation.endDate).toLocaleDateString('cs-CZ')}
+                (${reservation.nights} ${reservation.nights === 1 ? 'noc' : reservation.nights < 5 ? 'noci' : 'nocí'})
+              </div>
+              <div style="font-size: 0.85rem; color: var(--gray-600);">
+                👤 ${guestDetails.adults} ${guestDetails.adults === 1 ? 'dospělý' : 'dospělí'}
+                ${guestDetails.children > 0 ? `, ${guestDetails.children} ${guestDetails.children === 1 ? 'dítě' : 'děti'}` : ''}
+                ${guestDetails.toddlers > 0 ? `, ${guestDetails.toddlers} ${guestDetails.toddlers === 1 ? 'batole' : 'batolata'}` : ''}
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <strong style="color: var(--primary-color);">${reservation.totalPrice.toLocaleString('cs-CZ')} Kč</strong>
+            </div>
+          </div>
+        </div>
+      `;
+      totalPrice += reservation.totalPrice;
+    });
+
+    summaryDiv.innerHTML = summaryHTML;
+    totalPriceSpan.textContent = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
+  }
+
+  closeFinalBookingModal() {
+    const modal = document.getElementById('finalBookingModal');
+    if (modal) {
+      modal.classList.remove('active');
+    }
+  }
+
+  async submitFinalBooking() {
+    // Get form values
+    const name = document.getElementById('finalBookingName').value.trim();
+    const email = document.getElementById('finalBookingEmail').value.trim();
+    // Combine phone prefix with number (remove spaces from number)
+    const phonePrefix = document.getElementById('finalBookingCountryCode')?.value || '+420';
+    const phoneNumber = document
+      .getElementById('finalBookingPhone')
+      .value.trim()
+      .replace(/\s/g, '');
+    const phone = phonePrefix + phoneNumber;
+    const company = document.getElementById('finalBookingCompany').value.trim();
+    const address = document.getElementById('finalBookingAddress').value.trim();
+    const city = document.getElementById('finalBookingCity').value.trim();
+    const zip = document.getElementById('finalBookingZip').value.trim();
+    const ico = document.getElementById('finalBookingIco').value.trim();
+    const dic = document.getElementById('finalBookingDic').value.trim();
+    const notes = document.getElementById('finalBookingNotes').value.trim();
+    const payFromBenefit = document.getElementById('finalBookingBenefit')?.checked || false;
+
+    // Validate required fields (IČO is optional)
+    if (!name || !email || !phoneNumber || !company || !address || !city || !zip) {
+      this.showNotification(
+        this.currentLanguage === 'cs'
+          ? 'Vyplňte prosím všechna povinná pole označená hvězdičkou (*)'
+          : 'Please fill in all required fields marked with asterisk (*)',
+        'error'
+      );
+      return;
+    }
+
+    // Create bookings for each reservation
+    const createdBookings = [];
+
+    for (const tempReservation of this.tempReservations) {
+      // Prepare booking data
+      const bookingData = {
+        name,
+        email,
+        phone,
+        company,
+        address,
+        city,
+        zip,
+        ico,
+        dic,
+        notes,
+        payFromBenefit,
+        startDate: tempReservation.startDate,
+        endDate: tempReservation.endDate,
+        rooms: [tempReservation.roomId],
+        guestType: tempReservation.guestType,
+        adults: tempReservation.guests.adults,
+        children: tempReservation.guests.children,
+        toddlers: tempReservation.guests.toddlers,
+        totalPrice: tempReservation.totalPrice,
+      };
+
+      // Create the booking
+      const booking = await dataManager.createBooking(bookingData);
+      if (booking) {
+        createdBookings.push(booking);
+      } else {
+        // If any booking fails, show error
+        this.showNotification(
+          this.currentLanguage === 'cs'
+            ? `Chyba při vytváření rezervace pro ${tempReservation.roomName}`
+            : `Error creating booking for ${tempReservation.roomName}`,
+          'error'
+        );
+        return;
+      }
+    }
+
+    // All bookings created successfully
+    this.showNotification(
+      this.currentLanguage === 'cs'
+        ? `Úspěšně vytvořeno ${createdBookings.length} rezervací`
+        : `Successfully created ${createdBookings.length} bookings`,
+      'success'
+    );
+
+    // Clear temporary reservations
+    this.tempReservations = [];
+    this.displayTempReservations();
+
+    // Hide finalize button
+    const finalizeDiv = document.getElementById('finalizeReservationsDiv');
+    if (finalizeDiv) {
+      finalizeDiv.style.display = 'none';
+    }
+
+    // Close modal
+    this.closeFinalBookingModal();
+
+    // Refresh calendar to show new bookings
+    await this.renderCalendar();
+
+    // Clear selected dates
+    this.selectedDates.clear();
+    this.selectedRooms.clear();
+  }
 }
 
 // Initialize app when DOM is ready
@@ -574,3 +1030,16 @@ document.addEventListener('DOMContentLoaded', () => {
   window.app = new BookingApp();
   window.app.init();
 });
+
+// Make functions globally accessible
+window.finalizeAllReservations = function () {
+  if (window.app) {
+    window.app.finalizeAllReservations();
+  }
+};
+
+window.closeFinalBookingModal = function () {
+  if (window.app) {
+    window.app.closeFinalBookingModal();
+  }
+};

@@ -10,9 +10,35 @@ const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 
+// Import SQLite Database Manager
+const DatabaseManager = require('./database');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Initialize SQLite database
+const db = new DatabaseManager();
+
+// Migrate from JSON if exists
 const DATA_FILE = path.join(__dirname, 'data', 'bookings.json');
+fs.access(DATA_FILE)
+  .then(() => {
+    console.info('Migrating existing JSON data to SQLite...');
+    return db.migrateFromJSON(DATA_FILE);
+  })
+  .then(() => {
+    // Rename JSON file after successful migration
+    const backupFile = `${DATA_FILE}.migrated-${Date.now()}`;
+    return fs.rename(DATA_FILE, backupFile);
+  })
+  .then((backupFile) => {
+    console.info('Migration complete. JSON backup saved.');
+  })
+  .catch((err) => {
+    if (err.code !== 'ENOENT') {
+      console.error('Migration error:', err);
+    }
+  });
 
 // Security middleware
 app.use(
@@ -78,52 +104,89 @@ function generateSecureToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-async function ensureDataFile() {
-  const dir = path.dirname(DATA_FILE);
-  try {
-    await fs.access(dir);
-  } catch {
-    await fs.mkdir(dir, { recursive: true });
+// Helper functions for DataManager compatibility
+function generateId() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let id = 'BK';
+  for (let i = 0; i < 13; i++) {
+    id += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return id;
+}
+
+function generateEditToken() {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let token = '';
+  for (let i = 0; i < 12; i++) {
+    token += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return token;
+}
+
+function formatDate(date) {
+  if (!date) {
+    return null;
+  }
+  if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    return date;
+  }
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function isChristmasPeriod(date) {
+  const settings = db.getSettings();
+  if (!settings.christmasPeriod) {
+    return false;
   }
 
-  try {
-    await fs.access(DATA_FILE);
-  } catch {
-    // Hash the admin password from environment variable
-    const hashedPassword = await bcrypt.hash(
-      process.env.ADMIN_PASSWORD || 'ChangeThisPassword123!',
-      10
-    );
+  const checkDate = new Date(date);
+  const start = new Date(settings.christmasPeriod.start);
+  const end = new Date(settings.christmasPeriod.end);
 
-    const initialData = {
-      bookings: [],
-      blockedDates: [],
-      settings: {
-        adminPasswordHash: hashedPassword,
-        christmasAccessCodes: process.env.CHRISTMAS_ACCESS_CODES?.split(',') || ['XMAS2024'],
-        christmasPeriod: {
-          start: process.env.CHRISTMAS_START || '2024-12-23',
-          end: process.env.CHRISTMAS_END || '2025-01-02',
-        },
-        rooms: [
-          { id: '12', name: 'Pokoj 12', type: 'small', beds: 2 },
-          { id: '13', name: 'Pokoj 13', type: 'small', beds: 3 },
-          { id: '14', name: 'Pokoj 14', type: 'large', beds: 4 },
-          { id: '22', name: 'Pokoj 22', type: 'small', beds: 2 },
-          { id: '23', name: 'Pokoj 23', type: 'small', beds: 3 },
-          { id: '24', name: 'Pokoj 24', type: 'large', beds: 4 },
-          { id: '42', name: 'Pokoj 42', type: 'small', beds: 2 },
-          { id: '43', name: 'Pokoj 43', type: 'small', beds: 2 },
-          { id: '44', name: 'Pokoj 44', type: 'large', beds: 4 },
-        ],
-        prices: {
-          utia: { base: 300, adult: 50, child: 25 },
-          external: { base: 500, adult: 100, child: 50 },
-        },
-      },
-    };
-    await fs.writeFile(DATA_FILE, JSON.stringify(initialData, null, 2));
+  return checkDate >= start && checkDate <= end;
+}
+
+function validateChristmasCode(code) {
+  const settings = db.getSettings();
+  return settings.christmasAccessCodes && settings.christmasAccessCodes.includes(code);
+}
+
+function calculatePrice(rooms, guestType, adults, children, nights) {
+  const settings = db.getSettings();
+  const { prices } = settings;
+
+  if (!prices || !prices[guestType]) {
+    return 0;
   }
+
+  let totalPrice = 0;
+  const roomsData = settings.rooms || [];
+
+  for (const roomId of rooms) {
+    const room = roomsData.find((r) => r.id === roomId);
+    if (room) {
+      const roomType = room.type;
+      const priceConfig = prices[guestType][roomType];
+
+      if (priceConfig) {
+        // Base price for the room
+        totalPrice += priceConfig.base * nights;
+
+        // Additional adults (assuming first adult is included in base price)
+        const additionalAdults = Math.max(0, adults - rooms.length);
+        totalPrice += additionalAdults * priceConfig.adult * nights;
+
+        // Children
+        totalPrice += (children || 0) * priceConfig.child * nights;
+      }
+    }
+  }
+
+  return totalPrice;
 }
 
 // Health check endpoint
@@ -136,38 +199,59 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Public endpoint - read only non-sensitive data
+// Public endpoint - read all data from SQLite
 app.get('/api/data', async (req, res) => {
   try {
-    const data = await fs.readFile(DATA_FILE, 'utf8');
-    const parsedData = JSON.parse(data);
+    const data = db.getAllData();
 
     // Remove sensitive data before sending to client
-    if (parsedData.settings) {
-      delete parsedData.settings.adminPasswordHash;
+    if (data.settings) {
+      delete data.settings.adminPasswordHash;
       // Keep adminPassword field for backward compatibility but empty
-      parsedData.settings.adminPassword = '';
+      data.settings.adminPassword = '';
     }
 
-    res.json(parsedData);
+    res.json(data);
   } catch (error) {
     console.error('Error reading data:', error);
     return res.status(500).json({ error: 'Nepodařilo se načíst data' });
   }
 });
 
-// Admin endpoint - requires API key
+// Admin endpoint - save all data (for bulk operations)
 app.post('/api/data', requireApiKey, async (req, res) => {
   try {
-    // Preserve the password hash if it exists
-    const currentData = JSON.parse(await fs.readFile(DATA_FILE, 'utf8'));
     const dataToSave = req.body;
 
-    if (currentData.settings?.adminPasswordHash) {
-      dataToSave.settings.adminPasswordHash = currentData.settings.adminPasswordHash;
-    }
+    // Clear existing data and replace with new data
+    const transaction = db.db.transaction(() => {
+      // Clear existing data
+      db.db.exec('DELETE FROM bookings');
+      db.db.exec('DELETE FROM booking_rooms');
+      db.db.exec('DELETE FROM blocked_dates');
 
-    await fs.writeFile(DATA_FILE, JSON.stringify(dataToSave, null, 2));
+      // Insert bookings
+      if (dataToSave.bookings && dataToSave.bookings.length > 0) {
+        for (const booking of dataToSave.bookings) {
+          db.createBooking(booking);
+        }
+      }
+
+      // Insert blocked dates
+      if (dataToSave.blockedDates && dataToSave.blockedDates.length > 0) {
+        for (const blocked of dataToSave.blockedDates) {
+          db.createBlockedDate(blocked);
+        }
+      }
+
+      // Update settings
+      if (dataToSave.settings) {
+        db.updateSettings(dataToSave.settings);
+      }
+    });
+
+    transaction();
+
     res.json({ success: true });
   } catch (error) {
     console.error('Error saving data:', error);
@@ -178,24 +262,75 @@ app.post('/api/data', requireApiKey, async (req, res) => {
 // Public endpoint for creating bookings with rate limiting
 app.post('/api/booking', bookingLimiter, async (req, res) => {
   try {
-    const data = JSON.parse(await fs.readFile(DATA_FILE, 'utf8'));
-    const booking = req.body;
+    const bookingData = req.body;
 
     // Validate required fields
-    if (!booking.name || !booking.email || !booking.startDate || !booking.endDate) {
+    if (!bookingData.name || !bookingData.email || !bookingData.startDate || !bookingData.endDate) {
       return res.status(400).json({ error: 'Chybí povinné údaje' });
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(bookingData.email)) {
+      return res.status(400).json({ error: 'Neplatný formát emailu' });
+    }
+
+    // Check Christmas period access
+    if (isChristmasPeriod(bookingData.startDate) || isChristmasPeriod(bookingData.endDate)) {
+      if (!bookingData.christmasCode || !validateChristmasCode(bookingData.christmasCode)) {
+        return res
+          .status(403)
+          .json({ error: 'Rezervace v období vánočních prázdnin vyžaduje přístupový kód' });
+      }
+    }
+
+    // Check room availability
+    const startDate = new Date(bookingData.startDate);
+    const endDate = new Date(bookingData.endDate);
+
+    if (startDate >= endDate) {
+      return res.status(400).json({ error: 'Datum odjezdu musí být po datu příjezdu' });
+    }
+
+    // Check availability for each room
+    for (const roomId of bookingData.rooms) {
+      const current = new Date(bookingData.startDate);
+      while (current < endDate) {
+        const dateStr = formatDate(current);
+        const availability = db.getRoomAvailability(roomId, dateStr);
+        if (!availability.available) {
+          return res.status(400).json({
+            error: `Pokoj ${roomId} není dostupný dne ${dateStr}`,
+          });
+        }
+        current.setDate(current.getDate() + 1);
+      }
+    }
+
+    // Calculate price
+    const nights = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+    bookingData.totalPrice = calculatePrice(
+      bookingData.rooms,
+      bookingData.guestType,
+      bookingData.adults,
+      bookingData.children || 0,
+      nights
+    );
+
     // Generate secure IDs
-    booking.id = `BK${Date.now()}${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-    booking.editToken = generateSecureToken();
-    booking.createdAt = new Date().toISOString();
-    booking.updatedAt = new Date().toISOString();
+    bookingData.id = generateId();
+    bookingData.editToken = generateEditToken();
+    bookingData.createdAt = new Date().toISOString();
+    bookingData.updatedAt = new Date().toISOString();
 
-    data.bookings.push(booking);
-    await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2));
+    // Create the booking
+    db.createBooking(bookingData);
 
-    res.json({ success: true, booking });
+    res.json({
+      success: true,
+      booking: bookingData,
+      editToken: bookingData.editToken,
+    });
   } catch (error) {
     console.error('Error creating booking:', error);
     return res.status(500).json({ error: 'Nepodařilo se vytvořit rezervaci' });
@@ -205,50 +340,115 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
 // Update booking - requires edit token or API key
 app.put('/api/booking/:id', async (req, res) => {
   try {
-    const data = JSON.parse(await fs.readFile(DATA_FILE, 'utf8'));
-    const index = data.bookings.findIndex((b) => b.id === req.params.id);
+    const bookingId = req.params.id;
+    const bookingData = req.body;
+    const editToken = req.headers['x-edit-token'] || req.body.editToken;
 
-    if (index === -1) {
+    // Get existing booking to verify edit token
+    const existingBooking = db.getBooking(bookingId);
+
+    if (!existingBooking) {
       return res.status(404).json({ error: 'Rezervace nenalezena' });
     }
 
-    // Check authorization: either valid edit token or API key
-    const editToken = req.headers['x-edit-token'];
-    const apiKey = req.headers['x-api-key'];
-
-    if (data.bookings[index].editToken !== editToken && apiKey !== process.env.API_KEY) {
-      return res.status(401).json({ error: 'Neautorizovaný přístup' });
+    // Verify edit token
+    if (!editToken || editToken !== existingBooking.editToken) {
+      // Check if API key is provided for admin access
+      const apiKey = req.headers['x-api-key'];
+      if (!apiKey || apiKey !== process.env.API_KEY) {
+        return res.status(403).json({ error: 'Neplatný editační token' });
+      }
     }
 
-    data.bookings[index] = {
-      ...data.bookings[index],
-      ...req.body,
-      id: data.bookings[index].id, // Preserve original ID
-      editToken: data.bookings[index].editToken, // Preserve edit token
-      createdAt: data.bookings[index].createdAt, // Preserve creation date
-      updatedAt: new Date().toISOString(),
-    };
-    await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2));
+    // Validate dates
+    const startDate = new Date(bookingData.startDate);
+    const endDate = new Date(bookingData.endDate);
 
-    res.json({ success: true, booking: data.bookings[index] });
+    if (startDate >= endDate) {
+      return res.status(400).json({ error: 'Datum odjezdu musí být po datu příjezdu' });
+    }
+
+    // Check Christmas period access
+    if (isChristmasPeriod(bookingData.startDate) || isChristmasPeriod(bookingData.endDate)) {
+      if (!bookingData.christmasCode || !validateChristmasCode(bookingData.christmasCode)) {
+        return res
+          .status(403)
+          .json({ error: 'Rezervace v období vánočních prázdnin vyžaduje přístupový kód' });
+      }
+    }
+
+    // Check room availability (excluding current booking)
+    const bookings = db.getAllBookings();
+    const otherBookings = bookings.filter((b) => b.id !== bookingId);
+
+    for (const roomId of bookingData.rooms) {
+      for (const otherBooking of otherBookings) {
+        if (otherBooking.rooms && otherBooking.rooms.includes(roomId)) {
+          const otherStart = new Date(otherBooking.startDate);
+          const otherEnd = new Date(otherBooking.endDate);
+
+          // Check for date overlap
+          if (
+            (startDate >= otherStart && startDate < otherEnd) ||
+            (endDate > otherStart && endDate <= otherEnd) ||
+            (startDate <= otherStart && endDate >= otherEnd)
+          ) {
+            return res.status(400).json({
+              error: `Pokoj ${roomId} je již rezervován v tomto termínu`,
+            });
+          }
+        }
+      }
+    }
+
+    // Recalculate price
+    const nights = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+    bookingData.totalPrice = calculatePrice(
+      bookingData.rooms,
+      bookingData.guestType,
+      bookingData.adults,
+      bookingData.children || 0,
+      nights
+    );
+
+    // Update the booking
+    db.updateBooking(bookingId, bookingData);
+    const updatedBooking = db.getBooking(bookingId);
+
+    res.json({
+      success: true,
+      booking: updatedBooking,
+    });
   } catch (error) {
     console.error('Error updating booking:', error);
     return res.status(500).json({ error: 'Nepodařilo se aktualizovat rezervaci' });
   }
 });
 
-// Delete booking - requires API key
-app.delete('/api/booking/:id', requireApiKey, async (req, res) => {
+// Delete booking - requires API key or edit token
+app.delete('/api/booking/:id', async (req, res) => {
   try {
-    const data = JSON.parse(await fs.readFile(DATA_FILE, 'utf8'));
-    const bookingCount = data.bookings.length;
-    data.bookings = data.bookings.filter((b) => b.id !== req.params.id);
+    const bookingId = req.params.id;
+    const editToken = req.headers['x-edit-token'];
 
-    if (data.bookings.length === bookingCount) {
+    // Get existing booking to verify edit token
+    const existingBooking = db.getBooking(bookingId);
+
+    if (!existingBooking) {
       return res.status(404).json({ error: 'Rezervace nenalezena' });
     }
 
-    await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2));
+    // Verify edit token
+    if (!editToken || editToken !== existingBooking.editToken) {
+      // Check if API key is provided for admin access
+      const apiKey = req.headers['x-api-key'];
+      if (!apiKey || apiKey !== process.env.API_KEY) {
+        return res.status(403).json({ error: 'Neplatný editační token' });
+      }
+    }
+
+    db.deleteBooking(bookingId);
+
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting booking:', error);
@@ -265,10 +465,19 @@ app.post('/api/admin/login', async (req, res) => {
       return res.status(400).json({ error: 'Heslo je povinné' });
     }
 
-    const data = JSON.parse(await fs.readFile(DATA_FILE, 'utf8'));
+    const settings = db.getSettings();
+    const adminPassword = settings.adminPassword || process.env.ADMIN_PASSWORD || 'admin123';
 
-    // Compare with hashed password
-    const isValid = await bcrypt.compare(password, data.settings.adminPasswordHash);
+    // For backward compatibility, check both plain and hashed passwords
+    let isValid = false;
+
+    if (adminPassword === password) {
+      // Plain password match (for backward compatibility)
+      isValid = true;
+    } else if (adminPassword.startsWith('$2')) {
+      // Looks like a bcrypt hash
+      isValid = await bcrypt.compare(password, adminPassword);
+    }
 
     if (isValid) {
       // Generate session token
@@ -296,14 +505,84 @@ app.post('/api/admin/update-password', requireApiKey, async (req, res) => {
       return res.status(400).json({ error: 'Nové heslo musí mít alespoň 8 znaků' });
     }
 
-    const data = JSON.parse(await fs.readFile(DATA_FILE, 'utf8'));
-    data.settings.adminPasswordHash = await bcrypt.hash(newPassword, 10);
+    // Hash the new password and save it
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    db.setSetting('adminPassword', hashedPassword);
 
-    await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2));
     res.json({ success: true });
   } catch (error) {
     console.error('Error updating password:', error);
     return res.status(500).json({ error: 'Nepodařilo se aktualizovat heslo' });
+  }
+});
+
+// Protected admin endpoint - update settings
+app.post('/api/admin/settings', requireApiKey, async (req, res) => {
+  try {
+    const settings = req.body;
+
+    // Hash admin password if provided
+    if (settings.adminPassword) {
+      const hashedPassword = await bcrypt.hash(settings.adminPassword, 10);
+      settings.adminPassword = hashedPassword;
+    }
+
+    db.updateSettings(settings);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating settings:', error);
+    return res.status(500).json({ error: 'Chyba při ukládání nastavení' });
+  }
+});
+
+// Protected admin endpoint - block dates
+app.post('/api/admin/block-dates', requireApiKey, async (req, res) => {
+  try {
+    const { startDate, endDate, rooms, reason } = req.body;
+
+    if (!startDate || !endDate || !rooms || rooms.length === 0) {
+      return res.status(400).json({ error: 'Chybí povinné údaje' });
+    }
+
+    const blocked = [];
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+      const dateStr = formatDate(date);
+      for (const roomId of rooms) {
+        const blockageId = `BLK${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+        const blockedDate = {
+          blockageId,
+          date: dateStr,
+          roomId,
+          reason: reason || null,
+          blockedAt: new Date().toISOString(),
+        };
+        db.createBlockedDate(blockedDate);
+        blocked.push(blockedDate);
+      }
+    }
+
+    res.json({ success: true, blocked });
+  } catch (error) {
+    console.error('Error blocking dates:', error);
+    return res.status(500).json({ error: 'Chyba při blokování dat' });
+  }
+});
+
+// Protected admin endpoint - unblock dates
+app.delete('/api/admin/block-dates/:blockageId', requireApiKey, async (req, res) => {
+  try {
+    const { blockageId } = req.params;
+
+    db.deleteBlockedDate(blockageId);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error unblocking dates:', error);
+    return res.status(500).json({ error: 'Chyba při odblokování dat' });
   }
 });
 
@@ -317,17 +596,25 @@ app.use((err, req, res, next) => {
   });
 });
 
-async function start() {
-  await ensureDataFile();
-  app.listen(PORT, () => {
-    console.info(`Server běží na http://localhost:${PORT}`);
-    console.info(`Prostředí: ${process.env.NODE_ENV || 'development'}`);
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn(
-        '⚠️  VAROVÁNÍ: Server běží v development módu. Pro produkci nastavte NODE_ENV=production'
-      );
-    }
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.info('SIGTERM signal received: closing HTTP server');
+  server.close(() => {
+    console.info('HTTP server closed');
+    db.close();
+    process.exit(0);
   });
-}
+});
 
-start();
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.info(`Server běží na http://localhost:${PORT}`);
+  console.info(`Prostředí: ${process.env.NODE_ENV || 'development'}`);
+  console.info('Database: SQLite (bookings.db)');
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(
+      '⚠️  VAROVÁNÍ: Server běží v development módu. Pro produkci nastavte NODE_ENV=production'
+    );
+  }
+});
+
+module.exports = app;

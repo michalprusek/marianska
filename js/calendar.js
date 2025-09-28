@@ -241,9 +241,24 @@ class CalendarModule {
     const dateStr = dataManager.formatDate(date);
     roomEl.classList.add(availability);
 
-    // Apply color for booked and available rooms only
+    // Check if this room and date is in temp reservations (proposed)
+    let isProposed = false;
+    if (this.app.tempReservations && this.app.tempReservations.length > 0) {
+      isProposed = this.app.tempReservations.some((reservation) => {
+        const startDate = new Date(reservation.startDate);
+        const endDate = new Date(reservation.endDate);
+        const currentDate = new Date(dateStr);
+        return reservation.roomId === room.id && currentDate >= startDate && currentDate <= endDate;
+      });
+    }
+
+    // Apply color for booked, available, and proposed rooms
     // Blocked rooms use CSS for their styling
-    if (availability === 'booked') {
+    if (isProposed) {
+      roomEl.style.background = '#ff4444';
+      roomEl.style.color = 'white';
+      roomEl.classList.add('proposed');
+    } else if (availability === 'booked') {
       roomEl.style.background = '#ff8c00';
       roomEl.style.color = 'white';
     } else if (availability === 'available') {

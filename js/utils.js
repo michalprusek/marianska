@@ -394,9 +394,24 @@ class UtilsModule {
     const nightsEl = document.getElementById('nightsMultiplier');
     const perNightEl = document.getElementById('pricePerNight');
     const basePriceEl = document.getElementById('basePrice');
+    const priceBreakdownEl = document.getElementById('priceBreakdown');
 
     if (!priceEl) {
       return;
+    }
+
+    // Hide price breakdown if no dates selected
+    if (this.app.selectedDates.size === 0) {
+      if (priceBreakdownEl) {
+        priceBreakdownEl.style.display = 'none';
+      }
+      priceEl.textContent = '0 Kč';
+      return;
+    }
+
+    // Show price breakdown when dates are selected
+    if (priceBreakdownEl) {
+      priceBreakdownEl.style.display = 'block';
     }
 
     // Get current settings and prices
@@ -427,7 +442,7 @@ class UtilsModule {
     // Calculate nights as selected days - 1
     const nights = Math.max(0, this.app.selectedDates.size - 1);
 
-    if (this.app.selectedDates.size === 0 || nights === 0) {
+    if (nights === 0) {
       priceEl.textContent = '0 Kč';
       if (nightsEl) {
         nightsEl.textContent = '0';

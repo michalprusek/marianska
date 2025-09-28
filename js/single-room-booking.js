@@ -87,6 +87,12 @@ class SingleRoomBookingModule {
       utiaRadio.checked = true;
     }
 
+    // Hide price breakdown initially since no dates are selected
+    const priceBreakdownEl = document.getElementById('priceBreakdown');
+    if (priceBreakdownEl) {
+      priceBreakdownEl.style.display = 'none';
+    }
+
     // Add active class first to make modal visible
     modal.classList.add('active');
 
@@ -273,11 +279,87 @@ class SingleRoomBookingModule {
             // Complete drag selection
             await this.selectMiniCalendarRange(this.app.dragStartDate, this.app.dragEndDate);
           } else {
-            // Single click - toggle selection
-            if (this.app.selectedDates.has(dateStr)) {
-              this.app.selectedDates.delete(dateStr);
+            // Single click - handle minimum 2 days selection
+            if (this.app.selectedDates.size === 0) {
+              // First click - select this day and the next day (minimum 1 night)
+              const selectedDate = new Date(dateStr);
+              const nextDate = new Date(selectedDate);
+              nextDate.setDate(nextDate.getDate() + 1);
+
+              // Check if next day is available
+              const nextDateStr = dataManager.formatDate(nextDate);
+              const nextAvailability = await dataManager.getRoomAvailability(
+                nextDate,
+                this.app.currentBookingRoom
+              );
+
+              if (nextAvailability.status === 'available') {
+                this.app.selectedDates.add(dateStr);
+                this.app.selectedDates.add(nextDateStr);
+              } else {
+                // If next day is not available, show warning
+                this.app.showNotification(
+                  this.app.currentLanguage === 'cs'
+                    ? 'Minimální rezervace je na 1 noc (2 dny). Následující den není dostupný.'
+                    : 'Minimum booking is for 1 night (2 days). The next day is not available.',
+                  'warning'
+                );
+              }
+            } else if (this.app.selectedDates.has(dateStr)) {
+              // Clicking on already selected date - check if we can deselect
+              const sortedDates = Array.from(this.app.selectedDates).sort();
+
+              // Only allow deselection if it won't leave us with just 1 day
+              if (sortedDates.length > 2) {
+                // Check if this is an edge date (first or last)
+                if (dateStr === sortedDates[0] || dateStr === sortedDates[sortedDates.length - 1]) {
+                  this.app.selectedDates.delete(dateStr);
+                } else {
+                  // Middle date - would break the range, so clear all
+                  this.app.selectedDates.clear();
+                }
+              } else if (sortedDates.length === 2) {
+                // Clear both days
+                this.app.selectedDates.clear();
+              }
             } else {
+              // Clicking on unselected date - extend the range
               this.app.selectedDates.add(dateStr);
+
+              // Fill any gaps to maintain continuous range
+              const sortedDates = Array.from(this.app.selectedDates).sort();
+              const startDate = new Date(sortedDates[0]);
+              const endDate = new Date(sortedDates[sortedDates.length - 1]);
+
+              const current = new Date(startDate);
+              while (current <= endDate) {
+                const currentStr = dataManager.formatDate(current);
+                const availability = await dataManager.getRoomAvailability(
+                  current,
+                  this.app.currentBookingRoom
+                );
+
+                if (availability.status === 'available') {
+                  this.app.selectedDates.add(currentStr);
+                } else {
+                  // Can't create continuous range
+                  this.app.selectedDates.clear();
+                  this.app.selectedDates.add(dateStr);
+                  const nextDate = new Date(dateStr);
+                  nextDate.setDate(nextDate.getDate() + 1);
+                  const nextDateStr = dataManager.formatDate(nextDate);
+                  const nextAvail = await dataManager.getRoomAvailability(
+                    nextDate,
+                    this.app.currentBookingRoom
+                  );
+                  if (nextAvail.status === 'available') {
+                    this.app.selectedDates.add(nextDateStr);
+                  }
+                  break;
+                }
+
+                current.setDate(current.getDate() + 1);
+              }
             }
           }
 
@@ -359,5 +441,115 @@ class SingleRoomBookingModule {
     this.app.isDragging = false;
     this.app.dragStartDate = null;
     this.app.dragEndDate = null;
+  }
+
+  async confirmRoomBooking() {
+    // Validate that dates are selected
+    if (this.app.selectedDates.size === 0) {
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs' ? 'Vyberte prosím termín pobytu' : 'Please select dates',
+        'warning'
+      );
+      return;
+    }
+
+    // Validate minimum 2 days (1 night)
+    if (this.app.selectedDates.size < 2) {
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? 'Minimální rezervace je na 1 noc (2 dny)'
+          : 'Minimum booking is for 1 night (2 days)',
+        'warning'
+      );
+      return;
+    }
+
+    // Validate room is selected
+    if (!this.app.currentBookingRoom) {
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? 'Chyba: Žádný pokoj není vybrán'
+          : 'Error: No room selected',
+        'error'
+      );
+      return;
+    }
+
+    // Get guest configuration
+    const guests = this.app.roomGuests.get(this.app.currentBookingRoom) || {
+      adults: 1,
+      children: 0,
+      toddlers: 0,
+    };
+
+    // Get guest type
+    const guestTypeInput = document.querySelector('input[name="singleRoomGuestType"]:checked');
+    const guestType = guestTypeInput ? guestTypeInput.value : 'utia';
+
+    // Get dates
+    const sortedDates = Array.from(this.app.selectedDates).sort();
+    const startDate = sortedDates[0];
+    const endDate = sortedDates[sortedDates.length - 1];
+
+    // Calculate price
+    const rooms = await dataManager.getRooms();
+    const room = rooms.find((r) => r.id === this.app.currentBookingRoom);
+
+    if (!room) {
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs' ? 'Chyba: Pokoj nebyl nalezen' : 'Error: Room not found',
+        'error'
+      );
+      return;
+    }
+
+    const nights = sortedDates.length - 1;
+    const price = await dataManager.calculatePrice(
+      guestType,
+      guests.adults,
+      guests.children,
+      guests.toddlers,
+      nights,
+      1
+    );
+
+    // Create temporary booking object
+    const tempBooking = {
+      roomId: this.app.currentBookingRoom,
+      roomName: room.name,
+      startDate,
+      endDate,
+      nights,
+      guests,
+      guestType,
+      totalPrice: price,
+      id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    };
+
+    // Add to a temporary reservations list
+    if (!this.app.tempReservations) {
+      this.app.tempReservations = [];
+    }
+    this.app.tempReservations.push(tempBooking);
+
+    // Show success notification
+    this.app.showNotification(
+      this.app.currentLanguage === 'cs'
+        ? `Pokoj ${room.name} přidán do rezervace`
+        : `Room ${room.name} added to reservation`,
+      'success'
+    );
+
+    // Close the modal
+    this.hideRoomBookingModal();
+
+    // Update the main page to show temporary reservations
+    this.app.displayTempReservations();
+
+    // Show the finalize button
+    const finalizeDiv = document.getElementById('finalizeReservationsDiv');
+    if (finalizeDiv && this.app.tempReservations.length > 0) {
+      finalizeDiv.style.display = 'block';
+    }
   }
 }

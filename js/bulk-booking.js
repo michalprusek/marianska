@@ -30,28 +30,25 @@ class BulkBookingModule {
       bulkChildren.textContent = '0';
     }
 
-    // Initialize Airbnb calendar if available, otherwise use bulk calendar
-    if (typeof AirbnbCalendarModule !== 'undefined') {
-      if (!this.airbnbCalendar) {
-        this.airbnbCalendar = new AirbnbCalendarModule(this.app);
-      }
-      await this.airbnbCalendar.initCalendar('bulkMiniCalendar', null, 'bulk');
-
-      // Listen for date selection events
-      this.airbnbCalendar.addEventListener('dates-selected', async (event) => {
-        const { checkIn, checkOut, dates } = event.detail;
-        this.bulkSelectedDates.clear();
-        dates.forEach((date) => this.bulkSelectedDates.add(date));
-        await this.updateBulkSelectedDatesDisplay();
-        await this.updateBulkPriceCalculation();
-        this.updateBulkCapacityCheck();
+    // Set up guest type change handler
+    const guestTypeInputs = document.querySelectorAll('input[name="bulkGuestType"]');
+    guestTypeInputs.forEach((input) => {
+      input.addEventListener('change', () => {
+        this.updateBulkPriceCalculation();
       });
-    } else {
-      // Fallback to original bulk calendar
-      await this.renderBulkCalendar();
-      await this.updateBulkSelectedDatesDisplay();
-      this.updateBulkCapacityCheck();
+    });
+
+    // Reset guest type to external (default for bulk bookings)
+    const externalRadio = document.querySelector('input[name="bulkGuestType"][value="external"]');
+    if (externalRadio) {
+      externalRadio.checked = true;
     }
+
+    // Always use the bulk calendar (not Airbnb calendar)
+    await this.renderBulkCalendar();
+    await this.updateBulkSelectedDatesDisplay();
+    await this.updateBulkPriceCalculation();
+    this.updateBulkCapacityCheck();
 
     modal.classList.add('active');
   }
@@ -235,11 +232,91 @@ class BulkBookingModule {
           if (wasDrag && this.bulkDragStart && this.bulkDragEnd) {
             await this.selectBulkCalendarRange(this.bulkDragStart, this.bulkDragEnd);
           } else {
-            // Single click toggle
-            if (this.bulkSelectedDates.has(dateStr)) {
-              this.bulkSelectedDates.delete(dateStr);
+            // Single click - handle minimum 2 days selection
+            if (this.bulkSelectedDates.size === 0) {
+              // First click - select this day and the next day (minimum 1 night)
+              const selectedDate = new Date(dateStr);
+              const nextDate = new Date(selectedDate);
+              nextDate.setDate(nextDate.getDate() + 1);
+
+              // Check if next day is fully available
+              const nextDateStr = dataManager.formatDate(nextDate);
+              const nextIsAvailable = await this.isDateFullyAvailable(nextDate);
+              const nextIsChristmas = await dataManager.isChristmasPeriod(nextDate);
+              const today = new Date();
+              const oct1 = new Date(today.getFullYear(), 9, 1);
+              const isAfterOct1 = today >= oct1;
+              const nextIsChristmasBlocked = nextIsChristmas && isAfterOct1;
+
+              if (nextIsAvailable && !nextIsChristmasBlocked) {
+                this.bulkSelectedDates.add(dateStr);
+                this.bulkSelectedDates.add(nextDateStr);
+              } else {
+                // If next day is not available, show warning
+                this.app.showNotification(
+                  this.app.currentLanguage === 'cs'
+                    ? 'Minimální rezervace je na 1 noc (2 dny). Následující den není dostupný.'
+                    : 'Minimum booking is for 1 night (2 days). The next day is not available.',
+                  'warning'
+                );
+              }
+            } else if (this.bulkSelectedDates.has(dateStr)) {
+              // Clicking on already selected date - check if we can deselect
+              const sortedDates = Array.from(this.bulkSelectedDates).sort();
+
+              // Only allow deselection if it won't leave us with just 1 day
+              if (sortedDates.length > 2) {
+                // Check if this is an edge date (first or last)
+                if (dateStr === sortedDates[0] || dateStr === sortedDates[sortedDates.length - 1]) {
+                  this.bulkSelectedDates.delete(dateStr);
+                } else {
+                  // Middle date - would break the range, so clear all
+                  this.bulkSelectedDates.clear();
+                }
+              } else if (sortedDates.length === 2) {
+                // Clear both days
+                this.bulkSelectedDates.clear();
+              }
             } else {
+              // Clicking on unselected date - extend the range
               this.bulkSelectedDates.add(dateStr);
+
+              // Fill any gaps to maintain continuous range
+              const sortedDates = Array.from(this.bulkSelectedDates).sort();
+              const startDate = new Date(sortedDates[0]);
+              const endDate = new Date(sortedDates[sortedDates.length - 1]);
+
+              const current = new Date(startDate);
+              const today = new Date();
+              const oct1 = new Date(today.getFullYear(), 9, 1);
+              const isAfterOct1 = today >= oct1;
+
+              while (current <= endDate) {
+                const currentStr = dataManager.formatDate(current);
+                const isAvailable = await this.isDateFullyAvailable(current);
+                const isChristmas = await dataManager.isChristmasPeriod(current);
+                const isChristmasBlocked = isChristmas && isAfterOct1;
+
+                if (isAvailable && !isChristmasBlocked) {
+                  this.bulkSelectedDates.add(currentStr);
+                } else {
+                  // Can't create continuous range
+                  this.bulkSelectedDates.clear();
+                  this.bulkSelectedDates.add(dateStr);
+                  const nextDate = new Date(dateStr);
+                  nextDate.setDate(nextDate.getDate() + 1);
+                  const nextDateStr = dataManager.formatDate(nextDate);
+                  const nextAvail = await this.isDateFullyAvailable(nextDate);
+                  const nextChristmas = await dataManager.isChristmasPeriod(nextDate);
+                  const nextBlocked = nextChristmas && isAfterOct1;
+                  if (nextAvail && !nextBlocked) {
+                    this.bulkSelectedDates.add(nextDateStr);
+                  }
+                  break;
+                }
+
+                current.setDate(current.getDate() + 1);
+              }
             }
           }
 
@@ -404,30 +481,97 @@ class BulkBookingModule {
   async updateBulkPriceCalculation() {
     const sortedDates = Array.from(this.bulkSelectedDates).sort();
     if (sortedDates.length === 0) {
+      // Clear price display when no dates selected
+      const priceDisplay = document.getElementById('bulkTotalPrice');
+      if (priceDisplay) {
+        priceDisplay.textContent = '0 Kč';
+      }
+      const nightsDisplay = document.getElementById('bulkNightsCount');
+      if (nightsDisplay) {
+        nightsDisplay.textContent = '0';
+      }
+      const nightsMultiplier = document.getElementById('bulkNightsMultiplier');
+      if (nightsMultiplier) {
+        nightsMultiplier.textContent = '× 0';
+      }
+      const basePriceEl = document.getElementById('bulkBasePrice');
+      if (basePriceEl) {
+        basePriceEl.textContent = '0 Kč';
+      }
       return;
     }
 
     // Calculate nights as selected days - 1
     const nights = Math.max(0, sortedDates.length - 1);
     const rooms = await dataManager.getRooms();
-    const adults = parseInt(document.getElementById('bulkAdults')?.textContent) || 0;
+    const adults = parseInt(document.getElementById('bulkAdults')?.textContent) || 1;
     const children = parseInt(document.getElementById('bulkChildren')?.textContent) || 0;
     const toddlers = 0; // Not used in bulk bookings
 
-    // Calculate total price for bulk booking
-    const guestType = 'external'; // Bulk bookings are always external
+    // Get guest type from radio buttons
+    const guestTypeInput = document.querySelector('input[name="bulkGuestType"]:checked');
+    const guestType = guestTypeInput ? guestTypeInput.value : 'external';
 
-    // Calculate price using the dataManager method
-    const totalPrice = await dataManager.calculatePrice(
-      guestType,
-      adults,
-      children,
-      toddlers,
-      nights,
-      rooms.length // number of rooms
-    );
+    // Get pricing settings from admin configuration
+    const settings = await dataManager.getSettings();
 
-    // Update display
+    // Get the price configuration for the guest type
+    let priceConfig;
+    if (settings.prices && settings.prices[guestType]) {
+      priceConfig = settings.prices[guestType];
+    } else {
+      // Fallback defaults
+      priceConfig =
+        guestType === 'utia'
+          ? { base: 300, adult: 50, child: 25 }
+          : { base: 500, adult: 100, child: 50 };
+    }
+
+    // For bulk booking - calculate base price for all rooms
+    const totalBasePricePerNight = priceConfig.base * rooms.length;
+
+    // Calculate guest surcharges
+    // First adult in each room is included in base price
+    const roomCapacityUsed = rooms.length; // Number of base adults included
+    const extraAdults = Math.max(0, adults - roomCapacityUsed);
+    const adultSurcharge = extraAdults * priceConfig.adult;
+    const childrenSurcharge = children * priceConfig.child;
+
+    // Calculate total
+    const pricePerNight = totalBasePricePerNight + adultSurcharge + childrenSurcharge;
+    const totalPrice = pricePerNight * nights;
+
+    // Update display elements
+    const basePriceEl = document.getElementById('bulkBasePrice');
+    if (basePriceEl) {
+      basePriceEl.textContent = `${totalBasePricePerNight.toLocaleString('cs-CZ')} Kč/noc`;
+    }
+
+    const adultsEl = document.getElementById('bulkAdultsSurcharge');
+    if (adultsEl) {
+      if (extraAdults > 0) {
+        adultsEl.textContent = `+${adultSurcharge.toLocaleString('cs-CZ')} Kč/noc`;
+        adultsEl.parentElement.style.display = 'flex';
+      } else {
+        adultsEl.parentElement.style.display = 'none';
+      }
+    }
+
+    const childrenEl = document.getElementById('bulkChildrenSurcharge');
+    if (childrenEl) {
+      if (children > 0) {
+        childrenEl.textContent = `+${childrenSurcharge.toLocaleString('cs-CZ')} Kč/noc`;
+        childrenEl.parentElement.style.display = 'flex';
+      } else {
+        childrenEl.parentElement.style.display = 'none';
+      }
+    }
+
+    const nightsMultiplier = document.getElementById('bulkNightsMultiplier');
+    if (nightsMultiplier) {
+      nightsMultiplier.textContent = `× ${nights}`;
+    }
+
     const priceDisplay = document.getElementById('bulkTotalPrice');
     if (priceDisplay) {
       priceDisplay.textContent = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
@@ -494,6 +638,26 @@ class BulkBookingModule {
   }
 
   async confirmBulkDates() {
+    // Validate minimum selection
+    if (this.bulkSelectedDates.size === 0) {
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs' ? 'Vyberte prosím termín pobytu' : 'Please select dates',
+        'warning'
+      );
+      return;
+    }
+
+    // Validate minimum 2 days (1 night)
+    if (this.bulkSelectedDates.size < 2) {
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? 'Minimální rezervace je na 1 noc (2 dny)'
+          : 'Minimum booking is for 1 night (2 days)',
+        'warning'
+      );
+      return;
+    }
+
     // For now, directly submit since we don't have a two-step process in current HTML
     await this.submitBulkBooking();
   }
