@@ -60,14 +60,6 @@ export default [
         MutationObserver: 'readonly',
         ResizeObserver: 'readonly',
         IntersectionObserver: 'readonly',
-        DataManager: 'readonly',
-        Calendar: 'readonly',
-        BookingForm: 'readonly',
-        BulkBooking: 'readonly',
-        SingleRoomBooking: 'readonly',
-        Utils: 'readonly',
-        BookingApp: 'readonly',
-        dataManager: 'readonly',
         requestAnimationFrame: 'readonly',
       },
     },
@@ -330,6 +322,68 @@ export default [
     },
   },
   {
+    files: ['data.js'],
+    languageOptions: {
+      sourceType: 'script',
+      globals: {
+        window: 'readonly',
+        document: 'readonly',
+        localStorage: 'readonly',
+        sessionStorage: 'readonly',
+        console: 'readonly',
+        fetch: 'readonly',
+        module: 'readonly',
+        ValidationUtils: 'readonly',
+        BookingLogic: 'readonly',
+      },
+    },
+    rules: {
+      'no-undef': 'error',
+      'no-unused-vars': [
+        'error',
+        {
+          varsIgnorePattern: '^(DataManager|dataManager)$',
+        },
+      ],
+    },
+  },
+  {
+    files: ['translations.js'],
+    languageOptions: {
+      sourceType: 'script',
+      globals: {
+        module: 'readonly',
+      },
+    },
+    rules: {
+      'no-undef': 'error',
+      'no-unused-vars': [
+        'error',
+        {
+          varsIgnorePattern: '^translations$',
+        },
+      ],
+    },
+  },
+  {
+    files: ['js/shared/**/*.js'],
+    languageOptions: {
+      sourceType: 'script',
+      globals: {
+        module: 'readonly',
+      },
+    },
+    rules: {
+      'no-undef': 'error',
+      'no-unused-vars': [
+        'error',
+        {
+          varsIgnorePattern: '^(ValidationUtils|BookingLogic)$',
+        },
+      ],
+    },
+  },
+  {
     files: ['js/**/*.js', 'admin.js'],
     languageOptions: {
       sourceType: 'script',
@@ -347,22 +401,10 @@ export default [
         Worker: 'readonly',
         self: 'readonly',
         WorkerGlobalScope: 'readonly',
-        DataManager: 'writable',
-        Calendar: 'writable',
-        BookingForm: 'writable',
-        BulkBooking: 'writable',
-        SingleRoomBooking: 'writable',
-        Utils: 'writable',
-        BookingApp: 'writable',
-        CalendarModule: 'writable',
-        SingleRoomBookingModule: 'writable',
-        BulkBookingModule: 'writable',
-        BookingFormModule: 'writable',
-        UtilsModule: 'writable',
-        CalendarUtils: 'writable',
-        AirbnbCalendarModule: 'writable',
-        dataManager: 'writable',
-        adminPanel: 'writable',
+        dataManager: 'readonly',
+        translations: 'readonly',
+        ValidationUtils: 'readonly',
+        BookingLogic: 'readonly',
       },
     },
     rules: {
@@ -371,7 +413,7 @@ export default [
         'error',
         {
           varsIgnorePattern:
-            '^(DataManager|Calendar|BookingForm|BulkBooking|SingleRoomBooking|Utils|BookingApp)$',
+            '^(DataManager|BookingApp|adminPanel|BookingFormModule|BulkBookingModule|SingleRoomBookingModule|CalendarModule|CalendarUtils|UtilsModule|AirbnbCalendarModule)$',
         },
       ],
     },

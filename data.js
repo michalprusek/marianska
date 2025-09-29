@@ -13,7 +13,7 @@ class DataManager {
   getOrCreateSessionId() {
     let sessionId = sessionStorage.getItem('bookingSessionId');
     if (!sessionId) {
-      sessionId = `SESSION_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      sessionId = `SESSION_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
       sessionStorage.setItem('bookingSessionId', sessionId);
     }
     return sessionId;
@@ -435,6 +435,7 @@ class DataManager {
 
     let hash = 0;
     for (let i = 0; i < email.length; i++) {
+      // eslint-disable-next-line no-bitwise
       hash = email.charCodeAt(i) + ((hash << 5) - hash);
     }
 
@@ -558,7 +559,7 @@ class DataManager {
   }
 
   generateBlockageId() {
-    return `BLK${Date.now()}${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+    return `BLK${Date.now()}${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
   }
 
   async unblockDate(date, roomId = null) {
@@ -643,11 +644,11 @@ class DataManager {
 
   // Utility functions
   generateBookingId() {
-    return `BK${Date.now()}${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+    return `BK${Date.now()}${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
   }
 
   generateEditToken() {
-    return Math.random().toString(36).substr(2, 15) + Math.random().toString(36).substr(2, 15);
+    return Math.random().toString(36).slice(2, 17) + Math.random().toString(36).slice(2, 17);
   }
 
   formatDate(date) {
@@ -799,16 +800,16 @@ Chata Mariánská`;
     const endDate = new Date(booking.endDate);
 
     body = body
-      .replace(/{booking_id}/g, booking.id)
-      .replace(/{name}/g, booking.name)
-      .replace(/{start_date}/g, startDate.toLocaleDateString('cs-CZ'))
-      .replace(/{end_date}/g, endDate.toLocaleDateString('cs-CZ'))
-      .replace(/{rooms}/g, booking.rooms.join(', '))
-      .replace(/{total_price}/g, booking.totalPrice)
-      .replace(/{adults}/g, booking.adults)
-      .replace(/{children}/g, booking.children)
-      .replace(/{toddlers}/g, booking.toddlers)
-      .replace(/{edit_url}/g, editUrl);
+      .replace(/{booking_id}/gu, booking.id)
+      .replace(/{name}/gu, booking.name)
+      .replace(/{start_date}/gu, startDate.toLocaleDateString('cs-CZ'))
+      .replace(/{end_date}/gu, endDate.toLocaleDateString('cs-CZ'))
+      .replace(/{rooms}/gu, booking.rooms.join(', '))
+      .replace(/{total_price}/gu, booking.totalPrice)
+      .replace(/{adults}/gu, booking.adults)
+      .replace(/{children}/gu, booking.children)
+      .replace(/{toddlers}/gu, booking.toddlers)
+      .replace(/{edit_url}/gu, editUrl);
 
     return this.sendEmail(booking.email, subject, body);
   }

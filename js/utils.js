@@ -178,9 +178,12 @@ class UtilsModule {
   async sendContactMessage(bookingId, fromEmail, message, modalElement) {
     // Validate inputs using ValidationUtils
     if (!fromEmail || !message || !ValidationUtils.validateEmail(fromEmail)) {
-      const errorMsg = !fromEmail || !message
-        ? (this.app.currentLanguage === 'cs' ? 'Vyplňte prosím všechna pole' : 'Please fill in all fields')
-        : ValidationUtils.getValidationError('email', fromEmail, this.app.currentLanguage);
+      const errorMsg =
+        !fromEmail || !message
+          ? this.app.currentLanguage === 'cs'
+            ? 'Vyplňte prosím všechna pole'
+            : 'Please fill in all fields'
+          : ValidationUtils.getValidationError('email', fromEmail, this.app.currentLanguage);
       this.showNotification(errorMsg, 'error');
       return;
     }

@@ -500,7 +500,7 @@ class AdminPanel {
   }
 
   // Helper functions for comprehensive edit modal
-  async initEditCalendar() {
+  initEditCalendar() {
     const container = document.getElementById('editCalendarContainer');
     if (!container) {
       return;
@@ -613,7 +613,7 @@ class AdminPanel {
       const dates = Array.from(this.editSelectedDates).sort();
       this.editStartDate = dates[0];
       this.editEndDate = this.formatDate(
-        new Date(new Date(dates[dates.length - 1]).getTime() + 24 * 60 * 60 * 1000)
+        new Date(new Date(dates[dates.length - 1]).getTime() + (24 * 60 * 60 * 1000))
       );
 
       document.getElementById('editSelectedDates').textContent =
@@ -684,9 +684,9 @@ class AdminPanel {
     const childPrice = guestType === 'utia' ? 25 : 50;
 
     const totalPrice =
-      nights * roomCount * basePrice +
-      nights * (adults - roomCount) * adultPrice +
-      nights * children * childPrice;
+      (nights * roomCount * basePrice) +
+      (nights * (adults - roomCount) * adultPrice) +
+      (nights * children * childPrice);
 
     document.getElementById('editTotalPrice').textContent = `${totalPrice} Kč`;
     return totalPrice;

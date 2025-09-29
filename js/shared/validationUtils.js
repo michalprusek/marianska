@@ -1,11 +1,11 @@
 class ValidationUtils {
   static validateEmail(email) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
     return emailRegex.test(email);
   }
 
   static validatePhone(phone) {
-    const cleanPhone = phone.replace(/\s/g, '');
+    const cleanPhone = phone.replace(/\s/gu, '');
 
     // Check if phone starts with + and some country code (1-4 digits)
     if (!cleanPhone.startsWith('+')) {
@@ -19,37 +19,37 @@ class ValidationUtils {
     // For Czech (+420) and Slovak (+421) - 3 digit country code + 9 digit number = 12 total
     if (cleanPhone.startsWith('+420') || cleanPhone.startsWith('+421')) {
       const numberPart = cleanPhone.slice(4);
-      return numberPart.length === 9 && /^\d+$/.test(numberPart);
+      return numberPart.length === 9 && /^\d+$/u.test(numberPart);
     }
 
     // For other country codes, just check that we have a reasonable phone length
     // Most international numbers are 7-15 digits total (including country code)
-    return withoutPlus.length >= 7 && withoutPlus.length <= 15 && /^\d+$/.test(withoutPlus);
+    return withoutPlus.length >= 7 && withoutPlus.length <= 15 && /^\d+$/u.test(withoutPlus);
   }
 
   static validateZIP(zip) {
-    const cleanZip = zip.replace(/\s/g, '');
-    return cleanZip.length === 5 && /^\d+$/.test(cleanZip);
+    const cleanZip = zip.replace(/\s/gu, '');
+    return cleanZip.length === 5 && /^\d+$/u.test(cleanZip);
   }
 
   static validateICO(ico) {
     if (!ico) {
       return true;
     }
-    const cleanIco = ico.replace(/\s/g, '');
-    return cleanIco.length === 8 && /^\d+$/.test(cleanIco);
+    const cleanIco = ico.replace(/\s/gu, '');
+    return cleanIco.length === 8 && /^\d+$/u.test(cleanIco);
   }
 
   static validateDIC(dic) {
     if (!dic) {
       return true;
     }
-    const cleanDic = dic.replace(/\s/g, '');
-    return /^CZ\d{8,10}$/.test(cleanDic);
+    const cleanDic = dic.replace(/\s/gu, '');
+    return /^CZ\d{8,10}$/u.test(cleanDic);
   }
 
   static formatPhone(phone) {
-    const cleanPhone = phone.replace(/\s/g, '');
+    const cleanPhone = phone.replace(/\s/gu, '');
 
     // For Czech and Slovak numbers
     if (cleanPhone.startsWith('+420') || cleanPhone.startsWith('+421')) {
@@ -85,7 +85,7 @@ class ValidationUtils {
 
       // Format the number part in groups of 3
       if (number.length >= 6) {
-        const formatted = number.match(/.{1,3}/g)?.join(' ') || number;
+        const formatted = number.match(/.{1,3}/gu)?.join(' ') || number;
         return `${prefix} ${formatted}`;
       }
     }
@@ -94,7 +94,7 @@ class ValidationUtils {
   }
 
   static formatZIP(zip) {
-    const cleanZip = zip.replace(/\s/g, '');
+    const cleanZip = zip.replace(/\s/gu, '');
     if (cleanZip.length === 5) {
       return `${cleanZip.slice(0, 3)} ${cleanZip.slice(3)}`;
     }

@@ -129,7 +129,7 @@ function formatDate(date) {
   if (!date) {
     return null;
   }
-  if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+  if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/u)) {
     return date;
   }
   const d = new Date(date);
@@ -577,7 +577,7 @@ app.post('/api/admin/block-dates', requireApiKey, async (req, res) => {
     for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
       const dateStr = formatDate(date);
       for (const roomId of rooms) {
-        const blockageId = `BLK${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+        const blockageId = `BLK${Math.random().toString(36).slice(2, 11).toUpperCase()}`;
         const blockedDate = {
           blockageId,
           date: dateStr,

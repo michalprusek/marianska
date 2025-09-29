@@ -735,8 +735,8 @@ class BulkBookingModule {
     const guestKey = guestType === 'utia' ? 'utia' : 'external';
     const pricePerNight =
       bulkPrices.basePrice +
-      adults * bulkPrices[`${guestKey}Adult`] +
-      children * bulkPrices[`${guestKey}Child`];
+      (adults * bulkPrices[`${guestKey}Adult`]) +
+      (children * bulkPrices[`${guestKey}Child`]);
     const totalPrice = pricePerNight * nights;
 
     // Create proposed booking in database for all rooms
