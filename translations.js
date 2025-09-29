@@ -226,7 +226,6 @@ const translations = {
     bulkBookingCreatedSuccess: '✓ Hromadná rezervace byla úspěšně vytvořena',
     bookingNumberPrefix: 'Rezervace',
     toddler: 'batole',
-    toddlers: 'batolata',
   },
   en: {
     // Header
@@ -454,7 +453,6 @@ const translations = {
     bulkBookingCreatedSuccess: '✓ Bulk booking created successfully',
     bookingNumberPrefix: 'Booking',
     toddler: 'toddler',
-    toddlers: 'toddlers',
   },
 };
 

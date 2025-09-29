@@ -16,7 +16,7 @@ class AdminPanel {
   // Helper function to create styled room badges
   createRoomBadge(roomId, inline = false) {
     // Use cached rooms data
-    const data = JSON.parse(localStorage.getItem('chataMarianska') || '{}');
+    // const data = JSON.parse(localStorage.getItem('chataMarianska') || '{}');
     // const rooms = data.settings?.rooms || []; // Reserved for future use
     // const room = rooms.find((r) => r.id === roomId); // Reserved for future use
     return `<span style="
@@ -418,7 +418,8 @@ class AdminPanel {
     // Set dates
     const start = new Date(booking.startDate);
     const end = new Date(booking.endDate);
-    for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+    const endTime = end.getTime();
+    for (let d = new Date(start); d.getTime() < endTime; d.setDate(d.getDate() + 1)) {
       this.editSelectedDates.add(this.formatDate(new Date(d)));
     }
 
@@ -464,7 +465,8 @@ class AdminPanel {
     const bookingId = document.getElementById('editBookingId').value;
 
     // Get selected guest type
-    const guestType = document.querySelector('input[name="editGuestType"]:checked')?.value || 'external';
+    const guestType =
+      document.querySelector('input[name="editGuestType"]:checked')?.value || 'external';
 
     // Calculate price based on new selections
     const totalPrice = await this.calculateEditPrice();
@@ -477,11 +479,11 @@ class AdminPanel {
       startDate: this.editStartDate,
       endDate: this.editEndDate,
       rooms: Array.from(this.editSelectedRooms),
-      adults: parseInt(document.getElementById('editAdults').value),
-      children: parseInt(document.getElementById('editChildren').value),
-      toddlers: parseInt(document.getElementById('editToddlers').value),
-      guestType: guestType,
-      totalPrice: totalPrice,
+      adults: parseInt(document.getElementById('editAdults').value, 10),
+      children: parseInt(document.getElementById('editChildren').value, 10),
+      toddlers: parseInt(document.getElementById('editToddlers').value, 10),
+      guestType,
+      totalPrice,
       address: document.getElementById('editAddress').value,
       city: document.getElementById('editCity').value,
       zip: document.getElementById('editZip').value,
@@ -500,13 +502,15 @@ class AdminPanel {
   // Helper functions for comprehensive edit modal
   async initEditCalendar() {
     const container = document.getElementById('editCalendarContainer');
-    if (!container) return;
+    if (!container) {
+      return;
+    }
 
-    const cal = await this.renderEditCalendar();
+    const cal = this.renderEditCalendar();
     container.innerHTML = cal;
   }
 
-  async renderEditCalendar() {
+  renderEditCalendar() {
     const year = this.editCurrentYear;
     const month = this.editCurrentMonth;
     const firstDay = new Date(year, month, 1);
@@ -514,8 +518,20 @@ class AdminPanel {
     const daysInMonth = lastDay.getDate();
     const startingDayOfWeek = firstDay.getDay();
 
-    const monthNames = ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen',
-                       'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'];
+    const monthNames = [
+      'Leden',
+      'Únor',
+      'Březen',
+      'Duben',
+      'Květen',
+      'Červen',
+      'Červenec',
+      'Srpen',
+      'Září',
+      'Říjen',
+      'Listopad',
+      'Prosinec',
+    ];
 
     let html = `
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
@@ -543,7 +559,7 @@ class AdminPanel {
     for (let day = 1; day <= daysInMonth; day++) {
       const date = this.formatDate(new Date(year, month, day));
       const isSelected = this.editSelectedDates.has(date);
-      const isPast = new Date(year, month, day) < new Date(new Date().setHours(0,0,0,0));
+      const isPast = new Date(year, month, day) < new Date(new Date().setHours(0, 0, 0, 0));
 
       let bgColor = '#ffffff';
       let textColor = '#000000';
@@ -561,9 +577,9 @@ class AdminPanel {
       html += `
         <div
           data-date="${date}"
-          onclick="${!isPast ? `adminPanel.toggleEditDate('${date}')` : ''}"
+          onclick="${isPast ? '' : `adminPanel.toggleEditDate('${date}')`}"
           style="padding: 0.5rem; background: ${bgColor}; color: ${textColor}; cursor: ${cursor}; border-radius: 4px; transition: all 0.2s;"
-          onmouseover="${!isPast ? "this.style.opacity='0.8'" : ''}"
+          onmouseover="${isPast ? '' : "this.style.opacity='0.8'"}"
           onmouseout="this.style.opacity='1'"
         >${day}</div>
       `;
@@ -577,10 +593,10 @@ class AdminPanel {
     this.editCurrentMonth += delta;
     if (this.editCurrentMonth < 0) {
       this.editCurrentMonth = 11;
-      this.editCurrentYear--;
+      this.editCurrentYear -= 1;
     } else if (this.editCurrentMonth > 11) {
       this.editCurrentMonth = 0;
-      this.editCurrentYear++;
+      this.editCurrentYear += 1;
     }
     this.initEditCalendar();
   }
@@ -596,7 +612,9 @@ class AdminPanel {
     if (this.editSelectedDates.size > 0) {
       const dates = Array.from(this.editSelectedDates).sort();
       this.editStartDate = dates[0];
-      this.editEndDate = this.formatDate(new Date(new Date(dates[dates.length - 1]).getTime() + 24 * 60 * 60 * 1000));
+      this.editEndDate = this.formatDate(
+        new Date(new Date(dates[dates.length - 1]).getTime() + 24 * 60 * 60 * 1000)
+      );
 
       document.getElementById('editSelectedDates').textContent =
         `${new Date(this.editStartDate).toLocaleDateString('cs-CZ')} - ${new Date(this.editEndDate).toLocaleDateString('cs-CZ')}`;
@@ -646,14 +664,15 @@ class AdminPanel {
     await this.loadExistingBookingsForEdit();
   }
 
-  async updateEditPrice() {
-    const guestType = document.querySelector('input[name="editGuestType"]:checked')?.value || 'external';
-    const adults = parseInt(document.getElementById('editAdults').value) || 0;
-    const children = parseInt(document.getElementById('editChildren').value) || 0;
+  updateEditPrice() {
+    const guestType =
+      document.querySelector('input[name="editGuestType"]:checked')?.value || 'external';
+    const adults = parseInt(document.getElementById('editAdults').value, 10) || 0;
+    const children = parseInt(document.getElementById('editChildren').value, 10) || 0;
 
     if (this.editSelectedDates.size === 0 || this.editSelectedRooms.size === 0) {
       document.getElementById('editTotalPrice').textContent = '0 Kč';
-      return;
+      return 0;
     }
 
     const nights = this.editSelectedDates.size;
@@ -664,29 +683,33 @@ class AdminPanel {
     const adultPrice = guestType === 'utia' ? 50 : 100;
     const childPrice = guestType === 'utia' ? 25 : 50;
 
-    const totalPrice = nights * roomCount * basePrice +
-                      nights * (adults - roomCount) * adultPrice +
-                      nights * children * childPrice;
+    const totalPrice =
+      nights * roomCount * basePrice +
+      nights * (adults - roomCount) * adultPrice +
+      nights * children * childPrice;
 
     document.getElementById('editTotalPrice').textContent = `${totalPrice} Kč`;
     return totalPrice;
   }
 
-  async calculateEditPrice() {
-    return await this.updateEditPrice();
+  calculateEditPrice() {
+    return this.updateEditPrice();
   }
 
   async loadExistingBookingsForEdit() {
     const container = document.getElementById('editExistingBookings');
 
     if (!this.editStartDate || !this.editEndDate) {
-      container.innerHTML = '<p style="color: #6b7280;">Vyberte datum pro zobrazení existujících rezervací</p>';
+      container.innerHTML =
+        '<p style="color: #6b7280;">Vyberte datum pro zobrazení existujících rezervací</p>';
       return;
     }
 
     const bookings = await dataManager.getAllBookings();
-    const relevantBookings = bookings.filter(b => {
-      if (b.id === this.currentEditBooking?.id) return false; // Skip current booking
+    const relevantBookings = bookings.filter((b) => {
+      if (b.id === this.currentEditBooking?.id) {
+        return false;
+      } // Skip current booking
 
       const bStart = new Date(b.startDate);
       const bEnd = new Date(b.endDate);
@@ -697,13 +720,14 @@ class AdminPanel {
       const hasDateOverlap = bStart < eEnd && bEnd > eStart;
 
       // Check for room overlap
-      const hasRoomOverlap = b.rooms.some(r => this.editSelectedRooms.has(r));
+      const hasRoomOverlap = b.rooms.some((r) => this.editSelectedRooms.has(r));
 
       return hasDateOverlap && hasRoomOverlap;
     });
 
     if (relevantBookings.length === 0) {
-      container.innerHTML = '<p style="color: #10b981;">✓ Žádné konflikty s existujícími rezervacemi</p>';
+      container.innerHTML =
+        '<p style="color: #10b981;">✓ Žádné konflikty s existujícími rezervacemi</p>';
     } else {
       let html = '<div style="display: flex; flex-direction: column; gap: 0.5rem;">';
       for (const booking of relevantBookings) {
@@ -721,7 +745,8 @@ class AdminPanel {
 
   switchEditTab(tab) {
     // Update tab buttons
-    document.querySelectorAll('.edit-tab-btn').forEach(btn => {
+    document.querySelectorAll('.edit-tab-btn').forEach((button) => {
+      const btn = button;
       if (btn.dataset.tab === tab) {
         btn.classList.add('active');
         btn.style.borderBottom = '3px solid #0d9488';
@@ -779,31 +804,77 @@ class AdminPanel {
             padding: 0.5rem 0;
         `;
 
-    // Filter out past dates
+    // Show blocked dates from last 30 days and all future dates
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const relevantDates = blockedDates.filter((bd) => new Date(bd.date) >= today);
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Group blocked dates by blockageId
-    const blockageGroups = {};
-    relevantDates.forEach((blocked) => {
-      const groupId = blocked.blockageId || blocked.date; // Use date as fallback for old entries
-      if (!blockageGroups[groupId]) {
-        blockageGroups[groupId] = {
-          dates: [],
-          roomIds: new Set(),
+    const relevantDates = blockedDates.filter((bd) => {
+      const blockDate = new Date(bd.date);
+      return blockDate >= thirtyDaysAgo; // Show dates from last 30 days onwards
+    });
+
+    // Group blocked dates by consecutive dates, rooms, and reason
+    const blockageGroups = [];
+
+    // Sort blocked dates by date, then by room
+    const sortedDates = relevantDates.sort((a, b) => {
+      const dateCompare = a.date.localeCompare(b.date);
+      if (dateCompare !== 0) {
+        return dateCompare;
+      }
+      return (a.roomId || '').localeCompare(b.roomId || '');
+    });
+
+    // Group consecutive dates with same rooms and reason
+    sortedDates.forEach((blocked) => {
+      const currentDate = new Date(blocked.date);
+      const roomsKey = blocked.roomId || 'all';
+
+      // Try to find a group to add this date to
+      let foundGroup = false;
+      for (const group of blockageGroups) {
+        // Check if this date is consecutive with the group's last date
+        const lastDate = new Date(group.dates[group.dates.length - 1]);
+        const dayDiff = (currentDate - lastDate) / (1000 * 60 * 60 * 24);
+
+        // Check if rooms and reason match
+        const sameRooms =
+          group.roomsKey === roomsKey ||
+          (group.roomIds.size === 1 && group.roomIds.has(blocked.roomId));
+        const sameReason = group.reason === blocked.reason;
+
+        // If consecutive day (1 day difference) with same rooms and reason, add to group
+        if (dayDiff === 1 && sameRooms && sameReason) {
+          group.dates.push(blocked.date);
+          if (blocked.roomId) {
+            group.roomIds.add(blocked.roomId);
+          }
+          // Keep the first blockageId for the group
+          if (!group.blockageId && blocked.blockageId) {
+            group.blockageId = blocked.blockageId;
+          }
+          foundGroup = true;
+          break;
+        }
+      }
+
+      // If no suitable group found, create a new one
+      if (!foundGroup) {
+        const newGroup = {
+          dates: [blocked.date],
+          roomIds: new Set(blocked.roomId ? [blocked.roomId] : []),
           reason: blocked.reason,
           blockageId: blocked.blockageId,
+          roomsKey,
         };
-      }
-      blockageGroups[groupId].dates.push(blocked.date);
-      if (blocked.roomId) {
-        blockageGroups[groupId].roomIds.add(blocked.roomId);
+        blockageGroups.push(newGroup);
       }
     });
 
-    // Convert groups to sorted array
-    const sortedGroups = Object.values(blockageGroups)
+    // Convert groups to sorted array with start and end dates
+    const sortedGroups = blockageGroups
       .map((group) => {
         group.dates.sort();
         return {
@@ -866,7 +937,7 @@ class AdminPanel {
                     </div>
                 </div>
                 <div style="margin-top: auto; padding-top: 0.5rem;">
-                    <button onclick="adminPanel.unblockRange('${group.blockageId || group.startDate}').catch(console.error)"
+                    <button onclick="adminPanel.unblockRangeByDates('${group.startDate}', '${group.endDate}', '${JSON.stringify(group.roomsList).replace(/'/g, "\\'")}').catch(console.error)"
                             style="width: 100%; padding: 0.5rem; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 0.85rem; transition: background 0.2s;"
                             onmouseover="this.style.background='#b91c1c'"
                             onmouseout="this.style.background='#dc2626'">
@@ -950,21 +1021,87 @@ class AdminPanel {
   }
 
   async unblockRange(blockageId) {
-    // const blockedDates = await dataManager.getBlockedDates(); // Reserved for future use
-    const data = await dataManager.getData();
+    try {
+      const apiKey = sessionStorage.getItem('apiKey') || sessionStorage.getItem('adminApiKey');
+      if (!apiKey) {
+        this.showErrorMessage('Chyba autentizace');
+        return;
+      }
 
-    // Remove all dates with this blockage ID
-    if (blockageId.startsWith('BLK')) {
-      // Remove by blockage ID
-      data.blockedDates = data.blockedDates.filter((bd) => bd.blockageId !== blockageId);
-    } else {
-      // Fallback for old entries without blockage ID
-      data.blockedDates = data.blockedDates.filter((bd) => bd.date !== blockageId);
+      const response = await fetch(`/api/admin/block-dates/${blockageId}`, {
+        method: 'DELETE',
+        headers: {
+          'X-API-Key': apiKey,
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Chyba při odblokování');
+      }
+
+      await this.loadBlockedDates();
+      this.showSuccessMessage('Blokace byla odstraněna');
+    } catch (error) {
+      console.error('Error unblocking range:', error);
+      this.showErrorMessage(`Chyba při odblokování: ${error.message}`);
     }
+  }
 
-    await dataManager.saveData(data);
-    await this.loadBlockedDates();
-    this.showSuccessMessage('Blokace byla odstraněna');
+  async unblockRangeByDates(startDate, endDate, roomsListStr) {
+    try {
+      // Parse rooms list if it's a string
+      const roomsList = typeof roomsListStr === 'string' ? JSON.parse(roomsListStr) : roomsListStr;
+
+      // Get all blocked dates from dataManager
+      const blockedDates = await dataManager.getBlockedDates();
+
+      // Find all blockageIds for the date range and rooms
+      const blockageIds = new Set();
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+
+      blockedDates.forEach((blocked) => {
+        const blockDate = new Date(blocked.date);
+
+        // Check if date is in range
+        if (blockDate >= start && blockDate <= end) {
+          // Check if rooms match (empty roomsList means all rooms)
+          const roomMatches =
+            roomsList.length === 0 || !blocked.roomId || roomsList.includes(blocked.roomId);
+
+          if (roomMatches && blocked.blockageId) {
+            blockageIds.add(blocked.blockageId);
+          }
+        }
+      });
+
+      // Delete all found blockageIds
+      const apiKey = sessionStorage.getItem('apiKey') || sessionStorage.getItem('adminApiKey');
+      if (!apiKey) {
+        this.showErrorMessage('Chyba autentizace');
+        return;
+      }
+
+      for (const blockageId of blockageIds) {
+        const response = await fetch(`/api/admin/block-dates/${blockageId}`, {
+          method: 'DELETE',
+          headers: {
+            'X-API-Key': apiKey,
+          },
+        });
+
+        if (!response.ok) {
+          console.error(`Failed to delete blockageId: ${blockageId}`);
+        }
+      }
+
+      await this.loadBlockedDates();
+      this.showSuccessMessage('Blokace byla odstraněna');
+    } catch (error) {
+      console.error('Error unblocking date range:', error);
+      this.showErrorMessage(`Chyba při odblokování: ${error.message}`);
+    }
   }
 
   async loadChristmasCodes() {
@@ -1097,7 +1234,7 @@ class AdminPanel {
                     </div>
                     <div class="christmas-period-year">Rok ${year}</div>
                 </div>
-                <button onclick="adminPanel.removeChristmasPeriod(${index}).catch(console.error)"
+                <button onclick="adminPanel.removeChristmasPeriod('${period.periodId || index}', ${index}).catch(console.error)"
                         class="btn-danger btn-small"
                         style="padding: 0.5rem 1rem; background: #dc2626; color: white; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: background 0.2s;"
                         onmouseover="this.style.background='#b91c1c'"
@@ -1170,16 +1307,23 @@ class AdminPanel {
     }
   }
 
-  async removeChristmasPeriod(index) {
+  async removeChristmasPeriod(periodId, index) {
     try {
       const settings = await dataManager.getSettings();
 
-      if (!settings.christmasPeriods || !settings.christmasPeriods[index]) {
+      // Try to find period either by periodId or by index for backward compatibility
+      let period = null;
+      if (periodId && periodId !== index) {
+        period = settings.christmasPeriods?.find((p) => p.periodId === periodId);
+      } else if (settings.christmasPeriods && settings.christmasPeriods[index]) {
+        period = settings.christmasPeriods[index];
+      }
+
+      if (!period) {
         this.showToast('Vánoční období nebylo nalezeno', 'warning');
         return;
       }
 
-      const period = settings.christmasPeriods[index];
       const startDate = new Date(period.start).toLocaleDateString('cs-CZ');
       const endDate = new Date(period.end).toLocaleDateString('cs-CZ');
       const year = period.year || new Date(period.start).getFullYear();
@@ -1188,10 +1332,31 @@ class AdminPanel {
         return;
       }
 
-      // Remove the period at the specified index
-      settings.christmasPeriods.splice(index, 1);
+      // Use API endpoint to delete from database
+      if (period.periodId) {
+        const apiKey = sessionStorage.getItem('apiKey') || sessionStorage.getItem('adminApiKey');
+        if (!apiKey) {
+          this.showErrorMessage('Chyba autentizace');
+          return;
+        }
 
-      await dataManager.updateSettings(settings);
+        const response = await fetch(`/api/admin/christmas-periods/${period.periodId}`, {
+          method: 'DELETE',
+          headers: {
+            'X-API-Key': apiKey,
+          },
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Chyba při mazání vánočního období');
+        }
+      } else {
+        // Fallback for periods without periodId - update settings directly
+        settings.christmasPeriods.splice(index, 1);
+        await dataManager.updateSettings(settings);
+      }
+
       await dataManager.syncWithServer();
       await this.loadChristmasPeriods();
 
@@ -1486,7 +1651,7 @@ class AdminPanel {
     bookings.forEach((booking) => {
       const bookingDate = new Date(booking.startDate);
       if (bookingDate.getMonth() === thisMonth && bookingDate.getFullYear() === thisYear) {
-        stats.thisMonth++;
+        stats.thisMonth += 1;
       }
       stats.totalRevenue += booking.totalPrice;
     });

@@ -94,12 +94,56 @@ class DatabaseManager {
             )
         `);
 
+    // Create christmas periods table
+    this.db.exec(`
+            CREATE TABLE IF NOT EXISTS christmas_periods (
+                period_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                start_date TEXT NOT NULL,
+                end_date TEXT NOT NULL,
+                year INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(start_date, end_date)
+            )
+        `);
+
     // Create indexes for performance
     this.db.exec(`
             CREATE INDEX IF NOT EXISTS idx_bookings_dates ON bookings(start_date, end_date);
             CREATE INDEX IF NOT EXISTS idx_bookings_email ON bookings(email);
             CREATE INDEX IF NOT EXISTS idx_blocked_dates ON blocked_dates(date, room_id);
             CREATE INDEX IF NOT EXISTS idx_booking_rooms ON booking_rooms(room_id);
+            CREATE INDEX IF NOT EXISTS idx_christmas_periods ON christmas_periods(start_date, end_date);
+        `);
+
+    // Create proposed bookings table for temporary reservations
+    this.db.exec(`
+            CREATE TABLE IF NOT EXISTS proposed_bookings (
+                proposal_id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                start_date TEXT NOT NULL,
+                end_date TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL
+            )
+        `);
+
+    // Create proposed booking rooms table
+    this.db.exec(`
+            CREATE TABLE IF NOT EXISTS proposed_booking_rooms (
+                proposal_id TEXT NOT NULL,
+                room_id TEXT NOT NULL,
+                FOREIGN KEY (proposal_id) REFERENCES proposed_bookings(proposal_id) ON DELETE CASCADE,
+                PRIMARY KEY (proposal_id, room_id)
+            )
+        `);
+
+    // Create indexes for proposed bookings
+    this.db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_proposed_bookings_dates ON proposed_bookings(start_date, end_date);
+            CREATE INDEX IF NOT EXISTS idx_proposed_bookings_expires ON proposed_bookings(expires_at);
+            CREATE INDEX IF NOT EXISTS idx_proposed_booking_rooms ON proposed_booking_rooms(room_id);
         `);
 
     // Initialize default settings if not exists
@@ -223,6 +267,59 @@ class DatabaseManager {
       deleteChristmasCode: this.db.prepare('DELETE FROM christmas_codes WHERE code = ?'),
 
       getAllChristmasCodes: this.db.prepare('SELECT code FROM christmas_codes'),
+
+      // Christmas periods
+      insertChristmasPeriod: this.db.prepare(`
+        INSERT INTO christmas_periods (period_id, name, start_date, end_date, year, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `),
+
+      updateChristmasPeriod: this.db.prepare(`
+        UPDATE christmas_periods SET
+          name = ?, start_date = ?, end_date = ?, year = ?, updated_at = ?
+        WHERE period_id = ?
+      `),
+
+      deleteChristmasPeriod: this.db.prepare('DELETE FROM christmas_periods WHERE period_id = ?'),
+
+      getChristmasPeriod: this.db.prepare('SELECT * FROM christmas_periods WHERE period_id = ?'),
+
+      getAllChristmasPeriods: this.db.prepare(
+        'SELECT * FROM christmas_periods ORDER BY start_date'
+      ),
+
+      // Proposed bookings
+      insertProposedBooking: this.db.prepare(`
+        INSERT INTO proposed_bookings (proposal_id, session_id, start_date, end_date, created_at, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `),
+
+      insertProposedBookingRoom: this.db.prepare(
+        'INSERT INTO proposed_booking_rooms (proposal_id, room_id) VALUES (?, ?)'
+      ),
+
+      deleteProposedBooking: this.db.prepare('DELETE FROM proposed_bookings WHERE proposal_id = ?'),
+
+      deleteExpiredProposedBookings: this.db.prepare(
+        'DELETE FROM proposed_bookings WHERE expires_at < ?'
+      ),
+
+      getProposedBookingsByDateRange: this.db.prepare(`
+        SELECT pb.*, pbr.room_id
+        FROM proposed_bookings pb
+        JOIN proposed_booking_rooms pbr ON pb.proposal_id = pbr.proposal_id
+        WHERE pb.start_date <= ? AND pb.end_date >= ?
+          AND pb.expires_at > ?
+      `),
+
+      getProposedBookingsBySession: this.db.prepare(`
+        SELECT * FROM proposed_bookings
+        WHERE session_id = ? AND expires_at > ?
+      `),
+
+      deleteProposedBookingsBySession: this.db.prepare(
+        'DELETE FROM proposed_bookings WHERE session_id = ?'
+      ),
     };
   }
 
@@ -257,7 +354,10 @@ class DatabaseManager {
       // Insert room associations
       if (data.rooms && data.rooms.length > 0) {
         for (const roomId of data.rooms) {
-          this.statements.insertBookingRoom.run(data.id, roomId);
+          // Skip null/undefined room IDs
+          if (roomId != null && roomId !== '') {
+            this.statements.insertBookingRoom.run(data.id, roomId);
+          }
         }
       }
     });
@@ -294,7 +394,10 @@ class DatabaseManager {
       this.statements.deleteBookingRooms.run(id);
       if (data.rooms && data.rooms.length > 0) {
         for (const roomId of data.rooms) {
-          this.statements.insertBookingRoom.run(id, roomId);
+          // Skip null/undefined room IDs
+          if (roomId != null && roomId !== '') {
+            this.statements.insertBookingRoom.run(id, roomId);
+          }
         }
       }
     });
@@ -415,11 +518,34 @@ class DatabaseManager {
     // Get basic settings
     settings.adminPassword = this.getSetting('adminPassword');
 
-    // Get christmas period
-    settings.christmasPeriod = {
-      start: this.getSetting('christmasPeriodStart'),
-      end: this.getSetting('christmasPeriodEnd'),
-    };
+    // Get christmas periods from the new table
+    const christmasPeriods = this.getAllChristmasPeriods();
+    if (christmasPeriods.length > 0) {
+      // Support multiple periods
+      settings.christmasPeriods = christmasPeriods.map((p) => ({
+        start: p.start_date,
+        end: p.end_date,
+        year: p.year,
+        periodId: p.period_id,
+        name: p.name,
+      }));
+
+      // Also provide old format for backward compatibility
+      const currentPeriod = christmasPeriods[0];
+      settings.christmasPeriod = {
+        start: currentPeriod.start_date,
+        end: currentPeriod.end_date,
+      };
+    } else {
+      // Fallback to old settings if no periods in new table
+      const start = this.getSetting('christmasPeriodStart');
+      const end = this.getSetting('christmasPeriodEnd');
+      if (start && end) {
+        settings.christmasPeriod = { start, end };
+        // Migrate to new table
+        this.migrateChristmasSettings();
+      }
+    }
 
     // Get christmas access codes
     settings.christmasAccessCodes = this.statements.getAllChristmasCodes.all().map((c) => c.code);
@@ -440,7 +566,23 @@ class DatabaseManager {
         this.setSetting('adminPassword', settings.adminPassword);
       }
 
-      if (settings.christmasPeriod) {
+      // Handle new Christmas periods format
+      if (settings.christmasPeriods && Array.isArray(settings.christmasPeriods)) {
+        // Clear existing periods
+        this.db.exec('DELETE FROM christmas_periods');
+
+        // Add new periods
+        for (const period of settings.christmasPeriods) {
+          this.createChristmasPeriod({
+            periodId: period.periodId,
+            name: period.name || `Vánoce ${period.year}`,
+            startDate: period.start,
+            endDate: period.end,
+            year: period.year,
+          });
+        }
+      } else if (settings.christmasPeriod) {
+        // Backward compatibility - update old format
         if (settings.christmasPeriod.start) {
           this.setSetting('christmasPeriodStart', settings.christmasPeriod.start);
         }
@@ -504,6 +646,24 @@ class DatabaseManager {
       return { available: false, reason: 'booked', booking: bookings[0] };
     }
 
+    // Check for proposed bookings
+    const now = new Date().toISOString();
+    const proposedBookings = this.db
+      .prepare(
+        `
+            SELECT pb.* FROM proposed_bookings pb
+            JOIN proposed_booking_rooms pbr ON pb.proposal_id = pbr.proposal_id
+            WHERE pbr.room_id = ?
+            AND ? BETWEEN pb.start_date AND pb.end_date
+            AND pb.expires_at > ?
+        `
+      )
+      .all(roomId, date, now);
+
+    if (proposedBookings.length > 0) {
+      return { available: false, reason: 'proposed', proposal: proposedBookings[0] };
+    }
+
     return { available: true };
   }
 
@@ -564,6 +724,155 @@ class DatabaseManager {
 
   generateBlockageId() {
     return `BLK${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+  }
+
+  generateChristmasPeriodId() {
+    return `XMAS${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+  }
+
+  generateProposalId() {
+    return `PROP${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+  }
+
+  // Christmas period operations
+  getAllChristmasPeriods() {
+    return this.statements.getAllChristmasPeriods.all();
+  }
+
+  getChristmasPeriod(periodId) {
+    return this.statements.getChristmasPeriod.get(periodId);
+  }
+
+  createChristmasPeriod(periodData) {
+    const periodId = periodData.periodId || this.generateChristmasPeriodId();
+    const now = new Date().toISOString();
+
+    return this.statements.insertChristmasPeriod.run(
+      periodId,
+      periodData.name,
+      periodData.startDate,
+      periodData.endDate,
+      periodData.year || new Date(periodData.startDate).getFullYear(),
+      periodData.createdAt || now,
+      periodData.updatedAt || now
+    );
+  }
+
+  updateChristmasPeriod(periodId, periodData) {
+    return this.statements.updateChristmasPeriod.run(
+      periodData.name,
+      periodData.startDate,
+      periodData.endDate,
+      periodData.year || new Date(periodData.startDate).getFullYear(),
+      new Date().toISOString(),
+      periodId
+    );
+  }
+
+  deleteChristmasPeriod(periodId) {
+    const result = this.statements.deleteChristmasPeriod.run(periodId);
+
+    // Also clean up any legacy settings to prevent auto-recreation
+    // This prevents the migration logic from recreating deleted periods
+    this.db.exec(
+      "DELETE FROM settings WHERE key IN ('christmasPeriodStart', 'christmasPeriodEnd')"
+    );
+
+    return result;
+  }
+
+  // Migrate old Christmas settings to new table
+  migrateChristmasSettings() {
+    const start = this.getSetting('christmasPeriodStart');
+    const end = this.getSetting('christmasPeriodEnd');
+
+    if (start && end) {
+      const year = new Date(start).getFullYear();
+      const periodData = {
+        name: `Vánoce ${year}`,
+        startDate: start,
+        endDate: end,
+        year,
+      };
+
+      try {
+        this.createChristmasPeriod(periodData);
+        // Clean up old settings after successful migration
+        this.db.exec(
+          "DELETE FROM settings WHERE key IN ('christmasPeriodStart', 'christmasPeriodEnd')"
+        );
+      } catch (error) {
+        console.error('Migration failed:', error);
+      }
+    }
+  }
+
+  // Proposed booking operations
+  createProposedBooking(sessionId, startDate, endDate, rooms) {
+    const proposalId = this.generateProposalId();
+    const now = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // Expires in 15 minutes
+
+    const transaction = this.db.transaction(() => {
+      // Insert proposed booking
+      this.statements.insertProposedBooking.run(
+        proposalId,
+        sessionId,
+        startDate,
+        endDate,
+        now,
+        expiresAt
+      );
+
+      // Insert room associations
+      for (const roomId of rooms) {
+        this.statements.insertProposedBookingRoom.run(proposalId, roomId);
+      }
+    });
+
+    transaction();
+    return proposalId;
+  }
+
+  deleteProposedBooking(proposalId) {
+    return this.statements.deleteProposedBooking.run(proposalId);
+  }
+
+  deleteExpiredProposedBookings() {
+    const now = new Date().toISOString();
+    return this.statements.deleteExpiredProposedBookings.run(now);
+  }
+
+  deleteProposedBookingsBySession(sessionId) {
+    return this.statements.deleteProposedBookingsBySession.run(sessionId);
+  }
+
+  getProposedBookingsBySession(sessionId) {
+    const now = new Date().toISOString();
+    return this.statements.getProposedBookingsBySession.all(sessionId, now);
+  }
+
+  getProposedBookingsByDateRange(startDate, endDate) {
+    const now = new Date().toISOString();
+    return this.statements.getProposedBookingsByDateRange.all(endDate, startDate, now);
+  }
+
+  getActiveProposedBookings() {
+    const now = new Date().toISOString();
+    const query = `
+      SELECT pb.*, GROUP_CONCAT(pbr.room_id) as rooms
+      FROM proposed_bookings pb
+      JOIN proposed_booking_rooms pbr ON pb.proposal_id = pbr.proposal_id
+      WHERE pb.expires_at > ?
+      GROUP BY pb.proposal_id
+    `;
+    const results = this.db.prepare(query).all(now);
+
+    // Convert comma-separated rooms string to array
+    return results.map((booking) => ({
+      ...booking,
+      rooms: booking.rooms ? booking.rooms.split(',') : [],
+    }));
   }
 
   // Close database connection

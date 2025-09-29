@@ -586,6 +586,159 @@ app.delete('/api/admin/block-dates/:blockageId', requireApiKey, async (req, res)
   }
 });
 
+// Christmas periods API endpoints
+app.get('/api/admin/christmas-periods', async (req, res) => {
+  try {
+    const periods = db.getAllChristmasPeriods();
+    res.json({ success: true, periods });
+  } catch (error) {
+    console.error('Error fetching Christmas periods:', error);
+    return res.status(500).json({ error: 'Chyba při načítání vánočních období' });
+  }
+});
+
+app.post('/api/admin/christmas-periods', requireApiKey, async (req, res) => {
+  try {
+    const { name, startDate, endDate } = req.body;
+
+    if (!name || !startDate || !endDate) {
+      return res.status(400).json({ error: 'Chybí povinné údaje' });
+    }
+
+    const periodData = {
+      name,
+      startDate,
+      endDate,
+      year: new Date(startDate).getFullYear(),
+    };
+
+    db.createChristmasPeriod(periodData);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error creating Christmas period:', error);
+    return res.status(500).json({ error: 'Chyba při vytváření vánočního období' });
+  }
+});
+
+app.put('/api/admin/christmas-periods/:periodId', requireApiKey, async (req, res) => {
+  try {
+    const { periodId } = req.params;
+    const { name, startDate, endDate } = req.body;
+
+    const periodData = {
+      name,
+      startDate,
+      endDate,
+      year: new Date(startDate).getFullYear(),
+    };
+
+    db.updateChristmasPeriod(periodId, periodData);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating Christmas period:', error);
+    return res.status(500).json({ error: 'Chyba při aktualizaci vánočního období' });
+  }
+});
+
+app.delete('/api/admin/christmas-periods/:periodId', requireApiKey, async (req, res) => {
+  try {
+    const { periodId } = req.params;
+
+    db.deleteChristmasPeriod(periodId);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting Christmas period:', error);
+    return res.status(500).json({ error: 'Chyba při mazání vánočního období' });
+  }
+});
+
+// Proposed bookings endpoints
+app.post('/api/proposed-booking', async (req, res) => {
+  try {
+    const { sessionId, startDate, endDate, rooms } = req.body;
+
+    if (!sessionId || !startDate || !endDate || !rooms || rooms.length === 0) {
+      return res.status(400).json({ error: 'Chybí povinné údaje' });
+    }
+
+    // Delete any existing proposals for this session
+    db.deleteProposedBookingsBySession(sessionId);
+
+    // Create new proposed booking
+    const proposalId = db.createProposedBooking(sessionId, startDate, endDate, rooms);
+
+    res.json({ success: true, proposalId });
+  } catch (error) {
+    console.error('Error creating proposed booking:', error);
+    return res.status(500).json({ error: 'Chyba při vytváření navrhované rezervace' });
+  }
+});
+
+app.get('/api/proposed-bookings', async (req, res) => {
+  try {
+    const proposedBookings = db.getActiveProposedBookings();
+    res.json(proposedBookings);
+  } catch (error) {
+    console.error('Error getting proposed bookings:', error);
+    return res.status(500).json({ error: 'Chyba při načítání navrhovaných rezervací' });
+  }
+});
+
+app.post('/api/proposed-bookings', async (req, res) => {
+  try {
+    const { sessionId, startDate, endDate, rooms } = req.body;
+
+    if (!sessionId || !startDate || !endDate || !rooms) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const proposalId = db.createProposedBooking(sessionId, startDate, endDate, rooms);
+    res.json({ success: true, proposalId });
+  } catch (error) {
+    console.error('Error creating proposed booking:', error);
+    return res.status(500).json({ error: 'Chyba při vytváření navrhované rezervace' });
+  }
+});
+
+app.delete('/api/proposed-booking/:proposalId', async (req, res) => {
+  try {
+    const { proposalId } = req.params;
+
+    db.deleteProposedBooking(proposalId);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting proposed booking:', error);
+    return res.status(500).json({ error: 'Chyba při mazání navrhované rezervace' });
+  }
+});
+
+app.delete('/api/proposed-bookings/session/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    db.deleteProposedBookingsBySession(sessionId);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting proposed bookings by session:', error);
+    return res.status(500).json({ error: 'Chyba při mazání navrhovaných rezervací' });
+  }
+});
+
+// Cleanup expired proposed bookings (run every minute)
+setInterval(() => {
+  try {
+    const result = db.deleteExpiredProposedBookings();
+    if (result.changes > 0) {
+      console.info(`Cleaned up ${result.changes} expired proposed bookings`);
+    }
+  } catch (error) {
+    console.error('Error cleaning up expired proposed bookings:', error);
+  }
+}, 60000); // Run every minute
+
 // Error handling middleware
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {

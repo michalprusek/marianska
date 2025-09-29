@@ -252,12 +252,12 @@ class CalendarModule {
       });
     }
 
-    // Apply color for booked, available, and proposed rooms
-    // Blocked rooms use CSS for their styling
-    if (isProposed) {
+    // Apply color for booked, available, proposed and blocked rooms
+    if (isProposed || availability === 'proposed') {
       roomEl.style.background = '#ff4444';
       roomEl.style.color = 'white';
       roomEl.classList.add('proposed');
+      roomEl.title = 'Navrhovaná rezervace - dočasně blokováno';
     } else if (availability === 'booked') {
       roomEl.style.background = '#ff8c00';
       roomEl.style.color = 'white';
@@ -288,6 +288,9 @@ class CalendarModule {
       });
       roomEl.style.cursor = 'pointer';
       roomEl.title = 'Klikněte pro zobrazení důvodu blokace';
+    } else if (availability === 'proposed') {
+      // Proposed bookings are not clickable - they're temporary
+      roomEl.style.cursor = 'not-allowed';
     }
 
     roomEl.textContent = room.id;

@@ -6,6 +6,7 @@ description: Test generation for booking system features with TDD approach
 # Test Generator Agent
 
 ## Role
+
 You are a specialized agent for generating comprehensive tests for the Mariánská booking system. Your expertise covers unit tests, integration tests, and end-to-end test scenarios.
 
 ## Testing Philosophy
@@ -19,6 +20,7 @@ You are a specialized agent for generating comprehensive tests for the Mariánsk
 ## Test Types
 
 ### 1. Unit Tests
+
 Test individual functions in isolation
 
 ```javascript
@@ -38,7 +40,7 @@ describe('DataManager.calculatePrice', () => {
       children: 0,
       toddlers: 0,
       startDate: '2024-03-15',
-      endDate: '2024-03-17' // 2 nights
+      endDate: '2024-03-17', // 2 nights
     };
 
     const price = dataManager.calculatePrice(booking);
@@ -53,7 +55,7 @@ describe('DataManager.calculatePrice', () => {
       children: 1,
       toddlers: 1, // Should be free
       startDate: '2024-03-15',
-      endDate: '2024-03-18' // 3 nights
+      endDate: '2024-03-18', // 3 nights
     };
 
     const price = dataManager.calculatePrice(booking);
@@ -69,7 +71,7 @@ describe('DataManager.calculatePrice', () => {
       children: 2,
       toddlers: 0,
       startDate: '2024-03-15',
-      endDate: '2024-03-16' // 1 night
+      endDate: '2024-03-16', // 1 night
     };
 
     const price = dataManager.calculatePrice(booking);
@@ -87,13 +89,9 @@ describe('DataManager.calculatePrice', () => {
 describe('Form Validation', () => {
   describe('Email Validation', () => {
     test('accepts valid email addresses', () => {
-      const validEmails = [
-        'user@example.com',
-        'name.surname@domain.cz',
-        'test+tag@company.org'
-      ];
+      const validEmails = ['user@example.com', 'name.surname@domain.cz', 'test+tag@company.org'];
 
-      validEmails.forEach(email => {
+      validEmails.forEach((email) => {
         expect(validateEmail(email)).toBe(true);
       });
     });
@@ -104,10 +102,10 @@ describe('Form Validation', () => {
         '@example.com',
         'user@',
         'user @example.com',
-        'user@.com'
+        'user@.com',
       ];
 
-      invalidEmails.forEach(email => {
+      invalidEmails.forEach((email) => {
         expect(validateEmail(email)).toBe(false);
       });
     });
@@ -115,14 +113,9 @@ describe('Form Validation', () => {
 
   describe('Phone Validation', () => {
     test('accepts valid Czech/Slovak numbers', () => {
-      const validPhones = [
-        '+420123456789',
-        '+421987654321',
-        '+420 123 456 789',
-        '+421123456789'
-      ];
+      const validPhones = ['+420123456789', '+421987654321', '+420 123 456 789', '+421123456789'];
 
-      validPhones.forEach(phone => {
+      validPhones.forEach((phone) => {
         expect(validatePhone(phone)).toBe(true);
       });
     });
@@ -135,7 +128,7 @@ describe('Form Validation', () => {
         '+420 123 456 78', // missing digit
       ];
 
-      invalidPhones.forEach(phone => {
+      invalidPhones.forEach((phone) => {
         expect(validatePhone(phone)).toBe(false);
       });
     });
@@ -159,7 +152,7 @@ describe('Room Availability', () => {
       id: 'BK001',
       rooms: ['12'],
       startDate: '2024-03-15',
-      endDate: '2024-03-17'
+      endDate: '2024-03-17',
     };
 
     dataManager.bookings.push(existingBooking);
@@ -181,7 +174,7 @@ describe('Room Availability', () => {
     dataManager.blockedDates.push({
       date: '2024-12-25',
       roomId: '12',
-      reason: 'Christmas'
+      reason: 'Christmas',
     });
 
     expect(dataManager.isRoomAvailable('2024-12-25', '12')).toBe(false);
@@ -192,7 +185,7 @@ describe('Room Availability', () => {
     const christmasBooking = {
       startDate: '2024-12-24',
       endDate: '2024-12-26',
-      accessCode: ''
+      accessCode: '',
     };
 
     // Without access code
@@ -213,7 +206,7 @@ describe('Booking Creation Flow', () => {
     // Step 1: Select dates and rooms
     const selection = {
       dates: ['2024-03-15', '2024-03-16'],
-      rooms: ['12', '13']
+      rooms: ['12', '13'],
     };
 
     // Step 2: Fill guest information
@@ -223,7 +216,7 @@ describe('Booking Creation Flow', () => {
       phone: '+420123456789',
       adults: 2,
       children: 1,
-      guestType: 'utia'
+      guestType: 'utia',
     };
 
     // Step 3: Fill billing information
@@ -233,14 +226,14 @@ describe('Booking Creation Flow', () => {
       city: 'Prague',
       zip: '12345',
       ico: '12345678',
-      dic: 'CZ12345678'
+      dic: 'CZ12345678',
     };
 
     // Create booking
     const booking = await dataManager.createBooking({
       ...selection,
       ...guestInfo,
-      ...billingInfo
+      ...billingInfo,
     });
 
     // Verify booking created
@@ -296,9 +289,7 @@ describe('Calendar UI', () => {
 describe('Error Handling', () => {
   test('handles server errors gracefully', async () => {
     // Mock server failure
-    global.fetch = jest.fn(() =>
-      Promise.reject(new Error('Server error'))
-    );
+    global.fetch = jest.fn(() => Promise.reject(new Error('Server error')));
 
     const result = await saveBooking(testBooking);
 
@@ -310,7 +301,7 @@ describe('Error Handling', () => {
   test('validates required fields', () => {
     const incomplete = {
       name: '',
-      email: 'test@example.com'
+      email: 'test@example.com',
     };
 
     const errors = validateBookingData(incomplete);
@@ -321,8 +312,7 @@ describe('Error Handling', () => {
     const booking1 = await createBooking(bookingData);
 
     // Try to book same room/dates
-    await expect(createBooking(bookingData))
-      .rejects.toThrow('Room already booked');
+    await expect(createBooking(bookingData)).rejects.toThrow('Room already booked');
   });
 });
 ```
@@ -353,7 +343,7 @@ function generateTestBooking(overrides = {}) {
     editToken: 'test-token',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -374,6 +364,7 @@ function generateDateRange(start, days) {
 ## Test Coverage Areas
 
 ### Critical Paths (100% coverage required)
+
 - [ ] Booking creation
 - [ ] Price calculation
 - [ ] Availability checking
@@ -381,6 +372,7 @@ function generateDateRange(start, days) {
 - [ ] Validation logic
 
 ### Important Features (80% coverage)
+
 - [ ] Calendar interaction
 - [ ] Form submission
 - [ ] Admin operations
@@ -388,6 +380,7 @@ function generateDateRange(start, days) {
 - [ ] Christmas period handling
 
 ### Edge Cases to Test
+
 - [ ] Leap year dates
 - [ ] DST transitions
 - [ ] Maximum capacity

@@ -6,6 +6,7 @@ description: Price calculation analysis for guest types, room types, and total p
 # Pricing Calculator Agent
 
 ## Role
+
 You are a specialized agent for debugging and analyzing price calculations in the Mariánská booking system. Your expertise covers guest type differentiation, room type pricing, seasonal adjustments, and total price computation.
 
 ## Pricing Structure
@@ -13,6 +14,7 @@ You are a specialized agent for debugging and analyzing price calculations in th
 ### Base Prices by Guest Type
 
 #### ÚTIA Employees (utia)
+
 ```javascript
 {
   small_room: {
@@ -31,6 +33,7 @@ You are a specialized agent for debugging and analyzing price calculations in th
 ```
 
 #### External Guests (external)
+
 ```javascript
 {
   small_room: {
@@ -53,17 +56,17 @@ You are a specialized agent for debugging and analyzing price calculations in th
 ```javascript
 const ROOM_TYPES = {
   // Small rooms (2 beds)
-  "12": "small",
-  "22": "small",
-  "42": "small",
-  "43": "small",
+  12: 'small',
+  22: 'small',
+  42: 'small',
+  43: 'small',
 
   // Large rooms (3-4 beds)
-  "13": "large",  // 3 beds
-  "14": "large",  // 4 beds
-  "23": "large",  // 3 beds
-  "24": "large",  // 4 beds
-  "44": "large"   // 4 beds
+  13: 'large', // 3 beds
+  14: 'large', // 4 beds
+  23: 'large', // 3 beds
+  24: 'large', // 4 beds
+  44: 'large', // 4 beds
 };
 ```
 
@@ -76,7 +79,7 @@ function calculatePrice(booking) {
   const nights = calculateNights(booking.startDate, booking.endDate);
   let totalPrice = 0;
 
-  booking.rooms.forEach(roomId => {
+  booking.rooms.forEach((roomId) => {
     const roomType = getRoomType(roomId); // small or large
     const prices = PRICES[booking.guestType][roomType];
 
@@ -104,7 +107,9 @@ function calculatePrice(booking) {
 ### Common Pricing Issues
 
 #### 1. Wrong Guest Type Applied
+
 **Symptom**: ÚTIA employee charged external rates or vice versa
+
 ```javascript
 // Debug approach
 console.log('Guest type:', booking.guestType);
@@ -113,7 +118,9 @@ console.log('Should be UTIA?', booking.email.includes('@utia.cas.cz'));
 ```
 
 #### 2. Incorrect Night Count
+
 **Symptom**: Price doesn't match expected number of nights
+
 ```javascript
 // Debug approach
 function debugNights(startDate, endDate) {
@@ -126,7 +133,9 @@ function debugNights(startDate, endDate) {
 ```
 
 #### 3. Room Type Misclassification
+
 **Symptom**: Small room charged as large or vice versa
+
 ```javascript
 // Debug approach
 function debugRoomType(roomId) {
@@ -138,7 +147,9 @@ function debugRoomType(roomId) {
 ```
 
 #### 4. Guest Count Errors
+
 **Symptom**: Additional guests not charged correctly
+
 ```javascript
 // Debug approach
 function debugGuestCharges(booking) {
@@ -182,16 +193,19 @@ function validatePricing(booking) {
 ### Special Pricing Rules
 
 #### 1. Christmas Period
+
 - No special pricing, but access restricted
 - Only with valid access codes
 - Standard rates apply
 
 #### 2. Group Bookings
+
 - No group discounts in current system
 - Each room calculated separately
 - Total is sum of all rooms
 
 #### 3. Long Stays
+
 - No weekly/monthly rates
 - Linear pricing (nights × nightly rate)
 
@@ -204,7 +218,7 @@ function formatPrice(price) {
     style: 'currency',
     currency: 'CZK',
     minimumFractionDigits: 0,
-    maximumFractionDigits: 0
+    maximumFractionDigits: 0,
   }).format(price);
 }
 
@@ -214,16 +228,18 @@ function formatPrice(price) {
 ### Common Fixes
 
 #### Fix Guest Type Detection:
+
 ```javascript
 // Auto-detect ÚTIA employees by email
 function detectGuestType(email) {
   const utiaEmails = ['@utia.cas.cz', '@utia.cz'];
-  const isUtia = utiaEmails.some(domain => email.toLowerCase().includes(domain));
+  const isUtia = utiaEmails.some((domain) => email.toLowerCase().includes(domain));
   return isUtia ? 'utia' : 'external';
 }
 ```
 
 #### Fix Night Calculation:
+
 ```javascript
 // Ensure consistent date handling
 function calculateNights(startDate, endDate) {
@@ -236,6 +252,7 @@ function calculateNights(startDate, endDate) {
 ```
 
 #### Fix Room Type Lookup:
+
 ```javascript
 // Safely get room type with fallback
 function getRoomTypeSafe(roomId) {
@@ -251,6 +268,7 @@ function getRoomTypeSafe(roomId) {
 ## Testing Price Calculations
 
 ### Test Cases
+
 ```javascript
 // Test case 1: ÚTIA, 1 adult, small room, 2 nights
 {

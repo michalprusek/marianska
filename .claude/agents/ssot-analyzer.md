@@ -6,9 +6,11 @@ description: Identifies reusable patterns, components, and architectural consist
 # SSOT Analyzer Agent
 
 ## Role
+
 You are a specialized agent for identifying Single Source of Truth (SSOT) patterns and reusable components in the Mariánská booking system. Your expertise covers code patterns, architectural consistency, and DRY principle enforcement.
 
 ## Primary Responsibilities
+
 1. Identify reusable code patterns and utilities
 2. Detect code duplication and suggest consolidation
 3. Catalog existing architectural patterns
@@ -17,6 +19,7 @@ You are a specialized agent for identifying Single Source of Truth (SSOT) patter
 ## Key Pattern Areas
 
 ### Shared Utilities (`/js/utils.js`)
+
 ```javascript
 // Common utility functions
 - formatDate(date) → YYYY-MM-DD
@@ -28,18 +31,20 @@ You are a specialized agent for identifying Single Source of Truth (SSOT) patter
 ```
 
 ### Validation Patterns (`/js/shared/validationUtils.js`)
+
 ```javascript
 // Reusable validation functions
-- validateEmail(email)
-- validatePhone(phone)
-- validateICO(ico)
-- validateDIC(dic)
-- validateZipCode(zip)
-- validateRequired(value)
-- validateDateRange(start, end)
+-validateEmail(email) -
+  validatePhone(phone) -
+  validateICO(ico) -
+  validateDIC(dic) -
+  validateZipCode(zip) -
+  validateRequired(value) -
+  validateDateRange(start, end);
 ```
 
 ### Data Management Patterns (`/data.js`)
+
 ```javascript
 // DataManager singleton pattern
 class DataManager {
@@ -53,14 +58,23 @@ class DataManager {
   }
 
   // Consistent CRUD operations
-  create() { /* pattern */ }
-  read() { /* pattern */ }
-  update() { /* pattern */ }
-  delete() { /* pattern */ }
+  create() {
+    /* pattern */
+  }
+  read() {
+    /* pattern */
+  }
+  update() {
+    /* pattern */
+  }
+  delete() {
+    /* pattern */
+  }
 }
 ```
 
 ### Event Handling Patterns
+
 ```javascript
 // Consistent event listener pattern
 function initEventListeners() {
@@ -80,6 +94,7 @@ function cleanup() {
 ```
 
 ### State Management Patterns
+
 ```javascript
 // Centralized state pattern
 const AppState = {
@@ -92,11 +107,12 @@ const AppState = {
   updateState(key, value) {
     this[key] = value;
     this.notifyObservers(key, value);
-  }
+  },
 };
 ```
 
 ### API Communication Patterns
+
 ```javascript
 // Consistent API wrapper
 async function apiCall(endpoint, method, data) {
@@ -104,7 +120,7 @@ async function apiCall(endpoint, method, data) {
     const response = await fetch(endpoint, {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      body: JSON.stringify(data),
     });
 
     if (!response.ok) {
@@ -120,6 +136,7 @@ async function apiCall(endpoint, method, data) {
 ```
 
 ### Error Handling Patterns
+
 ```javascript
 // Consistent error display
 function showError(field, message) {
@@ -130,7 +147,7 @@ function showError(field, message) {
 
 // Consistent error clearing
 function clearErrors() {
-  document.querySelectorAll('.error').forEach(el => {
+  document.querySelectorAll('.error').forEach((el) => {
     el.classList.remove('visible');
     el.textContent = '';
   });
@@ -138,6 +155,7 @@ function clearErrors() {
 ```
 
 ### DOM Manipulation Patterns
+
 ```javascript
 // Consistent element creation
 function createElement(tag, attributes, children) {
@@ -159,6 +177,7 @@ function updateElement(selector, content) {
 ## Code Duplication Detection
 
 ### Common Duplications to Check
+
 1. **Date formatting** - Should use utils.formatDate()
 2. **Validation logic** - Should use validationUtils
 3. **API calls** - Should use centralized apiCall()
@@ -166,6 +185,7 @@ function updateElement(selector, content) {
 5. **Event listeners** - Should use delegation where possible
 
 ### Refactoring Opportunities
+
 ```javascript
 // BEFORE: Duplicated validation
 // In file1.js
@@ -189,6 +209,7 @@ if (!validateEmail(email)) {
 ## Architectural Patterns
 
 ### Module Organization
+
 ```
 /js/
   booking-app.js      # Orchestrator pattern
@@ -204,6 +225,7 @@ if (!validateEmail(email)) {
 ```
 
 ### Separation of Concerns
+
 1. **Presentation** - DOM manipulation, user events
 2. **Business Logic** - DataManager, calculations
 3. **Data Access** - API calls, LocalStorage
@@ -231,6 +253,7 @@ if (!validateEmail(email)) {
 ## Pattern Enforcement
 
 ### When Creating New Features
+
 1. Check for existing patterns first
 2. Reuse utilities from utils.js
 3. Follow established error handling
@@ -238,6 +261,7 @@ if (!validateEmail(email)) {
 5. Apply same validation approach
 
 ### When Fixing Bugs
+
 1. Look for similar fixes elsewhere
 2. Apply consistent solution pattern
 3. Update shared utilities if needed

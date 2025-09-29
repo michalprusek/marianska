@@ -185,34 +185,68 @@ class BookingFormModule {
       let errorCount = 0;
 
       for (const tempReservation of this.app.tempReservations) {
-        const booking = {
-          name,
-          email,
-          phone,
-          company,
-          address,
-          city,
-          zip,
-          ico,
-          dic,
-          startDate: tempReservation.startDate,
-          endDate: tempReservation.endDate,
-          rooms: [tempReservation.roomId],
-          guestType: tempReservation.guestType,
-          adults: tempReservation.guests.adults,
-          children: tempReservation.guests.children,
-          toddlers: tempReservation.guests.toddlers,
-          notes,
-          payFromBenefit,
-          roomGuests: { [tempReservation.roomId]: tempReservation.guests },
-        };
+        // Handle bulk booking differently
+        if (tempReservation.isBulkBooking) {
+          const booking = {
+            name,
+            email,
+            phone,
+            company,
+            address,
+            city,
+            zip,
+            ico,
+            dic,
+            startDate: tempReservation.startDate,
+            endDate: tempReservation.endDate,
+            rooms: tempReservation.roomIds, // Use all room IDs for bulk booking
+            guestType: tempReservation.guestType,
+            adults: tempReservation.guests.adults,
+            children: tempReservation.guests.children,
+            toddlers: tempReservation.guests.toddlers,
+            notes: notes || 'Hromadná rezervace celé chaty',
+            payFromBenefit,
+            isBulkBooking: true,
+          };
 
-        try {
-          await dataManager.createBooking(booking);
-          successCount++;
-        } catch (error) {
-          console.error('Error creating booking for room', tempReservation.roomName, error);
-          errorCount++;
+          try {
+            await dataManager.createBooking(booking);
+            successCount++;
+          } catch (error) {
+            console.error('Error creating bulk booking', error);
+            errorCount++;
+          }
+        } else {
+          // Regular single room booking
+          const booking = {
+            name,
+            email,
+            phone,
+            company,
+            address,
+            city,
+            zip,
+            ico,
+            dic,
+            startDate: tempReservation.startDate,
+            endDate: tempReservation.endDate,
+            rooms: [tempReservation.roomId],
+            guestType: tempReservation.guestType,
+            adults: tempReservation.guests.adults,
+            children: tempReservation.guests.children,
+            toddlers: tempReservation.guests.toddlers,
+            notes,
+            payFromBenefit,
+            roomGuests: { [tempReservation.roomId]: tempReservation.guests },
+          };
+
+          try {
+            await dataManager.createBooking(booking);
+            successCount++;
+          } catch (error) {
+            console.error('Error creating booking for room', tempReservation.roomName, error);
+            errorCount++;
+          }
         }
       }
 
@@ -351,17 +385,21 @@ class BookingFormModule {
                 ${this.app.currentLanguage === 'cs' ? 'Rezervace úspěšně vytvořena!' : 'Booking Successfully Created!'}
               </h2>
               <p style="font-size: 1.1rem; color: #4b5563; margin: 1rem 0;">
-                ${this.app.currentLanguage === 'cs'
-                  ? `Číslo vaší rezervace: <strong>${result.id}</strong>`
-                  : `Your booking ID: <strong>${result.id}</strong>`}
+                ${
+                  this.app.currentLanguage === 'cs'
+                    ? `Číslo vaší rezervace: <strong>${result.id}</strong>`
+                    : `Your booking ID: <strong>${result.id}</strong>`
+                }
               </p>
             </div>
 
             <div style="background: #f0fdf4; border: 2px solid #10b981; border-radius: 8px; padding: 1.5rem; margin: 1.5rem 0;">
               <p style="font-weight: 600; margin-bottom: 1rem; color: #047857;">
-                ${this.app.currentLanguage === 'cs'
-                  ? '📧 Uložte si tento odkaz pro budoucí úpravy:'
-                  : '📧 Save this link to edit your booking later:'}
+                ${
+                  this.app.currentLanguage === 'cs'
+                    ? '📧 Uložte si tento odkaz pro budoucí úpravy:'
+                    : '📧 Save this link to edit your booking later:'
+                }
               </p>
               <div style="background: white; padding: 1rem; border-radius: 4px; word-break: break-all; margin: 0.5rem 0;">
                 <a href="${editUrl}" target="_blank" style="color: #0d9488; text-decoration: none; font-weight: 500;">
@@ -379,9 +417,11 @@ class BookingFormModule {
             <div style="background: #fef3c7; border-radius: 8px; padding: 1rem; margin: 1.5rem 0;">
               <p style="color: #92400e; font-size: 0.9rem;">
                 <strong>${this.app.currentLanguage === 'cs' ? 'Důležité:' : 'Important:'}</strong>
-                ${this.app.currentLanguage === 'cs'
-                  ? 'Odkaz pro úpravu rezervace vám bude zaslán e-mailem, jakmile bude e-mailová služba dostupná.'
-                  : 'The edit link will be sent to your email once the email service is available.'}
+                ${
+                  this.app.currentLanguage === 'cs'
+                    ? 'Odkaz pro úpravu rezervace vám bude zaslán e-mailem, jakmile bude e-mailová služba dostupná.'
+                    : 'The edit link will be sent to your email once the email service is available.'
+                }
               </p>
             </div>
 

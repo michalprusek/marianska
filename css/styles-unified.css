@@ -106,7 +106,8 @@
   --radius-full: 9999px;
 
   /* Typography */
-  --font-family-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --font-family-primary:
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   --font-family-display: 'Poppins', var(--font-family-primary);
 
   /* Font Sizes */
@@ -215,7 +216,8 @@ body::before {
 }
 
 @keyframes float {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0px) rotate(0deg);
   }
   50% {
@@ -425,14 +427,18 @@ input:checked + .slider:before {
 .btn-primary {
   background: linear-gradient(135deg, var(--primary-500), var(--primary-600));
   color: var(--neutral-0);
-  box-shadow: var(--elevation-2), 0 0 20px rgba(80, 133, 237, 0.2);
+  box-shadow:
+    var(--elevation-2),
+    0 0 20px rgba(80, 133, 237, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .btn-primary:hover {
   background: linear-gradient(135deg, var(--primary-600), var(--primary-700));
   transform: translateY(-3px) scale(1.02);
-  box-shadow: var(--elevation-4), 0 0 30px rgba(80, 133, 237, 0.4);
+  box-shadow:
+    var(--elevation-4),
+    0 0 30px rgba(80, 133, 237, 0.4);
 }
 
 .btn-primary:active {
@@ -463,23 +469,31 @@ input:checked + .slider:before {
 .btn-success {
   background: linear-gradient(135deg, var(--success), var(--accent-green));
   color: var(--neutral-0);
-  box-shadow: var(--elevation-2), 0 0 20px rgba(102, 187, 106, 0.2);
+  box-shadow:
+    var(--elevation-2),
+    0 0 20px rgba(102, 187, 106, 0.2);
 }
 
 .btn-success:hover {
   transform: translateY(-3px) scale(1.02);
-  box-shadow: var(--elevation-4), 0 0 30px rgba(102, 187, 106, 0.4);
+  box-shadow:
+    var(--elevation-4),
+    0 0 30px rgba(102, 187, 106, 0.4);
 }
 
 .btn-warning {
   background: linear-gradient(135deg, var(--warning), var(--accent-orange));
   color: var(--neutral-0);
-  box-shadow: var(--elevation-2), 0 0 20px rgba(255, 152, 0, 0.2);
+  box-shadow:
+    var(--elevation-2),
+    0 0 20px rgba(255, 152, 0, 0.2);
 }
 
 .btn-warning:hover {
   transform: translateY(-3px) scale(1.02);
-  box-shadow: var(--elevation-4), 0 0 30px rgba(255, 152, 0, 0.4);
+  box-shadow:
+    var(--elevation-4),
+    0 0 30px rgba(255, 152, 0, 0.4);
 }
 
 .btn-danger {
@@ -580,7 +594,9 @@ input:checked + .slider:before {
 
 .calendar-section:hover {
   transform: translateY(-6px) scale(1.005);
-  box-shadow: var(--elevation-5), 0 0 50px rgba(80, 133, 237, 0.12);
+  box-shadow:
+    var(--elevation-5),
+    0 0 50px rgba(80, 133, 237, 0.12);
   border-color: rgba(255, 255, 255, 0.25);
 }
 
@@ -900,7 +916,9 @@ input:checked + .slider:before {
 
 .booking-card:hover {
   transform: translateY(-4px) scale(1.01);
-  box-shadow: var(--elevation-5), 0 0 40px rgba(80, 133, 237, 0.15);
+  box-shadow:
+    var(--elevation-5),
+    0 0 40px rgba(80, 133, 237, 0.15);
   border-color: rgba(255, 255, 255, 0.3);
 }
 
@@ -1006,7 +1024,9 @@ input:checked + .slider:before {
   background: linear-gradient(135deg, var(--primary-100), var(--primary-200));
   border-color: var(--primary-500);
   transform: scale(1.02);
-  box-shadow: var(--elevation-3), 0 0 20px rgba(80, 133, 237, 0.2);
+  box-shadow:
+    var(--elevation-3),
+    0 0 20px rgba(80, 133, 237, 0.2);
 }
 
 .room-option.selected .room-name {
@@ -1124,7 +1144,9 @@ input:checked + .slider:before {
   outline: none;
   border-color: var(--primary-500);
   background: var(--surface-0);
-  box-shadow: 0 0 0 4px rgba(80, 133, 237, 0.15), var(--elevation-2);
+  box-shadow:
+    0 0 0 4px rgba(80, 133, 237, 0.15),
+    var(--elevation-2);
   transform: scale(1.01);
 }
 
@@ -1215,7 +1237,9 @@ input:checked + .slider:before {
   outline: none;
   border-color: var(--primary-500);
   background: var(--surface-0);
-  box-shadow: 0 0 0 4px rgba(80, 133, 237, 0.15), var(--elevation-2);
+  box-shadow:
+    0 0 0 4px rgba(80, 133, 237, 0.15),
+    var(--elevation-2);
   transform: scale(1.01);
 }
 
@@ -1287,7 +1311,9 @@ input:checked + .slider:before {
   max-height: 85vh;
   overflow-y: auto;
   overflow-x: hidden;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5), 0 0 100px rgba(0, 0, 0, 0.3);
+  box-shadow:
+    0 25px 50px rgba(0, 0, 0, 0.5),
+    0 0 100px rgba(0, 0, 0, 0.3);
   border: 1px solid var(--gray-200);
   position: relative;
   transform: scale(0.8) translateY(40px);
@@ -1316,7 +1342,8 @@ input:checked + .slider:before {
 }
 
 @keyframes gradientShift {
-  0%, 100% {
+  0%,
+  100% {
     background-position: 0% 50%;
   }
   50% {
@@ -1961,7 +1988,9 @@ input:checked + .slider:before {
   padding: 16px 20px;
   border-radius: 12px;
   background: white;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  box-shadow:
+    0 6px 24px rgba(0, 0, 0, 0.12),
+    0 0 0 1px rgba(0, 0, 0, 0.05);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1969,7 +1998,7 @@ input:checked + .slider:before {
   font-weight: 500;
   line-height: 1.4;
   transform: translateX(calc(100% + 20px));
-  transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   pointer-events: auto;
   cursor: pointer;
   position: relative;
@@ -2003,8 +2032,12 @@ input:checked + .slider:before {
 }
 
 @keyframes toast-progress {
-  from { width: 100%; }
-  to { width: 0; }
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0;
+  }
 }
 
 .notification.show,
@@ -2367,7 +2400,9 @@ input:checked + .slider:before {
   color: white;
   border-color: var(--primary-500);
   border-width: 3px;
-  box-shadow: 0 0 0 2px white, 0 0 0 4px var(--primary-500);
+  box-shadow:
+    0 0 0 2px white,
+    0 0 0 4px var(--primary-500);
   transform: scale(1.1);
 }
 

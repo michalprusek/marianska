@@ -79,6 +79,7 @@ marianska/
 ## 🔑 Key Features
 
 ### For Guests
+
 - **Interactive Calendar** - Visual room availability with color coding
 - **Smart Booking Form** - Two-step process with real-time validation
 - **Multi-Room Selection** - Book multiple rooms in one transaction
@@ -86,6 +87,7 @@ marianska/
 - **Edit Capability** - Modify bookings with secure token
 
 ### For Administrators
+
 - **Comprehensive Dashboard** - Tabbed interface for all management tasks
 - **Booking Management** - View, edit, and delete reservations
 - **Date Blocking** - Block rooms for maintenance or special events
@@ -96,6 +98,7 @@ marianska/
 ## 💼 Business Context
 
 The system manages 9 rooms across 3 floors (26 beds total) for:
+
 - **ÚTIA Employees** - Discounted rates
 - **External Guests** - Standard rates
 - **Christmas Period** - Access code restricted

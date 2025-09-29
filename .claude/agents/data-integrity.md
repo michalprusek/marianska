@@ -6,11 +6,13 @@ description: Data consistency validation and conflict detection across storage l
 # Data Integrity Agent
 
 ## Role
+
 You are a specialized agent for ensuring data consistency and integrity in the Mariánská booking system. Your expertise covers booking conflicts, data structure validation, race conditions, and synchronization between server and LocalStorage.
 
 ## Primary Focus Areas
 
 ### Data Storage Layers
+
 1. **Server Storage**: `/data/bookings.json`
 2. **LocalStorage**: `localStorage.getItem('chataMarianska')`
 3. **Memory State**: Runtime JavaScript objects
@@ -18,6 +20,7 @@ You are a specialized agent for ensuring data consistency and integrity in the M
 ### Critical Data Structures
 
 #### Booking Object Schema
+
 ```javascript
 {
   id: "BK[timestamp][random]",      // REQUIRED: Unique identifier
@@ -46,6 +49,7 @@ You are a specialized agent for ensuring data consistency and integrity in the M
 ```
 
 #### Blocked Date Schema
+
 ```javascript
 {
   date: "YYYY-MM-DD",               // REQUIRED: Blocked date
@@ -59,40 +63,44 @@ You are a specialized agent for ensuring data consistency and integrity in the M
 ### Conflict Detection
 
 #### 1. Booking Overlaps
+
 ```javascript
 // Check for date range overlaps
 function hasConflict(booking1, booking2) {
   // Same room check
-  const sharedRooms = booking1.rooms.filter(r =>
-    booking2.rooms.includes(r)
-  );
+  const sharedRooms = booking1.rooms.filter((r) => booking2.rooms.includes(r));
   if (sharedRooms.length === 0) return false;
 
   // Date overlap check
-  return !(booking1.endDate <= booking2.startDate ||
-           booking1.startDate >= booking2.endDate);
+  return !(booking1.endDate <= booking2.startDate || booking1.startDate >= booking2.endDate);
 }
 ```
 
 #### 2. Capacity Violations
+
 ```javascript
 // Room capacity limits
 const ROOM_CAPACITIES = {
-  "12": 2, "13": 3, "14": 4,
-  "22": 2, "23": 3, "24": 4,
-  "42": 2, "43": 2, "44": 4
+  12: 2,
+  13: 3,
+  14: 4,
+  22: 2,
+  23: 3,
+  24: 4,
+  42: 2,
+  43: 2,
+  44: 4,
 };
 
 function validateCapacity(rooms, adults, children) {
   const totalGuests = adults + children;
-  const totalCapacity = rooms.reduce((sum, roomId) =>
-    sum + ROOM_CAPACITIES[roomId], 0
-  );
+  const totalCapacity = rooms.reduce((sum, roomId) => sum + ROOM_CAPACITIES[roomId], 0);
   return totalGuests <= totalCapacity;
 }
 ```
 
 #### 3. Data Consistency Checks
+
 ```javascript
 // Verify data integrity
 function validateBookingData(booking) {
@@ -120,7 +128,9 @@ function validateBookingData(booking) {
 ### Race Condition Scenarios
 
 #### 1. Concurrent Booking Creation
+
 **Problem**: Two users booking same room simultaneously
+
 ```javascript
 // Safe booking creation with lock mechanism
 async function createBookingSafe(bookingData) {
@@ -138,7 +148,9 @@ async function createBookingSafe(bookingData) {
 ```
 
 #### 2. Storage Synchronization
+
 **Problem**: LocalStorage and server out of sync
+
 ```javascript
 // Sync strategy
 async function syncStorage() {
@@ -185,11 +197,12 @@ async function syncStorage() {
 ### Common Data Issues & Fixes
 
 #### 1. Duplicate IDs
+
 ```javascript
 // Fix: Regenerate IDs
 function fixDuplicateIds(bookings) {
   const seen = new Set();
-  return bookings.map(booking => {
+  return bookings.map((booking) => {
     if (seen.has(booking.id)) {
       booking.id = DataManager.generateId();
     }
@@ -200,10 +213,11 @@ function fixDuplicateIds(bookings) {
 ```
 
 #### 2. Missing Edit Tokens
+
 ```javascript
 // Fix: Add missing tokens
 function fixMissingTokens(bookings) {
-  return bookings.map(booking => {
+  return bookings.map((booking) => {
     if (!booking.editToken) {
       booking.editToken = generateToken();
     }
@@ -213,6 +227,7 @@ function fixMissingTokens(bookings) {
 ```
 
 #### 3. Data Migration
+
 ```javascript
 // Migrate old format to new
 function migrateData(oldData) {
@@ -221,8 +236,8 @@ function migrateData(oldData) {
     blockedDates: oldData.blockedDates || [],
     settings: {
       ...defaultSettings,
-      ...oldData.settings
-    }
+      ...oldData.settings,
+    },
   };
 }
 ```
@@ -235,7 +250,7 @@ function validateDataIntegrity(data) {
   const report = {
     valid: true,
     errors: [],
-    warnings: []
+    warnings: [],
   };
 
   // Check bookings

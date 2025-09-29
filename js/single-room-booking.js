@@ -206,6 +206,15 @@ class SingleRoomBookingModule {
       dayEl.classList.add('booked');
     } else if (availability.status === 'blocked') {
       dayEl.classList.add('blocked');
+    } else if (availability.status === 'proposed') {
+      // Show proposed booking status
+      dayEl.classList.add('proposed');
+      dayEl.style.background = '#ff4444';
+      dayEl.style.color = 'white';
+      dayEl.title =
+        this.app.currentLanguage === 'cs'
+          ? 'Navrhovaná rezervace - dočasně blokováno'
+          : 'Proposed booking - temporarily blocked';
     } else {
       dayEl.classList.add('available');
     }
@@ -237,7 +246,7 @@ class SingleRoomBookingModule {
       dayEl.textContent = date.getDate();
     }
 
-    // Event handlers for drag selection
+    // Event handlers for drag selection - don't allow interaction with proposed bookings
     if (!isPast && !isOtherMonth && availability.status === 'available') {
       dayEl.style.cursor = 'pointer';
 
@@ -374,6 +383,9 @@ class SingleRoomBookingModule {
 
         return false;
       };
+    } else if (availability.status === 'proposed') {
+      // Proposed bookings are not clickable
+      dayEl.style.cursor = 'not-allowed';
     }
 
     return dayEl;
@@ -513,43 +525,62 @@ class SingleRoomBookingModule {
       1
     );
 
-    // Create temporary booking object
-    const tempBooking = {
-      roomId: this.app.currentBookingRoom,
-      roomName: room.name,
-      startDate,
-      endDate,
-      nights,
-      guests,
-      guestType,
-      totalPrice: price,
-      id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    };
+    // Create proposed booking in database
+    try {
+      const proposalId = await dataManager.createProposedBooking(startDate, endDate, [
+        this.app.currentBookingRoom,
+      ]);
 
-    // Add to a temporary reservations list
-    if (!this.app.tempReservations) {
-      this.app.tempReservations = [];
-    }
-    this.app.tempReservations.push(tempBooking);
+      // Create temporary booking object with proposal ID
+      const tempBooking = {
+        roomId: this.app.currentBookingRoom,
+        roomName: room.name,
+        startDate,
+        endDate,
+        nights,
+        guests,
+        guestType,
+        totalPrice: price,
+        id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        proposalId, // Store the proposal ID for cleanup
+      };
 
-    // Show success notification
-    this.app.showNotification(
-      this.app.currentLanguage === 'cs'
-        ? `Pokoj ${room.name} přidán do rezervace`
-        : `Room ${room.name} added to reservation`,
-      'success'
-    );
+      // Add to a temporary reservations list
+      if (!this.app.tempReservations) {
+        this.app.tempReservations = [];
+      }
+      this.app.tempReservations.push(tempBooking);
 
-    // Close the modal
-    this.hideRoomBookingModal();
+      // Show success notification
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? `Pokoj ${room.name} přidán do rezervace`
+          : `Room ${room.name} added to reservation`,
+        'success'
+      );
 
-    // Update the main page to show temporary reservations
-    this.app.displayTempReservations();
+      // Close the modal
+      this.hideRoomBookingModal();
 
-    // Show the finalize button
-    const finalizeDiv = document.getElementById('finalizeReservationsDiv');
-    if (finalizeDiv && this.app.tempReservations.length > 0) {
-      finalizeDiv.style.display = 'block';
+      // Update the main page to show temporary reservations
+      this.app.displayTempReservations();
+
+      // Refresh calendar to show proposed booking
+      await this.app.calendar.renderCalendar();
+
+      // Show the finalize button
+      const finalizeDiv = document.getElementById('finalizeReservationsDiv');
+      if (finalizeDiv && this.app.tempReservations.length > 0) {
+        finalizeDiv.style.display = 'block';
+      }
+    } catch (error) {
+      console.error('Failed to create proposed booking:', error);
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? 'Chyba při vytváření dočasné rezervace'
+          : 'Error creating temporary reservation',
+        'error'
+      );
     }
   }
 }

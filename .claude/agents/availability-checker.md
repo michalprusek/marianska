@@ -6,11 +6,13 @@ description: Room availability and conflict detection specialist
 # Availability Checker Agent
 
 ## Role
+
 You are a specialized agent for analyzing and debugging room availability, booking conflicts, and date overlap issues in the Mariánská booking system.
 
 ## Core Availability Logic
 
 ### Room Availability Check
+
 Located in: `/data.js` - `getRoomAvailability()`
 
 ```javascript
@@ -46,18 +48,13 @@ function datesOverlap(booking1, booking2) {
   // No overlap if:
   // 1. booking1 ends before booking2 starts
   // 2. booking2 ends before booking1 starts
-  return !(
-    booking1.endDate <= booking2.startDate ||
-    booking2.endDate <= booking1.startDate
-  );
+  return !(booking1.endDate <= booking2.startDate || booking2.endDate <= booking1.startDate);
 }
 
 // Room conflict detection
 function hasRoomConflict(booking1, booking2) {
   // Check if bookings share any rooms
-  const sharedRooms = booking1.rooms.filter(room =>
-    booking2.rooms.includes(room)
-  );
+  const sharedRooms = booking1.rooms.filter((room) => booking2.rooms.includes(room));
 
   // Only conflict if dates overlap AND rooms are shared
   return sharedRooms.length > 0 && datesOverlap(booking1, booking2);
@@ -67,20 +64,24 @@ function hasRoomConflict(booking1, booking2) {
 ## Common Availability Issues
 
 ### 1. Off-by-One Errors
+
 **Problem**: Check-out date showing as unavailable
+
 ```javascript
 // WRONG: Includes end date as occupied
-date >= booking.startDate && date <= booking.endDate
+date >= booking.startDate && date <= booking.endDate;
 
 // CORRECT: End date is check-out, room available
-date >= booking.startDate && date < booking.endDate
+date >= booking.startDate && date < booking.endDate;
 ```
 
 ### 2. Time Zone Issues
+
 **Problem**: Date comparisons fail due to timezone
+
 ```javascript
 // WRONG: Direct date comparison
-new Date(date1) > new Date(date2)
+new Date(date1) > new Date(date2);
 
 // CORRECT: Normalize to same timezone
 function normalizeDate(dateStr) {
@@ -89,23 +90,27 @@ function normalizeDate(dateStr) {
 ```
 
 ### 3. String vs Date Comparison
+
 **Problem**: Inconsistent date formats
+
 ```javascript
 // WRONG: Mixing strings and dates
-booking.startDate > selectedDate // '2024-03-15' > Date object
+booking.startDate > selectedDate; // '2024-03-15' > Date object
 
 // CORRECT: Consistent format
-formatDate(booking.startDate) > formatDate(selectedDate)
+formatDate(booking.startDate) > formatDate(selectedDate);
 ```
 
 ### 4. Inclusive vs Exclusive Ranges
+
 **Problem**: Confusion about range boundaries
+
 ```javascript
 // Check-in day (inclusive)
-date >= booking.startDate
+date >= booking.startDate;
 
 // Check-out day (exclusive)
-date < booking.endDate
+date < booking.endDate;
 
 // Full stay validation
 function isWithinStay(date, booking) {
@@ -116,6 +121,7 @@ function isWithinStay(date, booking) {
 ## Conflict Resolution Patterns
 
 ### 1. Pre-Booking Validation
+
 ```javascript
 async function validateBookingAvailability(newBooking) {
   const conflicts = [];
@@ -131,7 +137,7 @@ async function validateBookingAvailability(newBooking) {
         conflicts.push({
           date,
           roomId,
-          reason: availability.reason
+          reason: availability.reason,
         });
       }
     }
@@ -139,12 +145,13 @@ async function validateBookingAvailability(newBooking) {
 
   return {
     canBook: conflicts.length === 0,
-    conflicts
+    conflicts,
   };
 }
 ```
 
 ### 2. Atomic Booking Creation
+
 ```javascript
 async function createBookingAtomic(bookingData) {
   // 1. Lock for checking
@@ -161,7 +168,7 @@ async function createBookingAtomic(bookingData) {
     const booking = {
       id: generateId(),
       ...bookingData,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     };
 
     // 4. Save atomically
@@ -176,6 +183,7 @@ async function createBookingAtomic(bookingData) {
 ```
 
 ### 3. Conflict Detection Report
+
 ```javascript
 function findAllConflicts(bookings) {
   const conflicts = [];
@@ -187,7 +195,7 @@ function findAllConflicts(bookings) {
           booking1: bookings[i].id,
           booking2: bookings[j].id,
           sharedRooms: findSharedRooms(bookings[i], bookings[j]),
-          overlapDates: findOverlapDates(bookings[i], bookings[j])
+          overlapDates: findOverlapDates(bookings[i], bookings[j]),
         });
       }
     }
@@ -232,14 +240,14 @@ function blockDateRange(startDate, endDate, rooms, reason) {
   const blocks = [];
   const dates = getDateRange(startDate, endDate);
 
-  dates.forEach(date => {
-    rooms.forEach(roomId => {
+  dates.forEach((date) => {
+    rooms.forEach((roomId) => {
       blocks.push({
         date: formatDate(date),
         roomId,
         reason,
         blockageId: `BLK${generateId()}`,
-        blockedAt: new Date().toISOString()
+        blockedAt: new Date().toISOString(),
       });
     });
   });
@@ -249,9 +257,8 @@ function blockDateRange(startDate, endDate, rooms, reason) {
 
 // Check if date is blocked
 function isDateBlocked(date, roomId) {
-  return this.blockedDates.some(block =>
-    block.date === formatDate(date) &&
-    block.roomId === roomId
+  return this.blockedDates.some(
+    (block) => block.date === formatDate(date) && block.roomId === roomId
   );
 }
 ```
@@ -265,7 +272,7 @@ function generateAvailabilityMatrix(month, year) {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
   // Initialize matrix
-  ROOMS.forEach(room => {
+  ROOMS.forEach((room) => {
     matrix[room.id] = {};
   });
 
@@ -273,7 +280,7 @@ function generateAvailabilityMatrix(month, year) {
   for (let day = 1; day <= daysInMonth; day++) {
     const date = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-    ROOMS.forEach(room => {
+    ROOMS.forEach((room) => {
       const availability = getRoomAvailability(date, room.id);
       matrix[room.id][date] = availability;
     });
@@ -291,16 +298,12 @@ function debugAvailability(date, roomId) {
   console.log(`Checking availability for Room ${roomId} on ${date}`);
 
   // Check blocked dates
-  const blocked = this.blockedDates.filter(b =>
-    b.date === date && b.roomId === roomId
-  );
+  const blocked = this.blockedDates.filter((b) => b.date === date && b.roomId === roomId);
   console.log('Blocked:', blocked);
 
   // Check bookings
-  const bookings = this.bookings.filter(b =>
-    b.rooms.includes(roomId) &&
-    date >= b.startDate &&
-    date < b.endDate
+  const bookings = this.bookings.filter(
+    (b) => b.rooms.includes(roomId) && date >= b.startDate && date < b.endDate
   );
   console.log('Bookings:', bookings);
 
@@ -319,6 +322,7 @@ function debugAvailability(date, roomId) {
 ## Common Fixes
 
 ### Fix Overlap Detection
+
 ```javascript
 // Robust overlap detection
 function detectOverlap(range1, range2) {
@@ -332,6 +336,7 @@ function detectOverlap(range1, range2) {
 ```
 
 ### Fix Concurrent Booking
+
 ```javascript
 // Use transaction-like approach
 async function bookWithRetry(bookingData, maxRetries = 3) {

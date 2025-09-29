@@ -43,6 +43,7 @@ The Mariánská Reservation System follows a **Progressive Web App (PWA)** archi
 ### Backend Layer
 
 #### Express Server (`server.js`)
+
 - **Port**: 3000
 - **Middleware**: CORS, JSON parser, static files
 - **Endpoints**: RESTful API for CRUD operations
@@ -50,6 +51,7 @@ The Mariánská Reservation System follows a **Progressive Web App (PWA)** archi
 - **Concurrency**: Single-threaded with async I/O
 
 #### Data Persistence
+
 ```javascript
 // File structure
 data/
@@ -62,6 +64,7 @@ data/
 ### Frontend Layer
 
 #### DataManager Pattern
+
 Central orchestrator implementing **Repository Pattern** for data abstraction:
 
 ```javascript
@@ -91,6 +94,7 @@ booking-app.js (Orchestrator)
 ### Data Flow
 
 #### Booking Creation Flow
+
 ```mermaid
 sequenceDiagram
     participant U as User
@@ -113,6 +117,7 @@ sequenceDiagram
 ```
 
 #### Availability Check Flow
+
 ```mermaid
 sequenceDiagram
     participant C as Calendar
@@ -190,12 +195,14 @@ sequenceDiagram
 ## Synchronization Strategy
 
 ### Online Mode
+
 - **Auto-sync**: Every 30 seconds
 - **Immediate push**: On data modification
 - **Conflict resolution**: Last-write-wins
 - **Retry logic**: Exponential backoff
 
 ### Offline Mode
+
 - **LocalStorage**: Full data mirror
 - **Queue changes**: Store pending operations
 - **Sync on reconnect**: Flush queue to server
@@ -204,6 +211,7 @@ sequenceDiagram
 ## Security Architecture
 
 ### Data Protection
+
 ```
 ┌─────────────────────────────┐
 │      Security Layers        │
@@ -218,20 +226,21 @@ sequenceDiagram
 
 ### Access Control
 
-| Feature | Public | Editor | Admin |
-|---------|--------|--------|-------|
-| View Calendar | ✅ | ✅ | ✅ |
-| Create Booking | ✅ | ✅ | ✅ |
-| Edit Own Booking | ✅* | ✅ | ✅ |
-| Delete Booking | ❌ | ❌ | ✅ |
-| Block Dates | ❌ | ❌ | ✅ |
-| Manage Settings | ❌ | ❌ | ✅ |
+| Feature          | Public | Editor | Admin |
+| ---------------- | ------ | ------ | ----- |
+| View Calendar    | ✅     | ✅     | ✅    |
+| Create Booking   | ✅     | ✅     | ✅    |
+| Edit Own Booking | ✅\*   | ✅     | ✅    |
+| Delete Booking   | ❌     | ❌     | ✅    |
+| Block Dates      | ❌     | ❌     | ✅    |
+| Manage Settings  | ❌     | ❌     | ✅    |
 
-*With edit token
+\*With edit token
 
 ## Performance Optimizations
 
 ### Frontend
+
 - **Lazy rendering**: Only visible calendar month
 - **Virtual scrolling**: Large booking lists
 - **Debounced inputs**: 300ms validation delay
@@ -239,6 +248,7 @@ sequenceDiagram
 - **Batch DOM updates**: RequestAnimationFrame
 
 ### Backend
+
 - **In-memory cache**: Frequent data reads
 - **Async I/O**: Non-blocking file operations
 - **JSON streaming**: Large dataset handling
@@ -246,6 +256,7 @@ sequenceDiagram
 - **Static file caching**: 1 year for assets
 
 ### Network
+
 - **HTTP/2**: Multiplexed connections
 - **CDN**: Static assets (production)
 - **Service Worker**: Offline caching (planned)
@@ -254,6 +265,7 @@ sequenceDiagram
 ## Scalability Considerations
 
 ### Current Limitations
+
 - **Single server**: No horizontal scaling
 - **File storage**: I/O bottleneck at scale
 - **No queuing**: Direct request processing
@@ -262,12 +274,14 @@ sequenceDiagram
 ### Scaling Path
 
 #### Phase 1: Optimize Current
+
 - Add Redis caching
 - Implement connection pooling
 - Add request queuing
 - Optimize file I/O
 
 #### Phase 2: Database Migration
+
 ```sql
 -- Proposed schema
 CREATE TABLE bookings (
@@ -282,6 +296,7 @@ CREATE INDEX idx_bookings_email ON bookings((data->>'email'));
 ```
 
 #### Phase 3: Microservices
+
 ```
 ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
 │   Booking    │  │   Calendar   │  │    Admin     │
@@ -297,6 +312,7 @@ CREATE INDEX idx_bookings_email ON bookings((data->>'email'));
 ## Deployment Architecture
 
 ### Docker Setup
+
 ```yaml
 services:
   app:
@@ -311,6 +327,7 @@ services:
 ```
 
 ### Production Environment
+
 ```
 ┌─────────────────┐
 │   CloudFlare    │  CDN + DDoS Protection
@@ -332,11 +349,13 @@ services:
 ## Monitoring & Observability
 
 ### Metrics Collection
+
 - **Application**: Response times, error rates
 - **System**: CPU, memory, disk I/O
 - **Business**: Bookings/day, occupancy rate
 
 ### Logging Strategy
+
 ```javascript
 // Structured logging
 {
@@ -351,6 +370,7 @@ services:
 ```
 
 ### Health Checks
+
 ```javascript
 GET /health
 {
@@ -368,12 +388,14 @@ GET /health
 ## Disaster Recovery
 
 ### Backup Strategy
+
 - **Frequency**: Every 6 hours
 - **Retention**: 30 days
 - **Location**: Off-site storage
 - **Testing**: Monthly restore drill
 
 ### Recovery Procedures
+
 1. **Data corruption**: Restore from backup
 2. **Service failure**: Docker restart
 3. **Complete failure**: Redeploy from Git
@@ -382,18 +404,21 @@ GET /health
 ## Future Enhancements
 
 ### Short Term (3 months)
+
 - [ ] Add PostgreSQL database
 - [ ] Implement WebSocket updates
 - [ ] Add Service Worker for PWA
 - [ ] Create automated backups
 
 ### Medium Term (6 months)
+
 - [ ] Multi-language support
 - [ ] Email notifications
 - [ ] Payment integration
 - [ ] Mobile app
 
 ### Long Term (12 months)
+
 - [ ] Multi-property support
 - [ ] Revenue management system
 - [ ] Channel manager integration

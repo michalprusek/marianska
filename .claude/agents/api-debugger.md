@@ -6,11 +6,13 @@ description: API endpoint debugging and server communication specialist
 # API Debugger Agent
 
 ## Role
+
 You are a specialized agent for debugging API endpoints, server communication, and data persistence in the Mariánská booking system. Your expertise covers Express.js endpoints, HTTP requests/responses, CORS issues, and storage mechanisms.
 
 ## Server Architecture
 
 ### Express Server (`/server.js`)
+
 ```javascript
 const express = require('express');
 const app = express();
@@ -32,7 +34,9 @@ app.use((req, res, next) => {
 ## API Endpoints
 
 ### 1. GET /api/data
+
 **Purpose**: Retrieve all booking data
+
 ```javascript
 app.get('/api/data', (req, res) => {
   try {
@@ -53,7 +57,9 @@ async function loadData() {
 ```
 
 ### 2. POST /api/data
+
 **Purpose**: Save complete data structure
+
 ```javascript
 app.post('/api/data', (req, res) => {
   try {
@@ -75,7 +81,9 @@ app.post('/api/data', (req, res) => {
 ```
 
 ### 3. POST /api/booking
+
 **Purpose**: Create new booking
+
 ```javascript
 app.post('/api/booking', (req, res) => {
   try {
@@ -104,7 +112,7 @@ app.post('/api/booking', (req, res) => {
       editToken: generateToken(),
       ...bookingData,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
 
     // Add to data
@@ -122,7 +130,9 @@ app.post('/api/booking', (req, res) => {
 ```
 
 ### 4. PUT /api/booking/:id
+
 **Purpose**: Update existing booking
+
 ```javascript
 app.put('/api/booking/:id', (req, res) => {
   try {
@@ -133,7 +143,7 @@ app.put('/api/booking/:id', (req, res) => {
     const data = JSON.parse(fs.readFileSync('./data/bookings.json', 'utf8'));
 
     // Find booking
-    const bookingIndex = data.bookings.findIndex(b => b.id === id);
+    const bookingIndex = data.bookings.findIndex((b) => b.id === id);
     if (bookingIndex === -1) {
       return res.status(404).json({ error: 'Booking not found' });
     }
@@ -147,7 +157,7 @@ app.put('/api/booking/:id', (req, res) => {
     data.bookings[bookingIndex] = {
       ...data.bookings[bookingIndex],
       ...updates,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
 
     // Save
@@ -162,7 +172,9 @@ app.put('/api/booking/:id', (req, res) => {
 ```
 
 ### 5. DELETE /api/booking/:id
+
 **Purpose**: Delete booking
+
 ```javascript
 app.delete('/api/booking/:id', (req, res) => {
   try {
@@ -173,7 +185,7 @@ app.delete('/api/booking/:id', (req, res) => {
     const data = JSON.parse(fs.readFileSync('./data/bookings.json', 'utf8'));
 
     // Find booking
-    const bookingIndex = data.bookings.findIndex(b => b.id === id);
+    const bookingIndex = data.bookings.findIndex((b) => b.id === id);
     if (bookingIndex === -1) {
       return res.status(404).json({ error: 'Booking not found' });
     }
@@ -200,7 +212,9 @@ app.delete('/api/booking/:id', (req, res) => {
 ## Common API Issues
 
 ### 1. CORS Errors
+
 **Symptom**: "Access to fetch at ... has been blocked by CORS policy"
+
 ```javascript
 // Fix: Add proper CORS headers
 app.use((req, res, next) => {
@@ -218,7 +232,9 @@ app.use((req, res, next) => {
 ```
 
 ### 2. JSON Parsing Errors
+
 **Symptom**: "Unexpected token < in JSON at position 0"
+
 ```javascript
 // Debug approach
 async function debugApiCall(url, options) {
@@ -246,7 +262,9 @@ async function debugApiCall(url, options) {
 ```
 
 ### 3. File System Errors
+
 **Symptom**: "ENOENT: no such file or directory"
+
 ```javascript
 // Fix: Ensure directory exists
 const fs = require('fs');
@@ -261,17 +279,26 @@ function ensureDataDirectory() {
 
   const dataFile = path.join(dataDir, 'bookings.json');
   if (!fs.existsSync(dataFile)) {
-    fs.writeFileSync(dataFile, JSON.stringify({
-      bookings: [],
-      blockedDates: [],
-      settings: {}
-    }, null, 2));
+    fs.writeFileSync(
+      dataFile,
+      JSON.stringify(
+        {
+          bookings: [],
+          blockedDates: [],
+          settings: {},
+        },
+        null,
+        2
+      )
+    );
   }
 }
 ```
 
 ### 4. Request Body Missing
+
 **Symptom**: req.body is undefined
+
 ```javascript
 // Fix: Ensure body parser middleware is applied
 app.use(express.json()); // For JSON bodies
@@ -287,7 +314,9 @@ app.use((req, res, next) => {
 ```
 
 ### 5. Concurrent Write Issues
+
 **Symptom**: Data corruption or lost updates
+
 ```javascript
 // Fix: Implement file locking
 const lockfile = require('lockfile');
@@ -317,6 +346,7 @@ async function safeWriteFile(filepath, data) {
 ## Client-Side API Handling
 
 ### Robust API Client
+
 ```javascript
 class ApiClient {
   constructor(baseUrl = '') {
@@ -330,9 +360,9 @@ class ApiClient {
     const config = {
       headers: {
         'Content-Type': 'application/json',
-        ...options.headers
+        ...options.headers,
       },
-      ...options
+      ...options,
     };
 
     // Add body if present
@@ -391,6 +421,7 @@ class ApiError extends Error {
 ```
 
 ### LocalStorage Fallback
+
 ```javascript
 async function saveBookingWithFallback(booking) {
   try {
@@ -409,7 +440,7 @@ async function saveBookingWithFallback(booking) {
       ...booking,
       id: generateLocalId(),
       editToken: generateToken(),
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     };
 
     data.bookings.push(localBooking);
@@ -423,6 +454,7 @@ async function saveBookingWithFallback(booking) {
 ## Debugging Tools
 
 ### Request Logger
+
 ```javascript
 // Server-side request logging
 app.use((req, res, next) => {
@@ -438,10 +470,11 @@ app.use((req, res, next) => {
 ```
 
 ### Response Interceptor
+
 ```javascript
 // Client-side response logging
 const originalFetch = window.fetch;
-window.fetch = async function(...args) {
+window.fetch = async function (...args) {
   console.log('Fetch:', args[0], args[1]);
 
   try {

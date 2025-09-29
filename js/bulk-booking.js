@@ -143,6 +143,17 @@ class BulkBookingModule {
     const isAfterOct1 = today >= oct1;
     const isChristmasBlocked = isChristmas && isAfterOct1;
 
+    // Check if any room has a proposed booking for this date
+    const rooms = await dataManager.getRooms();
+    let hasProposedBooking = false;
+    for (const room of rooms) {
+      const availability = await dataManager.getRoomAvailability(date, room.id);
+      if (availability.status === 'proposed') {
+        hasProposedBooking = true;
+        break;
+      }
+    }
+
     // Styling
     if (isOtherMonth) {
       dayEl.classList.add('other-month');
@@ -157,6 +168,15 @@ class BulkBookingModule {
         this.app.currentLanguage === 'cs'
           ? 'Vánoční období - hromadné rezervace nejsou po 1.10. povoleny'
           : 'Christmas period - bulk bookings not allowed after Oct 1';
+    } else if (hasProposedBooking) {
+      // Show proposed booking status
+      dayEl.classList.add('proposed');
+      dayEl.style.background = '#ff4444';
+      dayEl.style.color = 'white';
+      dayEl.title =
+        this.app.currentLanguage === 'cs'
+          ? 'Navrhovaná rezervace - dočasně blokováno'
+          : 'Proposed booking - temporarily blocked';
     } else if (!isFullyAvailable) {
       dayEl.classList.add('partial-booked');
     } else {
@@ -194,8 +214,14 @@ class BulkBookingModule {
       dayEl.textContent = date.getDate();
     }
 
-    // Event handlers
-    if (!isPast && !isOtherMonth && isFullyAvailable && !isChristmasBlocked) {
+    // Event handlers - don't allow interaction with proposed bookings
+    if (
+      !isPast &&
+      !isOtherMonth &&
+      isFullyAvailable &&
+      !isChristmasBlocked &&
+      !hasProposedBooking
+    ) {
       dayEl.style.cursor = 'pointer';
       dayEl.style.userSelect = 'none';
       dayEl.style.webkitUserSelect = 'none';
@@ -331,6 +357,9 @@ class BulkBookingModule {
 
         return false;
       };
+    } else if (hasProposedBooking) {
+      // Proposed bookings are not clickable
+      dayEl.style.cursor = 'not-allowed';
     }
 
     return dayEl;
@@ -496,7 +525,19 @@ class BulkBookingModule {
       }
       const basePriceEl = document.getElementById('bulkBasePrice');
       if (basePriceEl) {
-        basePriceEl.textContent = '0 Kč';
+        basePriceEl.textContent = '0 Kč/noc';
+      }
+      const perNightTotal = document.getElementById('bulkPricePerNightAmount');
+      if (perNightTotal) {
+        perNightTotal.textContent = '0 Kč';
+      }
+      const adultsEl = document.getElementById('bulkAdultsSurcharge');
+      if (adultsEl) {
+        adultsEl.textContent = '0 Kč/noc';
+      }
+      const childrenEl = document.getElementById('bulkChildrenSurcharge');
+      if (childrenEl) {
+        childrenEl.textContent = '0 Kč/noc';
       }
       return;
     }
@@ -515,27 +556,25 @@ class BulkBookingModule {
     // Get pricing settings from admin configuration
     const settings = await dataManager.getSettings();
 
-    // Get the price configuration for the guest type
-    let priceConfig;
-    if (settings.prices && settings.prices[guestType]) {
-      priceConfig = settings.prices[guestType];
-    } else {
-      // Fallback defaults
-      priceConfig =
-        guestType === 'utia'
-          ? { base: 300, adult: 50, child: 25 }
-          : { base: 500, adult: 100, child: 50 };
-    }
+    // Default bulk prices if not configured
+    const defaultBulkPrices = {
+      basePrice: 2000,
+      utiaAdult: 100,
+      utiaChild: 0,
+      externalAdult: 250,
+      externalChild: 50,
+    };
 
-    // For bulk booking - calculate base price for all rooms
-    const totalBasePricePerNight = priceConfig.base * rooms.length;
+    // Get bulk price configuration
+    const bulkPrices = settings.bulkPrices || defaultBulkPrices;
 
-    // Calculate guest surcharges
-    // First adult in each room is included in base price
-    const roomCapacityUsed = rooms.length; // Number of base adults included
-    const extraAdults = Math.max(0, adults - roomCapacityUsed);
-    const adultSurcharge = extraAdults * priceConfig.adult;
-    const childrenSurcharge = children * priceConfig.child;
+    // For bulk booking - use flat base price for entire chalet
+    const totalBasePricePerNight = bulkPrices.basePrice;
+
+    // Calculate guest surcharges based on guest type
+    const guestKey = guestType === 'utia' ? 'utia' : 'external';
+    const adultSurcharge = adults * bulkPrices[`${guestKey}Adult`];
+    const childrenSurcharge = children * bulkPrices[`${guestKey}Child`];
 
     // Calculate total
     const pricePerNight = totalBasePricePerNight + adultSurcharge + childrenSurcharge;
@@ -549,7 +588,7 @@ class BulkBookingModule {
 
     const adultsEl = document.getElementById('bulkAdultsSurcharge');
     if (adultsEl) {
-      if (extraAdults > 0) {
+      if (adults > 0 && adultSurcharge > 0) {
         adultsEl.textContent = `+${adultSurcharge.toLocaleString('cs-CZ')} Kč/noc`;
         adultsEl.parentElement.style.display = 'flex';
       } else {
@@ -559,12 +598,18 @@ class BulkBookingModule {
 
     const childrenEl = document.getElementById('bulkChildrenSurcharge');
     if (childrenEl) {
-      if (children > 0) {
+      if (children > 0 && childrenSurcharge > 0) {
         childrenEl.textContent = `+${childrenSurcharge.toLocaleString('cs-CZ')} Kč/noc`;
         childrenEl.parentElement.style.display = 'flex';
       } else {
         childrenEl.parentElement.style.display = 'none';
       }
+    }
+
+    // Update per night total
+    const perNightTotal = document.getElementById('bulkPricePerNightAmount');
+    if (perNightTotal) {
+      perNightTotal.textContent = `${pricePerNight.toLocaleString('cs-CZ')} Kč`;
     }
 
     const nightsMultiplier = document.getElementById('bulkNightsMultiplier');
@@ -658,8 +703,103 @@ class BulkBookingModule {
       return;
     }
 
-    // For now, directly submit since we don't have a two-step process in current HTML
-    await this.submitBulkBooking();
+    // Get guest configuration
+    const adults = parseInt(document.getElementById('bulkAdults')?.textContent) || 1;
+    const children = parseInt(document.getElementById('bulkChildren')?.textContent) || 0;
+    const toddlers = 0;
+
+    // Get guest type
+    const guestTypeInput = document.querySelector('input[name="bulkGuestType"]:checked');
+    const guestType = guestTypeInput ? guestTypeInput.value : 'external';
+
+    // Get dates
+    const sortedDates = Array.from(this.bulkSelectedDates).sort();
+    const startDate = sortedDates[0];
+    const endDate = sortedDates[sortedDates.length - 1];
+    const nights = sortedDates.length - 1;
+
+    // Get all rooms for bulk booking
+    const rooms = await dataManager.getRooms();
+    const roomIds = rooms.map((r) => r.id);
+
+    // Calculate price using bulk pricing
+    const settings = await dataManager.getSettings();
+    const defaultBulkPrices = {
+      basePrice: 2000,
+      utiaAdult: 100,
+      utiaChild: 0,
+      externalAdult: 250,
+      externalChild: 50,
+    };
+    const bulkPrices = settings.bulkPrices || defaultBulkPrices;
+    const guestKey = guestType === 'utia' ? 'utia' : 'external';
+    const pricePerNight =
+      bulkPrices.basePrice +
+      adults * bulkPrices[`${guestKey}Adult`] +
+      children * bulkPrices[`${guestKey}Child`];
+    const totalPrice = pricePerNight * nights;
+
+    // Create proposed booking in database for all rooms
+    try {
+      const proposalId = await dataManager.createProposedBooking(startDate, endDate, roomIds);
+
+      // Create temporary bulk booking object with proposal ID
+      const tempBulkBooking = {
+        isBulkBooking: true,
+        roomIds,
+        roomNames: rooms.map((r) => r.name).join(', '),
+        startDate,
+        endDate,
+        nights,
+        guests: { adults, children, toddlers },
+        guestType,
+        totalPrice,
+        id: `temp-bulk-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        proposalId, // Store the proposal ID for cleanup
+      };
+
+      // Store the bulk booking temporarily
+      if (!this.app.tempReservations) {
+        this.app.tempReservations = [];
+      }
+
+      // Clear any existing temp reservations for bulk booking
+      this.app.tempReservations = this.app.tempReservations.filter((r) => !r.isBulkBooking);
+
+      // Add the new bulk booking
+      this.app.tempReservations.push(tempBulkBooking);
+
+      // Close the bulk modal
+      this.hideBulkBookingModal();
+
+      // Show success notification
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? `Hromadná rezervace přidána do seznamu rezervací`
+          : `Bulk booking added to reservation list`,
+        'success'
+      );
+
+      // Update the main page to show temporary reservations
+      this.app.displayTempReservations();
+
+      // Refresh calendar to show proposed booking
+      await this.app.calendar.renderCalendar();
+
+      // Show the finalize button
+      const finalizeDiv = document.getElementById('finalizeReservationsDiv');
+      if (finalizeDiv && this.app.tempReservations.length > 0) {
+        finalizeDiv.style.display = 'block';
+      }
+    } catch (error) {
+      console.error('Failed to create proposed booking:', error);
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? 'Chyba při vytváření dočasné rezervace'
+          : 'Error creating temporary reservation',
+        'error'
+      );
+    }
   }
 
   backToBulkDateSelection() {

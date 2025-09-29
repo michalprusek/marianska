@@ -3,14 +3,18 @@
 ## ✅ Implementované změny
 
 ### 1. **Bezpečnostní závislosti**
+
 Přidány nové npm balíčky:
+
 - `helmet` - Nastavení bezpečnostních HTTP hlaviček
 - `express-rate-limit` - Ochrana proti DDoS útokům
 - `dotenv` - Správa environment proměnných
 - `bcrypt` - Hashování hesel
 
 ### 2. **Environment konfigurace (.env)**
+
 Vytvořen soubor `.env` s těmito konfiguracemi:
+
 - Administrátorské heslo (už není hardcoded!)
 - API klíč pro kritické operace
 - CORS povolené domény
@@ -20,6 +24,7 @@ Vytvořen soubor `.env` s těmito konfiguracemi:
 ### 3. **Server.js - Bezpečnostní vylepšení**
 
 #### Přidáno:
+
 - ✅ **Helmet middleware** - Bezpečnostní hlavičky (CSP, X-Frame-Options, atd.)
 - ✅ **CORS omezení** - Povoleny pouze specifické domény
 - ✅ **Rate limiting** - Max 100 req/15min obecně, 10 rezervací/hodinu
@@ -29,6 +34,7 @@ Vytvořen soubor `.env` s těmito konfiguracemi:
 - ✅ **Secure token generování** - Použití crypto.randomBytes místo Math.random
 
 #### Zabezpečené endpointy:
+
 - `POST /api/data` - Vyžaduje API klíč
 - `DELETE /api/booking/:id` - Vyžaduje API klíč
 - `PUT /api/booking/:id` - Vyžaduje edit token NEBO API klíč
@@ -36,16 +42,19 @@ Vytvořen soubor `.env` s těmito konfiguracemi:
 - `POST /api/admin/update-password` - Změna hesla s API klíčem
 
 ### 4. **Odstranění nepotřebné složitosti**
+
 - 🗑️ Smazán `js/airbnb-calendar.js` (684 řádků)
 - 🗑️ Smazán `js/airbnb-integration-example.js` (364 řádků)
 - 🗑️ Smazán `css/airbnb-calendar.css`
 
 ### 5. **Admin.js vylepšení**
+
 - Použití nového API pro autentizaci
 - Změna hesla přes zabezpečený endpoint
 - API klíč ukládán do sessionStorage pro admin operace
 
 ### 6. **Data.js vylepšení**
+
 - Integrace s novým autentizačním API
 - API klíč management pro admin operace
 - Fallback pro zpětnou kompatibilitu
@@ -53,7 +62,9 @@ Vytvořen soubor `.env` s těmito konfiguracemi:
 ## 🔐 Jak používat nový systém
 
 ### První spuštění:
+
 1. **Upravte `.env` soubor** s vlastními hodnotami:
+
    ```env
    ADMIN_PASSWORD=VašeSilnéHeslo123!
    API_KEY=vygenerujte-náhodný-dlouhý-klíč
@@ -61,6 +72,7 @@ Vytvořen soubor `.env` s těmito konfiguracemi:
    ```
 
 2. **Spusťte server**:
+
    ```bash
    npm run dev  # Development
    npm start    # Production
@@ -71,6 +83,7 @@ Vytvořen soubor `.env` s těmito konfiguracemi:
    - Systém automaticky vytvoří bcrypt hash při prvním spuštění
 
 ### API použití:
+
 ```bash
 # Veřejný endpoint - funguje bez autentizace
 curl http://localhost:3000/api/data
@@ -88,6 +101,7 @@ curl -X POST http://localhost:3000/api/admin/login \
 ## ⚠️ Důležité poznámky
 
 ### Co MUSÍTE udělat před nasazením do produkce:
+
 1. **Změňte všechny výchozí hodnoty v `.env`**
 2. **Použijte HTTPS** (ne HTTP)
 3. **Nastavte `NODE_ENV=production`**
@@ -95,6 +109,7 @@ curl -X POST http://localhost:3000/api/admin/login \
 5. **Změňte výchozí API klíče a hesla**
 
 ### Bezpečnostní doporučení:
+
 - Pravidelně aktualizujte závislosti: `npm audit fix`
 - Zálohujte `data/bookings.json` pravidelně
 - Monitorujte logy pro podezřelé aktivity
@@ -103,6 +118,7 @@ curl -X POST http://localhost:3000/api/admin/login \
 ## 📊 Výsledky
 
 ### Vyřešené bezpečnostní problémy:
+
 - ✅ Hardcoded admin heslo → Bcrypt hash + env proměnné
 - ✅ Otevřené API endpointy → API key autentizace
 - ✅ CORS pro všechny → Omezené domény
@@ -111,6 +127,7 @@ curl -X POST http://localhost:3000/api/admin/login \
 - ✅ Math.random tokeny → Crypto.randomBytes
 
 ### Odstraněná složitost:
+
 - 📉 **1048 řádků kódu odstraněno** (Airbnb komponenty)
 - 🎯 **Zjednodušená architektura** pro 5 concurrent users
 - ⚡ **Rychlejší načítání** bez zbytečných komponent
@@ -118,6 +135,7 @@ curl -X POST http://localhost:3000/api/admin/login \
 ## 🚀 Další kroky (volitelné)
 
 Pro ještě větší bezpečnost můžete přidat:
+
 1. **JWT tokeny** místo session storage
 2. **2FA** pro admin přístup
 3. **Audit log** všech admin akcí

@@ -6,6 +6,17 @@ class DataManager {
     this.storageKey = 'chataMarianska';
     this.syncInterval = null;
     this.lastSync = null;
+    this.sessionId = this.getOrCreateSessionId();
+    this.proposalId = null;
+  }
+
+  getOrCreateSessionId() {
+    let sessionId = sessionStorage.getItem('bookingSessionId');
+    if (!sessionId) {
+      sessionId = `SESSION_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      sessionStorage.setItem('bookingSessionId', sessionId);
+    }
+    return sessionId;
   }
 
   async initData() {
@@ -90,7 +101,10 @@ class DataManager {
           }
 
           // Update admin panel if active
-          if (window.adminPanel && document.querySelector('#bookingsTab')?.classList.contains('active')) {
+          if (
+            window.adminPanel &&
+            document.querySelector('#bookingsTab')?.classList.contains('active')
+          ) {
             await window.adminPanel.loadBookings();
           }
         } else if (localTimestamp > serverTimestamp) {
@@ -370,6 +384,25 @@ class DataManager {
       return { status: 'booked', email: bookings[0].email };
     }
 
+    // Check for proposed bookings from the database
+    try {
+      if (this.useServer) {
+        const response = await fetch(`${this.apiUrl}/proposed-bookings`);
+        if (response.ok) {
+          const proposedBookings = await response.json();
+          const hasProposedBooking = proposedBookings.some(
+            (pb) => pb.rooms.includes(roomId) && dateStr >= pb.start_date && dateStr <= pb.end_date
+          );
+
+          if (hasProposedBooking) {
+            return { status: 'proposed', email: null };
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check proposed bookings:', error);
+    }
+
     return { status: 'available', email: null };
   }
 
@@ -621,6 +654,67 @@ class DataManager {
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  // Proposed booking methods
+  async createProposedBooking(startDate, endDate, rooms) {
+    try {
+      const response = await fetch(`${this.apiUrl}/proposed-bookings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionId: this.sessionId,
+          startDate,
+          endDate,
+          rooms,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        this.proposalId = data.proposalId;
+        return data.proposalId;
+      }
+    } catch (error) {
+      console.error('Error creating proposed booking:', error);
+    }
+    return null;
+  }
+
+  async deleteProposedBooking(proposalId) {
+    try {
+      const response = await fetch(`${this.apiUrl}/proposed-booking/${proposalId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        if (this.proposalId === proposalId) {
+          this.proposalId = null;
+        }
+        return true;
+      }
+    } catch (error) {
+      console.error('Error deleting proposed booking:', error);
+    }
+    return false;
+  }
+
+  async clearSessionProposedBookings() {
+    try {
+      const response = await fetch(`${this.apiUrl}/proposed-bookings/session/${this.sessionId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        this.proposalId = null;
+        return true;
+      }
+    } catch (error) {
+      console.error('Error clearing session proposed bookings:', error);
+    }
+    return false;
   }
 
   // Price calculation

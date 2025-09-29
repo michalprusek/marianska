@@ -2,11 +2,24 @@
 <html lang="cs">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
     <title>Upravit rezervaci - Chata Mariánská</title>
-    <link rel="stylesheet" href="css/styles-unified.css" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="css/styles-unified.css"
+    />
+    <link
+      rel="preconnect"
+      href="https://fonts.googleapis.com"
+    />
+    <link
+      rel="preconnect"
+      href="https://fonts.gstatic.com"
+      crossorigin
+    />
     <style>
       :root {
         --primary-gradient: linear-gradient(135deg, #0d9488, #059669);
@@ -110,8 +123,14 @@
       }
 
       @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
       }
 
       .calendar-section {
@@ -217,8 +236,13 @@
       }
 
       @keyframes pulse {
-        0%, 100% { border-color: #ef4444; }
-        50% { border-color: #dc2626; }
+        0%,
+        100% {
+          border-color: #ef4444;
+        }
+        50% {
+          border-color: #dc2626;
+        }
       }
 
       .room-header {
@@ -270,7 +294,7 @@
         gap: 0.5rem;
       }
 
-      .guest-input input[type="number"] {
+      .guest-input input[type='number'] {
         width: 80px;
         padding: 0.5rem;
         border: 2px solid #e5e7eb;
@@ -279,7 +303,7 @@
         text-align: center;
       }
 
-      .guest-input input[type="number"]:focus {
+      .guest-input input[type='number']:focus {
         outline: none;
         border-color: #3b82f6;
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
@@ -435,7 +459,9 @@
         border-radius: 50%;
         background: rgba(255, 255, 255, 0.5);
         transform: translate(-50%, -50%);
-        transition: width 0.6s, height 0.6s;
+        transition:
+          width 0.6s,
+          height 0.6s;
       }
 
       .btn:hover::before {
@@ -513,8 +539,12 @@
       }
 
       @keyframes slide {
-        0% { transform: translateX(0); }
-        100% { transform: translateX(20px); }
+        0% {
+          transform: translateX(0);
+        }
+        100% {
+          transform: translateX(20px);
+        }
       }
 
       .conflict-warning {
@@ -527,9 +557,16 @@
       }
 
       @keyframes shake {
-        0%, 100% { transform: translateX(0); }
-        25% { transform: translateX(-5px); }
-        75% { transform: translateX(5px); }
+        0%,
+        100% {
+          transform: translateX(0);
+        }
+        25% {
+          transform: translateX(-5px);
+        }
+        75% {
+          transform: translateX(5px);
+        }
       }
 
       .conflict-warning h4 {
@@ -578,8 +615,14 @@
       }
 
       @keyframes slideUp {
-        from { transform: translateY(20px); opacity: 0; }
-        to { transform: translateY(0); opacity: 1; }
+        from {
+          transform: translateY(20px);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
       }
 
       .validation-error {
@@ -664,19 +707,31 @@
 
       <!-- Tab Navigation -->
       <div class="tabs">
-        <button class="tab-btn active" data-tab="dates">
+        <button
+          class="tab-btn active"
+          data-tab="dates"
+        >
           📅 Termín a pokoje
         </button>
-        <button class="tab-btn" data-tab="personal">
+        <button
+          class="tab-btn"
+          data-tab="personal"
+        >
           👤 Osobní údaje
         </button>
-        <button class="tab-btn" data-tab="billing">
+        <button
+          class="tab-btn"
+          data-tab="billing"
+        >
           💳 Fakturační údaje
         </button>
       </div>
 
       <!-- Dates Tab -->
-      <div id="datesTab" class="tab-content active">
+      <div
+        id="datesTab"
+        class="tab-content active"
+      >
         <div class="calendar-section">
           <div class="calendar-container">
             <h3>📆 Vyberte termíny pobytu</h3>
@@ -685,7 +740,10 @@
               <h4 id="currentMonth">Leden 2025</h4>
               <button onclick="changeMonth(1)">Další →</button>
             </div>
-            <div id="calendar" class="calendar-grid">
+            <div
+              id="calendar"
+              class="calendar-grid"
+            >
               <!-- Calendar will be rendered here -->
             </div>
 
@@ -693,10 +751,13 @@
             <div class="intervals-display">
               <h4>📌 Vybrané termíny:</h4>
               <div id="selectedIntervals">
-                <p style="color: #6b7280;">Zatím nejsou vybrány žádné termíny</p>
+                <p style="color: #6b7280">Zatím nejsou vybrány žádné termíny</p>
               </div>
-              <div style="margin-top: 1rem;">
-                <button class="btn btn-secondary" onclick="clearAllDates()">
+              <div style="margin-top: 1rem">
+                <button
+                  class="btn btn-secondary"
+                  onclick="clearAllDates()"
+                >
                   🗑️ Vymazat všechny termíny
                 </button>
               </div>
@@ -706,15 +767,26 @@
           <div>
             <div class="room-selection">
               <h3>🏠 Vyberte pokoje a nastavte hosty</h3>
-              <div id="roomList" class="room-list">
+              <div
+                id="roomList"
+                class="room-list"
+              >
                 <!-- Rooms will be rendered here -->
               </div>
             </div>
 
             <div class="price-summary">
               <div class="price-label">💰 Celková cena</div>
-              <div class="price-amount" id="totalPrice">0 Kč</div>
-              <div id="priceBreakdown" style="margin-top: 1rem; font-size: 0.9rem; color: #78350f;">
+              <div
+                class="price-amount"
+                id="totalPrice"
+              >
+                0 Kč
+              </div>
+              <div
+                id="priceBreakdown"
+                style="margin-top: 1rem; font-size: 0.9rem; color: #78350f"
+              >
                 <!-- Price breakdown will be shown here -->
               </div>
             </div>
@@ -728,83 +800,150 @@
       </div>
 
       <!-- Personal Info Tab -->
-      <div id="personalTab" class="tab-content">
+      <div
+        id="personalTab"
+        class="tab-content"
+      >
         <div class="form-grid">
           <div class="input-group">
-            <label for="name">
-              👤 Jméno a příjmení *
-            </label>
-            <input type="text" id="name" required>
-            <span class="validation-error" id="nameError" style="display: none;">Jméno je povinné</span>
+            <label for="name"> 👤 Jméno a příjmení * </label>
+            <input
+              type="text"
+              id="name"
+              required
+            />
+            <span
+              class="validation-error"
+              id="nameError"
+              style="display: none"
+              >Jméno je povinné</span
+            >
           </div>
           <div class="input-group">
-            <label for="email">
-              📧 Email *
-            </label>
-            <input type="email" id="email" required>
-            <span class="validation-error" id="emailError" style="display: none;">Neplatný email</span>
+            <label for="email"> 📧 Email * </label>
+            <input
+              type="email"
+              id="email"
+              required
+            />
+            <span
+              class="validation-error"
+              id="emailError"
+              style="display: none"
+              >Neplatný email</span
+            >
           </div>
           <div class="input-group">
-            <label for="phone">
-              📱 Telefon *
-            </label>
-            <input type="tel" id="phone" required>
-            <span class="validation-error" id="phoneError" style="display: none;">Neplatný telefon</span>
+            <label for="phone"> 📱 Telefon * </label>
+            <input
+              type="tel"
+              id="phone"
+              required
+            />
+            <span
+              class="validation-error"
+              id="phoneError"
+              style="display: none"
+              >Neplatný telefon</span
+            >
           </div>
-          <div class="input-group" style="grid-column: 1 / -1;">
-            <label for="notes">
-              📝 Poznámky
-            </label>
-            <textarea id="notes" rows="4" placeholder="Zde můžete napsat speciální požadavky..."></textarea>
+          <div
+            class="input-group"
+            style="grid-column: 1 / -1"
+          >
+            <label for="notes"> 📝 Poznámky </label>
+            <textarea
+              id="notes"
+              rows="4"
+              placeholder="Zde můžete napsat speciální požadavky..."
+            ></textarea>
           </div>
         </div>
       </div>
 
       <!-- Billing Info Tab -->
-      <div id="billingTab" class="tab-content">
+      <div
+        id="billingTab"
+        class="tab-content"
+      >
         <div class="form-grid">
           <div class="input-group">
-            <label for="company">
-              🏢 Firma
-            </label>
-            <input type="text" id="company">
+            <label for="company"> 🏢 Firma </label>
+            <input
+              type="text"
+              id="company"
+            />
           </div>
           <div class="input-group">
-            <label for="address">
-              📍 Adresa *
-            </label>
-            <input type="text" id="address" required>
-            <span class="validation-error" id="addressError" style="display: none;">Adresa je povinná</span>
+            <label for="address"> 📍 Adresa * </label>
+            <input
+              type="text"
+              id="address"
+              required
+            />
+            <span
+              class="validation-error"
+              id="addressError"
+              style="display: none"
+              >Adresa je povinná</span
+            >
           </div>
           <div class="input-group">
-            <label for="city">
-              🏙️ Město *
-            </label>
-            <input type="text" id="city" required>
-            <span class="validation-error" id="cityError" style="display: none;">Město je povinné</span>
+            <label for="city"> 🏙️ Město * </label>
+            <input
+              type="text"
+              id="city"
+              required
+            />
+            <span
+              class="validation-error"
+              id="cityError"
+              style="display: none"
+              >Město je povinné</span
+            >
           </div>
           <div class="input-group">
-            <label for="zip">
-              📮 PSČ *
-            </label>
-            <input type="text" id="zip" required pattern="[0-9]{5}" maxlength="5">
-            <span class="validation-error" id="zipError" style="display: none;">PSČ musí mít 5 číslic</span>
+            <label for="zip"> 📮 PSČ * </label>
+            <input
+              type="text"
+              id="zip"
+              required
+              pattern="[0-9]{5}"
+              maxlength="5"
+            />
+            <span
+              class="validation-error"
+              id="zipError"
+              style="display: none"
+              >PSČ musí mít 5 číslic</span
+            >
           </div>
           <div class="input-group">
-            <label for="ico">
-              🔢 IČO
-            </label>
-            <input type="text" id="ico" pattern="[0-9]{8}" maxlength="8">
+            <label for="ico"> 🔢 IČO </label>
+            <input
+              type="text"
+              id="ico"
+              pattern="[0-9]{8}"
+              maxlength="8"
+            />
           </div>
           <div class="input-group">
-            <label for="dic">
-              💼 DIČ
-            </label>
-            <input type="text" id="dic">
+            <label for="dic"> 💼 DIČ </label>
+            <input
+              type="text"
+              id="dic"
+            />
           </div>
-          <div class="input-group" style="grid-column: 1 / -1;">
+          <div
+            class="input-group"
+            style="grid-column: 1 / -1"
+          >
             <label>
-              <input type="checkbox" id="payFromBenefit" style="width: auto; margin-right: 0.5rem;">
+              <input
+                type="checkbox"
+                id="payFromBenefit"
+                style="width: auto; margin-right: 0.5rem"
+              />
               💳 Platba z benefitů
             </label>
           </div>
@@ -813,36 +952,49 @@
 
       <!-- Action Buttons -->
       <div class="action-buttons">
-        <button class="btn btn-secondary" onclick="window.location.href='/'">
+        <button
+          class="btn btn-secondary"
+          onclick="window.location.href='/'"
+        >
           ← Zpět
         </button>
-        <button class="btn btn-primary" onclick="saveChanges()">
+        <button
+          class="btn btn-primary"
+          onclick="saveChanges()"
+        >
           💾 Uložit změny
         </button>
       </div>
 
       <!-- Danger Zone -->
       <div class="danger-zone">
-        <h3 style="color: #dc2626; margin-bottom: 1rem;">⚠️ Nebezpečná zóna</h3>
-        <p style="margin-bottom: 1rem; color: #7f1d1d;">
+        <h3 style="color: #dc2626; margin-bottom: 1rem">⚠️ Nebezpečná zóna</h3>
+        <p style="margin-bottom: 1rem; color: #7f1d1d">
           Zrušení rezervace je nevratné. Tato akce nemůže být vrácena zpět.
         </p>
-        <button class="btn btn-danger" onclick="cancelBooking()">
+        <button
+          class="btn btn-danger"
+          onclick="cancelBooking()"
+        >
           🗑️ Zrušit rezervaci
         </button>
       </div>
     </div>
 
     <!-- Success Modal -->
-    <div id="successModal" class="modal">
+    <div
+      id="successModal"
+      class="modal"
+    >
       <div class="modal-content">
-        <div style="text-align: center;">
-          <div style="font-size: 5rem;">🎉</div>
-          <h2 style="color: #059669; margin: 1rem 0;">Změny úspěšně uloženy!</h2>
-          <p style="margin: 1rem 0; color: #4b5563;">
-            Vaše rezervace byla aktualizována.
-          </p>
-          <button class="btn btn-primary" onclick="closeModal()">
+        <div style="text-align: center">
+          <div style="font-size: 5rem">🎉</div>
+          <h2 style="color: #059669; margin: 1rem 0">Změny úspěšně uloženy!</h2>
+          <p style="margin: 1rem 0; color: #4b5563">Vaše rezervace byla aktualizována.</p>
+          <button
+            class="btn btn-primary"
+            onclick="closeModal()"
+          >
             Zavřít
           </button>
         </div>
@@ -851,726 +1003,726 @@
 
     <script src="data.js"></script>
     <script>
-      // Global variables
-      let editToken = null;
-      let bookingData = null;
-      let selectedIntervals = []; // Array of date intervals
-      let currentInterval = { start: null, end: null };
-      let selectedRoomsData = {}; // Room-specific guest data
-      let conflictDates = new Set();
-      let conflictRooms = new Set();
-      let currentMonth = new Date().getMonth();
-      let currentYear = new Date().getFullYear();
-
-      // Initialize
-      document.addEventListener('DOMContentLoaded', async () => {
-        const params = new URLSearchParams(window.location.search);
-        editToken = params.get('token');
-
-        if (!editToken) {
-          alert('Neplatný odkaz pro úpravu rezervace');
-          window.location.href = '/';
-          return;
-        }
-
-        await loadBookingData();
-        setupEventListeners();
-        await initializeCalendar();
-        await loadRooms();
-        updatePrice();
-        await checkConflicts();
-      });
-
-      async function loadBookingData() {
-        try {
-          bookingData = await dataManager.getBookingByEditToken(editToken);
-          if (!bookingData) {
-            alert('Rezervace nenalezena');
-            window.location.href = '/';
-            return;
-          }
-
-          // Populate form
-          document.getElementById('bookingId').textContent = bookingData.id;
-          document.getElementById('name').value = bookingData.name || '';
-          document.getElementById('email').value = bookingData.email || '';
-          document.getElementById('phone').value = bookingData.phone || '';
-          document.getElementById('company').value = bookingData.company || '';
-          document.getElementById('address').value = bookingData.address || '';
-          document.getElementById('city').value = bookingData.city || '';
-          document.getElementById('zip').value = bookingData.zip || '';
-          document.getElementById('ico').value = bookingData.ico || '';
-          document.getElementById('dic').value = bookingData.dic || '';
-          document.getElementById('notes').value = bookingData.notes || '';
-          document.getElementById('payFromBenefit').checked = bookingData.payFromBenefit || false;
-
-          // Set up initial interval from booking
-          const start = new Date(bookingData.startDate);
-          const end = new Date(bookingData.endDate);
-          selectedIntervals = [{
-            start: formatDate(start),
-            end: formatDate(new Date(end.getTime() - 24 * 60 * 60 * 1000))
-          }];
-
-          // Set up room data
-          bookingData.rooms.forEach(roomId => {
-            selectedRoomsData[roomId] = {
-              adults: Math.ceil(bookingData.adults / bookingData.rooms.length),
-              children: Math.ceil(bookingData.children / bookingData.rooms.length),
-              toddlers: Math.ceil(bookingData.toddlers / bookingData.rooms.length),
-              guestType: bookingData.guestType || 'external'
-            };
-          });
-
-          updateIntervalsDisplay();
-        } catch (error) {
-          console.error('Error loading booking:', error);
-          alert('Chyba při načítání rezervace');
-        }
-      }
-
-      function setupEventListeners() {
-        // Tab navigation
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-          btn.addEventListener('click', () => {
-            const tab = btn.dataset.tab;
-            switchTab(tab);
-          });
-        });
-
-        // Form validation
-        document.getElementById('name').addEventListener('blur', validateName);
-        document.getElementById('email').addEventListener('blur', validateEmail);
-        document.getElementById('phone').addEventListener('blur', validatePhone);
-        document.getElementById('address').addEventListener('blur', validateAddress);
-        document.getElementById('city').addEventListener('blur', validateCity);
-        document.getElementById('zip').addEventListener('blur', validateZip);
-      }
-
-      function switchTab(tab) {
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-          btn.classList.remove('active');
-          if (btn.dataset.tab === tab) {
-            btn.classList.add('active');
-          }
-        });
-
-        document.querySelectorAll('.tab-content').forEach(content => {
-          content.classList.remove('active');
-        });
-        document.getElementById(`${tab}Tab`).classList.add('active');
-      }
-
-      async function initializeCalendar() {
-        const monthNames = ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen',
-                           'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'];
-
-        if (bookingData) {
-          const startDate = new Date(bookingData.startDate);
-          currentMonth = startDate.getMonth();
-          currentYear = startDate.getFullYear();
-        }
-
-        document.getElementById('currentMonth').textContent = `${monthNames[currentMonth]} ${currentYear}`;
-        await renderCalendar();
-      }
-
-      async function renderCalendar() {
-        const container = document.getElementById('calendar');
-        const firstDay = new Date(currentYear, currentMonth, 1);
-        const lastDay = new Date(currentYear, currentMonth + 1, 0);
-        const daysInMonth = lastDay.getDate();
-        const startingDayOfWeek = firstDay.getDay();
-
-        let html = '';
-
-        // Day headers
-        const dayHeaders = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
-        dayHeaders.forEach(day => {
-          html += `<div style="font-weight: bold; text-align: center; color: #6b7280;">${day}</div>`;
-        });
-
-        // Empty cells
-        const adjustedStart = startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1;
-        for (let i = 0; i < adjustedStart; i++) {
-          html += '<div></div>';
-        }
-
-        // Days
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        for (let day = 1; day <= daysInMonth; day++) {
-          const date = formatDate(new Date(currentYear, currentMonth, day));
-          const dateObj = new Date(currentYear, currentMonth, day);
-          const isPast = dateObj < today;
-          const isSelected = isDateSelected(date);
-          const isConflict = conflictDates.has(date);
-
-          let className = 'calendar-day';
-          if (isPast) className += ' disabled';
-          if (isSelected) className += ' selected';
-          if (isConflict) className += ' conflict';
-
-          html += `
-            <div
-              class="${className}"
-              data-date="${date}"
-              onclick="${!isPast ? `toggleDate('${date}')` : ''}"
-            >${day}</div>
-          `;
-        }
-
-        container.innerHTML = html;
-      }
-
-      function isDateSelected(date) {
-        return selectedIntervals.some(interval => {
-          return date >= interval.start && date <= interval.end;
-        });
-      }
-
-      function toggleDate(date) {
-        if (!currentInterval.start) {
-          // Start new interval
-          currentInterval.start = date;
-          currentInterval.end = date;
-        } else if (date >= currentInterval.start) {
-          // Extend or complete interval
-          currentInterval.end = date;
-
-          // Add interval to list
-          selectedIntervals.push({...currentInterval});
-          currentInterval = { start: null, end: null };
-        } else {
-          // Start new interval if clicking before current start
-          currentInterval.start = date;
-          currentInterval.end = date;
-        }
-
-        updateIntervalsDisplay();
-        renderCalendar();
-        updatePrice();
-        checkConflicts();
-      }
-
-      function updateIntervalsDisplay() {
-        const container = document.getElementById('selectedIntervals');
-
-        if (selectedIntervals.length === 0) {
-          container.innerHTML = '<p style="color: #6b7280;">Zatím nejsou vybrány žádné termíny</p>';
-          return;
-        }
-
-        let html = '';
-        selectedIntervals.forEach((interval, index) => {
-          const startDate = new Date(interval.start);
-          const endDate = new Date(interval.end);
-          const nights = Math.floor((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
-
-          html += `
-            <div class="interval-item">
-              <div class="interval-dates">
-                📅 ${startDate.toLocaleDateString('cs-CZ')} - ${endDate.toLocaleDateString('cs-CZ')}
-                <span style="color: #6b7280; font-size: 0.9rem; margin-left: 1rem;">(${nights} ${nights === 1 ? 'noc' : nights < 5 ? 'noci' : 'nocí'})</span>
-              </div>
-              <button class="btn-remove-interval" onclick="removeInterval(${index})">
-                ✕ Odstranit
-              </button>
-            </div>
-          `;
-        });
-
-        if (currentInterval.start) {
-          html += `
-            <div class="interval-item" style="opacity: 0.6; border: 2px dashed #3b82f6;">
-              <div class="interval-dates">
-                📍 Vybíráte: ${new Date(currentInterval.start).toLocaleDateString('cs-CZ')}
-                ${currentInterval.end !== currentInterval.start ? ` - ${new Date(currentInterval.end).toLocaleDateString('cs-CZ')}` : ''}
-              </div>
-              <button class="btn-remove-interval" onclick="cancelCurrentInterval()">
-                ✕ Zrušit
-              </button>
-            </div>
-          `;
-        }
-
-        container.innerHTML = html;
-      }
-
-      function removeInterval(index) {
-        selectedIntervals.splice(index, 1);
-        updateIntervalsDisplay();
-        renderCalendar();
-        updatePrice();
-        checkConflicts();
-      }
-
-      function cancelCurrentInterval() {
-        currentInterval = { start: null, end: null };
-        updateIntervalsDisplay();
-        renderCalendar();
-      }
-
-      function clearAllDates() {
-        selectedIntervals = [];
-        currentInterval = { start: null, end: null };
-        updateIntervalsDisplay();
-        renderCalendar();
-        updatePrice();
-        checkConflicts();
-      }
-
-      async function loadRooms() {
-        const container = document.getElementById('roomList');
-        const rooms = await dataManager.getRooms();
-
-        let html = '';
-        for (const room of rooms) {
-          const isSelected = selectedRoomsData.hasOwnProperty(room.id);
-          const isConflict = conflictRooms.has(room.id);
-          const roomData = selectedRoomsData[room.id] || {
-            adults: 1,
-            children: 0,
-            toddlers: 0,
-            guestType: 'external'
-          };
-
-          html += `
-            <div class="room-card ${isSelected ? 'selected' : ''} ${isConflict ? 'conflict' : ''}" id="room-${room.id}">
-              <div class="room-header">
-                <div class="room-title">
-                  <input type="checkbox"
-                         ${isSelected ? 'checked' : ''}
-                         onchange="toggleRoom('${room.id}')"
-                         style="margin-right: 0.5rem;">
-                  Pokoj ${room.id}
-                </div>
-                <div class="room-capacity">
-                  🛏️ ${room.beds} ${room.beds === 1 ? 'lůžko' : room.beds < 5 ? 'lůžka' : 'lůžek'}
-                </div>
-              </div>
-
-              ${isSelected ? `
-                <div class="room-controls">
-                  <div class="guest-input-group">
-                    <label>Počet hostů</label>
-                    <div class="guest-input">
-                      <span>👤</span>
-                      <input type="number"
-                             id="adults-${room.id}"
-                             min="0"
-                             max="${room.beds}"
-                             value="${roomData.adults}"
-                             onchange="updateRoomGuests('${room.id}', 'adults', this.value)">
-                      <span style="font-size: 0.85rem;">dospělí</span>
-                    </div>
-                    <div class="guest-input">
-                      <span>👶</span>
-                      <input type="number"
-                             id="children-${room.id}"
-                             min="0"
-                             max="${room.beds}"
-                             value="${roomData.children}"
-                             onchange="updateRoomGuests('${room.id}', 'children', this.value)">
-                      <span style="font-size: 0.85rem;">děti</span>
-                    </div>
-                    <div class="guest-input">
-                      <span>👼</span>
-                      <input type="number"
-                             id="toddlers-${room.id}"
-                             min="0"
-                             max="${room.beds}"
-                             value="${roomData.toddlers}"
-                             onchange="updateRoomGuests('${room.id}', 'toddlers', this.value)">
-                      <span style="font-size: 0.85rem;">batolata</span>
-                    </div>
-                    <div id="capacity-error-${room.id}" class="validation-error" style="display: none;">
-                      Překročena kapacita pokoje!
-                    </div>
-                  </div>
-
-                  <div class="guest-input-group">
-                    <label>Typ hosta</label>
-                    <div class="guest-type-select">
-                      <button class="guest-type-btn ${roomData.guestType === 'utia' ? 'active' : ''}"
-                              onclick="setRoomGuestType('${room.id}', 'utia')">
-                        🏢 ÚTIA
-                      </button>
-                      <button class="guest-type-btn ${roomData.guestType === 'external' ? 'active' : ''}"
-                              onclick="setRoomGuestType('${room.id}', 'external')">
-                        👥 Externí
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ` : ''}
-            </div>
-          `;
-        }
-
-        container.innerHTML = html;
-      }
-
-      function toggleRoom(roomId) {
-        if (selectedRoomsData.hasOwnProperty(roomId)) {
-          delete selectedRoomsData[roomId];
-        } else {
-          selectedRoomsData[roomId] = {
-            adults: 1,
-            children: 0,
-            toddlers: 0,
-            guestType: 'external'
-          };
-        }
-        loadRooms();
-        updatePrice();
-        checkConflicts();
-      }
-
-      async function updateRoomGuests(roomId, type, value) {
-        const rooms = await dataManager.getRooms();
-        const room = rooms.find(r => r.id === roomId);
-        const roomData = selectedRoomsData[roomId];
-
-        roomData[type] = parseInt(value) || 0;
-
-        // Validate capacity
-        const totalGuests = roomData.adults + roomData.children;
-        const errorEl = document.getElementById(`capacity-error-${roomId}`);
-
-        if (totalGuests > room.beds) {
-          errorEl.style.display = 'block';
-          errorEl.textContent = `Překročena kapacita! Maximum ${room.beds} ${room.beds === 1 ? 'host' : room.beds < 5 ? 'hosté' : 'hostů'}`;
-        } else {
-          errorEl.style.display = 'none';
-        }
-
-        updatePrice();
-      }
-
-      function setRoomGuestType(roomId, type) {
-        selectedRoomsData[roomId].guestType = type;
-        loadRooms();
-        updatePrice();
-      }
-
-      async function updatePrice() {
-        let totalPrice = 0;
-        let breakdown = [];
-
-        const nights = selectedIntervals.reduce((sum, interval) => {
-          const start = new Date(interval.start);
-          const end = new Date(interval.end);
-          return sum + Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
-        }, 0);
-
-        for (const [roomId, roomData] of Object.entries(selectedRoomsData)) {
-          const basePrice = roomData.guestType === 'utia' ? 350 : 550;
-          const adultPrice = roomData.guestType === 'utia' ? 50 : 100;
-          const childPrice = roomData.guestType === 'utia' ? 25 : 50;
-
-          const roomPrice = nights * (
-            basePrice +
-            Math.max(0, roomData.adults - 1) * adultPrice +
-            roomData.children * childPrice
-          );
-
-          totalPrice += roomPrice;
-          breakdown.push(`Pokoj ${roomId}: ${roomPrice} Kč`);
-        }
-
-        document.getElementById('totalPrice').textContent = `${totalPrice} Kč`;
-        document.getElementById('priceBreakdown').innerHTML = breakdown.join('<br>');
-      }
-
-      async function checkConflicts() {
-        conflictDates.clear();
-        conflictRooms.clear();
-
-        const container = document.getElementById('conflictsDisplay');
-
-        if (selectedIntervals.length === 0 || Object.keys(selectedRoomsData).length === 0) {
-          container.innerHTML = '';
-          return;
-        }
-
-        const bookings = await dataManager.getAllBookings();
-        const conflicts = [];
-
-        for (const interval of selectedIntervals) {
-          const startDate = new Date(interval.start);
-          const endDate = new Date(interval.end);
-
-          const intervalConflicts = bookings.filter(b => {
-            if (b.id === bookingData.id) return false;
-
-            const bStart = new Date(b.startDate);
-            const bEnd = new Date(b.endDate);
-
-            // Check date overlap
-            const hasDateOverlap = bStart < new Date(endDate.getTime() + 24 * 60 * 60 * 1000) &&
-                                  bEnd > startDate;
-
-            // Check room overlap
-            const hasRoomOverlap = b.rooms.some(r => selectedRoomsData.hasOwnProperty(r));
-
-            if (hasDateOverlap && hasRoomOverlap) {
-              // Mark conflict dates
-              for (let d = new Date(Math.max(startDate, bStart)); d <= Math.min(endDate, bEnd); d.setDate(d.getDate() + 1)) {
-                conflictDates.add(formatDate(new Date(d)));
+            // Global variables
+            let editToken = null;
+            let bookingData = null;
+            let selectedIntervals = []; // Array of date intervals
+            let currentInterval = { start: null, end: null };
+            let selectedRoomsData = {}; // Room-specific guest data
+            let conflictDates = new Set();
+            let conflictRooms = new Set();
+            let currentMonth = new Date().getMonth();
+            let currentYear = new Date().getFullYear();
+
+            // Initialize
+            document.addEventListener('DOMContentLoaded', async () => {
+              const params = new URLSearchParams(window.location.search);
+              editToken = params.get('token');
+
+              if (!editToken) {
+                alert('Neplatný odkaz pro úpravu rezervace');
+                window.location.href = '/';
+                return;
               }
 
-              // Mark conflict rooms
-              b.rooms.forEach(r => {
-                if (selectedRoomsData.hasOwnProperty(r)) {
-                  conflictRooms.add(r);
+              await loadBookingData();
+              setupEventListeners();
+              await initializeCalendar();
+              await loadRooms();
+              updatePrice();
+              await checkConflicts();
+            });
+
+            async function loadBookingData() {
+              try {
+                bookingData = await dataManager.getBookingByEditToken(editToken);
+                if (!bookingData) {
+                  alert('Rezervace nenalezena');
+                  window.location.href = '/';
+                  return;
+                }
+
+                // Populate form
+                document.getElementById('bookingId').textContent = bookingData.id;
+                document.getElementById('name').value = bookingData.name || '';
+                document.getElementById('email').value = bookingData.email || '';
+                document.getElementById('phone').value = bookingData.phone || '';
+                document.getElementById('company').value = bookingData.company || '';
+                document.getElementById('address').value = bookingData.address || '';
+                document.getElementById('city').value = bookingData.city || '';
+                document.getElementById('zip').value = bookingData.zip || '';
+                document.getElementById('ico').value = bookingData.ico || '';
+                document.getElementById('dic').value = bookingData.dic || '';
+                document.getElementById('notes').value = bookingData.notes || '';
+                document.getElementById('payFromBenefit').checked = bookingData.payFromBenefit || false;
+
+                // Set up initial interval from booking
+                const start = new Date(bookingData.startDate);
+                const end = new Date(bookingData.endDate);
+                selectedIntervals = [{
+                  start: formatDate(start),
+                  end: formatDate(new Date(end.getTime() - 24 * 60 * 60 * 1000))
+                }];
+
+                // Set up room data
+                bookingData.rooms.forEach(roomId => {
+                  selectedRoomsData[roomId] = {
+                    adults: Math.ceil(bookingData.adults / bookingData.rooms.length),
+                    children: Math.ceil(bookingData.children / bookingData.rooms.length),
+                    toddlers: Math.ceil(bookingData.toddlers / bookingData.rooms.length),
+                    guestType: bookingData.guestType || 'external'
+                  };
+                });
+
+                updateIntervalsDisplay();
+              } catch (error) {
+                console.error('Error loading booking:', error);
+                alert('Chyba při načítání rezervace');
+              }
+            }
+
+            function setupEventListeners() {
+              // Tab navigation
+              document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                  const tab = btn.dataset.tab;
+                  switchTab(tab);
+                });
+              });
+
+              // Form validation
+              document.getElementById('name').addEventListener('blur', validateName);
+              document.getElementById('email').addEventListener('blur', validateEmail);
+              document.getElementById('phone').addEventListener('blur', validatePhone);
+              document.getElementById('address').addEventListener('blur', validateAddress);
+              document.getElementById('city').addEventListener('blur', validateCity);
+              document.getElementById('zip').addEventListener('blur', validateZip);
+            }
+
+            function switchTab(tab) {
+              document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.tab === tab) {
+                  btn.classList.add('active');
                 }
               });
 
+              document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+              });
+              document.getElementById(`${tab}Tab`).classList.add('active');
+            }
+
+            async function initializeCalendar() {
+              const monthNames = ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen',
+                                 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'];
+
+              if (bookingData) {
+                const startDate = new Date(bookingData.startDate);
+                currentMonth = startDate.getMonth();
+                currentYear = startDate.getFullYear();
+              }
+
+              document.getElementById('currentMonth').textContent = `${monthNames[currentMonth]} ${currentYear}`;
+              await renderCalendar();
+            }
+
+            async function renderCalendar() {
+              const container = document.getElementById('calendar');
+              const firstDay = new Date(currentYear, currentMonth, 1);
+              const lastDay = new Date(currentYear, currentMonth + 1, 0);
+              const daysInMonth = lastDay.getDate();
+              const startingDayOfWeek = firstDay.getDay();
+
+              let html = '';
+
+              // Day headers
+              const dayHeaders = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
+              dayHeaders.forEach(day => {
+                html += `<div style="font-weight: bold; text-align: center; color: #6b7280;">${day}</div>`;
+              });
+
+              // Empty cells
+              const adjustedStart = startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1;
+              for (let i = 0; i < adjustedStart; i++) {
+                html += '<div></div>';
+              }
+
+              // Days
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+
+              for (let day = 1; day <= daysInMonth; day++) {
+                const date = formatDate(new Date(currentYear, currentMonth, day));
+                const dateObj = new Date(currentYear, currentMonth, day);
+                const isPast = dateObj < today;
+                const isSelected = isDateSelected(date);
+                const isConflict = conflictDates.has(date);
+
+                let className = 'calendar-day';
+                if (isPast) className += ' disabled';
+                if (isSelected) className += ' selected';
+                if (isConflict) className += ' conflict';
+
+                html += `
+                  <div
+                    class="${className}"
+                    data-date="${date}"
+                    onclick="${!isPast ? `toggleDate('${date}')` : ''}"
+                  >${day}</div>
+                `;
+              }
+
+              container.innerHTML = html;
+            }
+
+            function isDateSelected(date) {
+              return selectedIntervals.some(interval => {
+                return date >= interval.start && date <= interval.end;
+              });
+            }
+
+            function toggleDate(date) {
+              if (!currentInterval.start) {
+                // Start new interval
+                currentInterval.start = date;
+                currentInterval.end = date;
+              } else if (date >= currentInterval.start) {
+                // Extend or complete interval
+                currentInterval.end = date;
+
+                // Add interval to list
+                selectedIntervals.push({...currentInterval});
+                currentInterval = { start: null, end: null };
+              } else {
+                // Start new interval if clicking before current start
+                currentInterval.start = date;
+                currentInterval.end = date;
+              }
+
+              updateIntervalsDisplay();
+              renderCalendar();
+              updatePrice();
+              checkConflicts();
+            }
+
+            function updateIntervalsDisplay() {
+              const container = document.getElementById('selectedIntervals');
+
+              if (selectedIntervals.length === 0) {
+                container.innerHTML = '<p style="color: #6b7280;">Zatím nejsou vybrány žádné termíny</p>';
+                return;
+              }
+
+              let html = '';
+              selectedIntervals.forEach((interval, index) => {
+                const startDate = new Date(interval.start);
+                const endDate = new Date(interval.end);
+                const nights = Math.floor((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+
+                html += `
+                  <div class="interval-item">
+                    <div class="interval-dates">
+                      📅 ${startDate.toLocaleDateString('cs-CZ')} - ${endDate.toLocaleDateString('cs-CZ')}
+                      <span style="color: #6b7280; font-size: 0.9rem; margin-left: 1rem;">(${nights} ${nights === 1 ? 'noc' : nights < 5 ? 'noci' : 'nocí'})</span>
+                    </div>
+                    <button class="btn-remove-interval" onclick="removeInterval(${index})">
+                      ✕ Odstranit
+                    </button>
+                  </div>
+                `;
+              });
+
+              if (currentInterval.start) {
+                html += `
+                  <div class="interval-item" style="opacity: 0.6; border: 2px dashed #3b82f6;">
+                    <div class="interval-dates">
+                      📍 Vybíráte: ${new Date(currentInterval.start).toLocaleDateString('cs-CZ')}
+                      ${currentInterval.end !== currentInterval.start ? ` - ${new Date(currentInterval.end).toLocaleDateString('cs-CZ')}` : ''}
+                    </div>
+                    <button class="btn-remove-interval" onclick="cancelCurrentInterval()">
+                      ✕ Zrušit
+                    </button>
+                  </div>
+                `;
+              }
+
+              container.innerHTML = html;
+            }
+
+            function removeInterval(index) {
+              selectedIntervals.splice(index, 1);
+              updateIntervalsDisplay();
+              renderCalendar();
+              updatePrice();
+              checkConflicts();
+            }
+
+            function cancelCurrentInterval() {
+              currentInterval = { start: null, end: null };
+              updateIntervalsDisplay();
+              renderCalendar();
+            }
+
+            function clearAllDates() {
+              selectedIntervals = [];
+              currentInterval = { start: null, end: null };
+              updateIntervalsDisplay();
+              renderCalendar();
+              updatePrice();
+              checkConflicts();
+            }
+
+            async function loadRooms() {
+              const container = document.getElementById('roomList');
+              const rooms = await dataManager.getRooms();
+
+              let html = '';
+              for (const room of rooms) {
+                const isSelected = selectedRoomsData.hasOwnProperty(room.id);
+                const isConflict = conflictRooms.has(room.id);
+                const roomData = selectedRoomsData[room.id] || {
+                  adults: 1,
+                  children: 0,
+                  toddlers: 0,
+                  guestType: 'external'
+                };
+
+                html += `
+                  <div class="room-card ${isSelected ? 'selected' : ''} ${isConflict ? 'conflict' : ''}" id="room-${room.id}">
+                    <div class="room-header">
+                      <div class="room-title">
+                        <input type="checkbox"
+                               ${isSelected ? 'checked' : ''}
+                               onchange="toggleRoom('${room.id}')"
+                               style="margin-right: 0.5rem;">
+                        Pokoj ${room.id}
+                      </div>
+                      <div class="room-capacity">
+                        🛏️ ${room.beds} ${room.beds === 1 ? 'lůžko' : room.beds < 5 ? 'lůžka' : 'lůžek'}
+                      </div>
+                    </div>
+
+                    ${isSelected ? `
+                      <div class="room-controls">
+                        <div class="guest-input-group">
+                          <label>Počet hostů</label>
+                          <div class="guest-input">
+                            <span>👤</span>
+                            <input type="number"
+                                   id="adults-${room.id}"
+                                   min="0"
+                                   max="${room.beds}"
+                                   value="${roomData.adults}"
+                                   onchange="updateRoomGuests('${room.id}', 'adults', this.value)">
+                            <span style="font-size: 0.85rem;">dospělí</span>
+                          </div>
+                          <div class="guest-input">
+                            <span>👶</span>
+                            <input type="number"
+                                   id="children-${room.id}"
+                                   min="0"
+                                   max="${room.beds}"
+                                   value="${roomData.children}"
+                                   onchange="updateRoomGuests('${room.id}', 'children', this.value)">
+                            <span style="font-size: 0.85rem;">děti</span>
+                          </div>
+                          <div class="guest-input">
+                            <span>👼</span>
+                            <input type="number"
+                                   id="toddlers-${room.id}"
+                                   min="0"
+                                   max="${room.beds}"
+                                   value="${roomData.toddlers}"
+                                   onchange="updateRoomGuests('${room.id}', 'toddlers', this.value)">
+                            <span style="font-size: 0.85rem;">batolata</span>
+                          </div>
+                          <div id="capacity-error-${room.id}" class="validation-error" style="display: none;">
+                            Překročena kapacita pokoje!
+                          </div>
+                        </div>
+
+                        <div class="guest-input-group">
+                          <label>Typ hosta</label>
+                          <div class="guest-type-select">
+                            <button class="guest-type-btn ${roomData.guestType === 'utia' ? 'active' : ''}"
+                                    onclick="setRoomGuestType('${room.id}', 'utia')">
+                              🏢 ÚTIA
+                            </button>
+                            <button class="guest-type-btn ${roomData.guestType === 'external' ? 'active' : ''}"
+                                    onclick="setRoomGuestType('${room.id}', 'external')">
+                              👥 Externí
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ` : ''}
+                  </div>
+                `;
+              }
+
+              container.innerHTML = html;
+            }
+
+            function toggleRoom(roomId) {
+              if (selectedRoomsData.hasOwnProperty(roomId)) {
+                delete selectedRoomsData[roomId];
+              } else {
+                selectedRoomsData[roomId] = {
+                  adults: 1,
+                  children: 0,
+                  toddlers: 0,
+                  guestType: 'external'
+                };
+              }
+              loadRooms();
+              updatePrice();
+              checkConflicts();
+            }
+
+            async function updateRoomGuests(roomId, type, value) {
+              const rooms = await dataManager.getRooms();
+              const room = rooms.find(r => r.id === roomId);
+              const roomData = selectedRoomsData[roomId];
+
+              roomData[type] = parseInt(value) || 0;
+
+              // Validate capacity
+              const totalGuests = roomData.adults + roomData.children;
+              const errorEl = document.getElementById(`capacity-error-${roomId}`);
+
+              if (totalGuests > room.beds) {
+                errorEl.style.display = 'block';
+                errorEl.textContent = `Překročena kapacita! Maximum ${room.beds} ${room.beds === 1 ? 'host' : room.beds < 5 ? 'hosté' : 'hostů'}`;
+              } else {
+                errorEl.style.display = 'none';
+              }
+
+              updatePrice();
+            }
+
+            function setRoomGuestType(roomId, type) {
+              selectedRoomsData[roomId].guestType = type;
+              loadRooms();
+              updatePrice();
+            }
+
+            async function updatePrice() {
+              let totalPrice = 0;
+              let breakdown = [];
+
+              const nights = selectedIntervals.reduce((sum, interval) => {
+                const start = new Date(interval.start);
+                const end = new Date(interval.end);
+                return sum + Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
+              }, 0);
+
+              for (const [roomId, roomData] of Object.entries(selectedRoomsData)) {
+                const basePrice = roomData.guestType === 'utia' ? 350 : 550;
+                const adultPrice = roomData.guestType === 'utia' ? 50 : 100;
+                const childPrice = roomData.guestType === 'utia' ? 25 : 50;
+
+                const roomPrice = nights * (
+                  basePrice +
+                  Math.max(0, roomData.adults - 1) * adultPrice +
+                  roomData.children * childPrice
+                );
+
+                totalPrice += roomPrice;
+                breakdown.push(`Pokoj ${roomId}: ${roomPrice} Kč`);
+              }
+
+              document.getElementById('totalPrice').textContent = `${totalPrice} Kč`;
+              document.getElementById('priceBreakdown').innerHTML = breakdown.join('<br>');
+            }
+
+            async function checkConflicts() {
+              conflictDates.clear();
+              conflictRooms.clear();
+
+              const container = document.getElementById('conflictsDisplay');
+
+              if (selectedIntervals.length === 0 || Object.keys(selectedRoomsData).length === 0) {
+                container.innerHTML = '';
+                return;
+              }
+
+              const bookings = await dataManager.getAllBookings();
+              const conflicts = [];
+
+              for (const interval of selectedIntervals) {
+                const startDate = new Date(interval.start);
+                const endDate = new Date(interval.end);
+
+                const intervalConflicts = bookings.filter(b => {
+                  if (b.id === bookingData.id) return false;
+
+                  const bStart = new Date(b.startDate);
+                  const bEnd = new Date(b.endDate);
+
+                  // Check date overlap
+                  const hasDateOverlap = bStart < new Date(endDate.getTime() + 24 * 60 * 60 * 1000) &&
+                                        bEnd > startDate;
+
+                  // Check room overlap
+                  const hasRoomOverlap = b.rooms.some(r => selectedRoomsData.hasOwnProperty(r));
+
+                  if (hasDateOverlap && hasRoomOverlap) {
+                    // Mark conflict dates
+                    for (let d = new Date(Math.max(startDate, bStart)); d <= Math.min(endDate, bEnd); d.setDate(d.getDate() + 1)) {
+                      conflictDates.add(formatDate(new Date(d)));
+                    }
+
+                    // Mark conflict rooms
+                    b.rooms.forEach(r => {
+                      if (selectedRoomsData.hasOwnProperty(r)) {
+                        conflictRooms.add(r);
+                      }
+                    });
+
+                    return true;
+                  }
+
+                  return false;
+                });
+
+                conflicts.push(...intervalConflicts);
+              }
+
+              if (conflicts.length > 0) {
+                let html = '<div class="conflict-warning">';
+                html += '<h4>⚠️ Konfliktní rezervace</h4>';
+
+                conflicts.forEach(booking => {
+                  html += `
+                    <div class="conflict-item">
+                      <strong>${booking.name}</strong><br>
+                      📅 ${new Date(booking.startDate).toLocaleDateString('cs-CZ')} -
+                      ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}<br>
+                      🏠 Pokoje: ${booking.rooms.join(', ')}
+                    </div>
+                  `;
+                });
+
+                html += '</div>';
+                container.innerHTML = html;
+              } else {
+                container.innerHTML = `
+                  <div style="padding: 1rem; background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+                              border: 2px solid #10b981; border-radius: 12px; color: #065f46;">
+                    ✅ Žádné konflikty - termíny a pokoje jsou volné
+                  </div>
+                `;
+              }
+
+              await renderCalendar();
+              await loadRooms();
+            }
+
+            // Validation functions
+            function validateName() {
+              const input = document.getElementById('name');
+              const error = document.getElementById('nameError');
+              if (!input.value.trim()) {
+                input.classList.add('error');
+                error.style.display = 'flex';
+                return false;
+              }
+              input.classList.remove('error');
+              error.style.display = 'none';
               return true;
             }
 
-            return false;
-          });
-
-          conflicts.push(...intervalConflicts);
-        }
-
-        if (conflicts.length > 0) {
-          let html = '<div class="conflict-warning">';
-          html += '<h4>⚠️ Konfliktní rezervace</h4>';
-
-          conflicts.forEach(booking => {
-            html += `
-              <div class="conflict-item">
-                <strong>${booking.name}</strong><br>
-                📅 ${new Date(booking.startDate).toLocaleDateString('cs-CZ')} -
-                ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}<br>
-                🏠 Pokoje: ${booking.rooms.join(', ')}
-              </div>
-            `;
-          });
-
-          html += '</div>';
-          container.innerHTML = html;
-        } else {
-          container.innerHTML = `
-            <div style="padding: 1rem; background: linear-gradient(135deg, #d1fae5, #a7f3d0);
-                        border: 2px solid #10b981; border-radius: 12px; color: #065f46;">
-              ✅ Žádné konflikty - termíny a pokoje jsou volné
-            </div>
-          `;
-        }
-
-        await renderCalendar();
-        await loadRooms();
-      }
-
-      // Validation functions
-      function validateName() {
-        const input = document.getElementById('name');
-        const error = document.getElementById('nameError');
-        if (!input.value.trim()) {
-          input.classList.add('error');
-          error.style.display = 'flex';
-          return false;
-        }
-        input.classList.remove('error');
-        error.style.display = 'none';
-        return true;
-      }
-
-      function validateEmail() {
-        const input = document.getElementById('email');
-        const error = document.getElementById('emailError');
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(input.value)) {
-          input.classList.add('error');
-          error.style.display = 'flex';
-          return false;
-        }
-        input.classList.remove('error');
-        error.style.display = 'none';
-        return true;
-      }
-
-      function validatePhone() {
-        const input = document.getElementById('phone');
-        const error = document.getElementById('phoneError');
-        const phoneRegex = /^\+?[0-9]{9,15}$/;
-        if (!phoneRegex.test(input.value.replace(/\s/g, ''))) {
-          input.classList.add('error');
-          error.style.display = 'flex';
-          return false;
-        }
-        input.classList.remove('error');
-        error.style.display = 'none';
-        return true;
-      }
-
-      function validateAddress() {
-        const input = document.getElementById('address');
-        const error = document.getElementById('addressError');
-        if (!input.value.trim()) {
-          input.classList.add('error');
-          error.style.display = 'flex';
-          return false;
-        }
-        input.classList.remove('error');
-        error.style.display = 'none';
-        return true;
-      }
-
-      function validateCity() {
-        const input = document.getElementById('city');
-        const error = document.getElementById('cityError');
-        if (!input.value.trim()) {
-          input.classList.add('error');
-          error.style.display = 'flex';
-          return false;
-        }
-        input.classList.remove('error');
-        error.style.display = 'none';
-        return true;
-      }
-
-      function validateZip() {
-        const input = document.getElementById('zip');
-        const error = document.getElementById('zipError');
-        if (!/^[0-9]{5}$/.test(input.value)) {
-          input.classList.add('error');
-          error.style.display = 'flex';
-          return false;
-        }
-        input.classList.remove('error');
-        error.style.display = 'none';
-        return true;
-      }
-
-      function changeMonth(delta) {
-        currentMonth += delta;
-        if (currentMonth < 0) {
-          currentMonth = 11;
-          currentYear--;
-        } else if (currentMonth > 11) {
-          currentMonth = 0;
-          currentYear++;
-        }
-        initializeCalendar();
-      }
-
-      async function saveChanges() {
-        try {
-          // Validate required fields
-          const isValid = validateName() & validateEmail() & validatePhone() &
-                         validateAddress() & validateCity() & validateZip();
-
-          if (!isValid) {
-            switchTab('personal');
-            alert('Prosím vyplňte všechna povinná pole správně');
-            return;
-          }
-
-          // Validate dates and rooms
-          if (selectedIntervals.length === 0) {
-            alert('Vyberte prosím alespoň jeden termín pobytu');
-            switchTab('dates');
-            return;
-          }
-
-          if (Object.keys(selectedRoomsData).length === 0) {
-            alert('Vyberte prosím alespoň jeden pokoj');
-            switchTab('dates');
-            return;
-          }
-
-          // Check for capacity violations
-          const rooms = await dataManager.getRooms();
-          for (const [roomId, roomData] of Object.entries(selectedRoomsData)) {
-            const room = rooms.find(r => r.id === roomId);
-            if (roomData.adults + roomData.children > room.beds) {
-              alert(`Pokoj ${roomId} má překročenou kapacitu!`);
-              switchTab('dates');
-              return;
+            function validateEmail() {
+              const input = document.getElementById('email');
+              const error = document.getElementById('emailError');
+              const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+              if (!emailRegex.test(input.value)) {
+                input.classList.add('error');
+                error.style.display = 'flex';
+                return false;
+              }
+              input.classList.remove('error');
+              error.style.display = 'none';
+              return true;
             }
-          }
 
-          // Prepare booking data
-          // For multiple intervals, we'll need to handle this differently in production
-          // For now, use the first interval as the main booking period
-          const mainInterval = selectedIntervals[0];
+            function validatePhone() {
+              const input = document.getElementById('phone');
+              const error = document.getElementById('phoneError');
+              const phoneRegex = /^\+?[0-9]{9,15}$/;
+              if (!phoneRegex.test(input.value.replace(/\s/g, ''))) {
+                input.classList.add('error');
+                error.style.display = 'flex';
+                return false;
+              }
+              input.classList.remove('error');
+              error.style.display = 'none';
+              return true;
+            }
 
-          const totalAdults = Object.values(selectedRoomsData).reduce((sum, r) => sum + r.adults, 0);
-          const totalChildren = Object.values(selectedRoomsData).reduce((sum, r) => sum + r.children, 0);
-          const totalToddlers = Object.values(selectedRoomsData).reduce((sum, r) => sum + r.toddlers, 0);
+            function validateAddress() {
+              const input = document.getElementById('address');
+              const error = document.getElementById('addressError');
+              if (!input.value.trim()) {
+                input.classList.add('error');
+                error.style.display = 'flex';
+                return false;
+              }
+              input.classList.remove('error');
+              error.style.display = 'none';
+              return true;
+            }
 
-          const updates = {
-            name: document.getElementById('name').value,
-            email: document.getElementById('email').value,
-            phone: document.getElementById('phone').value,
-            company: document.getElementById('company').value,
-            address: document.getElementById('address').value,
-            city: document.getElementById('city').value,
-            zip: document.getElementById('zip').value,
-            ico: document.getElementById('ico').value,
-            dic: document.getElementById('dic').value,
-            notes: document.getElementById('notes').value,
-            payFromBenefit: document.getElementById('payFromBenefit').checked,
-            startDate: mainInterval.start,
-            endDate: formatDate(new Date(new Date(mainInterval.end).getTime() + 24 * 60 * 60 * 1000)),
-            rooms: Object.keys(selectedRoomsData),
-            adults: totalAdults,
-            children: totalChildren,
-            toddlers: totalToddlers,
-            guestType: Object.values(selectedRoomsData)[0].guestType, // Use first room's type
-            totalPrice: parseInt(document.getElementById('totalPrice').textContent)
-          };
+            function validateCity() {
+              const input = document.getElementById('city');
+              const error = document.getElementById('cityError');
+              if (!input.value.trim()) {
+                input.classList.add('error');
+                error.style.display = 'flex';
+                return false;
+              }
+              input.classList.remove('error');
+              error.style.display = 'none';
+              return true;
+            }
 
-          // Update booking
-          await dataManager.updateBookingWithToken(bookingData.id, updates, editToken);
+            function validateZip() {
+              const input = document.getElementById('zip');
+              const error = document.getElementById('zipError');
+              if (!/^[0-9]{5}$/.test(input.value)) {
+                input.classList.add('error');
+                error.style.display = 'flex';
+                return false;
+              }
+              input.classList.remove('error');
+              error.style.display = 'none';
+              return true;
+            }
 
-          // Show success modal
-          document.getElementById('successModal').classList.add('active');
+            function changeMonth(delta) {
+              currentMonth += delta;
+              if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+              } else if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+              }
+              initializeCalendar();
+            }
 
-          // Reload data
-          await loadBookingData();
-        } catch (error) {
-          console.error('Error saving changes:', error);
-          alert('Chyba při ukládání změn: ' + error.message);
-        }
-      }
+            async function saveChanges() {
+              try {
+                // Validate required fields
+                const isValid = validateName() & validateEmail() & validatePhone() &
+                               validateAddress() & validateCity() & validateZip();
 
-      async function cancelBooking() {
-        if (!confirm('⚠️ Opravdu chcete zrušit tuto rezervaci?\n\nTato akce je nevratná!')) {
-          return;
-        }
+                if (!isValid) {
+                  switchTab('personal');
+                  alert('Prosím vyplňte všechna povinná pole správně');
+                  return;
+                }
 
-        if (!confirm('🔴 POSLEDNÍ VAROVÁNÍ!\n\nRezerv
-ace bude trvale smazána. Pokračovat?')) {
-          return;
-        }
+                // Validate dates and rooms
+                if (selectedIntervals.length === 0) {
+                  alert('Vyberte prosím alespoň jeden termín pobytu');
+                  switchTab('dates');
+                  return;
+                }
 
-        try {
-          await dataManager.deleteBookingWithToken(bookingData.id, editToken);
-          alert('✅ Rezervace byla zrušena');
-          window.location.href = '/';
-        } catch (error) {
-          console.error('Error canceling booking:', error);
-          alert('❌ Chyba při rušení rezervace: ' + error.message);
-        }
-      }
+                if (Object.keys(selectedRoomsData).length === 0) {
+                  alert('Vyberte prosím alespoň jeden pokoj');
+                  switchTab('dates');
+                  return;
+                }
 
-      function closeModal() {
-        document.getElementById('successModal').classList.remove('active');
-      }
+                // Check for capacity violations
+                const rooms = await dataManager.getRooms();
+                for (const [roomId, roomData] of Object.entries(selectedRoomsData)) {
+                  const room = rooms.find(r => r.id === roomId);
+                  if (roomData.adults + roomData.children > room.beds) {
+                    alert(`Pokoj ${roomId} má překročenou kapacitu!`);
+                    switchTab('dates');
+                    return;
+                  }
+                }
 
-      function formatDate(date) {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-      }
+                // Prepare booking data
+                // For multiple intervals, we'll need to handle this differently in production
+                // For now, use the first interval as the main booking period
+                const mainInterval = selectedIntervals[0];
+
+                const totalAdults = Object.values(selectedRoomsData).reduce((sum, r) => sum + r.adults, 0);
+                const totalChildren = Object.values(selectedRoomsData).reduce((sum, r) => sum + r.children, 0);
+                const totalToddlers = Object.values(selectedRoomsData).reduce((sum, r) => sum + r.toddlers, 0);
+
+                const updates = {
+                  name: document.getElementById('name').value,
+                  email: document.getElementById('email').value,
+                  phone: document.getElementById('phone').value,
+                  company: document.getElementById('company').value,
+                  address: document.getElementById('address').value,
+                  city: document.getElementById('city').value,
+                  zip: document.getElementById('zip').value,
+                  ico: document.getElementById('ico').value,
+                  dic: document.getElementById('dic').value,
+                  notes: document.getElementById('notes').value,
+                  payFromBenefit: document.getElementById('payFromBenefit').checked,
+                  startDate: mainInterval.start,
+                  endDate: formatDate(new Date(new Date(mainInterval.end).getTime() + 24 * 60 * 60 * 1000)),
+                  rooms: Object.keys(selectedRoomsData),
+                  adults: totalAdults,
+                  children: totalChildren,
+                  toddlers: totalToddlers,
+                  guestType: Object.values(selectedRoomsData)[0].guestType, // Use first room's type
+                  totalPrice: parseInt(document.getElementById('totalPrice').textContent)
+                };
+
+                // Update booking
+                await dataManager.updateBookingWithToken(bookingData.id, updates, editToken);
+
+                // Show success modal
+                document.getElementById('successModal').classList.add('active');
+
+                // Reload data
+                await loadBookingData();
+              } catch (error) {
+                console.error('Error saving changes:', error);
+                alert('Chyba při ukládání změn: ' + error.message);
+              }
+            }
+
+            async function cancelBooking() {
+              if (!confirm('⚠️ Opravdu chcete zrušit tuto rezervaci?\n\nTato akce je nevratná!')) {
+                return;
+              }
+
+              if (!confirm('🔴 POSLEDNÍ VAROVÁNÍ!\n\nRezerv
+      ace bude trvale smazána. Pokračovat?')) {
+                return;
+              }
+
+              try {
+                await dataManager.deleteBookingWithToken(bookingData.id, editToken);
+                alert('✅ Rezervace byla zrušena');
+                window.location.href = '/';
+              } catch (error) {
+                console.error('Error canceling booking:', error);
+                alert('❌ Chyba při rušení rezervace: ' + error.message);
+              }
+            }
+
+            function closeModal() {
+              document.getElementById('successModal').classList.remove('active');
+            }
+
+            function formatDate(date) {
+              const year = date.getFullYear();
+              const month = String(date.getMonth() + 1).padStart(2, '0');
+              const day = String(date.getDate()).padStart(2, '0');
+              return `${year}-${month}-${day}`;
+            }
     </script>
   </body>
 </html>

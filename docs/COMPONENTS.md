@@ -8,16 +8,16 @@ Central data management and business logic orchestrator.
 
 #### Key Methods
 
-| Method | Purpose | Parameters | Returns |
-|--------|---------|------------|---------|
-| `initData()` | Initialize storage and sync | None | Promise<void> |
-| `createBooking(data)` | Create new reservation | Booking data | Promise<{id, editToken}> |
-| `updateBooking(id, updates)` | Update existing booking | id, partial data | Promise<Booking> |
-| `deleteBooking(id)` | Remove booking | Booking ID | Promise<void> |
-| `getRoomAvailability(date, roomId)` | Check room status | Date, Room ID | Promise<boolean> |
-| `calculatePrice(params)` | Compute booking cost | Guest type, rooms, dates | Number |
-| `isChristmasPeriod(date)` | Check if date is Christmas | Date string | Promise<boolean> |
-| `blockDate(date, roomId)` | Block date/room | Date, Room ID (optional) | Promise<void> |
+| Method                              | Purpose                     | Parameters               | Returns                  |
+| ----------------------------------- | --------------------------- | ------------------------ | ------------------------ |
+| `initData()`                        | Initialize storage and sync | None                     | Promise<void>            |
+| `createBooking(data)`               | Create new reservation      | Booking data             | Promise<{id, editToken}> |
+| `updateBooking(id, updates)`        | Update existing booking     | id, partial data         | Promise<Booking>         |
+| `deleteBooking(id)`                 | Remove booking              | Booking ID               | Promise<void>            |
+| `getRoomAvailability(date, roomId)` | Check room status           | Date, Room ID            | Promise<boolean>         |
+| `calculatePrice(params)`            | Compute booking cost        | Guest type, rooms, dates | Number                   |
+| `isChristmasPeriod(date)`           | Check if date is Christmas  | Date string              | Promise<boolean>         |
+| `blockDate(date, roomId)`           | Block date/room             | Date, Room ID (optional) | Promise<void>            |
 
 #### Storage Modes
 
@@ -50,13 +50,13 @@ Interactive calendar with availability visualization.
 
 #### Methods
 
-| Method | Purpose | Usage |
-|--------|---------|-------|
-| `initCalendar()` | Initialize calendar | Called on page load |
-| `renderMonth(year, month)` | Display month view | Navigation |
-| `selectDate(date)` | Toggle date selection | User interaction |
-| `updateAvailability()` | Refresh room states | After data changes |
-| `getSelectedDates()` | Get user selection | Form submission |
+| Method                     | Purpose               | Usage               |
+| -------------------------- | --------------------- | ------------------- |
+| `initCalendar()`           | Initialize calendar   | Called on page load |
+| `renderMonth(year, month)` | Display month view    | Navigation          |
+| `selectDate(date)`         | Toggle date selection | User interaction    |
+| `updateAvailability()`     | Refresh room states   | After data changes  |
+| `getSelectedDates()`       | Get user selection    | Form submission     |
 
 #### Events
 
@@ -97,13 +97,13 @@ Two-step reservation form with real-time validation.
 
 #### Validation Rules
 
-| Field | Rule | Error Message |
-|-------|------|---------------|
-| Email | Must contain @ | "Email musí obsahovat @" |
-| Phone | +420/421 + 9 digits | "Telefon musí mít 9 číslic" |
-| ZIP | Exactly 5 digits | "PSČ musí mít přesně 5 číslic" |
-| IČO | 8 digits (optional) | "IČO musí mít 8 číslic" |
-| DIČ | CZ + 8 digits (optional) | "DIČ musí být ve formátu CZ12345678" |
+| Field | Rule                     | Error Message                        |
+| ----- | ------------------------ | ------------------------------------ |
+| Email | Must contain @           | "Email musí obsahovat @"             |
+| Phone | +420/421 + 9 digits      | "Telefon musí mít 9 číslic"          |
+| ZIP   | Exactly 5 digits         | "PSČ musí mít přesně 5 číslic"       |
+| IČO   | 8 digits (optional)      | "IČO musí mít 8 číslic"              |
+| DIČ   | CZ + 8 digits (optional) | "DIČ musí být ve formátu CZ12345678" |
 
 #### Form Events
 
@@ -130,44 +130,48 @@ Comprehensive management interface with tabbed navigation.
 #### Tabs & Functionality
 
 1. **Rezervace (Bookings)**
+
    ```javascript
-   - listBookings()      // Display all reservations
-   - viewBooking(id)     // Show booking details
-   - editBooking(id)     // Modify reservation
-   - deleteBooking(id)   // Remove booking
-   - exportData()        // Download JSON/CSV
+   -listBookings() - // Display all reservations
+     viewBooking(id) - // Show booking details
+     editBooking(id) - // Modify reservation
+     deleteBooking(id) - // Remove booking
+     exportData(); // Download JSON/CSV
    ```
 
 2. **Blokované dny (Blocked Dates)**
+
    ```javascript
-   - blockDateRange(start, end, rooms)
-   - unblockDate(date, roomId)
-   - listBlockedDates()
-   - setBlockReason(reason)
+   -blockDateRange(start, end, rooms) -
+     unblockDate(date, roomId) -
+     listBlockedDates() -
+     setBlockReason(reason);
    ```
 
 3. **Vánoční přístup (Christmas Access)**
+
    ```javascript
-   - setChristmasPeriod(start, end)
-   - manageAccessCodes(codes)
-   - validateAccessCode(code)
-   - listChristmasBookings()
+   -setChristmasPeriod(start, end) -
+     manageAccessCodes(codes) -
+     validateAccessCode(code) -
+     listChristmasBookings();
    ```
 
 4. **Nastavení (Settings)**
+
    ```javascript
-   - updatePrices(guestType, roomType, prices)
-   - configureRooms(rooms)
-   - changeAdminPassword(newPassword)
-   - updateEmailSettings(config)
+   -updatePrices(guestType, roomType, prices) -
+     configureRooms(rooms) -
+     changeAdminPassword(newPassword) -
+     updateEmailSettings(config);
    ```
 
 5. **Statistiky (Statistics)**
    ```javascript
-   - calculateOccupancy(period)
-   - getTotalRevenue(startDate, endDate)
-   - getAverageStayLength()
-   - getGuestTypeDistribution()
+   -calculateOccupancy(period) -
+     getTotalRevenue(startDate, endDate) -
+     getAverageStayLength() -
+     getGuestTypeDistribution();
    ```
 
 ---
@@ -178,55 +182,55 @@ Comprehensive management interface with tabbed navigation.
 
 ```javascript
 // Date manipulation
-formatDateCZ(date)           // "15. 3. 2024"
-parseCzechDate(dateStr)      // Date object
-getDaysInMonth(year, month)  // Number
-isWeekend(date)              // Boolean
-getWeekNumber(date)          // ISO week number
+formatDateCZ(date); // "15. 3. 2024"
+parseCzechDate(dateStr); // Date object
+getDaysInMonth(year, month); // Number
+isWeekend(date); // Boolean
+getWeekNumber(date); // ISO week number
 ```
 
 ### 📏 Validation Utils (`js/shared/validationUtils.js`)
 
 ```javascript
 // Input validation
-validateEmail(email)         // Boolean
-validatePhone(phone)         // Boolean
-validateZIP(zip)            // Boolean
-validateICO(ico)            // Boolean
-validateDIC(dic)            // Boolean
-sanitizeInput(input)         // Cleaned string
+validateEmail(email); // Boolean
+validatePhone(phone); // Boolean
+validateZIP(zip); // Boolean
+validateICO(ico); // Boolean
+validateDIC(dic); // Boolean
+sanitizeInput(input); // Cleaned string
 ```
 
 ### 💰 Price Calculator (`js/shared/priceCalculator.js`)
 
 ```javascript
 // Pricing logic
-calculateNightPrice(roomType, guestType)
-calculateAdditionalGuests(adults, children)
-calculateTotalPrice(params)
-applyDiscounts(price, discountCodes)
-formatPriceCZK(amount)       // "1 500 Kč"
+calculateNightPrice(roomType, guestType);
+calculateAdditionalGuests(adults, children);
+calculateTotalPrice(params);
+applyDiscounts(price, discountCodes);
+formatPriceCZK(amount); // "1 500 Kč"
 ```
 
 ### 🆔 ID Generator (`js/shared/idGenerator.js`)
 
 ```javascript
 // Unique identifiers
-generateBookingId()          // "BK1234567890ABC"
-generateEditToken()          // "abc123def456"
-generateBlockageId()         // "BLK1234567890"
-generateAccessCode()         // "XMAS2024"
+generateBookingId(); // "BK1234567890ABC"
+generateEditToken(); // "abc123def456"
+generateBlockageId(); // "BLK1234567890"
+generateAccessCode(); // "XMAS2024"
 ```
 
 ### 📅 Date Utils (`js/shared/dateUtils.js`)
 
 ```javascript
 // Date operations
-formatDate(date)             // "2024-03-15"
-addDays(date, days)          // New Date
-getDaysBetween(start, end)   // Number
-isDateInRange(date, start, end) // Boolean
-getDateArray(start, end)     // Date[]
+formatDate(date); // "2024-03-15"
+addDays(date, days); // New Date
+getDaysBetween(start, end); // Number
+isDateInRange(date, start, end); // Boolean
+getDateArray(start, end); // Date[]
 ```
 
 ---
@@ -280,6 +284,7 @@ graph TD
 ## State Management
 
 ### Client State
+
 ```javascript
 {
   selectedDates: [],
@@ -293,6 +298,7 @@ graph TD
 ```
 
 ### Server State
+
 ```javascript
 {
   bookings: [...],

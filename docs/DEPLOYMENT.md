@@ -3,6 +3,7 @@
 ## Prerequisites
 
 ### System Requirements
+
 - **Node.js**: 18.x or higher
 - **npm**: 9.x or higher
 - **Docker**: 20.x or higher (for containerized deployment)
@@ -11,6 +12,7 @@
 - **RAM**: Minimum 512MB available
 
 ### Network Requirements
+
 - **Ports**: 3000 (app), 80/443 (web)
 - **Domain**: Optional but recommended
 - **SSL**: Required for production
@@ -87,6 +89,7 @@ open http://localhost:3000
 ### Docker Configuration
 
 **docker-compose.yml:**
+
 ```yaml
 version: '3.8'
 
@@ -94,7 +97,7 @@ services:
   app:
     build: .
     ports:
-      - "3000:3000"
+      - '3000:3000'
     volumes:
       - ./data:/app/data
     environment:
@@ -102,7 +105,7 @@ services:
       - PORT=3000
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -110,8 +113,8 @@ services:
   nginx:
     image: nginx:alpine
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf
       - ./ssl:/etc/nginx/ssl
@@ -191,6 +194,7 @@ WantedBy=multi-user.target
 ```
 
 Enable and start:
+
 ```bash
 sudo systemctl enable marianska
 sudo systemctl start marianska
@@ -245,18 +249,18 @@ pm2 save
 # app.yaml
 name: marianska
 services:
-- name: web
-  github:
-    repo: your-org/marianska
-    branch: main
-  build_command: npm install
-  run_command: npm start
-  environment_slug: node-js
-  instance_size_slug: basic-xxs
-  instance_count: 1
-  http_port: 3000
-  routes:
-  - path: /
+  - name: web
+    github:
+      repo: your-org/marianska
+      branch: main
+    build_command: npm install
+    run_command: npm start
+    environment_slug: node-js
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    http_port: 3000
+    routes:
+      - path: /
 ```
 
 ## 🔒 SSL/HTTPS Configuration
@@ -342,10 +346,12 @@ Edit `data/bookings.json` to configure:
 app.use(compression()); // Enable gzip
 
 // Set cache headers
-app.use(express.static('public', {
-  maxAge: '1y',
-  etag: false
-}));
+app.use(
+  express.static('public', {
+    maxAge: '1y',
+    etag: false,
+  })
+);
 
 // Increase payload limit if needed
 app.use(express.json({ limit: '10mb' }));
@@ -356,13 +362,14 @@ app.use(express.json({ limit: '10mb' }));
 ### Health Check Endpoint
 
 Add to `server.js`:
+
 ```javascript
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
     uptime: process.uptime(),
     timestamp: Date.now(),
-    environment: process.env.NODE_ENV
+    environment: process.env.NODE_ENV,
   });
 });
 ```
@@ -422,6 +429,7 @@ pm2 restart marianska
 ### Backup Strategy
 
 **Automated Daily Backup:**
+
 ```bash
 #!/bin/bash
 # backup.sh
@@ -459,6 +467,7 @@ pm2 restart marianska
 ### Common Issues
 
 #### Port Already in Use
+
 ```bash
 # Find process using port 3000
 lsof -i :3000
@@ -468,6 +477,7 @@ kill -9 <PID>
 ```
 
 #### Permission Denied
+
 ```bash
 # Fix data directory permissions
 sudo chown -R $USER:$USER data/
@@ -475,6 +485,7 @@ chmod 755 data/
 ```
 
 #### Docker Container Won't Start
+
 ```bash
 # Check logs
 docker-compose logs app
@@ -486,6 +497,7 @@ docker-compose up -d
 ```
 
 #### Memory Issues
+
 ```bash
 # Increase Node.js memory limit
 NODE_OPTIONS="--max-old-space-size=1024" npm start
@@ -504,6 +516,7 @@ docker-compose run -e DEBUG=* app
 ## 📋 Deployment Checklist
 
 ### Pre-Deployment
+
 - [ ] Test locally with production build
 - [ ] Verify all dependencies are listed
 - [ ] Update configuration for production
@@ -512,6 +525,7 @@ docker-compose run -e DEBUG=* app
 - [ ] Create backup of existing data
 
 ### Deployment
+
 - [ ] Deploy application code
 - [ ] Install dependencies
 - [ ] Configure environment variables
@@ -521,6 +535,7 @@ docker-compose run -e DEBUG=* app
 - [ ] Verify health check endpoint
 
 ### Post-Deployment
+
 - [ ] Test all critical functions
 - [ ] Verify data persistence
 - [ ] Check error logs
@@ -532,12 +547,14 @@ docker-compose run -e DEBUG=* app
 ## 📞 Support
 
 For deployment issues:
+
 1. Check logs: `docker-compose logs` or `pm2 logs`
 2. Verify configuration in `.env` and `data/bookings.json`
 3. Ensure all ports are accessible
 4. Test with `curl http://localhost:3000/health`
 
 For persistent issues, create detailed bug report with:
+
 - Deployment method used
 - Error messages and logs
 - System specifications

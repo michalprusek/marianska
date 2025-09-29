@@ -30,7 +30,7 @@ const validationRules = {
   phone: /^(\+420|\+421)\d{9}$/,
   zip: /^\d{5}$/,
   ico: /^\d{8}$/,
-  dic: /^CZ\d{8}$/
+  dic: /^CZ\d{8}$/,
 };
 
 // Server-side validation
@@ -119,11 +119,11 @@ function validateAdminLogin(password) {
 // Session management
 function createAdminSession() {
   const sessionId = generateSessionId();
-  const expires = Date.now() + (4 * 60 * 60 * 1000); // 4 hours
+  const expires = Date.now() + 4 * 60 * 60 * 1000; // 4 hours
 
   sessions[sessionId] = {
     isAdmin: true,
-    expires: expires
+    expires: expires,
   };
 
   return sessionId;
@@ -222,10 +222,7 @@ const cors = require('cors');
 
 const corsOptions = {
   origin: function (origin, callback) {
-    const allowedOrigins = [
-      'https://yourdomain.com',
-      'https://www.yourdomain.com'
-    ];
+    const allowedOrigins = ['https://yourdomain.com', 'https://www.yourdomain.com'];
 
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
@@ -233,7 +230,7 @@ const corsOptions = {
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true
+  credentials: true,
 };
 
 app.use(cors(corsOptions));
@@ -250,14 +247,14 @@ const rateLimit = require('express-rate-limit');
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP'
+  message: 'Too many requests from this IP',
 });
 
 // Stricter limit for booking creation
 const bookingLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 10, // limit each IP to 10 bookings per hour
-  skipSuccessfulRequests: false
+  skipSuccessfulRequests: false,
 });
 
 app.use('/api/', limiter);
@@ -271,27 +268,32 @@ app.use('/api/booking', bookingLimiter);
 ```javascript
 const session = require('express-session');
 
-app.use(session({
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: true, // HTTPS only
-    httpOnly: true, // Prevent XSS
-    maxAge: 4 * 60 * 60 * 1000, // 4 hours
-    sameSite: 'strict' // CSRF protection
-  }
-}));
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: true, // HTTPS only
+      httpOnly: true, // Prevent XSS
+      maxAge: 4 * 60 * 60 * 1000, // 4 hours
+      sameSite: 'strict', // CSRF protection
+    },
+  })
+);
 
 // Session cleanup
-setInterval(() => {
-  const now = Date.now();
-  for (const [id, session] of Object.entries(sessions)) {
-    if (session.expires < now) {
-      delete sessions[id];
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [id, session] of Object.entries(sessions)) {
+      if (session.expires < now) {
+        delete sessions[id];
+      }
     }
-  }
-}, 60 * 60 * 1000); // Clean every hour
+  },
+  60 * 60 * 1000
+); // Clean every hour
 ```
 
 ## 🔍 Security Monitoring
@@ -304,9 +306,7 @@ const winston = require('winston');
 const securityLogger = winston.createLogger({
   level: 'info',
   format: winston.format.json(),
-  transports: [
-    new winston.transports.File({ filename: 'security.log' })
-  ]
+  transports: [new winston.transports.File({ filename: 'security.log' })],
 });
 
 // Log security events
@@ -316,7 +316,7 @@ function logSecurityEvent(event, details) {
     event: event,
     details: maskSensitiveData(details),
     ip: details.ip,
-    userAgent: details.userAgent
+    userAgent: details.userAgent,
   });
 }
 
@@ -324,7 +324,7 @@ function logSecurityEvent(event, details) {
 logSecurityEvent('LOGIN_ATTEMPT', {
   success: false,
   ip: req.ip,
-  userAgent: req.get('user-agent')
+  userAgent: req.get('user-agent'),
 });
 ```
 
@@ -335,7 +335,7 @@ logSecurityEvent('LOGIN_ATTEMPT', {
 const suspiciousPatterns = {
   sqlInjection: /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION)\b)|(--)|(;)|(\||\\)/i,
   xssAttempt: /<script|<iframe|javascript:|onerror=|onload=/i,
-  pathTraversal: /\.\.[\/\\]/
+  pathTraversal: /\.\.[\/\\]/,
 };
 
 function detectSuspiciousInput(input) {
@@ -343,7 +343,7 @@ function detectSuspiciousInput(input) {
     if (pattern.test(input)) {
       logSecurityEvent('SUSPICIOUS_INPUT', {
         type: type,
-        input: input.substring(0, 100)
+        input: input.substring(0, 100),
       });
       return true;
     }
@@ -356,14 +356,14 @@ function detectSuspiciousInput(input) {
 
 ### Common Vulnerabilities
 
-| Vulnerability | Risk Level | Mitigation |
-|--------------|------------|------------|
-| XSS | High | Input sanitization, CSP headers |
-| CSRF | Medium | CSRF tokens, SameSite cookies |
-| SQL Injection | N/A | Using JSON file storage |
-| Session Hijacking | Medium | HTTPS, httpOnly cookies |
-| Brute Force | Medium | Rate limiting, account lockout |
-| Information Disclosure | Low | Error message sanitization |
+| Vulnerability          | Risk Level | Mitigation                      |
+| ---------------------- | ---------- | ------------------------------- |
+| XSS                    | High       | Input sanitization, CSP headers |
+| CSRF                   | Medium     | CSRF tokens, SameSite cookies   |
+| SQL Injection          | N/A        | Using JSON file storage         |
+| Session Hijacking      | Medium     | HTTPS, httpOnly cookies         |
+| Brute Force            | Medium     | Rate limiting, account lockout  |
+| Information Disclosure | Low        | Error message sanitization      |
 
 ### Security Headers
 
@@ -380,12 +380,13 @@ app.use((req, res, next) => {
   res.setHeader('X-XSS-Protection', '1; mode=block');
 
   // Content Security Policy
-  res.setHeader('Content-Security-Policy',
+  res.setHeader(
+    'Content-Security-Policy',
     "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline'; " +
-    "style-src 'self' 'unsafe-inline'; " +
-    "img-src 'self' data:; " +
-    "font-src 'self';"
+      "script-src 'self' 'unsafe-inline'; " +
+      "style-src 'self' 'unsafe-inline'; " +
+      "img-src 'self' data:; " +
+      "font-src 'self';"
   );
 
   // Referrer Policy
@@ -421,24 +422,28 @@ npm update
 // Version check and update notification
 const checkVersion = require('check-node-version');
 
-checkVersion({
-  node: '>= 18.0.0',
-  npm: '>= 9.0.0'
-}, (error, result) => {
-  if (error) {
-    console.error('Version check failed:', error);
-    return;
-  }
+checkVersion(
+  {
+    node: '>= 18.0.0',
+    npm: '>= 9.0.0',
+  },
+  (error, result) => {
+    if (error) {
+      console.error('Version check failed:', error);
+      return;
+    }
 
-  if (!result.isSatisfied) {
-    console.warn('Please update Node.js/npm for security patches');
+    if (!result.isSatisfied) {
+      console.warn('Please update Node.js/npm for security patches');
+    }
   }
-});
+);
 ```
 
 ## 📋 Security Checklist
 
 ### Development
+
 - [ ] Input validation on all forms
 - [ ] Output encoding for XSS prevention
 - [ ] Use parameterized queries (if using DB)
@@ -446,6 +451,7 @@ checkVersion({
 - [ ] Error handling without info leakage
 
 ### Deployment
+
 - [ ] HTTPS enabled with valid certificate
 - [ ] Security headers configured
 - [ ] Admin password changed from default
@@ -454,6 +460,7 @@ checkVersion({
 - [ ] Regular backups configured
 
 ### Maintenance
+
 - [ ] Regular security audits
 - [ ] Dependency updates
 - [ ] Log review for suspicious activity

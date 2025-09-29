@@ -518,45 +518,89 @@ class BookingApp {
 
       const guestTypeText = booking.guestType === 'utia' ? 'ÚTIA zaměstnanec' : 'Externí host';
 
-      html += `
-        <div class="temp-reservation-item" style="background: #fff8f0; border: 1px solid #ffd4a3; padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;">
-          <div style="display: flex; justify-content: space-between; align-items: start; width: 100%;">
-            <div style="flex: 1;">
-              <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                <span style="background: #ff4444; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">NAVRHOVANÁ</span>
-                <strong style="color: var(--primary-color); font-size: 1.1rem;">${booking.roomName}</strong>
-              </div>
-              <div style="background: white; padding: 0.75rem; border-radius: 6px; border: 1px solid #e0e0e0;">
-                <div style="color: var(--gray-700); font-size: 0.95rem; margin-bottom: 0.5rem;">
-                  📅 ${dateStart.toLocaleDateString(this.currentLanguage === 'cs' ? 'cs-CZ' : 'en-US')} - ${dateEnd.toLocaleDateString(this.currentLanguage === 'cs' ? 'cs-CZ' : 'en-US')}
-                  <span style="color: var(--primary-color); font-weight: 600;">(${nightsText})</span>
+      // Different display for bulk bookings
+      if (booking.isBulkBooking) {
+        html += `
+          <div class="temp-reservation-item" style="background: linear-gradient(135deg, #f3e8ff, #fff8f0); border: 2px solid #8b5cf6; padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;">
+            <div style="display: flex; justify-content: space-between; align-items: start; width: 100%;">
+              <div style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                  <span style="background: #8b5cf6; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">HROMADNÁ</span>
+                  <strong style="color: #8b5cf6; font-size: 1.1rem;">🏠 Celá chata (${booking.roomIds.length} pokojů)</strong>
                 </div>
-                <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
-                  👥 ${guestText.join(', ')}
-                </div>
-                <div style="font-size: 0.9rem; color: var(--gray-600);">
-                  🏷️ Typ: <span style="font-weight: 600;">${guestTypeText}</span>
-                </div>
-                <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e0e0e0;">
-                  <div style="font-size: 0.85rem; color: var(--gray-500);">Cena za pobyt:</div>
-                  <div style="font-size: 1.25rem; font-weight: 700; color: var(--primary-color);">
-                    ${booking.totalPrice.toLocaleString('cs-CZ')} Kč
+                <div style="background: white; padding: 0.75rem; border-radius: 6px; border: 1px solid #e0e0e0;">
+                  <div style="color: var(--gray-700); font-size: 0.95rem; margin-bottom: 0.5rem;">
+                    📅 ${dateStart.toLocaleDateString(this.currentLanguage === 'cs' ? 'cs-CZ' : 'en-US')} - ${dateEnd.toLocaleDateString(this.currentLanguage === 'cs' ? 'cs-CZ' : 'en-US')}
+                    <span style="color: var(--primary-color); font-weight: 600;">(${nightsText})</span>
+                  </div>
+                  <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
+                    👥 ${guestText.join(', ')}
+                  </div>
+                  <div style="font-size: 0.9rem; color: var(--gray-600);">
+                    🏷️ Typ: <span style="font-weight: 600;">${guestTypeText}</span>
+                  </div>
+                  <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e0e0e0;">
+                    <div style="font-size: 0.85rem; color: var(--gray-500);">Cena za pobyt:</div>
+                    <div style="font-size: 1.25rem; font-weight: 700; color: #8b5cf6;">
+                      ${booking.totalPrice.toLocaleString('cs-CZ')} Kč
+                    </div>
                   </div>
                 </div>
               </div>
+              <button
+                onclick="window.app.removeTempReservation('${booking.id}')"
+                style="padding: 0.5rem; background: white; color: var(--danger-color); border: 1px solid var(--danger-color); border-radius: 6px; cursor: pointer; transition: all 0.2s; min-width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;"
+                title="${this.currentLanguage === 'cs' ? 'Odebrat rezervaci' : 'Remove reservation'}"
+                onmouseover="this.style.background='var(--danger-color)'; this.style.color='white';"
+                onmouseout="this.style.background='white'; this.style.color='var(--danger-color)';"
+              >
+                ×
+              </button>
             </div>
-            <button
-              onclick="window.app.removeTempReservation('${booking.id}')"
-              style="padding: 0.5rem; background: white; color: var(--danger-color); border: 1px solid var(--danger-color); border-radius: 6px; cursor: pointer; transition: all 0.2s; min-width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;"
-              title="${this.currentLanguage === 'cs' ? 'Odebrat rezervaci' : 'Remove reservation'}"
-              onmouseover="this.style.background='var(--danger-color)'; this.style.color='white';"
-              onmouseout="this.style.background='white'; this.style.color='var(--danger-color)';"
-            >
-              ×
-            </button>
           </div>
-        </div>
-      `;
+        `;
+      } else {
+        // Regular single room booking display
+        html += `
+          <div class="temp-reservation-item" style="background: #fff8f0; border: 1px solid #ffd4a3; padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;">
+            <div style="display: flex; justify-content: space-between; align-items: start; width: 100%;">
+              <div style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                  <span style="background: #ff4444; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">NAVRHOVANÁ</span>
+                  <strong style="color: var(--primary-color); font-size: 1.1rem;">${booking.roomName}</strong>
+                </div>
+                <div style="background: white; padding: 0.75rem; border-radius: 6px; border: 1px solid #e0e0e0;">
+                  <div style="color: var(--gray-700); font-size: 0.95rem; margin-bottom: 0.5rem;">
+                    📅 ${dateStart.toLocaleDateString(this.currentLanguage === 'cs' ? 'cs-CZ' : 'en-US')} - ${dateEnd.toLocaleDateString(this.currentLanguage === 'cs' ? 'cs-CZ' : 'en-US')}
+                    <span style="color: var(--primary-color); font-weight: 600;">(${nightsText})</span>
+                  </div>
+                  <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
+                    👥 ${guestText.join(', ')}
+                  </div>
+                  <div style="font-size: 0.9rem; color: var(--gray-600);">
+                    🏷️ Typ: <span style="font-weight: 600;">${guestTypeText}</span>
+                  </div>
+                  <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e0e0e0;">
+                    <div style="font-size: 0.85rem; color: var(--gray-500);">Cena za pobyt:</div>
+                    <div style="font-size: 1.25rem; font-weight: 700; color: var(--primary-color);">
+                      ${booking.totalPrice.toLocaleString('cs-CZ')} Kč
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button
+                onclick="window.app.removeTempReservation('${booking.id}')"
+                style="padding: 0.5rem; background: white; color: var(--danger-color); border: 1px solid var(--danger-color); border-radius: 6px; cursor: pointer; transition: all 0.2s; min-width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;"
+                title="${this.currentLanguage === 'cs' ? 'Odebrat rezervaci' : 'Remove reservation'}"
+                onmouseover="this.style.background='var(--danger-color)'; this.style.color='white';"
+                onmouseout="this.style.background='white'; this.style.color='var(--danger-color)';"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        `;
+      }
     });
 
     listDiv.innerHTML = html;
@@ -570,13 +614,22 @@ class BookingApp {
     this.calendar.renderCalendar();
   }
 
-  removeTempReservation(bookingId) {
+  async removeTempReservation(bookingId) {
     if (!this.tempReservations) {
       return;
     }
 
     // Find the reservation to remove
     const removedReservation = this.tempReservations.find((b) => b.id === bookingId);
+
+    // Delete the proposed booking from database if it has a proposalId
+    if (removedReservation && removedReservation.proposalId) {
+      try {
+        await dataManager.deleteProposedBooking(removedReservation.proposalId);
+      } catch (error) {
+        console.error('Failed to delete proposed booking:', error);
+      }
+    }
 
     // Remove it from the list
     this.tempReservations = this.tempReservations.filter((b) => b.id !== bookingId);
@@ -604,7 +657,7 @@ class BookingApp {
       // Clear the calendar highlighting when no temp reservations remain
       // Re-render the calendar to remove red highlighting
       if (this.calendar) {
-        this.calendar.renderCalendar();
+        await this.calendar.renderCalendar();
       }
     }
 
@@ -644,46 +697,81 @@ class BookingApp {
       let summaryHTML = '';
       let totalPrice = 0;
 
-      // Group reservations by room
+      // Group reservations by type
       this.tempReservations.forEach((reservation) => {
         totalPrice += reservation.totalPrice;
 
-        summaryHTML += `
-          <div style="padding: 0.75rem; background: var(--gray-50); border-radius: var(--radius-sm); margin-bottom: 0.5rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <div>
-                <strong>${reservation.roomName}</strong><br>
-                <span style="font-size: 0.9rem; color: var(--gray-600);">
-                  ${reservation.startDate} → ${reservation.endDate} (${reservation.nights} ${
-                    this.currentLanguage === 'cs' ? 'nocí' : 'nights'
-                  })
-                </span><br>
-                <span style="font-size: 0.9rem; color: var(--gray-600);">
-                  ${reservation.guests.adults} ${
-                    this.currentLanguage === 'cs' ? 'dospělí' : 'adults'
-                  }${
-                    reservation.guests.children > 0
-                      ? `, ${reservation.guests.children} ${
-                          this.currentLanguage === 'cs' ? 'děti' : 'children'
-                        }`
-                      : ''
-                  }${
-                    reservation.guests.toddlers > 0
-                      ? `, ${reservation.guests.toddlers} ${
-                          this.currentLanguage === 'cs' ? 'batolata' : 'toddlers'
-                        }`
-                      : ''
-                  }
-                </span>
-              </div>
-              <div style="text-align: right;">
-                <strong style="color: var(--primary-color);">${reservation.totalPrice.toLocaleString(
-                  'cs-CZ'
-                )} Kč</strong>
+        if (reservation.isBulkBooking) {
+          // Bulk booking summary
+          summaryHTML += `
+            <div style="padding: 0.75rem; background: linear-gradient(135deg, #f3e8ff, #fef3ff); border: 1px solid #8b5cf6; border-radius: var(--radius-sm); margin-bottom: 0.5rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <strong style="color: #8b5cf6;">🏠 Hromadná rezervace celé chaty</strong><br>
+                  <span style="font-size: 0.9rem; color: var(--gray-600);">
+                    ${reservation.startDate} → ${reservation.endDate} (${reservation.nights} ${
+                      this.currentLanguage === 'cs' ? 'nocí' : 'nights'
+                    })
+                  </span><br>
+                  <span style="font-size: 0.9rem; color: var(--gray-600);">
+                    ${reservation.roomIds.length} pokojů, ${reservation.guests.adults} ${
+                      this.currentLanguage === 'cs' ? 'dospělí' : 'adults'
+                    }${
+                      reservation.guests.children > 0
+                        ? `, ${reservation.guests.children} ${
+                            this.currentLanguage === 'cs' ? 'děti' : 'children'
+                          }`
+                        : ''
+                    }
+                  </span>
+                </div>
+                <div style="text-align: right;">
+                  <strong style="color: #8b5cf6; font-size: 1.1rem;">${reservation.totalPrice.toLocaleString(
+                    'cs-CZ'
+                  )} Kč</strong>
+                </div>
               </div>
             </div>
-          </div>
-        `;
+          `;
+        } else {
+          // Regular room reservation summary
+          summaryHTML += `
+            <div style="padding: 0.75rem; background: var(--gray-50); border-radius: var(--radius-sm); margin-bottom: 0.5rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <strong>${reservation.roomName}</strong><br>
+                  <span style="font-size: 0.9rem; color: var(--gray-600);">
+                    ${reservation.startDate} → ${reservation.endDate} (${reservation.nights} ${
+                      this.currentLanguage === 'cs' ? 'nocí' : 'nights'
+                    })
+                  </span><br>
+                  <span style="font-size: 0.9rem; color: var(--gray-600);">
+                    ${reservation.guests.adults} ${
+                      this.currentLanguage === 'cs' ? 'dospělí' : 'adults'
+                    }${
+                      reservation.guests.children > 0
+                        ? `, ${reservation.guests.children} ${
+                            this.currentLanguage === 'cs' ? 'děti' : 'children'
+                          }`
+                        : ''
+                    }${
+                      reservation.guests.toddlers > 0
+                        ? `, ${reservation.guests.toddlers} ${
+                            this.currentLanguage === 'cs' ? 'batolata' : 'toddlers'
+                          }`
+                        : ''
+                    }
+                  </span>
+                </div>
+                <div style="text-align: right;">
+                  <strong style="color: var(--primary-color);">${reservation.totalPrice.toLocaleString(
+                    'cs-CZ'
+                  )} Kč</strong>
+                </div>
+              </div>
+            </div>
+          `;
+        }
       });
 
       // Add total
@@ -995,7 +1083,24 @@ class BookingApp {
       }
     }
 
-    // All bookings created successfully
+    // All bookings created successfully - now clean up proposed bookings
+    for (const tempReservation of this.tempReservations) {
+      if (tempReservation.proposalId) {
+        try {
+          await dataManager.deleteProposedBooking(tempReservation.proposalId);
+        } catch (error) {
+          console.error('Failed to delete proposed booking:', error);
+        }
+      }
+    }
+
+    // Clear all session proposed bookings (in case any were missed)
+    try {
+      await dataManager.clearSessionProposedBookings();
+    } catch (error) {
+      console.error('Failed to clear session proposed bookings:', error);
+    }
+
     this.showNotification(
       this.currentLanguage === 'cs'
         ? `Úspěšně vytvořeno ${createdBookings.length} rezervací`

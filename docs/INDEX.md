@@ -3,12 +3,15 @@
 ## 📖 Complete Documentation Map
 
 ### Quick Navigation
+
 Use `Ctrl/Cmd + Click` to open links in new tabs
 
 ## 🏠 [Main Documentation Hub](./README.md)
+
 The central entry point with project overview and quick start guides.
 
 ### Key Sections:
+
 - Project structure overview
 - Quick start instructions
 - Feature highlights
@@ -17,9 +20,11 @@ The central entry point with project overview and quick start guides.
 ---
 
 ## 🔌 [API Documentation](./API.md)
+
 Complete REST API reference for backend endpoints.
 
 ### Endpoints:
+
 - [`GET /api/data`](./API.md#-get-all-data) - Retrieve all system data
 - [`POST /api/data`](./API.md#-save-all-data) - Save complete data
 - [`POST /api/booking`](./API.md#-create-booking) - Create new reservation
@@ -27,6 +32,7 @@ Complete REST API reference for backend endpoints.
 - [`DELETE /api/booking/:id`](./API.md#-delete-booking) - Remove booking
 
 ### Data Structures:
+
 - [Booking Object](./API.md#booking-object)
 - [Blocked Date Object](./API.md#blocked-date-object)
 - [Room Object](./API.md#room-object)
@@ -35,15 +41,18 @@ Complete REST API reference for backend endpoints.
 ---
 
 ## 🧩 [Component Documentation](./COMPONENTS.md)
+
 Detailed documentation of all frontend and backend modules.
 
 ### Core Modules:
+
 - [DataManager](./COMPONENTS.md#-datamanager-datajs) - Central data orchestrator
 - [Calendar Component](./COMPONENTS.md#-calendar-component-jscalendarjs) - Interactive availability calendar
 - [Booking Form](./COMPONENTS.md#-booking-form-jsbooking-formjs) - Two-step reservation form
 - [Admin Dashboard](./COMPONENTS.md#-admin-dashboard-adminjs) - Management interface
 
 ### Shared Utilities:
+
 - [Calendar Utils](./COMPONENTS.md#-calendar-utils-jssharedcalendarutilsjs)
 - [Validation Utils](./COMPONENTS.md#-validation-utils-jssharedvalidationutilsjs)
 - [Price Calculator](./COMPONENTS.md#-price-calculator-jssharedpricecalculatorjs)
@@ -53,9 +62,11 @@ Detailed documentation of all frontend and backend modules.
 ---
 
 ## 🏗️ [Architecture Documentation](./ARCHITECTURE.md)
+
 System design, data flows, and technical architecture.
 
 ### Key Topics:
+
 - [System Overview](./ARCHITECTURE.md#overview) - High-level architecture
 - [Core Components](./ARCHITECTURE.md#core-components) - Backend and frontend layers
 - [Data Flow](./ARCHITECTURE.md#data-flow) - Request/response patterns
@@ -69,9 +80,11 @@ System design, data flows, and technical architecture.
 ---
 
 ## 💼 [Business Rules](./BUSINESS_RULES.md)
+
 Complete business logic documentation.
 
 ### Sections:
+
 - [Room Configuration](./BUSINESS_RULES.md#-room-configuration) - Layout and capacity
 - [Pricing Structure](./BUSINESS_RULES.md#-pricing-structure) - Guest type pricing
 - [Christmas Period Rules](./BUSINESS_RULES.md#-christmas-period-rules) - Special access control
@@ -84,14 +97,17 @@ Complete business logic documentation.
 ---
 
 ## 🚀 [Deployment Guide](./DEPLOYMENT.md)
+
 Complete deployment and configuration instructions.
 
 ### Deployment Methods:
+
 - [Docker Deployment](./DEPLOYMENT.md#-method-1-docker-deployment-recommended) - Containerized setup
 - [Manual Deployment](./DEPLOYMENT.md#-method-2-manual-deployment) - Direct installation
 - [Cloud Deployment](./DEPLOYMENT.md#-method-3-cloud-deployment) - AWS, Heroku, DigitalOcean
 
 ### Configuration:
+
 - [SSL/HTTPS Setup](./DEPLOYMENT.md#-sslhttps-configuration) - Security certificates
 - [Application Settings](./DEPLOYMENT.md#-configuration) - System configuration
 - [Monitoring](./DEPLOYMENT.md#-monitoring) - Health checks and logging
@@ -101,9 +117,11 @@ Complete deployment and configuration instructions.
 ---
 
 ## 🔒 [Security Documentation](./SECURITY.md)
+
 Security features, best practices, and incident response.
 
 ### Security Topics:
+
 - [Security Overview](./SECURITY.md#-security-overview) - Protection layers
 - [Features](./SECURITY.md#-features) - Input validation, sanitization
 - [Access Control](./SECURITY.md#-access-control) - Token and admin auth
@@ -119,6 +137,7 @@ Security features, best practices, and incident response.
 ## 🔍 Quick Reference
 
 ### File Locations
+
 ```
 Project Root/
 ├── 📄 server.js              → Express server
@@ -133,6 +152,7 @@ Project Root/
 ```
 
 ### Key Commands
+
 ```bash
 # Development
 npm run dev                   # Start dev server
@@ -147,6 +167,7 @@ docker-compose down && docker-compose up --build -d  # Update
 ```
 
 ### Important URLs
+
 - **Public Booking**: http://localhost:3000
 - **Admin Panel**: http://localhost:3000/admin.html
 - **Edit Booking**: http://localhost:3000/edit.html?token=XXX
@@ -154,7 +175,9 @@ docker-compose down && docker-compose up --build -d  # Update
 - **API Base**: http://localhost:3000/api
 
 ### Default Credentials
+
 ⚠️ **Change in production!**
+
 - Admin Password: `admin123`
 - Christmas Codes: `XMAS2024`
 
@@ -163,20 +186,25 @@ docker-compose down && docker-compose up --build -d  # Update
 ## 📚 Documentation Standards
 
 ### Cross-References
+
 All documentation files are interconnected with:
+
 - Direct section links using anchors
 - Related topics references
 - Code examples with context
 - Visual diagrams where helpful
 
 ### Maintenance
+
 - Version: 1.0.0
 - Last Updated: March 2024
 - Review Cycle: Quarterly
 - Feedback: docs@yourdomain.com
 
 ### Contributing
+
 To update documentation:
+
 1. Edit relevant `.md` file
 2. Update cross-references
 3. Verify all links work
@@ -188,16 +216,19 @@ To update documentation:
 ## 🎯 Quick Tasks
 
 ### For Developers
+
 1. Start here: [Architecture](./ARCHITECTURE.md)
 2. Review: [Components](./COMPONENTS.md)
 3. Deploy: [Deployment Guide](./DEPLOYMENT.md)
 
 ### For Administrators
+
 1. Learn: [Business Rules](./BUSINESS_RULES.md)
 2. Configure: [Deployment Settings](./DEPLOYMENT.md#-configuration)
 3. Secure: [Security Guide](./SECURITY.md)
 
 ### For API Consumers
+
 1. Reference: [API Documentation](./API.md)
 2. Examples: [Data Structures](./API.md#data-structures)
 3. Test: [API Testing](./API.md#testing)

@@ -1732,64 +1732,91 @@
                     border: 1px solid #e2e8f0;
                   "
                 >
-                  <div
-                    style="
-                      display: flex;
-                      justify-content: space-between;
-                      margin-bottom: 0.5rem;
-                      font-size: 0.9rem;
-                    "
-                  >
-                    <span>Základní cena za chatu:</span>
-                    <span id="bulkBasePrice">0 Kč</span>
+                  <!-- Per Night Section -->
+                  <div style="margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0;">
+                    <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.5rem; font-weight: 500;">Cena za jednu noc:</div>
+                    <div
+                      style="
+                        display: flex;
+                        justify-content: space-between;
+                        margin-bottom: 0.25rem;
+                        font-size: 0.9rem;
+                        padding-left: 1rem;
+                      "
+                    >
+                      <span>Základní cena za chatu:</span>
+                      <span id="bulkBasePrice">0 Kč/noc</span>
+                    </div>
+                    <div
+                      id="bulkAdultsPrice"
+                      style="
+                        display: flex;
+                        justify-content: space-between;
+                        margin-bottom: 0.25rem;
+                        font-size: 0.9rem;
+                        padding-left: 1rem;
+                      "
+                    >
+                      <span>Příplatek za dospělé:</span>
+                      <span id="bulkAdultsSurcharge">0 Kč/noc</span>
+                    </div>
+                    <div
+                      id="bulkChildrenPrice"
+                      style="
+                        display: none;
+                        justify-content: space-between;
+                        margin-bottom: 0.25rem;
+                        font-size: 0.9rem;
+                        padding-left: 1rem;
+                      "
+                    >
+                      <span>Příplatek za děti:</span>
+                      <span id="bulkChildrenSurcharge">0 Kč/noc</span>
+                    </div>
+                    <div
+                      id="bulkPricePerNight"
+                      style="
+                        display: flex;
+                        justify-content: space-between;
+                        margin-top: 0.5rem;
+                        font-size: 0.95rem;
+                        font-weight: 600;
+                        color: #333;
+                      "
+                    >
+                      <span>Cena za noc celkem:</span>
+                      <span id="bulkPricePerNightAmount">0 Kč</span>
+                    </div>
                   </div>
+
+                  <!-- Number of Nights -->
                   <div
                     id="bulkNightsPrice"
                     style="
                       display: flex;
                       justify-content: space-between;
-                      margin-bottom: 0.5rem;
-                      font-size: 0.9rem;
+                      margin-bottom: 0.75rem;
+                      font-size: 0.95rem;
+                      font-weight: 500;
                     "
                   >
                     <span>Počet nocí:</span>
                     <span id="bulkNightsMultiplier">× 0</span>
                   </div>
-                  <div
-                    id="bulkAdultsPrice"
-                    style="
-                      display: flex;
-                      justify-content: space-between;
-                      margin-bottom: 0.5rem;
-                      font-size: 0.9rem;
-                    "
-                  >
-                    <span>Příplatek za dospělé:</span>
-                    <span id="bulkAdultsSurcharge">0 Kč</span>
-                  </div>
-                  <div
-                    id="bulkChildrenPrice"
-                    style="
-                      display: none;
-                      justify-content: space-between;
-                      margin-bottom: 0.5rem;
-                      font-size: 0.9rem;
-                    "
-                  >
-                    <span>Příplatek za děti:</span>
-                    <span id="bulkChildrenSurcharge">0 Kč</span>
-                  </div>
+
+                  <!-- Total Price -->
                   <div
                     style="
-                      border-top: 1px solid #dee2e6;
+                      border-top: 2px solid #dee2e6;
                       margin-top: 0.75rem;
                       padding-top: 0.75rem;
                       display: flex;
                       justify-content: space-between;
                       font-weight: bold;
+                      font-size: 1.1rem;
                     "
                   >
-                    <span>Celkem:</span>
+                    <span>Celková cena:</span>
                     <span
                       id="bulkTotalPrice"
                       style="color: #2e7d32"
@@ -1825,7 +1852,7 @@
               onclick="addBulkBooking()"
               disabled
             >
-              Přidat rezervaci
+              Vytvořit rezervaci
             </button>
           </div>
         </div>
