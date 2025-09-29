@@ -10,9 +10,10 @@ const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 
-// Import SQLite Database Manager and Validation Utils
+// Import SQLite Database Manager, Validation Utils, and Booking Logic
 const DatabaseManager = require('./database');
 const ValidationUtils = require('./js/shared/validationUtils');
+const BookingLogic = require('./js/shared/bookingLogic');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -272,27 +273,37 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
 
     // Validate email format using ValidationUtils
     if (!ValidationUtils.validateEmail(bookingData.email)) {
-      return res.status(400).json({ error: ValidationUtils.getValidationError('email', bookingData.email, 'cs') });
+      return res
+        .status(400)
+        .json({ error: ValidationUtils.getValidationError('email', bookingData.email, 'cs') });
     }
 
     // Validate phone if provided
     if (bookingData.phone && !ValidationUtils.validatePhone(bookingData.phone)) {
-      return res.status(400).json({ error: ValidationUtils.getValidationError('phone', bookingData.phone, 'cs') });
+      return res
+        .status(400)
+        .json({ error: ValidationUtils.getValidationError('phone', bookingData.phone, 'cs') });
     }
 
     // Validate ZIP code if provided
     if (bookingData.zip && !ValidationUtils.validateZIP(bookingData.zip)) {
-      return res.status(400).json({ error: ValidationUtils.getValidationError('zip', bookingData.zip, 'cs') });
+      return res
+        .status(400)
+        .json({ error: ValidationUtils.getValidationError('zip', bookingData.zip, 'cs') });
     }
 
     // Validate IČO if provided
     if (bookingData.ico && !ValidationUtils.validateICO(bookingData.ico)) {
-      return res.status(400).json({ error: ValidationUtils.getValidationError('ico', bookingData.ico, 'cs') });
+      return res
+        .status(400)
+        .json({ error: ValidationUtils.getValidationError('ico', bookingData.ico, 'cs') });
     }
 
     // Validate DIČ if provided
     if (bookingData.dic && !ValidationUtils.validateDIC(bookingData.dic)) {
-      return res.status(400).json({ error: ValidationUtils.getValidationError('dic', bookingData.dic, 'cs') });
+      return res
+        .status(400)
+        .json({ error: ValidationUtils.getValidationError('dic', bookingData.dic, 'cs') });
     }
 
     // Check Christmas period access
@@ -397,28 +408,22 @@ app.put('/api/booking/:id', async (req, res) => {
       }
     }
 
-    // Check room availability (excluding current booking)
+    // Check room availability using unified BookingLogic (excluding current booking)
     const bookings = db.getAllBookings();
     const otherBookings = bookings.filter((b) => b.id !== bookingId);
 
-    for (const roomId of bookingData.rooms) {
-      for (const otherBooking of otherBookings) {
-        if (otherBooking.rooms && otherBooking.rooms.includes(roomId)) {
-          const otherStart = new Date(otherBooking.startDate);
-          const otherEnd = new Date(otherBooking.endDate);
+    const conflictCheck = BookingLogic.checkBookingConflict(
+      startDate,
+      endDate,
+      bookingData.rooms,
+      otherBookings,
+      bookingId
+    );
 
-          // Check for date overlap
-          if (
-            (startDate >= otherStart && startDate < otherEnd) ||
-            (endDate > otherStart && endDate <= otherEnd) ||
-            (startDate <= otherStart && endDate >= otherEnd)
-          ) {
-            return res.status(400).json({
-              error: `Pokoj ${roomId} je již rezervován v tomto termínu`,
-            });
-          }
-        }
-      }
+    if (conflictCheck.hasConflict) {
+      return res.status(400).json({
+        error: `Pokoj ${conflictCheck.roomId} je již rezervován v tomto termínu`,
+      });
     }
 
     // Recalculate price

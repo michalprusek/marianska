@@ -114,7 +114,9 @@ class DataManager {
 
         this.lastSync = Date.now();
       }
-    } catch (error) {}
+    } catch (_error) {
+      // Silently fail sync - will retry on next operation
+    }
   }
 
   getLatestTimestamp(data) {
@@ -152,9 +154,12 @@ class DataManager {
         },
         body: JSON.stringify(this.cachedData),
       });
-      if (response.ok) {
+      if (!response.ok) {
+        console.warn('Failed to push data to server');
       }
-    } catch (error) {}
+    } catch (_error) {
+      // Silently fail push - will retry on next operation
+    }
   }
 
   getDefaultData() {
@@ -370,15 +375,13 @@ class DataManager {
       return { status: 'blocked', email: null };
     }
 
-    // Check if room is booked - now only checking nights, not the checkout day
-    const bookings = data.bookings.filter((booking) => {
-      const checkDateStr = this.formatDate(date);
-      return (
+    // Check if room is booked using unified BookingLogic
+    const checkDateStr = this.formatDate(date);
+    const bookings = data.bookings.filter(
+      (booking) =>
         booking.rooms.includes(roomId) &&
-        checkDateStr >= booking.startDate &&
-        checkDateStr < booking.endDate
-      ); // Changed from <= to < to allow check-in on checkout day
-    });
+        BookingLogic.isDateOccupied(checkDateStr, booking.startDate, booking.endDate)
+    );
 
     if (bookings.length > 0) {
       return { status: 'booked', email: bookings[0].email };
@@ -463,7 +466,6 @@ class DataManager {
     }
 
     // Fallback to default dates
-    const year = date.getFullYear();
     const month = date.getMonth();
     const day = date.getDate();
 
@@ -845,7 +847,7 @@ Chata Mariánská`;
     }
 
     // Use the regular update method
-    return await this.updateBooking(bookingId, updates);
+    return this.updateBooking(bookingId, updates);
   }
 
   async deleteBookingWithToken(bookingId, editToken) {
@@ -856,7 +858,7 @@ Chata Mariánská`;
     }
 
     // Use the regular delete method
-    return await this.deleteBooking(bookingId);
+    return this.deleteBooking(bookingId);
   }
 
   // Cleanup
@@ -869,4 +871,5 @@ Chata Mariánská`;
 }
 
 // Create and export instance
+// eslint-disable-next-line no-unused-vars
 const dataManager = new DataManager();
