@@ -2,6 +2,14 @@
 class AdminPanel {
   constructor() {
     this.isAuthenticated = false;
+    this.refreshInterval = null;
+    this.editSelectedDates = new Set();
+    this.editSelectedRooms = new Set();
+    this.editStartDate = null;
+    this.editEndDate = null;
+    this.editCurrentMonth = new Date().getMonth();
+    this.editCurrentYear = new Date().getFullYear();
+    this.currentEditBooking = null;
     this.init();
   }
 
@@ -145,12 +153,25 @@ class AdminPanel {
   }
 
   async loadTabData(tabName) {
+    // Clear any existing refresh interval
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+      this.refreshInterval = null;
+    }
+
     // Sync with server first to get fresh data
     await dataManager.syncWithServer();
 
     switch (tabName) {
       case 'bookings':
         await this.loadBookings();
+        // Set up auto-refresh for bookings tab (every 3 seconds)
+        this.refreshInterval = setInterval(async () => {
+          if (document.querySelector('#bookingsTab').classList.contains('active')) {
+            await dataManager.syncWithServer();
+            await this.loadBookings();
+          }
+        }, 3000);
         break;
       case 'blocked':
         await this.loadBlockedDates();
@@ -200,9 +221,28 @@ class AdminPanel {
                 </td>
                 <td>
                     <div class="action-buttons">
-                        <button class="btn-secondary btn-small" onclick="adminPanel.viewBookingDetails('${booking.id}')">Detail</button>
-                        <button class="btn-secondary btn-small" onclick="adminPanel.editBooking('${booking.id}')">Upravit</button>
-                        <button class="btn-danger btn-small" onclick="adminPanel.deleteBooking('${booking.id}')">Smazat</button>
+                        <button class="btn-modern btn-view" onclick="adminPanel.viewBookingDetails('${booking.id}')" title="Zobrazit detail">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                            Detail
+                        </button>
+                        <button class="btn-modern btn-edit" onclick="adminPanel.editBooking('${booking.id}')" title="Upravit rezervaci">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                            Upravit
+                        </button>
+                        <button class="btn-modern btn-delete" onclick="adminPanel.deleteBooking('${booking.id}')" title="Smazat rezervaci">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/>
+                                <line x1="10" y1="11" x2="10" y2="17"/>
+                                <line x1="14" y1="11" x2="14" y2="17"/>
+                            </svg>
+                            Smazat
+                        </button>
                     </div>
                 </td>
             `;
@@ -366,6 +406,23 @@ class AdminPanel {
       return;
     }
 
+    // Store booking for reference
+    this.currentEditBooking = booking;
+
+    // Initialize edit state
+    this.editSelectedDates = new Set();
+    this.editSelectedRooms = new Set(booking.rooms || []);
+    this.editStartDate = booking.startDate;
+    this.editEndDate = booking.endDate;
+
+    // Set dates
+    const start = new Date(booking.startDate);
+    const end = new Date(booking.endDate);
+    for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+      this.editSelectedDates.add(this.formatDate(new Date(d)));
+    }
+
+    // Set form values
     document.getElementById('editBookingId').value = bookingId;
     document.getElementById('editName').value = booking.name || '';
     document.getElementById('editEmail').value = booking.email || '';
@@ -379,6 +436,25 @@ class AdminPanel {
     document.getElementById('editNotes').value = booking.notes || '';
     document.getElementById('editPayFromBenefit').checked = booking.payFromBenefit || false;
 
+    // Set guest counts and type
+    document.getElementById('editAdults').value = booking.adults || 1;
+    document.getElementById('editChildren').value = booking.children || 0;
+    document.getElementById('editToddlers').value = booking.toddlers || 0;
+
+    // Set guest type
+    if (booking.guestType === 'utia') {
+      document.getElementById('editGuestTypeUtia').checked = true;
+    } else {
+      document.getElementById('editGuestTypeExternal').checked = true;
+    }
+
+    // Initialize calendar and rooms
+    await this.initEditCalendar();
+    await this.loadEditRooms();
+    await this.updateEditPrice();
+    await this.loadExistingBookingsForEdit();
+
+    // Show modal
     document.getElementById('editBookingModal').classList.add('active');
   }
 
@@ -386,11 +462,26 @@ class AdminPanel {
     e.preventDefault();
 
     const bookingId = document.getElementById('editBookingId').value;
+
+    // Get selected guest type
+    const guestType = document.querySelector('input[name="editGuestType"]:checked')?.value || 'external';
+
+    // Calculate price based on new selections
+    const totalPrice = await this.calculateEditPrice();
+
     const updates = {
       name: document.getElementById('editName').value,
       email: document.getElementById('editEmail').value,
       phone: document.getElementById('editPhone').value,
       company: document.getElementById('editCompany').value,
+      startDate: this.editStartDate,
+      endDate: this.editEndDate,
+      rooms: Array.from(this.editSelectedRooms),
+      adults: parseInt(document.getElementById('editAdults').value),
+      children: parseInt(document.getElementById('editChildren').value),
+      toddlers: parseInt(document.getElementById('editToddlers').value),
+      guestType: guestType,
+      totalPrice: totalPrice,
       address: document.getElementById('editAddress').value,
       city: document.getElementById('editCity').value,
       zip: document.getElementById('editZip').value,
@@ -404,6 +495,263 @@ class AdminPanel {
     document.getElementById('editBookingModal').classList.remove('active');
     await this.loadBookings();
     this.showSuccessMessage('Rezervace byla úspěšně upravena');
+  }
+
+  // Helper functions for comprehensive edit modal
+  async initEditCalendar() {
+    const container = document.getElementById('editCalendarContainer');
+    if (!container) return;
+
+    const cal = await this.renderEditCalendar();
+    container.innerHTML = cal;
+  }
+
+  async renderEditCalendar() {
+    const year = this.editCurrentYear;
+    const month = this.editCurrentMonth;
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+
+    const monthNames = ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen',
+                       'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'];
+
+    let html = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <button onclick="adminPanel.changeEditMonth(-1)" style="padding: 0.5rem 1rem; background: #e5e7eb; border: none; border-radius: 4px; cursor: pointer;">←</button>
+        <h4>${monthNames[month]} ${year}</h4>
+        <button onclick="adminPanel.changeEditMonth(1)" style="padding: 0.5rem 1rem; background: #e5e7eb; border: none; border-radius: 4px; cursor: pointer;">→</button>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center;">
+        <div style="font-weight: bold; padding: 0.5rem;">Po</div>
+        <div style="font-weight: bold; padding: 0.5rem;">Út</div>
+        <div style="font-weight: bold; padding: 0.5rem;">St</div>
+        <div style="font-weight: bold; padding: 0.5rem;">Čt</div>
+        <div style="font-weight: bold; padding: 0.5rem;">Pá</div>
+        <div style="font-weight: bold; padding: 0.5rem;">So</div>
+        <div style="font-weight: bold; padding: 0.5rem;">Ne</div>
+    `;
+
+    // Add empty cells for days before month starts
+    const adjustedStart = startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1;
+    for (let i = 0; i < adjustedStart; i++) {
+      html += '<div></div>';
+    }
+
+    // Add days
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = this.formatDate(new Date(year, month, day));
+      const isSelected = this.editSelectedDates.has(date);
+      const isPast = new Date(year, month, day) < new Date(new Date().setHours(0,0,0,0));
+
+      let bgColor = '#ffffff';
+      let textColor = '#000000';
+      let cursor = 'pointer';
+
+      if (isPast) {
+        bgColor = '#f3f4f6';
+        textColor = '#9ca3af';
+        cursor = 'not-allowed';
+      } else if (isSelected) {
+        bgColor = '#10b981';
+        textColor = '#ffffff';
+      }
+
+      html += `
+        <div
+          data-date="${date}"
+          onclick="${!isPast ? `adminPanel.toggleEditDate('${date}')` : ''}"
+          style="padding: 0.5rem; background: ${bgColor}; color: ${textColor}; cursor: ${cursor}; border-radius: 4px; transition: all 0.2s;"
+          onmouseover="${!isPast ? "this.style.opacity='0.8'" : ''}"
+          onmouseout="this.style.opacity='1'"
+        >${day}</div>
+      `;
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  changeEditMonth(delta) {
+    this.editCurrentMonth += delta;
+    if (this.editCurrentMonth < 0) {
+      this.editCurrentMonth = 11;
+      this.editCurrentYear--;
+    } else if (this.editCurrentMonth > 11) {
+      this.editCurrentMonth = 0;
+      this.editCurrentYear++;
+    }
+    this.initEditCalendar();
+  }
+
+  async toggleEditDate(date) {
+    if (this.editSelectedDates.has(date)) {
+      this.editSelectedDates.delete(date);
+    } else {
+      this.editSelectedDates.add(date);
+    }
+
+    // Update date range
+    if (this.editSelectedDates.size > 0) {
+      const dates = Array.from(this.editSelectedDates).sort();
+      this.editStartDate = dates[0];
+      this.editEndDate = this.formatDate(new Date(new Date(dates[dates.length - 1]).getTime() + 24 * 60 * 60 * 1000));
+
+      document.getElementById('editSelectedDates').textContent =
+        `${new Date(this.editStartDate).toLocaleDateString('cs-CZ')} - ${new Date(this.editEndDate).toLocaleDateString('cs-CZ')}`;
+    } else {
+      this.editStartDate = null;
+      this.editEndDate = null;
+      document.getElementById('editSelectedDates').textContent = 'Zatím nevybráno';
+    }
+
+    await this.initEditCalendar();
+    await this.updateEditPrice();
+    await this.loadExistingBookingsForEdit();
+  }
+
+  async loadEditRooms() {
+    const container = document.getElementById('editRoomsList');
+    const rooms = await dataManager.getRooms();
+
+    let html = '';
+    for (const room of rooms) {
+      const isSelected = this.editSelectedRooms.has(room.id);
+      html += `
+        <label style="display: flex; align-items: center; padding: 0.5rem; background: ${isSelected ? '#10b981' : '#f3f4f6'}; color: ${isSelected ? '#ffffff' : '#000000'}; border-radius: 4px; cursor: pointer;">
+          <input
+            type="checkbox"
+            value="${room.id}"
+            ${isSelected ? 'checked' : ''}
+            onchange="adminPanel.toggleEditRoom('${room.id}')"
+            style="margin-right: 0.5rem;"
+          >
+          Pokoj ${room.id} (${room.beds} lůžek)
+        </label>
+      `;
+    }
+
+    container.innerHTML = html;
+  }
+
+  async toggleEditRoom(roomId) {
+    if (this.editSelectedRooms.has(roomId)) {
+      this.editSelectedRooms.delete(roomId);
+    } else {
+      this.editSelectedRooms.add(roomId);
+    }
+    await this.loadEditRooms();
+    await this.updateEditPrice();
+    await this.loadExistingBookingsForEdit();
+  }
+
+  async updateEditPrice() {
+    const guestType = document.querySelector('input[name="editGuestType"]:checked')?.value || 'external';
+    const adults = parseInt(document.getElementById('editAdults').value) || 0;
+    const children = parseInt(document.getElementById('editChildren').value) || 0;
+
+    if (this.editSelectedDates.size === 0 || this.editSelectedRooms.size === 0) {
+      document.getElementById('editTotalPrice').textContent = '0 Kč';
+      return;
+    }
+
+    const nights = this.editSelectedDates.size;
+    const roomCount = this.editSelectedRooms.size;
+
+    // Simple price calculation (you can enhance this based on your pricing logic)
+    const basePrice = guestType === 'utia' ? 350 : 550;
+    const adultPrice = guestType === 'utia' ? 50 : 100;
+    const childPrice = guestType === 'utia' ? 25 : 50;
+
+    const totalPrice = nights * roomCount * basePrice +
+                      nights * (adults - roomCount) * adultPrice +
+                      nights * children * childPrice;
+
+    document.getElementById('editTotalPrice').textContent = `${totalPrice} Kč`;
+    return totalPrice;
+  }
+
+  async calculateEditPrice() {
+    return await this.updateEditPrice();
+  }
+
+  async loadExistingBookingsForEdit() {
+    const container = document.getElementById('editExistingBookings');
+
+    if (!this.editStartDate || !this.editEndDate) {
+      container.innerHTML = '<p style="color: #6b7280;">Vyberte datum pro zobrazení existujících rezervací</p>';
+      return;
+    }
+
+    const bookings = await dataManager.getAllBookings();
+    const relevantBookings = bookings.filter(b => {
+      if (b.id === this.currentEditBooking?.id) return false; // Skip current booking
+
+      const bStart = new Date(b.startDate);
+      const bEnd = new Date(b.endDate);
+      const eStart = new Date(this.editStartDate);
+      const eEnd = new Date(this.editEndDate);
+
+      // Check for date overlap
+      const hasDateOverlap = bStart < eEnd && bEnd > eStart;
+
+      // Check for room overlap
+      const hasRoomOverlap = b.rooms.some(r => this.editSelectedRooms.has(r));
+
+      return hasDateOverlap && hasRoomOverlap;
+    });
+
+    if (relevantBookings.length === 0) {
+      container.innerHTML = '<p style="color: #10b981;">✓ Žádné konflikty s existujícími rezervacemi</p>';
+    } else {
+      let html = '<div style="display: flex; flex-direction: column; gap: 0.5rem;">';
+      for (const booking of relevantBookings) {
+        html += `
+          <div style="padding: 0.75rem; background: #fee2e2; border-left: 4px solid #ef4444; border-radius: 4px;">
+            <strong>${booking.name}</strong> - Pokoje: ${booking.rooms.join(', ')}<br>
+            ${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}
+          </div>
+        `;
+      }
+      html += '</div>';
+      container.innerHTML = html;
+    }
+  }
+
+  switchEditTab(tab) {
+    // Update tab buttons
+    document.querySelectorAll('.edit-tab-btn').forEach(btn => {
+      if (btn.dataset.tab === tab) {
+        btn.classList.add('active');
+        btn.style.borderBottom = '3px solid #0d9488';
+        btn.style.color = '#0d9488';
+      } else {
+        btn.classList.remove('active');
+        btn.style.borderBottom = '3px solid transparent';
+        btn.style.color = '#6b7280';
+      }
+    });
+
+    // Show/hide tab content
+    if (tab === 'dates') {
+      document.getElementById('editDatesTab').style.display = 'block';
+      document.getElementById('editBillingTab').style.display = 'none';
+    } else {
+      document.getElementById('editDatesTab').style.display = 'none';
+      document.getElementById('editBillingTab').style.display = 'block';
+    }
+  }
+
+  closeEditModal() {
+    document.getElementById('editBookingModal').classList.remove('active');
+  }
+
+  formatDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   deleteBooking(bookingId) {
@@ -1286,3 +1634,6 @@ class AdminPanel {
 
 // Initialize admin panel
 const adminPanel = new AdminPanel();
+
+// Make admin panel globally accessible for real-time updates
+window.adminPanel = adminPanel;

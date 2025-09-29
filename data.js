@@ -88,6 +88,11 @@ class DataManager {
             await window.app.renderCalendar();
             await window.app.updatePriceCalculation();
           }
+
+          // Update admin panel if active
+          if (window.adminPanel && document.querySelector('#bookingsTab')?.classList.contains('active')) {
+            await window.adminPanel.loadBookings();
+          }
         } else if (localTimestamp > serverTimestamp) {
           // Local has newer data - push to server
           await this.pushToServer();
@@ -735,6 +740,29 @@ Chata Mariánská`;
         `;
 
     return this.sendEmail(booking.email, subject, body);
+  }
+
+  // Token-based update and delete methods for user self-service
+  async updateBookingWithToken(bookingId, updates, editToken) {
+    // First verify the token
+    const booking = await this.getBooking(bookingId);
+    if (!booking || booking.editToken !== editToken) {
+      throw new Error('Neplatný edit token');
+    }
+
+    // Use the regular update method
+    return await this.updateBooking(bookingId, updates);
+  }
+
+  async deleteBookingWithToken(bookingId, editToken) {
+    // First verify the token
+    const booking = await this.getBooking(bookingId);
+    if (!booking || booking.editToken !== editToken) {
+      throw new Error('Neplatný edit token');
+    }
+
+    // Use the regular delete method
+    return await this.deleteBooking(bookingId);
   }
 
   // Cleanup

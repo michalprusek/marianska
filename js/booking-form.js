@@ -335,28 +335,78 @@ class BookingFormModule {
         this.hideBookingModal();
       }
 
-      // Show success notification
-      this.app.showNotification(
-        this.app.currentLanguage === 'cs'
-          ? '✓ Rezervace byla úspěšně vytvořena'
-          : '✓ Booking created successfully',
-        'success'
-      );
+      // Show success notification with edit link
+      if (result.editToken) {
+        const editUrl = `${window.location.origin}/edit.html?token=${result.editToken}`;
+
+        // Create success modal with edit link
+        const modal = document.createElement('div');
+        modal.className = 'modal active';
+        modal.style.zIndex = '10000';
+        modal.innerHTML = `
+          <div class="modal-content" style="max-width: 600px; text-align: center;">
+            <div style="margin-bottom: 2rem;">
+              <div style="font-size: 4rem; color: #10b981;">✓</div>
+              <h2 style="color: #10b981; margin: 1rem 0;">
+                ${this.app.currentLanguage === 'cs' ? 'Rezervace úspěšně vytvořena!' : 'Booking Successfully Created!'}
+              </h2>
+              <p style="font-size: 1.1rem; color: #4b5563; margin: 1rem 0;">
+                ${this.app.currentLanguage === 'cs'
+                  ? `Číslo vaší rezervace: <strong>${result.id}</strong>`
+                  : `Your booking ID: <strong>${result.id}</strong>`}
+              </p>
+            </div>
+
+            <div style="background: #f0fdf4; border: 2px solid #10b981; border-radius: 8px; padding: 1.5rem; margin: 1.5rem 0;">
+              <p style="font-weight: 600; margin-bottom: 1rem; color: #047857;">
+                ${this.app.currentLanguage === 'cs'
+                  ? '📧 Uložte si tento odkaz pro budoucí úpravy:'
+                  : '📧 Save this link to edit your booking later:'}
+              </p>
+              <div style="background: white; padding: 1rem; border-radius: 4px; word-break: break-all; margin: 0.5rem 0;">
+                <a href="${editUrl}" target="_blank" style="color: #0d9488; text-decoration: none; font-weight: 500;">
+                  ${editUrl}
+                </a>
+              </div>
+              <button
+                onclick="navigator.clipboard.writeText('${editUrl}'); this.textContent='${this.app.currentLanguage === 'cs' ? '✓ Zkopírováno!' : '✓ Copied!'}'"
+                style="margin-top: 1rem; padding: 0.5rem 1rem; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;"
+              >
+                ${this.app.currentLanguage === 'cs' ? '📋 Kopírovat odkaz' : '📋 Copy Link'}
+              </button>
+            </div>
+
+            <div style="background: #fef3c7; border-radius: 8px; padding: 1rem; margin: 1.5rem 0;">
+              <p style="color: #92400e; font-size: 0.9rem;">
+                <strong>${this.app.currentLanguage === 'cs' ? 'Důležité:' : 'Important:'}</strong>
+                ${this.app.currentLanguage === 'cs'
+                  ? 'Odkaz pro úpravu rezervace vám bude zaslán e-mailem, jakmile bude e-mailová služba dostupná.'
+                  : 'The edit link will be sent to your email once the email service is available.'}
+              </p>
+            </div>
+
+            <button
+              onclick="this.closest('.modal').remove()"
+              class="btn-primary"
+              style="padding: 0.75rem 2rem; font-size: 1rem; background: linear-gradient(135deg, #0d9488, #059669); border: none; color: white; border-radius: 8px; cursor: pointer; font-weight: 600; margin-top: 1rem;"
+            >
+              ${this.app.currentLanguage === 'cs' ? 'Zavřít' : 'Close'}
+            </button>
+          </div>
+        `;
+        document.body.appendChild(modal);
+      } else {
+        // Fallback to simple notification
+        this.app.showNotification(
+          this.app.currentLanguage === 'cs'
+            ? '✓ Rezervace byla úspěšně vytvořena'
+            : '✓ Booking created successfully',
+          'success'
+        );
+      }
 
       // Highlight new booking in calendar
       await this.app.calendar.highlightNewBooking(booking);
-
-      // Show edit link
-      if (result.editToken) {
-        const editUrl = `${window.location.origin}/edit.html?token=${result.editToken}`;
-        this.app.showNotification(
-          this.app.currentLanguage === 'cs'
-            ? `Pro úpravu rezervace použijte tento odkaz: ${editUrl}`
-            : `To edit your booking, use this link: ${editUrl}`,
-          'info',
-          10000
-        );
-      }
     } catch (error) {
       console.error('Booking error:', error);
       this.app.showNotification(
