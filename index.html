@@ -217,7 +217,18 @@
                   </div>
                 </div>
                 <div class="legend-item">
-                  <div class="legend-indicator" style="background: #ff4444; color: white; font-weight: bold; padding: 4px 8px; border-radius: 4px;">22</div>
+                  <div
+                    class="legend-indicator"
+                    style="
+                      background: #ff4444;
+                      color: white;
+                      font-weight: bold;
+                      padding: 4px 8px;
+                      border-radius: 4px;
+                    "
+                  >
+                    22
+                  </div>
                   <div class="legend-text">
                     <span
                       class="legend-label"
@@ -339,22 +350,45 @@
         </section>
 
         <!-- Booking Form Section -->
-        <section class="booking-section" id="tempReservationsSection" style="display: none;">
+        <section
+          class="booking-section"
+          id="tempReservationsSection"
+          style="display: none"
+        >
           <div class="booking-card">
             <!-- Temporary Reservations Display -->
-            <div id="tempReservationsContainer" style="display: none; margin-top: 1.5rem;">
-              <h3 style="color: var(--primary-color); margin-bottom: 1rem;">
+            <div
+              id="tempReservationsContainer"
+              style="display: none; margin-top: 1.5rem"
+            >
+              <h3 style="color: var(--primary-color); margin-bottom: 1rem">
                 <span data-translate="pendingReservations">Připravené rezervace</span>
               </h3>
-              <div id="tempReservationsList" class="temp-reservations-list">
+              <div
+                id="tempReservationsList"
+                class="temp-reservations-list"
+              >
                 <!-- Temporary reservations will be displayed here -->
               </div>
-              <div class="temp-reservations-summary" style="margin-top: 1rem; padding: 1rem; background: var(--card-bg); border-radius: 8px; border: 2px solid var(--primary-color);">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                  <span style="font-size: 1.2rem; font-weight: bold;">
+              <div
+                class="temp-reservations-summary"
+                style="
+                  margin-top: 1rem;
+                  padding: 1rem;
+                  background: var(--card-bg);
+                  border-radius: 8px;
+                  border: 2px solid var(--primary-color);
+                "
+              >
+                <div style="display: flex; justify-content: space-between; align-items: center">
+                  <span style="font-size: 1.2rem; font-weight: bold">
                     <span data-translate="totalPrice">Celková cena</span>:
                   </span>
-                  <span id="tempReservationsTotalPrice" style="font-size: 1.4rem; font-weight: bold; color: var(--primary-color);">0 Kč</span>
+                  <span
+                    id="tempReservationsTotalPrice"
+                    style="font-size: 1.4rem; font-weight: bold; color: var(--primary-color)"
+                    >0 Kč</span
+                  >
                 </div>
               </div>
             </div>
@@ -401,22 +435,47 @@
         id="finalBookingModal"
         class="modal"
       >
-        <div class="modal-content" style="max-width: 600px;">
-          <button class="modal-close" onclick="closeFinalBookingModal()">&times;</button>
+        <div
+          class="modal-content"
+          style="max-width: 600px"
+        >
+          <button
+            class="modal-close"
+            onclick="closeFinalBookingModal()"
+          >
+            &times;
+          </button>
           <h2 data-translate="completeBooking">Dokončit rezervaci</h2>
 
           <!-- Reservations Summary -->
-          <div style="background: var(--gray-50); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
-            <h3 style="margin-top: 0; color: var(--primary-color);">
+          <div
+            style="
+              background: var(--gray-50);
+              padding: 1rem;
+              border-radius: 8px;
+              margin-bottom: 1.5rem;
+            "
+          >
+            <h3 style="margin-top: 0; color: var(--primary-color)">
               <span data-translate="reservationSummary">Souhrn rezervace</span>
             </h3>
             <div id="finalBookingSummary"></div>
-            <div style="margin-top: 1rem; padding-top: 1rem; border-top: 2px solid var(--primary-color);">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-weight: bold; font-size: 1.1rem;">
+            <div
+              style="
+                margin-top: 1rem;
+                padding-top: 1rem;
+                border-top: 2px solid var(--primary-color);
+              "
+            >
+              <div style="display: flex; justify-content: space-between; align-items: center">
+                <span style="font-weight: bold; font-size: 1.1rem">
                   <span data-translate="totalPrice">Celková cena</span>:
                 </span>
-                <span id="finalBookingTotalPrice" style="font-weight: bold; font-size: 1.2rem; color: var(--primary-color);">0 Kč</span>
+                <span
+                  id="finalBookingTotalPrice"
+                  style="font-weight: bold; font-size: 1.2rem; color: var(--primary-color)"
+                  >0 Kč</span
+                >
               </div>
             </div>
           </div>
@@ -426,17 +485,37 @@
             <h3 data-translate="contactDetails">Kontaktní údaje</h3>
 
             <div class="input-group">
-              <label for="finalBookingName" data-translate="fullName">Jméno a příjmení *</label>
-              <input type="text" id="finalBookingName" required>
+              <label
+                for="finalBookingName"
+                data-translate="fullName"
+                >Jméno a příjmení *</label
+              >
+              <input
+                type="text"
+                id="finalBookingName"
+                required
+              />
             </div>
 
             <div class="input-group">
-              <label for="finalBookingEmail" data-translate="email">Email *</label>
-              <input type="email" id="finalBookingEmail" required>
+              <label
+                for="finalBookingEmail"
+                data-translate="email"
+                >Email *</label
+              >
+              <input
+                type="email"
+                id="finalBookingEmail"
+                required
+              />
             </div>
 
             <div class="input-group">
-              <label for="finalBookingPhone" data-translate="phone">Telefon *</label>
+              <label
+                for="finalBookingPhone"
+                data-translate="phone"
+                >Telefon *</label
+              >
               <div class="phone-input-container">
                 <select
                   id="finalBookingCountryCode"
@@ -460,7 +539,8 @@
                   placeholder="123456789"
                   pattern="[0-9\s]{9,13}"
                   title="Zadejte 9 číslic telefonního čísla"
-                  required>
+                  required
+                />
               </div>
             </div>
 
@@ -468,53 +548,109 @@
 
             <div class="input-group">
               <label for="finalBookingCompany">Firma *</label>
-              <input type="text" id="finalBookingCompany" required minlength="2">
+              <input
+                type="text"
+                id="finalBookingCompany"
+                required
+                minlength="2"
+              />
             </div>
 
             <div class="input-group">
               <label for="finalBookingAddress">Ulice a číslo *</label>
-              <input type="text" id="finalBookingAddress" required minlength="5">
+              <input
+                type="text"
+                id="finalBookingAddress"
+                required
+                minlength="5"
+              />
             </div>
 
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem;">
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem">
               <div class="input-group">
                 <label for="finalBookingCity">Město *</label>
-                <input type="text" id="finalBookingCity" required minlength="2">
+                <input
+                  type="text"
+                  id="finalBookingCity"
+                  required
+                  minlength="2"
+                />
               </div>
               <div class="input-group">
                 <label for="finalBookingZip">PSČ *</label>
-                <input type="text" id="finalBookingZip" required pattern="[0-9]{5}" maxlength="5">
+                <input
+                  type="text"
+                  id="finalBookingZip"
+                  required
+                  pattern="[0-9]{5}"
+                  maxlength="5"
+                />
               </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem">
               <div class="input-group">
                 <label for="finalBookingIco">IČO</label>
-                <input type="text" id="finalBookingIco" pattern="[0-9]{8}" maxlength="8">
+                <input
+                  type="text"
+                  id="finalBookingIco"
+                  pattern="[0-9]{8}"
+                  maxlength="8"
+                />
               </div>
               <div class="input-group">
-                <label for="finalBookingDic" data-translate="dic">DIČ</label>
-                <input type="text" id="finalBookingDic" pattern="[A-Z]{2}[0-9]{8,10}" placeholder="CZ12345678">
+                <label
+                  for="finalBookingDic"
+                  data-translate="dic"
+                  >DIČ</label
+                >
+                <input
+                  type="text"
+                  id="finalBookingDic"
+                  pattern="[A-Z]{2}[0-9]{8,10}"
+                  placeholder="CZ12345678"
+                />
               </div>
             </div>
 
             <div class="input-group">
-              <label for="finalBookingNotes" data-translate="notes">Poznámky</label>
-              <textarea id="finalBookingNotes" rows="3"></textarea>
+              <label
+                for="finalBookingNotes"
+                data-translate="notes"
+                >Poznámky</label
+              >
+              <textarea
+                id="finalBookingNotes"
+                rows="3"
+              ></textarea>
             </div>
 
-            <div class="input-group" style="margin-top: 1rem;">
-              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                <input type="checkbox" id="finalBookingBenefit" style="width: auto; margin: 0;">
+            <div
+              class="input-group"
+              style="margin-top: 1rem"
+            >
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
+                <input
+                  type="checkbox"
+                  id="finalBookingBenefit"
+                  style="width: auto; margin: 0"
+                />
                 <span data-translate="paymentFromBenefit">Platba z benefitů</span>
               </label>
             </div>
 
-            <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
-              <button type="button" class="btn btn-secondary" onclick="closeFinalBookingModal()">
+            <div style="display: flex; gap: 1rem; margin-top: 1.5rem">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                onclick="closeFinalBookingModal()"
+              >
                 <span data-translate="cancel">Zrušit</span>
               </button>
-              <button type="submit" class="btn btn-primary">
+              <button
+                type="submit"
+                class="btn btn-primary"
+              >
                 <span data-translate="confirmBooking">Potvrdit rezervaci</span>
               </button>
             </div>
@@ -770,8 +906,13 @@
             </div>
 
             <div class="input-group full-width">
-              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                <input type="checkbox" id="payFromBenefit" name="payFromBenefit" style="width: auto; margin: 0;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
+                <input
+                  type="checkbox"
+                  id="payFromBenefit"
+                  name="payFromBenefit"
+                  style="width: auto; margin: 0"
+                />
                 <span data-translate="paymentFromBenefit">Platba z benefitů</span>
               </label>
             </div>
@@ -990,13 +1131,18 @@
                 </div>
 
                 <!-- Guest Count -->
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem">
-                  <div>
+                <div
+                  class="guest-counters"
+                  style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem"
+                >
+                  <div class="counter-item">
                     <label
+                      class="counter-label"
                       style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
                       >Dospělí</label
                     >
                     <div
+                      class="counter-controls"
                       style="
                         display: flex;
                         align-items: center;
@@ -1006,6 +1152,7 @@
                       "
                     >
                       <button
+                        class="counter-btn"
                         onclick="window.app.adjustGuests('adults', -1)"
                         style="
                           padding: 0.5rem 0.75rem;
@@ -1019,10 +1166,12 @@
                       </button>
                       <span
                         id="singleRoomAdults"
+                        class="counter-value"
                         style="flex: 1; text-align: center; font-weight: 600"
                         >1</span
                       >
                       <button
+                        class="counter-btn"
                         onclick="window.app.adjustGuests('adults', 1)"
                         style="
                           padding: 0.5rem 0.75rem;
@@ -1036,12 +1185,14 @@
                       </button>
                     </div>
                   </div>
-                  <div>
+                  <div class="counter-item">
                     <label
+                      class="counter-label"
                       style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
                       >Děti (3-12)</label
                     >
                     <div
+                      class="counter-controls"
                       style="
                         display: flex;
                         align-items: center;
@@ -1051,6 +1202,7 @@
                       "
                     >
                       <button
+                        class="counter-btn"
                         onclick="window.app.adjustGuests('children', -1)"
                         style="
                           padding: 0.5rem 0.75rem;
@@ -1064,10 +1216,12 @@
                       </button>
                       <span
                         id="singleRoomChildren"
+                        class="counter-value"
                         style="flex: 1; text-align: center; font-weight: 600"
                         >0</span
                       >
                       <button
+                        class="counter-btn"
                         onclick="window.app.adjustGuests('children', 1)"
                         style="
                           padding: 0.5rem 0.75rem;
@@ -1081,12 +1235,14 @@
                       </button>
                     </div>
                   </div>
-                  <div>
+                  <div class="counter-item">
                     <label
+                      class="counter-label"
                       style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
                       >Batolata (0-3)</label
                     >
                     <div
+                      class="counter-controls"
                       style="
                         display: flex;
                         align-items: center;
@@ -1096,6 +1252,7 @@
                       "
                     >
                       <button
+                        class="counter-btn"
                         onclick="window.app.adjustGuests('toddlers', -1)"
                         style="
                           padding: 0.5rem 0.75rem;
@@ -1109,10 +1266,12 @@
                       </button>
                       <span
                         id="singleRoomToddlers"
+                        class="counter-value"
                         style="flex: 1; text-align: center; font-weight: 600"
                         >0</span
                       >
                       <button
+                        class="counter-btn"
                         onclick="window.app.adjustGuests('toddlers', 1)"
                         style="
                           padding: 0.5rem 0.75rem;
@@ -1146,7 +1305,10 @@
                 </div>
 
                 <!-- Price Summary -->
-                <div style="border-top: 2px solid #e2e8f0; padding-top: 1rem; margin-top: 1rem">
+                <div
+                  class="price-summary"
+                  style="border-top: 2px solid #e2e8f0; padding-top: 1rem; margin-top: 1rem"
+                >
                   <h4 style="margin-bottom: 0.75rem; color: #333">Souhrn ceny</h4>
                   <div
                     id="priceBreakdown"
@@ -1158,6 +1320,7 @@
                     "
                   >
                     <div
+                      class="price-line"
                       style="
                         display: flex;
                         justify-content: space-between;
@@ -1170,6 +1333,7 @@
                     </div>
                     <div
                       id="guestCountsDisplay"
+                      class="price-line"
                       style="
                         display: flex;
                         justify-content: space-between;
@@ -1183,6 +1347,7 @@
                     </div>
                     <div
                       id="adultsPrice"
+                      class="price-line"
                       style="
                         display: flex;
                         justify-content: space-between;
@@ -1195,6 +1360,7 @@
                     </div>
                     <div
                       id="childrenPrice"
+                      class="price-line"
                       style="
                         display: flex;
                         justify-content: space-between;
@@ -1207,6 +1373,7 @@
                     </div>
                     <div
                       id="toddlersInfo"
+                      class="price-line"
                       style="
                         display: flex;
                         justify-content: space-between;
@@ -1220,6 +1387,7 @@
                     </div>
                     <div
                       id="nightsPrice"
+                      class="price-line"
                       style="
                         display: flex;
                         justify-content: space-between;
@@ -1523,8 +1691,14 @@
             </div>
 
             <!-- Right Column: Guest Details & Booking Form -->
-            <div class="booking-right-column" style="overflow-y: auto; max-height: 500px; padding-right: 10px;">
-              <div class="booking-form-section" style="padding-bottom: 1rem;">
+            <div
+              class="booking-right-column"
+              style="overflow-y: auto; max-height: 500px; padding-right: 10px"
+            >
+              <div
+                class="booking-form-section"
+                style="padding-bottom: 1rem"
+              >
                 <!-- Date Selection Summary -->
                 <div
                   id="bulkDateSelectionSummary"
@@ -1609,13 +1783,18 @@
                 </div>
 
                 <!-- Guest Count -->
-                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem">
-                  <div>
+                <div
+                  class="guest-counters"
+                  style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem"
+                >
+                  <div class="counter-item">
                     <label
+                      class="counter-label"
                       style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
                       >Dospělí</label
                     >
                     <div
+                      class="counter-controls"
                       style="
                         display: flex;
                         align-items: center;
@@ -1625,6 +1804,7 @@
                       "
                     >
                       <button
+                        class="counter-btn"
                         onclick="adjustBulkGuests('adults', -1)"
                         style="
                           padding: 0.5rem 0.75rem;
@@ -1638,10 +1818,12 @@
                       </button>
                       <span
                         id="bulkAdults"
+                        class="counter-value"
                         style="flex: 1; text-align: center; font-weight: 600"
                         >1</span
                       >
                       <button
+                        class="counter-btn"
                         onclick="adjustBulkGuests('adults', 1)"
                         style="
                           padding: 0.5rem 0.75rem;
@@ -1655,12 +1837,14 @@
                       </button>
                     </div>
                   </div>
-                  <div>
+                  <div class="counter-item">
                     <label
+                      class="counter-label"
                       style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
                       >Děti (3-12)</label
                     >
                     <div
+                      class="counter-controls"
                       style="
                         display: flex;
                         align-items: center;
@@ -1670,6 +1854,7 @@
                       "
                     >
                       <button
+                        class="counter-btn"
                         onclick="adjustBulkGuests('children', -1)"
                         style="
                           padding: 0.5rem 0.75rem;
@@ -1683,10 +1868,12 @@
                       </button>
                       <span
                         id="bulkChildren"
+                        class="counter-value"
                         style="flex: 1; text-align: center; font-weight: 600"
                         >0</span
                       >
                       <button
+                        class="counter-btn"
                         onclick="adjustBulkGuests('children', 1)"
                         style="
                           padding: 0.5rem 0.75rem;
@@ -1719,109 +1906,131 @@
                   >
                 </div>
 
-
-              <!-- Price Calculation Section -->
-              <div style="padding-top: 1rem; margin-top: 1rem">
-                <h4 style="margin-bottom: 0.75rem; color: #333">Souhrn ceny</h4>
+                <!-- Price Calculation Section -->
                 <div
-                  id="bulkPriceBreakdown"
-                  style="
-                    background: white;
-                    padding: 1rem;
-                    border-radius: 8px;
-                    border: 1px solid #e2e8f0;
-                  "
+                  class="price-summary"
+                  style="padding-top: 1rem; margin-top: 1rem"
                 >
-                  <!-- Per Night Section -->
-                  <div style="margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0;">
-                    <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.5rem; font-weight: 500;">Cena za jednu noc:</div>
+                  <h4 style="margin-bottom: 0.75rem; color: #333">Souhrn ceny</h4>
+                  <div
+                    id="bulkPriceBreakdown"
+                    style="
+                      background: white;
+                      padding: 1rem;
+                      border-radius: 8px;
+                      border: 1px solid #e2e8f0;
+                    "
+                  >
+                    <!-- Per Night Section -->
                     <div
+                      style="
+                        margin-bottom: 0.75rem;
+                        padding-bottom: 0.75rem;
+                        border-bottom: 1px solid #e2e8f0;
+                      "
+                    >
+                      <div
+                        style="
+                          font-size: 0.85rem;
+                          color: #666;
+                          margin-bottom: 0.5rem;
+                          font-weight: 500;
+                        "
+                      >
+                        Cena za jednu noc:
+                      </div>
+                      <div
+                        class="price-line"
+                        style="
+                          display: flex;
+                          justify-content: space-between;
+                          margin-bottom: 0.25rem;
+                          font-size: 0.9rem;
+                          padding-left: 1rem;
+                        "
+                      >
+                        <span>Základní cena za chatu:</span>
+                        <span id="bulkBasePrice">0 Kč/noc</span>
+                      </div>
+                      <div
+                        id="bulkAdultsPrice"
+                        class="price-line"
+                        style="
+                          display: flex;
+                          justify-content: space-between;
+                          margin-bottom: 0.25rem;
+                          font-size: 0.9rem;
+                          padding-left: 1rem;
+                        "
+                      >
+                        <span>Příplatek za dospělé:</span>
+                        <span id="bulkAdultsSurcharge">0 Kč/noc</span>
+                      </div>
+                      <div
+                        id="bulkChildrenPrice"
+                        class="price-line"
+                        style="
+                          display: none;
+                          justify-content: space-between;
+                          margin-bottom: 0.25rem;
+                          font-size: 0.9rem;
+                          padding-left: 1rem;
+                        "
+                      >
+                        <span>Příplatek za děti:</span>
+                        <span id="bulkChildrenSurcharge">0 Kč/noc</span>
+                      </div>
+                      <div
+                        id="bulkPricePerNight"
+                        style="
+                          display: flex;
+                          justify-content: space-between;
+                          margin-top: 0.5rem;
+                          font-size: 0.95rem;
+                          font-weight: 600;
+                          color: #333;
+                        "
+                      >
+                        <span>Cena za noc celkem:</span>
+                        <span id="bulkPricePerNightAmount">0 Kč</span>
+                      </div>
+                    </div>
+
+                    <!-- Number of Nights -->
+                    <div
+                      id="bulkNightsPrice"
+                      class="price-line"
                       style="
                         display: flex;
                         justify-content: space-between;
-                        margin-bottom: 0.25rem;
-                        font-size: 0.9rem;
-                        padding-left: 1rem;
-                      "
-                    >
-                      <span>Základní cena za chatu:</span>
-                      <span id="bulkBasePrice">0 Kč/noc</span>
-                    </div>
-                    <div
-                      id="bulkAdultsPrice"
-                      style="
-                        display: flex;
-                        justify-content: space-between;
-                        margin-bottom: 0.25rem;
-                        font-size: 0.9rem;
-                        padding-left: 1rem;
-                      "
-                    >
-                      <span>Příplatek za dospělé:</span>
-                      <span id="bulkAdultsSurcharge">0 Kč/noc</span>
-                    </div>
-                    <div
-                      id="bulkChildrenPrice"
-                      style="
-                        display: none;
-                        justify-content: space-between;
-                        margin-bottom: 0.25rem;
-                        font-size: 0.9rem;
-                        padding-left: 1rem;
-                      "
-                    >
-                      <span>Příplatek za děti:</span>
-                      <span id="bulkChildrenSurcharge">0 Kč/noc</span>
-                    </div>
-                    <div
-                      id="bulkPricePerNight"
-                      style="
-                        display: flex;
-                        justify-content: space-between;
-                        margin-top: 0.5rem;
+                        margin-bottom: 0.75rem;
                         font-size: 0.95rem;
-                        font-weight: 600;
-                        color: #333;
+                        font-weight: 500;
                       "
                     >
-                      <span>Cena za noc celkem:</span>
-                      <span id="bulkPricePerNightAmount">0 Kč</span>
+                      <span>Počet nocí:</span>
+                      <span id="bulkNightsMultiplier">× 0</span>
                     </div>
-                  </div>
 
-                  <!-- Number of Nights -->
-                  <div
-                    id="bulkNightsPrice"
-                    style="
-                      display: flex;
-                      justify-content: space-between;
-                      margin-bottom: 0.75rem;
-                      font-size: 0.95rem;
-                      font-weight: 500;
-                    "
-                  >
-                    <span>Počet nocí:</span>
-                    <span id="bulkNightsMultiplier">× 0</span>
-                  </div>
-
-                  <!-- Total Price -->
-                  <div
-                    style="
-                      border-top: 2px solid #dee2e6;
-                      margin-top: 0.75rem;
-                      padding-top: 0.75rem;
-                      display: flex;
-                      justify-content: space-between;
-                      font-weight: bold;
-                      font-size: 1.1rem;
-                    "
-                  >
-                    <span>Celková cena:</span>
-                    <span
-                      id="bulkTotalPrice"
-                      style="color: #2e7d32"
-                      >0 Kč</span
+                    <!-- Total Price -->
+                    <div
+                      style="
+                        border-top: 2px solid #dee2e6;
+                        margin-top: 0.75rem;
+                        padding-top: 0.75rem;
+                        display: flex;
+                        justify-content: space-between;
+                        font-weight: bold;
+                        font-size: 1.1rem;
+                      "
                     >
+                      <span>Celková cena:</span>
+                      <span
+                        id="bulkTotalPrice"
+                        style="color: #2e7d32"
+                        >0 Kč</span
+                      >
+                    </div>
                   </div>
                 </div>
               </div>
