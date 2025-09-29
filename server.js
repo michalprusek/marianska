@@ -10,8 +10,9 @@ const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 
-// Import SQLite Database Manager
+// Import SQLite Database Manager and Validation Utils
 const DatabaseManager = require('./database');
+const ValidationUtils = require('./js/shared/validationUtils');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -31,7 +32,7 @@ fs.access(DATA_FILE)
     const backupFile = `${DATA_FILE}.migrated-${Date.now()}`;
     return fs.rename(DATA_FILE, backupFile);
   })
-  .then((backupFile) => {
+  .then(() => {
     console.info('Migration complete. JSON backup saved.');
   })
   .catch((err) => {
@@ -269,10 +270,29 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Chybí povinné údaje' });
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(bookingData.email)) {
-      return res.status(400).json({ error: 'Neplatný formát emailu' });
+    // Validate email format using ValidationUtils
+    if (!ValidationUtils.validateEmail(bookingData.email)) {
+      return res.status(400).json({ error: ValidationUtils.getValidationError('email', bookingData.email, 'cs') });
+    }
+
+    // Validate phone if provided
+    if (bookingData.phone && !ValidationUtils.validatePhone(bookingData.phone)) {
+      return res.status(400).json({ error: ValidationUtils.getValidationError('phone', bookingData.phone, 'cs') });
+    }
+
+    // Validate ZIP code if provided
+    if (bookingData.zip && !ValidationUtils.validateZIP(bookingData.zip)) {
+      return res.status(400).json({ error: ValidationUtils.getValidationError('zip', bookingData.zip, 'cs') });
+    }
+
+    // Validate IČO if provided
+    if (bookingData.ico && !ValidationUtils.validateICO(bookingData.ico)) {
+      return res.status(400).json({ error: ValidationUtils.getValidationError('ico', bookingData.ico, 'cs') });
+    }
+
+    // Validate DIČ if provided
+    if (bookingData.dic && !ValidationUtils.validateDIC(bookingData.dic)) {
+      return res.status(400).json({ error: ValidationUtils.getValidationError('dic', bookingData.dic, 'cs') });
     }
 
     // Check Christmas period access

@@ -176,14 +176,12 @@ class UtilsModule {
   }
 
   async sendContactMessage(bookingId, fromEmail, message, modalElement) {
-    // Validate inputs
-    if (!fromEmail || !message || !fromEmail.includes('@')) {
-      this.showNotification(
-        this.app.currentLanguage === 'cs'
-          ? 'Vyplňte prosím všechna pole a zadejte platný email'
-          : 'Please fill in all fields and enter a valid email',
-        'error'
-      );
+    // Validate inputs using ValidationUtils
+    if (!fromEmail || !message || !ValidationUtils.validateEmail(fromEmail)) {
+      const errorMsg = !fromEmail || !message
+        ? (this.app.currentLanguage === 'cs' ? 'Vyplňte prosím všechna pole' : 'Please fill in all fields')
+        : ValidationUtils.getValidationError('email', fromEmail, this.app.currentLanguage);
+      this.showNotification(errorMsg, 'error');
       return;
     }
 

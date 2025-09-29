@@ -163,14 +163,10 @@ class BookingFormModule {
       return;
     }
 
-    // Validate email
-    if (!email.includes('@')) {
-      this.app.showNotification(
-        this.app.currentLanguage === 'cs'
-          ? 'Zadejte prosím platný email'
-          : 'Please enter a valid email',
-        'error'
-      );
+    // Validate email using ValidationUtils
+    if (!ValidationUtils.validateEmail(email)) {
+      const errorMsg = ValidationUtils.getValidationError('email', email, this.app.currentLanguage);
+      this.app.showNotification(errorMsg, 'error');
       return;
     }
 
@@ -473,25 +469,24 @@ class BookingFormModule {
   }
 
   validatePhoneNumber(input) {
-    const value = input.value.replace(/\s/g, '');
+    const value = input.value.trim();
 
-    // Check if the number has exactly 9 digits (ignoring spaces)
-    const digitsOnly = value.replace(/[^0-9]/g, '');
-
-    if (digitsOnly.length === 9) {
+    // Allow empty if not required, or validate format
+    if (!value) {
       input.setCustomValidity('');
       input.classList.remove('error');
+      return;
+    }
 
-      // Format for display (3-3-3 pattern)
-      if (digitsOnly.length === 9) {
-        input.value = `${digitsOnly.slice(0, 3)} ${digitsOnly.slice(3, 6)} ${digitsOnly.slice(6, 9)}`;
-      }
+    // Validate phone format using ValidationUtils
+    if (ValidationUtils.validatePhone(value)) {
+      input.setCustomValidity('');
+      input.classList.remove('error');
+      // Format for display
+      input.value = ValidationUtils.formatPhone(value);
     } else {
-      input.setCustomValidity(
-        this.app.currentLanguage === 'cs'
-          ? 'Zadejte přesně 9 číslic telefonního čísla'
-          : 'Enter exactly 9 digits for phone number'
-      );
+      const errorMsg = ValidationUtils.getValidationError('phone', value, this.app.currentLanguage);
+      input.setCustomValidity(errorMsg);
       input.classList.add('error');
     }
   }
@@ -499,16 +494,13 @@ class BookingFormModule {
   validateZipCode(input) {
     const value = input.value.replace(/\s/g, '');
 
-    if (/^\d{5}$/.test(value)) {
+    if (ValidationUtils.validateZIP(value)) {
       input.setCustomValidity('');
       input.classList.remove('error');
-      input.value = `${value.slice(0, 3)} ${value.slice(3)}`;
+      input.value = ValidationUtils.formatZIP(value);
     } else {
-      input.setCustomValidity(
-        this.app.currentLanguage === 'cs'
-          ? 'PSČ musí obsahovat přesně 5 číslic'
-          : 'Postal code must contain exactly 5 digits'
-      );
+      const errorMsg = ValidationUtils.getValidationError('zip', value, this.app.currentLanguage);
+      input.setCustomValidity(errorMsg);
       input.classList.add('error');
     }
   }
@@ -516,15 +508,12 @@ class BookingFormModule {
   validateICO(input) {
     const value = input.value.replace(/\s/g, '');
 
-    if (value === '' || /^\d{8}$/.test(value)) {
+    if (ValidationUtils.validateICO(value)) {
       input.setCustomValidity('');
       input.classList.remove('error');
     } else {
-      input.setCustomValidity(
-        this.app.currentLanguage === 'cs'
-          ? 'IČO musí obsahovat 8 číslic'
-          : 'Company ID must contain 8 digits'
-      );
+      const errorMsg = ValidationUtils.getValidationError('ico', value, this.app.currentLanguage);
+      input.setCustomValidity(errorMsg);
       input.classList.add('error');
     }
   }
@@ -532,15 +521,12 @@ class BookingFormModule {
   validateDIC(input) {
     const value = input.value.toUpperCase();
 
-    if (value === '' || /^CZ\d{8,10}$/.test(value)) {
+    if (ValidationUtils.validateDIC(value)) {
       input.setCustomValidity('');
       input.classList.remove('error');
     } else {
-      input.setCustomValidity(
-        this.app.currentLanguage === 'cs'
-          ? 'DIČ musí být ve formátu CZ12345678'
-          : 'VAT ID must be in format CZ12345678'
-      );
+      const errorMsg = ValidationUtils.getValidationError('dic', value, this.app.currentLanguage);
+      input.setCustomValidity(errorMsg);
       input.classList.add('error');
     }
 
