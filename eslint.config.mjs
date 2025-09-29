@@ -3,6 +3,20 @@ import prettier from 'eslint-plugin-prettier';
 import prettierConfig from 'eslint-config-prettier';
 
 export default [
+  {
+    ignores: [
+      'node_modules/**',
+      'dist/**',
+      'build/**',
+      '.git/**',
+      'coverage/**',
+      '*.min.js',
+      'vendor/**',
+      '.playwright-mcp/**',
+      'report/**',
+      'jscpd-report.json/**',
+    ],
+  },
   js.configs.recommended,
   prettierConfig,
   {
@@ -313,6 +327,8 @@ export default [
       '*.min.js',
       'vendor/**',
       '.playwright-mcp/**',
+      'report/**',
+      'jscpd-report.json/**',
     ],
   },
   {
@@ -333,8 +349,6 @@ export default [
         console: 'readonly',
         fetch: 'readonly',
         module: 'readonly',
-        ValidationUtils: 'readonly',
-        BookingLogic: 'readonly',
       },
     },
     rules: {
@@ -342,7 +356,7 @@ export default [
       'no-unused-vars': [
         'error',
         {
-          varsIgnorePattern: '^(DataManager|dataManager)$',
+          varsIgnorePattern: '^(DataManager|dataManager|ValidationUtils|BookingLogic)$',
         },
       ],
     },
@@ -371,6 +385,8 @@ export default [
       sourceType: 'script',
       globals: {
         module: 'readonly',
+        dataManager: 'readonly',
+        CalendarUtils: 'readonly',
       },
     },
     rules: {
@@ -378,13 +394,14 @@ export default [
       'no-unused-vars': [
         'error',
         {
-          varsIgnorePattern: '^(ValidationUtils|BookingLogic)$',
+          varsIgnorePattern: '^(ValidationUtils|BookingLogic|BaseCalendar)$',
         },
       ],
     },
   },
   {
     files: ['js/**/*.js', 'admin.js'],
+    ignores: ['js/shared/**/*.js'],
     languageOptions: {
       sourceType: 'script',
       globals: {
@@ -405,6 +422,9 @@ export default [
         translations: 'readonly',
         ValidationUtils: 'readonly',
         BookingLogic: 'readonly',
+        DataManager: 'readonly',
+        CalendarUtils: 'readonly',
+        AirbnbCalendarModule: 'readonly',
       },
     },
     rules: {
@@ -413,7 +433,68 @@ export default [
         'error',
         {
           varsIgnorePattern:
-            '^(DataManager|BookingApp|adminPanel|BookingFormModule|BulkBookingModule|SingleRoomBookingModule|CalendarModule|CalendarUtils|UtilsModule|AirbnbCalendarModule)$',
+            '^(DataManager|BookingApp|adminPanel|BookingFormModule|BulkBookingModule|SingleRoomBookingModule|CalendarModule|CalendarUtils|UtilsModule|AirbnbCalendarModule|BaseCalendar)$',
+        },
+      ],
+    },
+  },
+  {
+    files: ['tests/**/*.js', '**/*.test.js', '**/*.spec.js'],
+    languageOptions: {
+      sourceType: 'module',
+      globals: {
+        describe: 'readonly',
+        it: 'readonly',
+        expect: 'readonly',
+        test: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        jest: 'readonly',
+        testUtils: 'readonly',
+        dataManager: 'readonly',
+        BookingLogic: 'readonly',
+        ValidationUtils: 'readonly',
+      },
+    },
+  },
+  {
+    files: ['js/shared/**/*.js'],
+    languageOptions: {
+      sourceType: 'script',
+      globals: {
+        window: 'readonly',
+        document: 'readonly',
+        localStorage: 'readonly',
+        sessionStorage: 'readonly',
+        console: 'readonly',
+        fetch: 'readonly',
+        dataManager: 'readonly',
+        CalendarUtils: 'readonly',
+      },
+    },
+    rules: {
+      'no-unused-vars': [
+        'error',
+        {
+          varsIgnorePattern: '^(BookingLogic|ValidationUtils|BaseCalendar)$',
+        },
+      ],
+    },
+  },
+  {
+    files: ['js/calendar-utils.js'],
+    languageOptions: {
+      globals: {
+        CalendarUtils: 'off',
+      },
+    },
+    rules: {
+      'no-unused-vars': [
+        'error',
+        {
+          varsIgnorePattern: '^CalendarUtils$',
         },
       ],
     },

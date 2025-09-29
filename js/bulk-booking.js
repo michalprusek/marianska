@@ -46,7 +46,7 @@ class BulkBookingModule {
 
     // Always use the bulk calendar (not Airbnb calendar)
     await this.renderBulkCalendar();
-    await this.updateBulkSelectedDatesDisplay();
+    this.updateBulkSelectedDatesDisplay();
     await this.updateBulkPriceCalculation();
     this.updateBulkCapacityCheck();
 
@@ -54,385 +54,47 @@ class BulkBookingModule {
   }
 
   async renderBulkCalendar() {
-    await this.renderBulkCalendarDays();
-  }
-
-  async renderBulkCalendarDays() {
-    const bulkCalendar =
-      document.getElementById('bulkCalendar') || document.getElementById('bulkMiniCalendar');
-    const monthTitle = document.getElementById('bulkCalendarMonth');
-
-    if (!bulkCalendar) {
-      console.warn('Bulk calendar container not found');
-      return;
-    }
-
-    // Use shared calendar utilities
-    const calendarData = CalendarUtils.getCalendarDays(this.app.currentMonth);
-    const { year, month, startDay, daysInMonth, daysInPrevMonth } = calendarData;
-
-    // Update month title using shared utility
-    const monthName = CalendarUtils.getMonthName(month, this.app.currentLanguage);
-    if (monthTitle) {
-      monthTitle.textContent = `${monthName} ${year}`;
-    }
-
-    // Clear and build calendar
-    bulkCalendar.innerHTML = '';
-
-    // Add day headers using shared utility
-    const dayHeaders = CalendarUtils.getWeekdayHeaders(this.app.currentLanguage);
-
-    const headerRow = document.createElement('div');
-    headerRow.className = 'mini-calendar-week';
-    dayHeaders.forEach((day) => {
-      const dayHeader = document.createElement('div');
-      dayHeader.className = 'mini-calendar-day-header';
-      dayHeader.textContent = day;
-      headerRow.appendChild(dayHeader);
-    });
-    bulkCalendar.appendChild(headerRow);
-
-    // Create calendar grid
-    let currentWeek = document.createElement('div');
-    currentWeek.className = 'mini-calendar-week';
-
-    // Previous month days
-    for (let i = startDay - 1; i >= 0; i--) {
-      const date = new Date(year, month - 1, daysInPrevMonth - i);
-      const dayEl = await this.createBulkDayElement(date, true);
-      currentWeek.appendChild(dayEl);
-    }
-
-    // Current month days
-    for (let day = 1; day <= daysInMonth; day++) {
-      if (currentWeek.children.length === 7) {
-        bulkCalendar.appendChild(currentWeek);
-        currentWeek = document.createElement('div');
-        currentWeek.className = 'mini-calendar-week';
-      }
-
-      const date = new Date(year, month, day);
-      const dayEl = await this.createBulkDayElement(date, false);
-      currentWeek.appendChild(dayEl);
-    }
-
-    // Next month days
-    let nextMonthDay = 1;
-    while (currentWeek.children.length < 7) {
-      const date = new Date(year, month + 1, nextMonthDay);
-      const dayEl = await this.createBulkDayElement(date, true);
-      currentWeek.appendChild(dayEl);
-      nextMonthDay++;
-    }
-    bulkCalendar.appendChild(currentWeek);
-  }
-
-  async createBulkDayElement(date, isOtherMonth) {
-    const dayEl = document.createElement('div');
-    dayEl.className = 'mini-calendar-day';
-
-    const dateStr = dataManager.formatDate(date);
-    const isPast = date < this.app.today;
-    const isFullyAvailable = await this.isDateFullyAvailable(date);
-    const isChristmas = await dataManager.isChristmasPeriod(date);
-
-    // Check if it's Christmas period and after October 1st for bulk bookings
-    const today = new Date();
-    const oct1 = new Date(today.getFullYear(), 9, 1); // October 1st
-    const isAfterOct1 = today >= oct1;
-    const isChristmasBlocked = isChristmas && isAfterOct1;
-
-    // Check if any room has a proposed booking for this date
-    const rooms = await dataManager.getRooms();
-    let hasProposedBooking = false;
-    for (const room of rooms) {
-      const availability = await dataManager.getRoomAvailability(date, room.id);
-      if (availability.status === 'proposed') {
-        hasProposedBooking = true;
-        break;
-      }
-    }
-
-    // Styling
-    if (isOtherMonth) {
-      dayEl.classList.add('other-month');
-    }
-
-    if (isPast) {
-      dayEl.classList.add('disabled');
-    } else if (isChristmasBlocked) {
-      // Block Christmas period for bulk bookings after October 1st
-      dayEl.classList.add('blocked');
-      dayEl.title =
-        this.app.currentLanguage === 'cs'
-          ? 'Vánoční období - hromadné rezervace nejsou po 1.10. povoleny'
-          : 'Christmas period - bulk bookings not allowed after Oct 1';
-    } else if (hasProposedBooking) {
-      // Show proposed booking status
-      dayEl.classList.add('proposed');
-      dayEl.style.background = '#ff4444';
-      dayEl.style.color = 'white';
-      dayEl.title =
-        this.app.currentLanguage === 'cs'
-          ? 'Navrhovaná rezervace - dočasně blokováno'
-          : 'Proposed booking - temporarily blocked';
-    } else if (!isFullyAvailable) {
-      dayEl.classList.add('partial-booked');
-    } else {
-      dayEl.classList.add('available');
-    }
-
-    // Check if selected
-    if (this.bulkSelectedDates.has(dateStr)) {
-      dayEl.classList.add('selected');
-    }
-
-    // Check if in drag range
-    if (this.bulkIsDragging && this.bulkDragStart && this.bulkDragEnd) {
-      const startDate = new Date(
-        Math.min(new Date(this.bulkDragStart), new Date(this.bulkDragEnd))
-      );
-      const endDate = new Date(Math.max(new Date(this.bulkDragStart), new Date(this.bulkDragEnd)));
-      const isChristmasBlockedDrag = isChristmas && isAfterOct1;
-      if (
-        date >= startDate &&
-        date <= endDate &&
-        !isPast &&
-        isFullyAvailable &&
-        !isChristmasBlockedDrag
-      ) {
-        dayEl.classList.add('in-range');
-      }
-    }
-
-    // Content
-    if (isChristmas && !isOtherMonth) {
-      dayEl.innerHTML = `🎄 ${date.getDate()}`;
-      dayEl.classList.add('christmas');
-    } else {
-      dayEl.textContent = date.getDate();
-    }
-
-    // Event handlers - don't allow interaction with proposed bookings
-    if (
-      !isPast &&
-      !isOtherMonth &&
-      isFullyAvailable &&
-      !isChristmasBlocked &&
-      !hasProposedBooking
-    ) {
-      dayEl.style.cursor = 'pointer';
-      dayEl.style.userSelect = 'none';
-      dayEl.style.webkitUserSelect = 'none';
-      dayEl.style.mozUserSelect = 'none';
-
-      dayEl.onmousedown = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.bulkIsDragging = true;
-        this.bulkDragStart = dateStr;
-        this.bulkDragEnd = dateStr;
-        this.bulkDragClickStart = Date.now();
-        this.updateBulkDragSelection();
-        return false;
-      };
-
-      dayEl.onmouseenter = () => {
-        if (this.bulkIsDragging) {
-          this.bulkDragEnd = dateStr;
-          this.updateBulkDragSelection();
-        }
-      };
-
-      dayEl.onmouseup = async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-
-        const clickDuration = Date.now() - this.bulkDragClickStart;
-        const wasDrag = this.bulkIsDragging && clickDuration > 150;
-
-        if (this.bulkIsDragging) {
-          this.bulkIsDragging = false;
-
-          if (wasDrag && this.bulkDragStart && this.bulkDragEnd) {
-            await this.selectBulkCalendarRange(this.bulkDragStart, this.bulkDragEnd);
-          } else {
-            // Single click - handle minimum 2 days selection
-            if (this.bulkSelectedDates.size === 0) {
-              // First click - select this day and the next day (minimum 1 night)
-              const selectedDate = new Date(dateStr);
-              const nextDate = new Date(selectedDate);
-              nextDate.setDate(nextDate.getDate() + 1);
-
-              // Check if next day is fully available
-              const nextDateStr = dataManager.formatDate(nextDate);
-              const nextIsAvailable = await this.isDateFullyAvailable(nextDate);
-              const nextIsChristmas = await dataManager.isChristmasPeriod(nextDate);
-              const today = new Date();
-              const oct1 = new Date(today.getFullYear(), 9, 1);
-              const isAfterOct1 = today >= oct1;
-              const nextIsChristmasBlocked = nextIsChristmas && isAfterOct1;
-
-              if (nextIsAvailable && !nextIsChristmasBlocked) {
-                this.bulkSelectedDates.add(dateStr);
-                this.bulkSelectedDates.add(nextDateStr);
-              } else {
-                // If next day is not available, show warning
-                this.app.showNotification(
-                  this.app.currentLanguage === 'cs'
-                    ? 'Minimální rezervace je na 1 noc (2 dny). Následující den není dostupný.'
-                    : 'Minimum booking is for 1 night (2 days). The next day is not available.',
-                  'warning'
-                );
-              }
-            } else if (this.bulkSelectedDates.has(dateStr)) {
-              // Clicking on already selected date - check if we can deselect
-              const sortedDates = Array.from(this.bulkSelectedDates).sort();
-
-              // Only allow deselection if it won't leave us with just 1 day
-              if (sortedDates.length > 2) {
-                // Check if this is an edge date (first or last)
-                if (dateStr === sortedDates[0] || dateStr === sortedDates[sortedDates.length - 1]) {
-                  this.bulkSelectedDates.delete(dateStr);
-                } else {
-                  // Middle date - would break the range, so clear all
-                  this.bulkSelectedDates.clear();
-                }
-              } else if (sortedDates.length === 2) {
-                // Clear both days
-                this.bulkSelectedDates.clear();
-              }
-            } else {
-              // Clicking on unselected date - extend the range
-              this.bulkSelectedDates.add(dateStr);
-
-              // Fill any gaps to maintain continuous range
-              const sortedDates = Array.from(this.bulkSelectedDates).sort();
-              const startDate = new Date(sortedDates[0]);
-              const endDate = new Date(sortedDates[sortedDates.length - 1]);
-
-              const current = new Date(startDate);
-              const today = new Date();
-              const oct1 = new Date(today.getFullYear(), 9, 1);
-              const isAfterOct1 = today >= oct1;
-
-              while (current <= endDate) {
-                const currentStr = dataManager.formatDate(current);
-                const isAvailable = await this.isDateFullyAvailable(current);
-                const isChristmas = await dataManager.isChristmasPeriod(current);
-                const isChristmasBlocked = isChristmas && isAfterOct1;
-
-                if (isAvailable && !isChristmasBlocked) {
-                  this.bulkSelectedDates.add(currentStr);
-                } else {
-                  // Can't create continuous range
-                  this.bulkSelectedDates.clear();
-                  this.bulkSelectedDates.add(dateStr);
-                  const nextDate = new Date(dateStr);
-                  nextDate.setDate(nextDate.getDate() + 1);
-                  const nextDateStr = dataManager.formatDate(nextDate);
-                  const nextAvail = await this.isDateFullyAvailable(nextDate);
-                  const nextChristmas = await dataManager.isChristmasPeriod(nextDate);
-                  const nextBlocked = nextChristmas && isAfterOct1;
-                  if (nextAvail && !nextBlocked) {
-                    this.bulkSelectedDates.add(nextDateStr);
-                  }
-                  break;
-                }
-
-                current.setDate(current.getDate() + 1);
-              }
-            }
-          }
-
-          this.bulkDragStart = null;
-          this.bulkDragEnd = null;
-          this.bulkDragClickStart = null;
-
-          await this.renderBulkCalendarDays();
-          await this.updateBulkSelectedDatesDisplay();
+    // Initialize BaseCalendar if not exists
+    if (!this.bulkCalendar) {
+      this.bulkCalendar = new BaseCalendar({
+        mode: BaseCalendar.MODES.BULK,
+        app: this.app,
+        containerId: 'bulkCalendar',
+        enableDrag: true,
+        allowPast: false,
+        enforceContiguous: true,
+        minNights: 1,
+        onDateSelect: async () => {
+          // Sync with module's bulkSelectedDates
+          this.bulkSelectedDates = this.bulkCalendar.selectedDates;
+          this.updateBulkSelectedDatesDisplay();
           await this.updateBulkPriceCalculation();
-        }
-
-        return false;
-      };
-    } else if (hasProposedBooking) {
-      // Proposed bookings are not clickable
-      dayEl.style.cursor = 'not-allowed';
+          this.updateBulkCapacityCheck();
+        },
+        onDateDeselect: async () => {
+          // Sync with module's bulkSelectedDates
+          this.bulkSelectedDates = this.bulkCalendar.selectedDates;
+          this.updateBulkSelectedDatesDisplay();
+          await this.updateBulkPriceCalculation();
+          this.updateBulkCapacityCheck();
+        },
+      });
     }
 
-    return dayEl;
-  }
+    // Sync module's bulkSelectedDates with calendar's selectedDates
+    this.bulkCalendar.selectedDates = this.bulkSelectedDates;
 
-  async isDateFullyAvailable(date) {
-    const rooms = await dataManager.getRooms();
-    for (const room of rooms) {
-      const availability = await dataManager.getRoomAvailability(date, room.id);
-      if (availability.status !== 'available') {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  updateBulkDragSelection() {
-    requestAnimationFrame(async () => {
-      await this.renderBulkCalendarDays();
-    });
-  }
-
-  async selectBulkCalendarRange(startStr, endStr) {
-    const startDate = new Date(startStr);
-    const endDate = new Date(endStr);
-    const actualStart = new Date(Math.min(startDate, endDate));
-    const actualEnd = new Date(Math.max(startDate, endDate));
-
-    this.bulkSelectedDates.clear();
-
-    // Check if it's after October 1st
-    const today = new Date();
-    const oct1 = new Date(today.getFullYear(), 9, 1);
-    const isAfterOct1 = today >= oct1;
-
-    const currentDate = new Date(actualStart);
-    while (currentDate <= actualEnd) {
-      const dateStr = dataManager.formatDate(currentDate);
-      const isAvailable = await this.isDateFullyAvailable(currentDate);
-      const isPast = currentDate < this.app.today;
-      const isChristmas = await dataManager.isChristmasPeriod(currentDate);
-      const isChristmasBlocked = isChristmas && isAfterOct1;
-
-      if (!isPast && isAvailable && !isChristmasBlocked) {
-        this.bulkSelectedDates.add(dateStr);
-      }
-
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
+    // Render calendar
+    await this.bulkCalendar.render();
   }
 
   navigateBulkCalendar(direction) {
-    const newMonth = new Date(this.app.currentMonth);
-    newMonth.setMonth(newMonth.getMonth() + direction);
-
-    const newYear = newMonth.getFullYear();
-    const newMonthNum = newMonth.getMonth();
-
-    if (newYear < this.app.minYear) {
-      return;
+    if (this.bulkCalendar) {
+      this.bulkCalendar.navigateMonth(direction);
     }
-    if (
-      newYear > this.app.maxYear ||
-      (newYear === this.app.maxYear && newMonthNum > this.app.maxMonth)
-    ) {
-      return;
-    }
-
-    this.app.currentMonth = newMonth;
-    this.renderBulkCalendarDays();
   }
 
-  async updateBulkSelectedDatesDisplay() {
+  updateBulkSelectedDatesDisplay() {
     const display =
       document.getElementById('bulkSelectedDatesDisplay') ||
       document.getElementById('bulkDateSelectionSummary');
@@ -481,9 +143,23 @@ class BulkBookingModule {
                     <span class="nights-count">0 ${this.app.currentLanguage === 'cs' ? 'nocí' : 'nights'}</span>
                 </div>`;
       } else {
+        // Determine the correct plural form
+        let nightsLabel = 'nights';
+        if (this.app.currentLanguage === 'cs') {
+          if (nights === 1) {
+            nightsLabel = 'noc';
+          } else if (nights < 5) {
+            nightsLabel = 'noci';
+          } else {
+            nightsLabel = 'nocí';
+          }
+        } else if (nights === 1) {
+          nightsLabel = 'night';
+        }
+
         html += `<div class="selected-date-range">
                     <span>${this.app.formatDateDisplay(start)} - ${this.app.formatDateDisplay(end)}</span>
-                    <span class="nights-count">${nights} ${this.app.currentLanguage === 'cs' ? (nights === 1 ? 'noc' : nights < 5 ? 'noci' : 'nocí') : nights === 1 ? 'night' : 'nights'}</span>
+                    <span class="nights-count">${nights} ${nightsLabel}</span>
                 </div>`;
       }
     });
@@ -544,10 +220,8 @@ class BulkBookingModule {
 
     // Calculate nights as selected days - 1
     const nights = Math.max(0, sortedDates.length - 1);
-    const rooms = await dataManager.getRooms();
-    const adults = parseInt(document.getElementById('bulkAdults')?.textContent) || 1;
-    const children = parseInt(document.getElementById('bulkChildren')?.textContent) || 0;
-    const toddlers = 0; // Not used in bulk bookings
+    const adults = parseInt(document.getElementById('bulkAdults')?.textContent, 10) || 1;
+    const children = parseInt(document.getElementById('bulkChildren')?.textContent, 10) || 0;
 
     // Get guest type from radio buttons
     const guestTypeInput = document.querySelector('input[name="bulkGuestType"]:checked');
@@ -629,8 +303,8 @@ class BulkBookingModule {
   }
 
   updateBulkCapacityCheck() {
-    const adults = parseInt(document.getElementById('bulkAdults')?.textContent) || 0;
-    const children = parseInt(document.getElementById('bulkChildren')?.textContent) || 0;
+    const adults = parseInt(document.getElementById('bulkAdults')?.textContent, 10) || 0;
+    const children = parseInt(document.getElementById('bulkChildren')?.textContent, 10) || 0;
     const totalGuests = adults + children;
 
     const capacityWarning = document.getElementById('bulkCapacityWarning');
@@ -659,7 +333,7 @@ class BulkBookingModule {
       return;
     }
 
-    let value = parseInt(element.textContent) || 0;
+    let value = parseInt(element.textContent, 10) || 0;
     value = Math.max(0, value + change);
 
     if (type === 'adults') {
@@ -704,9 +378,8 @@ class BulkBookingModule {
     }
 
     // Get guest configuration
-    const adults = parseInt(document.getElementById('bulkAdults')?.textContent) || 1;
-    const children = parseInt(document.getElementById('bulkChildren')?.textContent) || 0;
-    const toddlers = 0;
+    const adults = parseInt(document.getElementById('bulkAdults')?.textContent, 10) || 1;
+    const children = parseInt(document.getElementById('bulkChildren')?.textContent, 10) || 0;
 
     // Get guest type
     const guestTypeInput = document.querySelector('input[name="bulkGuestType"]:checked');
@@ -732,11 +405,11 @@ class BulkBookingModule {
       externalChild: 50,
     };
     const bulkPrices = settings.bulkPrices || defaultBulkPrices;
-    const guestKey = guestType === 'utia' ? 'utia' : 'external';
+    const priceGuestKey = guestType === 'utia' ? 'utia' : 'external';
     const pricePerNight =
       bulkPrices.basePrice +
-      (adults * bulkPrices[`${guestKey}Adult`]) +
-      (children * bulkPrices[`${guestKey}Child`]);
+      adults * bulkPrices[`${priceGuestKey}Adult`] +
+      children * bulkPrices[`${priceGuestKey}Child`];
     const totalPrice = pricePerNight * nights;
 
     // Create proposed booking in database for all rooms
@@ -812,17 +485,17 @@ class BulkBookingModule {
     const name = 'Bulk Booking';
     const email = 'bulk@example.com';
     const phone = '+420123456789';
-    const adults = parseInt(document.getElementById('bulkAdults')?.textContent) || 1;
-    const children = parseInt(document.getElementById('bulkChildren')?.textContent) || 0;
-    const toddlers = 0;
+    const adults = parseInt(document.getElementById('bulkAdults')?.textContent, 10) || 1;
+    const children = parseInt(document.getElementById('bulkChildren')?.textContent, 10) || 0;
     const notes = 'Hromadná rezervace všech pokojů';
 
     // Validate
     if (!name || !email || !phone) {
-      alert(
+      this.app.showNotification(
         this.app.currentLanguage === 'cs'
           ? 'Vyplňte prosím všechna povinná pole'
-          : 'Please fill in all required fields'
+          : 'Please fill in all required fields',
+        'error'
       );
       return;
     }

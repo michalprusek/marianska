@@ -32,13 +32,16 @@ docker-compose down && docker-compose up --build -d
 ### Backend API (server.js)
 
 - Express server na portu 3000
-- Data storage v `data/bookings.json`
+- **Dual storage mode**: SQLite database (`data/bookings.db`) + LocalStorage fallback
 - Endpoints:
   - `GET /api/data` - načtení všech dat
   - `POST /api/data` - uložení kompletních dat
   - `POST /api/booking` - vytvoření rezervace
   - `PUT /api/booking/:id` - úprava rezervace
   - `DELETE /api/booking/:id` - smazání rezervace
+  - `POST /api/admin/login` - admin autentizace
+  - `POST /api/admin/block-dates` - blokování termínů
+  - Proposed bookings API pro dočasné rezervace
 
 ### Klíčové komponenty
 
@@ -118,25 +121,57 @@ Centrální komponenta pro správu dat a business logiku.
 }
 ```
 
-#### 2. Kalendář (js/booking-app.js + js/calendar.js)
+#### 2. Kalendáře - Unified BaseCalendar (js/shared/BaseCalendar.js)
 
-Interaktivní kalendář s pokročilými funkcemi.
+**NOVÁ ARCHITEKTURA 2025**: Jednotný kalendářní komponent použitý napříč celou aplikací.
+
+**Režimy kalendáře:**
+
+- `GRID` - Hlavní kalendář (grid view všech pokojů)
+- `SINGLE_ROOM` - Mini kalendář pro rezervaci jednoho pokoje
+- `BULK` - Hromadná rezervace (celá chata)
+- `EDIT` - Admin úprava rezervace
+
+**Konfigurace kalendáře:**
+
+```javascript
+new BaseCalendar({
+  mode: BaseCalendar.MODES.SINGLE_ROOM,
+  app: this.app,
+  containerId: 'miniCalendar',
+  roomId: roomId,
+  enableDrag: true,
+  allowPast: false,
+  enforceContiguous: true,
+  minNights: 2,
+  onDateSelect: async (dateStr) => { /* callback */ },
+  onDateDeselect: async (dateStr) => { /* callback */ }
+})
+```
 
 **Funkce:**
 
 - Zobrazení dostupnosti jednotlivých pokojů
 - Barevné rozlišení podle emailu rezervace
-- Výběr více dnů a pokojů
+- Drag selection pro výběr rozsahu dat
+- Výběr více dnů s validací (minNights, maxNights)
 - Vizuální indikace vánočního období
-- Blokování minulých dat
-- Omezení na aktuální a následující rok
+- Blokování minulých dat (configurable)
+- Contiguous date enforcement pro bulk bookings
 
 **Barvy a stavy:**
 
 - 🟢 Zelená - volný pokoj
 - 🔴 Červená - obsazený pokoj
 - ⬜ Šedá - blokovaný pokoj
+- 🟡 Žlutá - navržená (proposed) rezervace
 - 🎄 Zlatý rámeček - vánoční období
+
+**Integration:**
+
+- `js/calendar.js` - Grid calendar pro hlavní stránku
+- `js/single-room-booking.js` - Používá BaseCalendar.SINGLE_ROOM
+- `js/bulk-booking.js` - Používá BaseCalendar.BULK
 
 #### 3. Rezervační formulář (js/booking-form.js)
 
@@ -200,12 +235,27 @@ Kompletní správa systému rozdělená do tabů.
 
 #### 5. Modularní JS architektura (js/)
 
+**Core Modules:**
+
 - `booking-app.js` - Hlavní orchestrátor, koordinuje moduly
-- `calendar.js` - Kalendářní logika a rendering
+- `calendar.js` - Grid kalendář pro hlavní stránku
 - `booking-form.js` - Formulářová logika a validace
-- `bulk-booking.js` - Hromadné rezervace
-- `single-room-booking.js` - Single pokoj režim
+- `bulk-booking.js` - Hromadné rezervace (refactorováno - používá BaseCalendar)
+- `single-room-booking.js` - Single pokoj režim (refactorováno - používá BaseCalendar)
 - `utils.js` - Pomocné funkce a utility
+- `calendar-utils.js` - Sdílené kalendářní utility
+
+**Shared Components (js/shared/):**
+
+- `BaseCalendar.js` - **NOVÝ**: Unified calendar component (565 lines)
+- `validationUtils.js` - Centralizované validační funkce
+- `bookingLogic.js` - Unified booking conflict detection a date range utils
+
+**Code Reduction:**
+
+- Eliminováno ~656 řádků duplikovaného kódu
+- single-room-booking.js: 586 → 284 řádků (-52%)
+- bulk-booking.js: 937 → 583 řádků (-38%)
 
 ## Business pravidla
 
@@ -254,8 +304,15 @@ Celkem: 26 lůžek
 
 Systém podporuje dva režimy ukládání:
 
-1. **Server mode** (preferovaný): Data v `data/bookings.json` přes Express API
-2. **LocalStorage fallback**: Pro offline použití, klíč `chataMarianska`
+1. **SQLite mode** (preferovaný): Data v `data/bookings.db` přes DatabaseManager
+2. **LocalStorage mode** (fallback): Pro offline použití, klíč `chataMarianska`, používá DataManager
+
+**Proposed Bookings:**
+
+- Dočasné rezervace s 15min expirací
+- Blokují dostupnost během rezervačního procesu
+- Automaticky se čistí po expiraci
+- SQLite tabulka: `proposed_bookings`
 
 ### DataManager API
 
@@ -265,13 +322,17 @@ Systém podporuje dva režimy ukládání:
 - `dataManager.calculatePrice()` - výpočet ceny podle typu hosta
 - `dataManager.formatDate(date)` - formátování na YYYY-MM-DD
 
-### Validace vstupů
+### Validace vstupů (js/shared/validationUtils.js)
 
-- Email: obsahuje @, validní formát
-- Telefon: +420/+421 + 9 číslic
-- PSČ: přesně 5 číslic
-- IČO: 8 číslic (volitelné)
-- DIČ: formát CZ12345678 (volitelné)
+**Centralizované validační funkce:**
+
+- `ValidationUtils.validateEmail(email)` - Email formát
+- `ValidationUtils.validatePhone(phone)` - Telefon +420/+421 + 9 číslic
+- `ValidationUtils.validateZIP(zip)` - PSČ přesně 5 číslic
+- `ValidationUtils.validateICO(ico)` - IČO 8 číslic (volitelné)
+- `ValidationUtils.validateDIC(dic)` - DIČ formát CZ12345678 (volitelné)
+- `ValidationUtils.validateDateRange(startDate, endDate)` - Validace rozsahu dat
+- `ValidationUtils.validateRequiredFields(data, fields)` - Kontrola povinných polí
 
 ### Editace rezervací
 
@@ -282,3 +343,43 @@ Každá rezervace má unikátní `editToken`. Přístup k editaci: `edit.html?to
 - URL: `/admin.html`
 - Výchozí heslo: `admin123`
 - Session-based autentizace (SessionStorage)
+
+## Nedávné vylepšení (2025)
+
+### Unifikace kalendářů
+
+**Před refactorováním:**
+
+- 3 separátní implementace kalendáře (grid, single-room, bulk)
+- ~800+ řádků duplikovaného kódu
+- Nekonzistentní chování napříč kalendáři
+- Těžká údržba
+
+**Po refactorování:**
+
+- Jeden `BaseCalendar` komponent s 4 režimy
+- Configuration-based behavior
+- Eliminováno 656 řádků duplikovaného kódu
+- Konzistentní UX napříč aplikací
+- Snadnější testování a údržba
+
+### Konsolidace validace
+
+- Centralizováno do `js/shared/validationUtils.js`
+- Jednotné chování client-side i server-side
+- Reusable validační funkce
+
+### Unified Booking Logic
+
+- `js/shared/bookingLogic.js`
+- Centralizovaná detekce konfliktů
+- Sdílené date range utility
+- Konzistentní business rules
+
+### Code Quality
+
+- ESLint konfigurace
+- Pre-commit hooks
+- Prettier formátování
+- Duplicate code detection
+- Comprehensive test suite
