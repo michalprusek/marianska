@@ -383,3 +383,47 @@ Každá rezervace má unikátní `editToken`. Přístup k editaci: `edit.html?to
 - Prettier formátování
 - Duplicate code detection
 - Comprehensive test suite
+
+## Bezpečnost a Data Management
+
+### Database Files
+
+**DŮLEŽITÉ**: Databázové soubory (`data/*.db`) NEJSOU trackovány v gitu z bezpečnostních důvodů a pro prevenci konfliktů.
+
+- Databáze se automaticky vytvoří při prvním spuštění
+- Migrace z JSON se provede automaticky, pokud existuje `bookings.json`
+- Detaily viz `data/README.md`
+
+### Environment Variables
+
+**KRITICKÉ**: Soubor `.env` obsahuje citlivé informace a NESMÍ být commitnut do gitu.
+
+- ✅ `.env` je v `.gitignore`
+- ✅ `.env.example` obsahuje šablonu s bezpečnými výchozími hodnotami
+- ⚠️ **Při nasazení vždy změňte všechny secrets!**
+
+Povinné změny před produkcí:
+```bash
+# Vygenerujte silná hesla pro:
+ADMIN_PASSWORD=<change-this>
+API_KEY=<change-this>
+SESSION_SECRET=<change-this>
+```
+
+### Backup Strategy
+
+Pro zálohování databáze v produkci:
+
+```bash
+# Denní backup (doporučeno)
+sqlite3 data/bookings.db ".backup data/backups/bookings-$(date +%Y%m%d).db"
+
+# S retencí 30 dní
+find data/backups -name "bookings-*.db" -mtime +30 -delete
+```
+
+Doporučení:
+- Automatické denní backupy
+- Retention 30 dní
+- Offsite backup (cloud storage)
+- Test restore procedury měsíčně
