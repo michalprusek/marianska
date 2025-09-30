@@ -63,3 +63,15 @@ temp/
 # Data backup files
 data/*.bak
 data/*.backup
+
+# Database files (SQLite)
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+data/*.db-shm
+data/*.db-wal
+
+# Pre-commit report
+report/
+.playwright-mcp/
+*.backup

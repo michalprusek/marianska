@@ -1,0 +1,6 @@
+{
+  "*.{js,mjs}": ["eslint --fix", "prettier --write", "jscpd --config .jscpd.json"],
+  "*.{html,css}": ["prettier --write"],
+  "*.json": ["jsonlint", "prettier --write"],
+  "*.md": ["prettier --write"]
+}

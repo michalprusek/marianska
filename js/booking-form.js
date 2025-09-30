@@ -1,0 +1,549 @@
+// Booking form module - handles form validation and submission
+class BookingFormModule {
+  constructor(app) {
+    this.app = app;
+  }
+
+  showBookingForm() {
+    const step1 = document.getElementById('bookingStep1');
+    const step2 = document.getElementById('bookingStep2');
+
+    if (!this.app.selectedDates.size || !this.app.selectedRooms.size) {
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? 'Vyberte prosím termín a pokoje'
+          : 'Please select dates and rooms',
+        'warning'
+      );
+      return;
+    }
+
+    step1.style.display = 'none';
+    step2.style.display = 'block';
+
+    // Pre-fill guest type if selected
+    // Note: Guest type is handled by radio buttons in the modal, not here
+
+    this.updatePriceSummary();
+  }
+
+  hideBookingForm() {
+    const step1 = document.getElementById('bookingStep1');
+    const step2 = document.getElementById('bookingStep2');
+
+    step2.style.display = 'none';
+    step1.style.display = 'block';
+  }
+
+  async updatePriceSummary() {
+    const summaryDiv = document.getElementById('bookingSummary');
+    if (!summaryDiv) {
+      return;
+    }
+
+    const sortedDates = Array.from(this.app.selectedDates).sort();
+
+    // Get guest type based on which booking mode is active
+    let guestType = 'utia'; // default
+    const singleRoomModal = document.getElementById('singleRoomBookingModal');
+    const bulkModal = document.getElementById('bulkBookingModal');
+
+    if (singleRoomModal && singleRoomModal.classList.contains('active')) {
+      // Single room booking mode
+      const singleGuestTypeInput = document.querySelector(
+        'input[name="singleRoomGuestType"]:checked'
+      );
+      guestType = singleGuestTypeInput ? singleGuestTypeInput.value : 'utia';
+    } else if (bulkModal && bulkModal.classList.contains('active')) {
+      // Bulk booking mode
+      const bulkGuestTypeInput = document.querySelector('input[name="bulkGuestType"]:checked');
+      guestType = bulkGuestTypeInput ? bulkGuestTypeInput.value : 'utia';
+    }
+
+    let html = `
+            <div class="booking-summary-section">
+                <h4>${this.app.currentLanguage === 'cs' ? 'Shrnutí rezervace' : 'Booking Summary'}</h4>
+        `;
+
+    // Dates
+    const ranges = this.app.getDateRanges(sortedDates);
+    html += `<div class="summary-dates">`;
+    ranges.forEach((range) => {
+      const start = new Date(range.start);
+      const end = new Date(range.end);
+      if (range.start === range.end) {
+        html += `<div>${this.app.formatDateDisplay(start)}</div>`;
+      } else {
+        html += `<div>${this.app.formatDateDisplay(start)} - ${this.app.formatDateDisplay(end)}</div>`;
+      }
+    });
+    html += `</div>`;
+
+    // Rooms and guests
+    const rooms = await dataManager.getRooms();
+    let totalPrice = 0;
+
+    html += `<div class="summary-rooms">`;
+    const roomPricePromises = Array.from(this.app.selectedRooms).map(async (roomId) => {
+      const room = rooms.find((r) => r.id === roomId);
+      if (!room) {
+        return null;
+      }
+
+      const guests = this.app.roomGuests.get(roomId) || { adults: 1, children: 0, toddlers: 0 };
+      const roomPrice = await dataManager.calculatePrice(
+        guestType,
+        guests.adults,
+        guests.children,
+        guests.toddlers,
+        1, // price per night
+        1 // single room
+      );
+
+      return { room, guests, roomPrice };
+    });
+
+    const roomPriceResults = await Promise.all(roomPricePromises);
+
+    for (const result of roomPriceResults) {
+      if (result) {
+        const { room, guests, roomPrice } = result;
+        totalPrice += roomPrice * sortedDates.length;
+
+        html += `
+                <div class="room-summary">
+                    <strong>${room.name}</strong>
+                    <span>${guests.adults} ${this.app.currentLanguage === 'cs' ? 'dospělí' : 'adults'}`;
+
+        if (guests.children > 0) {
+          html += `, ${guests.children} ${this.app.currentLanguage === 'cs' ? 'děti' : 'children'}`;
+        }
+        if (guests.toddlers > 0) {
+          html += `, ${guests.toddlers} ${this.app.currentLanguage === 'cs' ? 'batolata' : 'toddlers'}`;
+        }
+
+        html += `</span>
+                    <span>${roomPrice * sortedDates.length} Kč</span>
+                </div>`;
+      }
+    }
+    html += `</div>`;
+
+    // Total
+    html += `
+            <div class="summary-total">
+                <strong>${this.app.currentLanguage === 'cs' ? 'Celkem' : 'Total'}:</strong>
+                <strong>${totalPrice.toLocaleString('cs-CZ')} Kč</strong>
+            </div>
+        </div>`;
+
+    summaryDiv.innerHTML = html;
+  }
+
+  async submitBooking() {
+    // Get form values
+    const name = document.getElementById('name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    // Combine phone prefix with number (remove spaces from number)
+    const phonePrefix = document.getElementById('phonePrefix')?.value || '+420';
+    const phoneNumber = document.getElementById('phone').value.trim().replace(/\s/gu, '');
+    const phone = phonePrefix + phoneNumber;
+    const company = document.getElementById('company')?.value.trim() || '';
+    const address = document.getElementById('address')?.value.trim() || '';
+    const city = document.getElementById('city')?.value.trim() || '';
+    const zip = document.getElementById('zip')?.value.trim() || '';
+    const ico = document.getElementById('ico')?.value.trim() || '';
+    const dic = document.getElementById('dic')?.value.trim() || '';
+    const notes = document.getElementById('notes').value.trim();
+    // Check both possible checkbox IDs (main form and final booking form)
+    const payFromBenefit =
+      document.getElementById('payFromBenefit')?.checked ||
+      document.getElementById('finalBookingBenefit')?.checked ||
+      false;
+
+    // Validate required fields (IČO is optional)
+    if (!name || !email || !phoneNumber || !company || !address || !city || !zip) {
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? 'Vyplňte prosím všechna povinná pole označená hvězdičkou (*)'
+          : 'Please fill in all required fields marked with asterisk (*)',
+        'error'
+      );
+      return;
+    }
+
+    // Validate email using ValidationUtils
+    if (!ValidationUtils.validateEmail(email)) {
+      const errorMsg = ValidationUtils.getValidationError('email', email, this.app.currentLanguage);
+      this.app.showNotification(errorMsg, 'error');
+      return;
+    }
+
+    // Check if we're finalizing temporary reservations
+    if (
+      this.app.isFinalizingReservations &&
+      this.app.tempReservations &&
+      this.app.tempReservations.length > 0
+    ) {
+      // Create bookings for all temporary reservations
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const tempReservation of this.app.tempReservations) {
+        // Handle bulk booking differently
+        if (tempReservation.isBulkBooking) {
+          const booking = {
+            name,
+            email,
+            phone,
+            company,
+            address,
+            city,
+            zip,
+            ico,
+            dic,
+            startDate: tempReservation.startDate,
+            endDate: tempReservation.endDate,
+            rooms: tempReservation.roomIds, // Use all room IDs for bulk booking
+            guestType: tempReservation.guestType,
+            adults: tempReservation.guests.adults,
+            children: tempReservation.guests.children,
+            toddlers: tempReservation.guests.toddlers,
+            notes: notes || 'Hromadná rezervace celé chaty',
+            payFromBenefit,
+            isBulkBooking: true,
+          };
+
+          try {
+            // eslint-disable-next-line no-await-in-loop -- Sequential processing required: each booking must check room availability before creating
+            await dataManager.createBooking(booking);
+            successCount += 1;
+          } catch (error) {
+            console.error('Error creating bulk booking', error);
+            errorCount += 1;
+          }
+        } else {
+          // Regular single room booking
+          const booking = {
+            name,
+            email,
+            phone,
+            company,
+            address,
+            city,
+            zip,
+            ico,
+            dic,
+            startDate: tempReservation.startDate,
+            endDate: tempReservation.endDate,
+            rooms: [tempReservation.roomId],
+            guestType: tempReservation.guestType,
+            adults: tempReservation.guests.adults,
+            children: tempReservation.guests.children,
+            toddlers: tempReservation.guests.toddlers,
+            notes,
+            payFromBenefit,
+            roomGuests: { [tempReservation.roomId]: tempReservation.guests },
+          };
+
+          try {
+            // eslint-disable-next-line no-await-in-loop -- Sequential processing required: each booking must check room availability before creating
+            await dataManager.createBooking(booking);
+            successCount += 1;
+          } catch (error) {
+            console.error('Error creating booking for room', tempReservation.roomName, error);
+            errorCount += 1;
+          }
+        }
+      }
+
+      // Clear temporary reservations
+      this.app.tempReservations = [];
+      this.app.isFinalizingReservations = false;
+
+      // Hide the modal
+      const modal = document.getElementById('bookingFormModal');
+      if (modal) {
+        modal.classList.remove('active');
+      }
+
+      // Hide temp reservations container and finalize button
+      const tempContainer = document.getElementById('tempReservationsContainer');
+      if (tempContainer) {
+        tempContainer.style.display = 'none';
+      }
+      const finalizeDiv = document.getElementById('finalizeReservationsDiv');
+      if (finalizeDiv) {
+        finalizeDiv.style.display = 'none';
+      }
+
+      // Show result notification
+      if (successCount > 0 && errorCount === 0) {
+        this.app.showNotification(
+          this.app.currentLanguage === 'cs'
+            ? `✓ Všechny rezervace (${successCount}) byly úspěšně vytvořeny`
+            : `✓ All reservations (${successCount}) created successfully`,
+          'success'
+        );
+      } else if (successCount > 0 && errorCount > 0) {
+        this.app.showNotification(
+          this.app.currentLanguage === 'cs'
+            ? `Částečný úspěch: ${successCount} rezervací vytvořeno, ${errorCount} selhalo`
+            : `Partial success: ${successCount} reservations created, ${errorCount} failed`,
+          'warning'
+        );
+      } else {
+        this.app.showNotification(
+          this.app.currentLanguage === 'cs'
+            ? 'Chyba při vytváření rezervací'
+            : 'Error creating reservations',
+          'error'
+        );
+      }
+
+      // Reload the calendar to show new bookings
+      await this.app.calendar.render();
+      return;
+    }
+
+    // Regular booking flow (not finalization)
+    // Get guest type based on which booking mode is active
+    let guestType = 'utia'; // default
+    const singleRoomModal = document.getElementById('singleRoomBookingModal');
+    const bulkModal = document.getElementById('bulkBookingModal');
+
+    if (singleRoomModal && singleRoomModal.classList.contains('active')) {
+      // Single room booking mode
+      const singleGuestTypeInput = document.querySelector(
+        'input[name="singleRoomGuestType"]:checked'
+      );
+      guestType = singleGuestTypeInput ? singleGuestTypeInput.value : 'utia';
+    } else if (bulkModal && bulkModal.classList.contains('active')) {
+      // Bulk booking mode
+      const bulkGuestTypeInput = document.querySelector('input[name="bulkGuestType"]:checked');
+      guestType = bulkGuestTypeInput ? bulkGuestTypeInput.value : 'utia';
+    }
+
+    // Get dates
+    const sortedDates = Array.from(this.app.selectedDates).sort();
+    const startDate = sortedDates[0];
+    const endDate = sortedDates[sortedDates.length - 1];
+
+    // Prepare rooms and guest data
+    const roomsData = [];
+    let totalAdults = 0;
+    let totalChildren = 0;
+    let totalToddlers = 0;
+
+    for (const roomId of this.app.selectedRooms) {
+      roomsData.push(roomId);
+      const guests = this.app.roomGuests.get(roomId) || { adults: 1, children: 0, toddlers: 0 };
+      totalAdults += guests.adults;
+      totalChildren += guests.children;
+      totalToddlers += guests.toddlers;
+    }
+
+    // Create booking
+    const booking = {
+      name,
+      email,
+      phone,
+      company,
+      address,
+      city,
+      zip,
+      ico,
+      dic,
+      startDate,
+      endDate,
+      rooms: roomsData,
+      guestType,
+      adults: totalAdults,
+      children: totalChildren,
+      toddlers: totalToddlers,
+      notes,
+      payFromBenefit,
+      roomGuests: Object.fromEntries(this.app.roomGuests),
+    };
+
+    try {
+      const result = await dataManager.createBooking(booking);
+
+      // Hide modal
+      if (this.app.currentBookingRoom) {
+        this.app.singleRoomBooking.hideRoomBookingModal();
+      } else {
+        this.hideBookingModal();
+      }
+
+      // Show success notification with edit link
+      if (result.editToken) {
+        const editUrl = `${window.location.origin}/edit.html?token=${result.editToken}`;
+
+        // Create success modal with edit link
+        const modal = document.createElement('div');
+        modal.className = 'modal active';
+        modal.style.zIndex = '10000';
+        modal.innerHTML = `
+          <div class="modal-content" style="max-width: 600px; text-align: center;">
+            <div style="margin-bottom: 2rem;">
+              <div style="font-size: 4rem; color: #10b981;">✓</div>
+              <h2 style="color: #10b981; margin: 1rem 0;">
+                ${this.app.currentLanguage === 'cs' ? 'Rezervace úspěšně vytvořena!' : 'Booking Successfully Created!'}
+              </h2>
+              <p style="font-size: 1.1rem; color: #4b5563; margin: 1rem 0;">
+                ${
+                  this.app.currentLanguage === 'cs'
+                    ? `Číslo vaší rezervace: <strong>${result.id}</strong>`
+                    : `Your booking ID: <strong>${result.id}</strong>`
+                }
+              </p>
+            </div>
+
+            <div style="background: #f0fdf4; border: 2px solid #10b981; border-radius: 8px; padding: 1.5rem; margin: 1.5rem 0;">
+              <p style="font-weight: 600; margin-bottom: 1rem; color: #047857;">
+                ${
+                  this.app.currentLanguage === 'cs'
+                    ? '📧 Uložte si tento odkaz pro budoucí úpravy:'
+                    : '📧 Save this link to edit your booking later:'
+                }
+              </p>
+              <div style="background: white; padding: 1rem; border-radius: 4px; word-break: break-all; margin: 0.5rem 0;">
+                <a href="${editUrl}" target="_blank" style="color: #0d9488; text-decoration: none; font-weight: 500;">
+                  ${editUrl}
+                </a>
+              </div>
+              <button
+                onclick="navigator.clipboard.writeText('${editUrl}'); this.textContent='${this.app.currentLanguage === 'cs' ? '✓ Zkopírováno!' : '✓ Copied!'}'"
+                style="margin-top: 1rem; padding: 0.5rem 1rem; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;"
+              >
+                ${this.app.currentLanguage === 'cs' ? '📋 Kopírovat odkaz' : '📋 Copy Link'}
+              </button>
+            </div>
+
+            <div style="background: #fef3c7; border-radius: 8px; padding: 1rem; margin: 1.5rem 0;">
+              <p style="color: #92400e; font-size: 0.9rem;">
+                <strong>${this.app.currentLanguage === 'cs' ? 'Důležité:' : 'Important:'}</strong>
+                ${
+                  this.app.currentLanguage === 'cs'
+                    ? 'Odkaz pro úpravu rezervace vám bude zaslán e-mailem, jakmile bude e-mailová služba dostupná.'
+                    : 'The edit link will be sent to your email once the email service is available.'
+                }
+              </p>
+            </div>
+
+            <button
+              onclick="this.closest('.modal').remove()"
+              class="btn-primary"
+              style="padding: 0.75rem 2rem; font-size: 1rem; background: linear-gradient(135deg, #0d9488, #059669); border: none; color: white; border-radius: 8px; cursor: pointer; font-weight: 600; margin-top: 1rem;"
+            >
+              ${this.app.currentLanguage === 'cs' ? 'Zavřít' : 'Close'}
+            </button>
+          </div>
+        `;
+        document.body.appendChild(modal);
+      } else {
+        // Fallback to simple notification
+        this.app.showNotification(
+          this.app.currentLanguage === 'cs'
+            ? '✓ Rezervace byla úspěšně vytvořena'
+            : '✓ Booking created successfully',
+          'success'
+        );
+      }
+
+      // Highlight new booking in calendar
+      await this.app.calendar.highlightNewBooking(booking);
+    } catch (error) {
+      console.error('Booking error:', error);
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? 'Chyba při vytváření rezervace'
+          : 'Error creating booking',
+        'error'
+      );
+    }
+  }
+
+  hideBookingModal() {
+    const modal = document.getElementById('bookingModal');
+    modal.classList.remove('show');
+    setTimeout(() => {
+      modal.style.display = 'none';
+    }, 300);
+
+    // Clean up
+    this.app.selectedDates.clear();
+    this.app.selectedRooms.clear();
+    this.app.roomGuests.clear();
+    this.app.roomGuestTypes.clear();
+  }
+
+  validatePhoneNumber(input) {
+    const value = input.value.trim();
+    const inputElement = input;
+
+    // Allow empty if not required, or validate format
+    if (!value) {
+      inputElement.setCustomValidity('');
+      inputElement.classList.remove('error');
+      return;
+    }
+
+    // Validate phone format using ValidationUtils
+    if (ValidationUtils.validatePhone(value)) {
+      inputElement.setCustomValidity('');
+      inputElement.classList.remove('error');
+      // Format for display
+      inputElement.value = ValidationUtils.formatPhone(value);
+    } else {
+      const errorMsg = ValidationUtils.getValidationError('phone', value, this.app.currentLanguage);
+      inputElement.setCustomValidity(errorMsg);
+      inputElement.classList.add('error');
+    }
+  }
+
+  validateZipCode(input) {
+    const value = input.value.replace(/\s/gu, '');
+    const inputElement = input;
+
+    if (ValidationUtils.validateZIP(value)) {
+      inputElement.setCustomValidity('');
+      inputElement.classList.remove('error');
+      inputElement.value = ValidationUtils.formatZIP(value);
+    } else {
+      const errorMsg = ValidationUtils.getValidationError('zip', value, this.app.currentLanguage);
+      inputElement.setCustomValidity(errorMsg);
+      inputElement.classList.add('error');
+    }
+  }
+
+  validateICO(input) {
+    const value = input.value.replace(/\s/gu, '');
+
+    if (ValidationUtils.validateICO(value)) {
+      input.setCustomValidity('');
+      input.classList.remove('error');
+    } else {
+      const errorMsg = ValidationUtils.getValidationError('ico', value, this.app.currentLanguage);
+      input.setCustomValidity(errorMsg);
+      input.classList.add('error');
+    }
+  }
+
+  validateDIC(input) {
+    const value = input.value.toUpperCase();
+    const inputElement = input;
+
+    if (ValidationUtils.validateDIC(value)) {
+      inputElement.setCustomValidity('');
+      inputElement.classList.remove('error');
+    } else {
+      const errorMsg = ValidationUtils.getValidationError('dic', value, this.app.currentLanguage);
+      inputElement.setCustomValidity(errorMsg);
+      inputElement.classList.add('error');
+    }
+
+    inputElement.value = value;
+  }
+}

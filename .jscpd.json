@@ -1,0 +1,35 @@
+{
+  "threshold": 0,
+  "reporters": ["html", "console", "json"],
+  "ignore": [
+    "**/*.min.js",
+    "**/*.min.css",
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/coverage/**",
+    "**/.git/**",
+    "**/vendor/**",
+    "**/.playwright-mcp/**",
+    "**/package-lock.json",
+    "**/*.lock"
+  ],
+  "format": ["javascript", "markup", "css", "json"],
+  "absolute": true,
+  "gitignore": true,
+  "minLines": 5,
+  "minTokens": 30,
+  "output": "./report",
+  "silent": false,
+  "exitCode": 1,
+  "blame": true,
+  "store": "memory",
+  "reportersOptions": {
+    "html": {
+      "path": "./report/html"
+    },
+    "json": {
+      "path": "./report/jscpd-report.json"
+    }
+  }
+}

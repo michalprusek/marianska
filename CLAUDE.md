@@ -9,6 +9,7 @@ Rezervační systém pro horskou chatu s 9 pokoji, navržený pro zaměstnance �
 ## Commands
 
 ### Development (Local)
+
 ```bash
 npm install          # Install dependencies
 npm start           # Start production server on port 3000
@@ -16,6 +17,7 @@ npm run dev         # Start development server with auto-reload
 ```
 
 ### Production (Docker)
+
 ```bash
 docker-compose up -d                    # Start containers
 docker-compose down                     # Stop containers
@@ -28,21 +30,27 @@ docker-compose down && docker-compose up --build -d
 ## Architektura
 
 ### Backend API (server.js)
+
 - Express server na portu 3000
-- Data storage v `data/bookings.json`
+- **Dual storage mode**: SQLite database (`data/bookings.db`) + LocalStorage fallback
 - Endpoints:
   - `GET /api/data` - načtení všech dat
   - `POST /api/data` - uložení kompletních dat
   - `POST /api/booking` - vytvoření rezervace
   - `PUT /api/booking/:id` - úprava rezervace
   - `DELETE /api/booking/:id` - smazání rezervace
+  - `POST /api/admin/login` - admin autentizace
+  - `POST /api/admin/block-dates` - blokování termínů
+  - Proposed bookings API pro dočasné rezervace
 
 ### Klíčové komponenty
 
 #### 1. DataManager (data.js)
+
 Centrální komponenta pro správu dat a business logiku.
 
 **Hlavní funkce:**
+
 - `initStorage()` - Inicializace LocalStorage s výchozími daty
 - `createBooking()` - Vytvoření nové rezervace s unikátním ID a edit tokenem
 - `getRoomAvailability()` - Kontrola dostupnosti pokoje pro daný den
@@ -51,6 +59,7 @@ Centrální komponenta pro správu dat a business logiku.
 - `sendBookingConfirmation()` - Mock email systém
 
 **Datová struktura v LocalStorage:**
+
 ```javascript
 {
   bookings: [
@@ -112,27 +121,64 @@ Centrální komponenta pro správu dat a business logiku.
 }
 ```
 
-#### 2. Kalendář (app.js)
-Interaktivní kalendář s pokročilými funkcemi.
+#### 2. Kalendáře - Unified BaseCalendar (js/shared/BaseCalendar.js)
+
+**NOVÁ ARCHITEKTURA 2025**: Jednotný kalendářní komponent použitý napříč celou aplikací.
+
+**Režimy kalendáře:**
+
+- `GRID` - Hlavní kalendář (grid view všech pokojů)
+- `SINGLE_ROOM` - Mini kalendář pro rezervaci jednoho pokoje
+- `BULK` - Hromadná rezervace (celá chata)
+- `EDIT` - Admin úprava rezervace
+
+**Konfigurace kalendáře:**
+
+```javascript
+new BaseCalendar({
+  mode: BaseCalendar.MODES.SINGLE_ROOM,
+  app: this.app,
+  containerId: 'miniCalendar',
+  roomId: roomId,
+  enableDrag: true,
+  allowPast: false,
+  enforceContiguous: true,
+  minNights: 2,
+  onDateSelect: async (dateStr) => { /* callback */ },
+  onDateDeselect: async (dateStr) => { /* callback */ }
+})
+```
 
 **Funkce:**
+
 - Zobrazení dostupnosti jednotlivých pokojů
 - Barevné rozlišení podle emailu rezervace
-- Výběr více dnů a pokojů
+- Drag selection pro výběr rozsahu dat
+- Výběr více dnů s validací (minNights, maxNights)
 - Vizuální indikace vánočního období
-- Blokování minulých dat
-- Omezení na aktuální a následující rok
+- Blokování minulých dat (configurable)
+- Contiguous date enforcement pro bulk bookings
 
 **Barvy a stavy:**
+
 - 🟢 Zelená - volný pokoj
 - 🔴 Červená - obsazený pokoj
 - ⬜ Šedá - blokovaný pokoj
+- 🟡 Žlutá - navržená (proposed) rezervace
 - 🎄 Zlatý rámeček - vánoční období
 
-#### 3. Rezervační formulář
+**Integration:**
+
+- `js/calendar.js` - Grid calendar pro hlavní stránku
+- `js/single-room-booking.js` - Používá BaseCalendar.SINGLE_ROOM
+- `js/bulk-booking.js` - Používá BaseCalendar.BULK
+
+#### 3. Rezervační formulář (js/booking-form.js)
+
 Dvoustupňový proces s validací v reálném čase.
 
 **Krok 1: Výběr termínu a pokojů**
+
 - Výběr dat v kalendáři
 - Výběr pokojů (kontrola kapacity)
 - Nastavení typu hosta (ÚTIA/Externí)
@@ -140,6 +186,7 @@ Dvoustupňový proces s validací v reálném čase.
 - Automatický výpočet ceny
 
 **Krok 2: Fakturační údaje**
+
 - Validace v reálném čase:
   - Email: kontrola @, formát
   - Telefon: 9 číslic pro +420/+421
@@ -148,9 +195,11 @@ Dvoustupňový proces s validací v reálném čase.
   - DIČ: formát CZ12345678 (volitelné)
 
 #### 4. Administrace (admin.html)
+
 Kompletní správa systému rozdělená do tabů.
 
 **Taby:**
+
 1. **Rezervace**
    - Přehled všech rezervací
    - Detail rezervace se všemi údaji
@@ -184,9 +233,34 @@ Kompletní správa systému rozdělená do tabů.
    - Změna admin hesla
    - Email konfigurace
 
+#### 5. Modularní JS architektura (js/)
+
+**Core Modules:**
+
+- `booking-app.js` - Hlavní orchestrátor, koordinuje moduly
+- `calendar.js` - Grid kalendář pro hlavní stránku
+- `booking-form.js` - Formulářová logika a validace
+- `bulk-booking.js` - Hromadné rezervace (refactorováno - používá BaseCalendar)
+- `single-room-booking.js` - Single pokoj režim (refactorováno - používá BaseCalendar)
+- `utils.js` - Pomocné funkce a utility
+- `calendar-utils.js` - Sdílené kalendářní utility
+
+**Shared Components (js/shared/):**
+
+- `BaseCalendar.js` - **NOVÝ**: Unified calendar component (565 lines)
+- `validationUtils.js` - Centralizované validační funkce
+- `bookingLogic.js` - Unified booking conflict detection a date range utils
+
+**Code Reduction:**
+
+- Eliminováno ~656 řádků duplikovaného kódu
+- single-room-booking.js: 586 → 284 řádků (-52%)
+- bulk-booking.js: 937 → 583 řádků (-38%)
+
 ## Business pravidla
 
 ### Cenová politika
+
 ```
 ÚTIA zaměstnanci:
 - Malý pokoj: 300 Kč/noc základní cena + 50 Kč/další dospělý + 25 Kč/dítě
@@ -200,6 +274,7 @@ Děti do 3 let: zdarma
 ```
 
 ### Vánoční období
+
 - Defaultně: 23.12. - 2.1.
 - Admin může nastavit vlastní rozsah
 - Rezervace pouze s přístupovým kódem
@@ -207,6 +282,7 @@ Děti do 3 let: zdarma
 - Maximálně 1-2 pokoje pro ÚTIA zaměstnance do 30.9.
 
 ### Kapacita pokojů
+
 ```
 Patro 1: Pokoje 12 (2 lůžka), 13 (3 lůžka), 14 (4 lůžka)
 Patro 2: Pokoje 22 (2 lůžka), 23 (3 lůžka), 24 (4 lůžka)
@@ -225,28 +301,129 @@ Celkem: 26 lůžek
 ## Důležité implementační detaily
 
 ### Dual Storage Mode
+
 Systém podporuje dva režimy ukládání:
-1. **Server mode** (preferovaný): Data v `data/bookings.json` přes Express API
-2. **LocalStorage fallback**: Pro offline použití, klíč `chataMarianska`
+
+1. **SQLite mode** (preferovaný): Data v `data/bookings.db` přes DatabaseManager
+2. **LocalStorage mode** (fallback): Pro offline použití, klíč `chataMarianska`, používá DataManager
+
+**Proposed Bookings:**
+
+- Dočasné rezervace s 15min expirací
+- Blokují dostupnost během rezervačního procesu
+- Automaticky se čistí po expiraci
+- SQLite tabulka: `proposed_bookings`
 
 ### DataManager API
+
 - `dataManager.initStorage()` - inicializace úložiště
 - `dataManager.createBooking()` - vytvoření rezervace s ID a edit tokenem
 - `dataManager.getRoomAvailability()` - kontrola dostupnosti
 - `dataManager.calculatePrice()` - výpočet ceny podle typu hosta
 - `dataManager.formatDate(date)` - formátování na YYYY-MM-DD
 
-### Validace vstupů
-- Email: obsahuje @, validní formát
-- Telefon: +420/+421 + 9 číslic
-- PSČ: přesně 5 číslic
-- IČO: 8 číslic (volitelné)
-- DIČ: formát CZ12345678 (volitelné)
+### Validace vstupů (js/shared/validationUtils.js)
+
+**Centralizované validační funkce:**
+
+- `ValidationUtils.validateEmail(email)` - Email formát
+- `ValidationUtils.validatePhone(phone)` - Telefon +420/+421 + 9 číslic
+- `ValidationUtils.validateZIP(zip)` - PSČ přesně 5 číslic
+- `ValidationUtils.validateICO(ico)` - IČO 8 číslic (volitelné)
+- `ValidationUtils.validateDIC(dic)` - DIČ formát CZ12345678 (volitelné)
+- `ValidationUtils.validateDateRange(startDate, endDate)` - Validace rozsahu dat
+- `ValidationUtils.validateRequiredFields(data, fields)` - Kontrola povinných polí
 
 ### Editace rezervací
+
 Každá rezervace má unikátní `editToken`. Přístup k editaci: `edit.html?token=XXX`
 
 ### Admin přístup
+
 - URL: `/admin.html`
 - Výchozí heslo: `admin123`
 - Session-based autentizace (SessionStorage)
+
+## Nedávné vylepšení (2025)
+
+### Unifikace kalendářů
+
+**Před refactorováním:**
+
+- 3 separátní implementace kalendáře (grid, single-room, bulk)
+- ~800+ řádků duplikovaného kódu
+- Nekonzistentní chování napříč kalendáři
+- Těžká údržba
+
+**Po refactorování:**
+
+- Jeden `BaseCalendar` komponent s 4 režimy
+- Configuration-based behavior
+- Eliminováno 656 řádků duplikovaného kódu
+- Konzistentní UX napříč aplikací
+- Snadnější testování a údržba
+
+### Konsolidace validace
+
+- Centralizováno do `js/shared/validationUtils.js`
+- Jednotné chování client-side i server-side
+- Reusable validační funkce
+
+### Unified Booking Logic
+
+- `js/shared/bookingLogic.js`
+- Centralizovaná detekce konfliktů
+- Sdílené date range utility
+- Konzistentní business rules
+
+### Code Quality
+
+- ESLint konfigurace
+- Pre-commit hooks
+- Prettier formátování
+- Duplicate code detection
+- Comprehensive test suite
+
+## Bezpečnost a Data Management
+
+### Database Files
+
+**DŮLEŽITÉ**: Databázové soubory (`data/*.db`) NEJSOU trackovány v gitu z bezpečnostních důvodů a pro prevenci konfliktů.
+
+- Databáze se automaticky vytvoří při prvním spuštění
+- Migrace z JSON se provede automaticky, pokud existuje `bookings.json`
+- Detaily viz `data/README.md`
+
+### Environment Variables
+
+**KRITICKÉ**: Soubor `.env` obsahuje citlivé informace a NESMÍ být commitnut do gitu.
+
+- ✅ `.env` je v `.gitignore`
+- ✅ `.env.example` obsahuje šablonu s bezpečnými výchozími hodnotami
+- ⚠️ **Při nasazení vždy změňte všechny secrets!**
+
+Povinné změny před produkcí:
+```bash
+# Vygenerujte silná hesla pro:
+ADMIN_PASSWORD=<change-this>
+API_KEY=<change-this>
+SESSION_SECRET=<change-this>
+```
+
+### Backup Strategy
+
+Pro zálohování databáze v produkci:
+
+```bash
+# Denní backup (doporučeno)
+sqlite3 data/bookings.db ".backup data/backups/bookings-$(date +%Y%m%d).db"
+
+# S retencí 30 dní
+find data/backups -name "bookings-*.db" -mtime +30 -delete
+```
+
+Doporučení:
+- Automatické denní backupy
+- Retention 30 dní
+- Offsite backup (cloud storage)
+- Test restore procedury měsíčně

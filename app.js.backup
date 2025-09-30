@@ -8,6 +8,16 @@ class BookingApp {
         this.currentMonth = new Date();
         this.today = new Date();
         this.today.setHours(0, 0, 0, 0);
+        this.newReservations = []; // Store temporary reservations
+        this.editingReservationIndex = null; // Track which reservation is being edited
+
+        // Date range selection variables
+        this.dateSelectionMode = 'range'; // 'range' or 'single'
+        this.firstSelectedDate = null; // First date in range selection
+        this.isDragging = false; // For drag selection
+        this.dragStartDate = null;
+        this.dragEndDate = null;
+
         this.updateYearRange();
         this.init();
     }
@@ -25,19 +35,18 @@ class BookingApp {
     async createRoomBadge(roomId, inline = false) {
         const rooms = await dataManager.getRooms();
         const room = rooms.find(r => r.id === roomId);
-        const isLarge = room && room.type === 'large';
 
         return `<span style="
             display: ${inline ? 'inline-block' : 'inline-block'};
             margin: ${inline ? '0 0.25rem' : '0.25rem'};
             padding: 0.4rem 0.7rem;
-            background: ${isLarge ? '#28a745' : '#007bff'};
+            background: #28a745;
             color: white;
-            border: 2px solid ${isLarge ? '#1e7e34' : '#0056b3'};
+            border: 2px solid #1e7e34;
             border-radius: 6px;
             font-weight: 700;
             font-size: 0.95rem;
-            box-shadow: 0 2px 4px ${isLarge ? 'rgba(40, 167, 69, 0.3)' : 'rgba(0, 123, 255, 0.3)'};
+            box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
             text-shadow: 0 1px 2px rgba(0,0,0,0.2);
         ">${roomId}</span>`;
     }
@@ -86,6 +95,9 @@ class BookingApp {
         document.getElementById('bulkActionBtn').addEventListener('click', async () => {
             await this.openBulkBookingModal();
         });
+
+        // Legend toggle button
+        document.getElementById('legendToggle').addEventListener('click', () => this.toggleLegend());
 
         // Modal close buttons
         document.querySelectorAll('.modal-close').forEach(btn => {
@@ -421,10 +433,30 @@ class BookingApp {
             dayEl.style.cursor = 'not-allowed';
         }
 
+        // Check if this date is in selected range
+        if (this.isDateInSelectedRange(dateStr)) {
+            dayEl.classList.add('selected-date');
+
+            // Check if this is the start or end of range
+            if (this.firstSelectedDate && this.dragEndDate) {
+                const startDate = new Date(Math.min(new Date(this.firstSelectedDate), new Date(this.dragEndDate)));
+                const endDate = new Date(Math.max(new Date(this.firstSelectedDate), new Date(this.dragEndDate)));
+
+                if (dataManager.formatDate(startDate) === dateStr) {
+                    dayEl.classList.add('range-start');
+                }
+                if (dataManager.formatDate(endDate) === dateStr) {
+                    dayEl.classList.add('range-end');
+                }
+            } else if (this.firstSelectedDate === dateStr) {
+                dayEl.classList.add('range-start', 'range-end');
+            }
+        }
+
         // Check if this is Christmas period
         const isChristmas = await dataManager.isChristmasPeriod(date);
         if (isChristmas) {
-            dayEl.style.background = 'linear-gradient(135deg, #FFF4E6, #E8F5E9)';
+            dayEl.style.background = 'linear-gradient(135deg, #ffcccc, #ffdddd)';
             dayEl.style.border = '2px solid var(--warning-color)';
         }
 
@@ -461,12 +493,6 @@ class BookingApp {
             const availability = availabilityInfo.status;
             roomEl.classList.add(availability);
 
-            // Add room type class for color differentiation
-            if (room.type === 'large') {
-                roomEl.classList.add('room-large');
-            } else {
-                roomEl.classList.add('room-small');
-            }
 
             // Apply color for booked rooms - always orange
             if (availability === 'booked') {
@@ -493,61 +519,211 @@ class BookingApp {
                 });
                 roomEl.style.cursor = 'pointer';
                 roomEl.title = 'Klikněte pro zobrazení detailu rezervace';
-            } else if (availability === 'blocked' && !isPast) {
+            } else if (availability === 'blocked') {
+                // Allow clicking on blocked rooms even in past periods
                 roomEl.addEventListener('click', async (e) => {
                     e.stopPropagation();
                     await this.showBlockedDetails(date, room.id);
                 });
+                roomEl.style.cursor = 'pointer';
+                roomEl.title = langManager.currentLang === 'cs'
+                    ? 'Klikněte pro zobrazení důvodu blokace'
+                    : 'Click to view blocking reason';
             }
 
-            roomEl.title = `${room.name} - ${availability === 'available' ? 'Volný' :
-                           availability === 'booked' ? 'Obsazený' : 'Blokovaný'}`;
+            const lang = langManager.currentLang;
+            const statusText = availability === 'available'
+                ? (lang === 'cs' ? 'Volný' : 'Available')
+                : availability === 'booked'
+                ? (lang === 'cs' ? 'Obsazený' : 'Booked')
+                : (lang === 'cs' ? 'Blokovaný' : 'Blocked');
+            roomEl.title = `${room.name} - ${statusText}`;
 
             roomsContainer.appendChild(roomEl);
         }
 
         dayEl.appendChild(roomsContainer);
 
+        // Add event handlers for date range selection (only for valid dates)
+        if (!isPast && !isOtherMonth) {
+            dayEl.style.cursor = 'pointer';
+
+            // Click event for date selection
+            dayEl.addEventListener('click', async (e) => {
+                // Only handle if not clicking on a room
+                if (!e.target.classList.contains('room-indicator')) {
+                    await this.handleDateClick(date, dateStr);
+                }
+            });
+
+            // Mouse down event for drag selection
+            dayEl.addEventListener('mousedown', async (e) => {
+                // Only handle if not clicking on a room
+                if (!e.target.classList.contains('room-indicator')) {
+                    e.preventDefault();
+                    this.startDateDrag(date, dateStr);
+                }
+            });
+
+            // Mouse enter event for drag selection
+            dayEl.addEventListener('mouseenter', async (e) => {
+                if (this.isDragging) {
+                    this.updateDateDrag(date, dateStr);
+                }
+            });
+
+            // Mouse up event for drag selection
+            dayEl.addEventListener('mouseup', async (e) => {
+                if (this.isDragging && !e.target.classList.contains('room-indicator')) {
+                    await this.endDateDrag(date, dateStr);
+                }
+            });
+        }
+
         return dayEl;
     }
 
     async toggleRoomSelection(date, roomId, element) {
-        const dateStr = dataManager.formatDate(date);
+        // Open single room booking modal instead of the old selection
+        await this.openSingleRoomBookingModal(roomId, date);
+    }
 
-        // Ensure date is selected
-        this.selectedDates.add(dateStr);
-
-        // Toggle room selection
-        if (!this.selectedRooms.has(dateStr)) {
-            this.selectedRooms.set(dateStr, new Set());
+    // Check if date is in selected range
+    isDateInSelectedRange(dateStr) {
+        if (!this.firstSelectedDate || !this.dragEndDate) {
+            return this.firstSelectedDate === dateStr;
         }
 
-        const roomsForDate = this.selectedRooms.get(dateStr);
-        if (roomsForDate.has(roomId)) {
-            // Remove room
-            roomsForDate.delete(roomId);
-            this.roomGuests.delete(roomId);
-            element.classList.remove('selected');
-            if (roomsForDate.size === 0) {
-                this.selectedRooms.delete(dateStr);
-                this.selectedDates.delete(dateStr);
+        const date = new Date(dateStr);
+        const startDate = new Date(Math.min(new Date(this.firstSelectedDate), new Date(this.dragEndDate)));
+        const endDate = new Date(Math.max(new Date(this.firstSelectedDate), new Date(this.dragEndDate)));
+
+        return date >= startDate && date <= endDate;
+    }
+
+    // Handle click on date (for click-click range selection)
+    async handleDateClick(date, dateStr) {
+        // If we have a selected range (more than 1 date selected), move the closer boundary
+        if (this.selectedDates.size > 1) {
+            // Get the current range boundaries
+            const dates = Array.from(this.selectedDates).sort();
+            const rangeStart = dates[0];
+            const rangeEnd = dates[dates.length - 1];
+
+            // Don't do anything if clicking inside existing range
+            if (dateStr >= rangeStart && dateStr <= rangeEnd) {
+                return;
             }
+
+            // Calculate distances to each boundary
+            const clickedDate = new Date(dateStr);
+            const startDate = new Date(rangeStart);
+            const endDate = new Date(rangeEnd);
+
+            const distanceToStart = Math.abs(clickedDate - startDate);
+            const distanceToEnd = Math.abs(clickedDate - endDate);
+
+            // Move the closer boundary
+            if (distanceToStart <= distanceToEnd) {
+                // Move start boundary - keep end fixed
+                await this.selectDateRange(dateStr, rangeEnd);
+            } else {
+                // Move end boundary - keep start fixed
+                await this.selectDateRange(rangeStart, dateStr);
+            }
+
+            // Don't reset the firstSelectedDate
+            this.firstSelectedDate = null;
+        } else if (!this.firstSelectedDate) {
+            // First click - set start date
+            this.firstSelectedDate = dateStr;
+            this.dragEndDate = null;
+            this.selectedDates.clear();
+            this.selectedDates.add(dateStr);
         } else {
-            // Add room and initialize guest count
-            roomsForDate.add(roomId);
-            element.classList.add('selected');
-            if (!this.roomGuests.has(roomId)) {
-                this.roomGuests.set(roomId, {
-                    adults: 1,
-                    children: 0,
-                    toddlers: 0
-                });
-            }
+            // Second click - set end date
+            const endDate = dateStr;
+
+            // Create range between first and second date
+            await this.selectDateRange(this.firstSelectedDate, endDate);
+
+            // Reset for next selection
+            this.firstSelectedDate = null;
+            this.dragEndDate = null;
         }
 
-        // Don't re-render entire calendar, just update UI
+        await this.renderCalendar();
         await this.updateSelectedDatesDisplay();
-        await this.updateRoomGuestControls();
+    }
+
+    // Start drag selection
+    startDateDrag(date, dateStr) {
+        this.isDragging = true;
+        this.dragStartDate = dateStr;
+        this.firstSelectedDate = dateStr;
+        this.dragEndDate = dateStr;
+
+        // Add global mouseup listener
+        document.addEventListener('mouseup', this.endDateDragGlobal.bind(this));
+    }
+
+    // Update drag selection
+    async updateDateDrag(date, dateStr) {
+        if (this.isDragging) {
+            this.dragEndDate = dateStr;
+            await this.renderCalendar();
+        }
+    }
+
+    // End drag selection
+    async endDateDrag(date, dateStr) {
+        if (this.isDragging) {
+            this.isDragging = false;
+            this.dragEndDate = dateStr;
+
+            // Select the range
+            await this.selectDateRange(this.dragStartDate, this.dragEndDate);
+
+            // Reset
+            this.firstSelectedDate = null;
+            this.dragStartDate = null;
+            this.dragEndDate = null;
+
+            // Remove global listener
+            document.removeEventListener('mouseup', this.endDateDragGlobal);
+
+            await this.renderCalendar();
+            await this.updateSelectedDatesDisplay();
+        }
+    }
+
+    // Global mouse up handler for drag
+    endDateDragGlobal() {
+        if (this.isDragging) {
+            this.endDateDrag(new Date(), this.dragEndDate || this.dragStartDate);
+        }
+    }
+
+    // Select a range of dates
+    async selectDateRange(startStr, endStr) {
+        const startDate = new Date(startStr);
+        const endDate = new Date(endStr);
+
+        // Ensure start is before end
+        const actualStart = new Date(Math.min(startDate, endDate));
+        const actualEnd = new Date(Math.max(startDate, endDate));
+
+        // Clear previous selection
+        this.selectedDates.clear();
+
+        // Add all dates in range
+        const currentDate = new Date(actualStart);
+        while (currentDate <= actualEnd) {
+            const dateStr = dataManager.formatDate(currentDate);
+            this.selectedDates.add(dateStr);
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+
         await this.updatePriceCalculation();
     }
 
@@ -591,7 +767,7 @@ class BookingApp {
             roomCard.className = 'room-guest-card';
             roomCard.style.cssText = `
                 background: linear-gradient(135deg, var(--white), var(--gray-50));
-                border: 2px solid ${room.type === 'large' ? 'var(--success-200)' : 'var(--info-200)'};
+                border: 2px solid var(--success-200);
                 border-radius: var(--radius-lg);
                 padding: 1.5rem;
                 box-shadow: var(--elevation-2);
@@ -615,14 +791,14 @@ class BookingApp {
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                     <div style="display: flex; align-items: center; gap: 0.75rem;">
                         <div style="
-                            background: ${room.type === 'large' ? '#28a745' : '#007bff'};
+                            background: #28a745;
                             color: white;
                             padding: 0.75rem 1.25rem;
-                            border: 2px solid ${room.type === 'large' ? '#1e7e34' : '#0056b3'};
+                            border: 2px solid #1e7e34;
                             border-radius: var(--radius-md);
                             font-size: 1.25rem;
                             font-weight: 700;
-                            box-shadow: 0 2px 8px ${room.type === 'large' ? 'rgba(40, 167, 69, 0.3)' : 'rgba(0, 123, 255, 0.3)'};
+                            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
                             text-shadow: 0 1px 2px rgba(0,0,0,0.2);
                         ">
                             ${roomId}
@@ -636,13 +812,13 @@ class BookingApp {
                     </div>
                     <div style="
                         padding: 0.25rem 0.75rem;
-                        background: ${room.type === 'large' ? 'var(--success-100)' : 'var(--info-100)'};
-                        color: ${room.type === 'large' ? 'var(--success-700)' : 'var(--info-700)'};
+                        background: var(--success-100);
+                        color: var(--success-700);
                         border-radius: var(--radius-sm);
                         font-size: 0.85rem;
                         font-weight: 600;
                     ">
-                        ${room.type === 'large' ? langManager.t('largeRoom') : langManager.t('smallRoom')}
+                        ${room.beds} ${room.beds === 1 ? 'lůžko' : room.beds < 5 ? 'lůžka' : 'lůžek'}
                     </div>
                 </div>
 
@@ -887,18 +1063,17 @@ class BookingApp {
                 const roomsArray = Array.from(selectedRooms).sort();
                 const roomElements = roomsArray.map(roomId => {
                     const room = roomsMap.get(roomId);
-                    const isLarge = room && room.type === 'large';
                     return `<span style="
                         display: inline-block;
                         margin-left: 0.5rem;
                         padding: 0.5rem 0.8rem;
-                        background: ${isLarge ? '#28a745' : '#007bff'};
+                        background: #28a745;
                         color: white;
-                        border: 2px solid ${isLarge ? '#1e7e34' : '#0056b3'};
+                        border: 2px solid #1e7e34;
                         border-radius: 6px;
                         font-weight: 700;
                         font-size: 1.1rem;
-                        box-shadow: 0 2px 4px ${isLarge ? 'rgba(40, 167, 69, 0.3)' : 'rgba(0, 123, 255, 0.3)'};
+                        box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
                         text-shadow: 0 1px 2px rgba(0,0,0,0.2);
                     ">${roomId}</span>`;
                 }).join('');
@@ -939,12 +1114,12 @@ class BookingApp {
                     const guestType = this.roomGuestTypes.get(roomId) || 'utia';
 
                     const price = await dataManager.calculatePrice(
-                        room.type,
                         guestType,
                         guests.adults,
                         guests.children,
                         guests.toddlers,
-                        1 // Price per night
+                        1, // Price per night
+                        1  // 1 room
                     );
                     totalPrice += price;
                 }
@@ -956,6 +1131,35 @@ class BookingApp {
         // Capacity display removed - validation is now per room
 
         // No longer checking capacity on button since we validate per room
+    }
+
+    async highlightNewBooking(booking) {
+        // Wait a moment for calendar to render
+        setTimeout(() => {
+            const startDate = new Date(booking.startDate);
+            const endDate = new Date(booking.endDate);
+
+            // Iterate through all booking dates
+            for (let date = new Date(startDate); date < endDate; date.setDate(date.getDate() + 1)) {
+                const dateStr = dataManager.formatDate(date);
+
+                // Find and highlight each booked room for this date
+                booking.rooms.forEach(roomId => {
+                    const roomElement = document.querySelector(`[data-date="${dateStr}"][data-room="${roomId}"]`);
+                    if (roomElement) {
+                        // Add pulsing animation to newly booked room
+                        roomElement.style.animation = 'newBookingPulse 3s ease-in-out';
+                        roomElement.style.background = '#ff8c00';
+                        roomElement.style.color = 'white';
+
+                        // Remove animation after it completes
+                        setTimeout(() => {
+                            roomElement.style.animation = '';
+                        }, 3000);
+                    }
+                });
+            }
+        }, 500);
     }
 
     async showBookingDetails(date, roomId) {
@@ -1461,6 +1665,9 @@ class BookingApp {
         await this.renderCalendar();
         await this.updateSelectedDatesDisplay();
         await this.updatePriceCalculation();
+
+        // Highlight newly booked rooms with animation
+        await this.highlightNewBooking(result.booking);
     }
 
     async handleContactSubmit(e) {
@@ -1541,14 +1748,8 @@ class BookingApp {
         const rooms = await dataManager.getRooms();
         const settings = await dataManager.getSettings();
         const prices = settings.prices || {
-            utia: {
-                small: { base: 300, adult: 50, child: 25 },
-                large: { base: 400, adult: 50, child: 25 }
-            },
-            external: {
-                small: { base: 500, adult: 100, child: 50 },
-                large: { base: 600, adult: 100, child: 50 }
-            }
+            utia: { base: 300, adult: 50, child: 25 },
+            external: { base: 500, adult: 100, child: 50 }
         };
 
         const bulkPrices = settings.bulkPrices || {
@@ -1569,18 +1770,14 @@ class BookingApp {
                 const roomDiv = document.createElement('div');
                 roomDiv.style.textAlign = 'center';
 
-                // Use green for large rooms, blue for small rooms
-                const isLarge = room.type === 'large';
-                const roomColor = isLarge ? '#28a745' : '#007bff';
-                const roomBorder = isLarge ? '#1e7e34' : '#0056b3';
+                // Use green for all rooms
+                const roomColor = '#28a745';
+                const roomBorder = '#1e7e34';
 
                 roomDiv.innerHTML = `
                     <div style="background: white; padding: 0.75rem; border-radius: var(--radius-lg); box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
-                        <span style="display: block; background: ${roomColor}; color: white; padding: 0.75rem; border: 2px solid ${roomBorder}; border-radius: var(--radius-md); font-size: 1.3rem; font-weight: 700; margin-bottom: 0.5rem; box-shadow: 0 2px 8px ${isLarge ? 'rgba(40, 167, 69, 0.3)' : 'rgba(0, 123, 255, 0.3)'}; text-align: center;">${room.id}</span>
+                        <span style="display: block; background: ${roomColor}; color: white; padding: 0.75rem; border: 2px solid ${roomBorder}; border-radius: var(--radius-md); font-size: 1.3rem; font-weight: 700; margin-bottom: 0.5rem; box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3); text-align: center;">${room.id}</span>
                         <span style="font-size: 0.95rem; color: var(--gray-800); display: block; text-align: center; margin-top: 0.5rem;" class="room-beds" data-beds="${room.beds}">${room.beds} ${langManager.currentLang === 'cs' ? (room.beds === 1 ? 'lůžko' : room.beds < 5 ? 'lůžka' : 'lůžek') : (room.beds === 1 ? 'bed' : 'beds')}</span>
-                        <div style="margin-top: 0.5rem; text-align: center;">
-                            <span style="font-size: 0.85rem; background: ${room.type === 'large' ? 'var(--success-100)' : 'var(--info-100)'}; color: ${room.type === 'large' ? 'var(--success-700)' : 'var(--info-700)'}; padding: 0.25rem 0.5rem; border-radius: var(--radius-sm); font-weight: 600;">${room.type === 'large' ? langManager.t('largeRoom') : langManager.t('smallRoom')}</span>
-                        </div>
                     </div>
                 `;
 
@@ -1601,61 +1798,29 @@ class BookingApp {
         // Update price list
         const priceListContent = document.getElementById('priceListContent');
         if (priceListContent) {
-            // Get room IDs by type
-            const smallRoomIds = rooms.filter(r => r.type === 'small').map(r => r.id).sort().join(', ');
-            const largeRoomIds = rooms.filter(r => r.type === 'large').map(r => r.id).sort().join(', ');
-
             const lang = langManager.currentLang;
 
             priceListContent.innerHTML = `
                 <!-- ÚTIA zaměstnanci -->
                 <div style="background: linear-gradient(135deg, #E8F4FD, #F0F9FF); padding: 1.5rem; border-radius: var(--radius-md); margin-bottom: 1rem;">
                     <h4 style="color: var(--gray-800); margin-bottom: 1rem;">${lang === 'cs' ? 'Zaměstnanci ÚTIA' : 'ÚTIA Employees'}</h4>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
-                        <div>
-                            <h5 style="color: var(--success-color); margin-bottom: 0.5rem;">${lang === 'cs' ? 'Malé pokoje' : 'Small rooms'} (${smallRoomIds})</h5>
-                            <ul style="list-style: none; padding: 0; font-size: 0.95rem;">
-                                <li>• ${lang === 'cs' ? 'Základní cena (1 osoba)' : 'Base price (1 person)'}: <strong>${prices.utia.small.base} Kč/${lang === 'cs' ? 'noc' : 'night'}</strong></li>
-                                <li>• ${lang === 'cs' ? 'Další dospělý' : 'Additional adult'}: +${prices.utia.small.adult} Kč/${lang === 'cs' ? 'osoba' : 'person'}</li>
-                                <li>• ${lang === 'cs' ? 'Dítě 3-18 let' : 'Child 3-18 years'}: +${prices.utia.small.child} Kč/${lang === 'cs' ? 'osoba' : 'person'}</li>
-                                <li>• ${lang === 'cs' ? 'Dítě do 3 let: zdarma' : 'Child under 3: free'}</li>
-                            </ul>
-                        </div>
-                        <div>
-                            <h5 style="color: var(--primary-color); margin-bottom: 0.5rem;">${lang === 'cs' ? 'Velké pokoje' : 'Large rooms'} (${largeRoomIds})</h5>
-                            <ul style="list-style: none; padding: 0; font-size: 0.95rem;">
-                                <li>• ${lang === 'cs' ? 'Základní cena (1 osoba)' : 'Base price (1 person)'}: <strong>${prices.utia.large.base} Kč/${lang === 'cs' ? 'noc' : 'night'}</strong></li>
-                                <li>• ${lang === 'cs' ? 'Další dospělý' : 'Additional adult'}: +${prices.utia.large.adult} Kč/${lang === 'cs' ? 'osoba' : 'person'}</li>
-                                <li>• ${lang === 'cs' ? 'Dítě 3-18 let' : 'Child 3-18 years'}: +${prices.utia.large.child} Kč/${lang === 'cs' ? 'osoba' : 'person'}</li>
-                                <li>• ${lang === 'cs' ? 'Dítě do 3 let: zdarma' : 'Child under 3: free'}</li>
-                            </ul>
-                        </div>
-                    </div>
+                    <ul style="list-style: none; padding: 0; font-size: 0.95rem;">
+                        <li>• ${lang === 'cs' ? 'Základní cena (1 pokoj, 1 osoba)' : 'Base price (1 room, 1 person)'}: <strong>${prices.utia.base} Kč/${lang === 'cs' ? 'noc' : 'night'}</strong></li>
+                        <li>• ${lang === 'cs' ? 'Další dospělý' : 'Additional adult'}: +${prices.utia.adult} Kč/${lang === 'cs' ? 'osoba' : 'person'}</li>
+                        <li>• ${lang === 'cs' ? 'Dítě 3-18 let' : 'Child 3-18 years'}: +${prices.utia.child} Kč/${lang === 'cs' ? 'osoba' : 'person'}</li>
+                        <li>• ${lang === 'cs' ? 'Dítě do 3 let: zdarma' : 'Child under 3: free'}</li>
+                    </ul>
                 </div>
 
                 <!-- Externí hosté -->
                 <div style="background: linear-gradient(135deg, #FEF3C7, #FEF9E7); padding: 1.5rem; border-radius: var(--radius-md);">
                     <h4 style="color: var(--gray-800); margin-bottom: 1rem;">${lang === 'cs' ? 'Externí hosté' : 'External guests'}</h4>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
-                        <div>
-                            <h5 style="color: var(--success-color); margin-bottom: 0.5rem;">${lang === 'cs' ? 'Malé pokoje' : 'Small rooms'} (${smallRoomIds})</h5>
-                            <ul style="list-style: none; padding: 0; font-size: 0.95rem;">
-                                <li>• ${lang === 'cs' ? 'Základní cena (1 osoba)' : 'Base price (1 person)'}: <strong>${prices.external.small.base} Kč/${lang === 'cs' ? 'noc' : 'night'}</strong></li>
-                                <li>• ${lang === 'cs' ? 'Další dospělý' : 'Additional adult'}: +${prices.external.small.adult} Kč/${lang === 'cs' ? 'osoba' : 'person'}</li>
-                                <li>• ${lang === 'cs' ? 'Dítě 3-18 let' : 'Child 3-18 years'}: +${prices.external.small.child} Kč/${lang === 'cs' ? 'osoba' : 'person'}</li>
-                                <li>• ${lang === 'cs' ? 'Dítě do 3 let: zdarma' : 'Child under 3: free'}</li>
-                            </ul>
-                        </div>
-                        <div>
-                            <h5 style="color: var(--primary-color); margin-bottom: 0.5rem;">${lang === 'cs' ? 'Velké pokoje' : 'Large rooms'} (${largeRoomIds})</h5>
-                            <ul style="list-style: none; padding: 0; font-size: 0.95rem;">
-                                <li>• ${lang === 'cs' ? 'Základní cena (1 osoba)' : 'Base price (1 person)'}: <strong>${prices.external.large.base} Kč/${lang === 'cs' ? 'noc' : 'night'}</strong></li>
-                                <li>• ${lang === 'cs' ? 'Další dospělý' : 'Additional adult'}: +${prices.external.large.adult} Kč/${lang === 'cs' ? 'osoba' : 'person'}</li>
-                                <li>• ${lang === 'cs' ? 'Dítě 3-18 let' : 'Child 3-18 years'}: +${prices.external.large.child} Kč/${lang === 'cs' ? 'osoba' : 'person'}</li>
-                                <li>• ${lang === 'cs' ? 'Dítě do 3 let: zdarma' : 'Child under 3: free'}</li>
-                            </ul>
-                        </div>
-                    </div>
+                    <ul style="list-style: none; padding: 0; font-size: 0.95rem;">
+                        <li>• ${lang === 'cs' ? 'Základní cena (1 pokoj, 1 osoba)' : 'Base price (1 room, 1 person)'}: <strong>${prices.external.base} Kč/${lang === 'cs' ? 'noc' : 'night'}</strong></li>
+                        <li>• ${lang === 'cs' ? 'Další dospělý' : 'Additional adult'}: +${prices.external.adult} Kč/${lang === 'cs' ? 'osoba' : 'person'}</li>
+                        <li>• ${lang === 'cs' ? 'Dítě 3-18 let' : 'Child 3-18 years'}: +${prices.external.child} Kč/${lang === 'cs' ? 'osoba' : 'person'}</li>
+                        <li>• ${lang === 'cs' ? 'Dítě do 3 let: zdarma' : 'Child under 3: free'}</li>
+                    </ul>
                 </div>
             `;
         }
@@ -1772,159 +1937,462 @@ class BookingApp {
 
     // BULK BOOKING METHODS
     async openBulkBookingModal() {
-        // Initialize bulk calendar state
-        this.bulkSelectedDates = new Set();
-        this.bulkCurrentMonth = new Date();
+        // Initialize bulk booking state
+        this.currentBulkBooking = {
+            checkIn: null,
+            checkOut: null,
+            adults: 10,
+            children: 0,
+            guestType: 'utia'
+        };
 
-        // Render bulk calendar
-        await this.renderBulkCalendar();
+        // Reset form
+        document.getElementById('bulkDateSelectionSummary').style.display = 'none';
+        document.getElementById('bulkAdults').textContent = this.currentBulkBooking.adults;
+        document.getElementById('bulkChildren').textContent = this.currentBulkBooking.children;
+        document.querySelector(`input[name="bulkGuestType"][value="${this.currentBulkBooking.guestType}"]`).checked = true;
+        document.getElementById('confirmBulkBookingBtn').disabled = true;
 
+        // Generate bulk mini calendar
+        await this.generateBulkMiniCalendar();
+
+        // Update price
+        await this.updateBulkBookingPrice();
+
+        // Show modal
         document.getElementById('bulkBookingModal').classList.add('active');
-
-        // Setup event listeners for bulk booking
-        this.setupBulkBookingListeners();
     }
 
-    setupBulkBookingListeners() {
-        // Bulk calendar navigation
-        const bulkPrevBtn = document.getElementById('bulkPrevMonth');
-        const bulkNextBtn = document.getElementById('bulkNextMonth');
+    async generateBulkMiniCalendar() {
+        const container = document.getElementById('bulkMiniCalendar');
+        const currentMonth = new Date();
 
-        if (bulkPrevBtn && !bulkPrevBtn.hasAttribute('data-listener-added')) {
-            bulkPrevBtn.addEventListener('click', () => this.navigateBulkMonth(-1));
-            bulkPrevBtn.setAttribute('data-listener-added', 'true');
-        }
+        // Create calendar header
+        container.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <button onclick="bookingApp.changeBulkCalendarMonth(-1)" style="padding: 0.25rem 0.5rem; background: white; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer;">‹</button>
+                <span id="bulkCalendarMonth" style="font-weight: 600;">${currentMonth.toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' })}</span>
+                <button onclick="bookingApp.changeBulkCalendarMonth(1)" style="padding: 0.25rem 0.5rem; background: white; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer;">›</button>
+            </div>
+            <div id="bulkCalendarGrid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.25rem;">
+                <!-- Days will be generated here -->
+            </div>
+        `;
 
-        if (bulkNextBtn && !bulkNextBtn.hasAttribute('data-listener-added')) {
-            bulkNextBtn.addEventListener('click', () => this.navigateBulkMonth(1));
-            bulkNextBtn.setAttribute('data-listener-added', 'true');
-        }
+        this.currentBulkCalendarMonth = currentMonth;
+        await this.renderBulkCalendarDays();
+    }
 
-        // Guest count change listeners for price calculation
-        ['bulkGuestType', 'bulkAdults', 'bulkChildren'].forEach(id => {
-            const element = document.getElementById(id);
-            if (element && !element.hasAttribute('data-listener-added')) {
-                element.addEventListener('change', async () => await this.updateBulkPrice());
-                element.addEventListener('input', async () => await this.updateBulkPrice());
-                element.setAttribute('data-listener-added', 'true');
-            }
+    async renderBulkCalendarDays() {
+        const grid = document.getElementById('bulkCalendarGrid');
+        const month = this.currentBulkCalendarMonth;
+        const allRooms = await dataManager.getRooms();
+
+        grid.innerHTML = '';
+
+        // Initialize drag selection variables for bulk
+        this.isBulkDragging = false;
+        this.bulkDragStartDate = null;
+        this.bulkDragEndDate = null;
+        this.bulkAvailableDates = new Map();
+
+        // Day headers
+        const dayHeaders = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
+        dayHeaders.forEach(day => {
+            const header = document.createElement('div');
+            header.style.cssText = 'text-align: center; font-size: 0.8rem; font-weight: 600; color: #666; padding: 0.25rem;';
+            header.textContent = day;
+            grid.appendChild(header);
         });
 
-        // Proceed button
-        const proceedBtn = document.getElementById('proceedToBulkBooking');
-        if (proceedBtn && !proceedBtn.hasAttribute('data-listener-added')) {
-            proceedBtn.addEventListener('click', () => this.proceedToBulkBooking());
-            proceedBtn.setAttribute('data-listener-added', 'true');
+        // Get first day of month
+        const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
+        let startDay = firstDay.getDay();
+        startDay = startDay === 0 ? 6 : startDay - 1;
+
+        // Add empty cells
+        for (let i = 0; i < startDay; i++) {
+            grid.appendChild(document.createElement('div'));
         }
+
+        // Add days of month
+        const lastDay = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        for (let day = 1; day <= lastDay; day++) {
+            const date = new Date(month.getFullYear(), month.getMonth(), day);
+            const dateStr = dataManager.formatDate(date);
+            const dayEl = document.createElement('div');
+
+            // Check if ALL rooms are available (for bulk booking)
+            let isFullyAvailable = true;
+            for (const room of allRooms) {
+                const availability = await dataManager.getRoomAvailability(date, room.id);
+                if (availability.status !== 'available') {
+                    isFullyAvailable = false;
+                    break;
+                }
+            }
+
+            const isPast = date < today;
+            const isCheckIn = dateStr === this.currentBulkBooking.checkIn;
+            const isCheckOut = dateStr === this.currentBulkBooking.checkOut;
+            const isInRange = this.currentBulkBooking.checkIn && this.currentBulkBooking.checkOut &&
+                              dateStr > this.currentBulkBooking.checkIn && dateStr < this.currentBulkBooking.checkOut;
+
+            let bgColor = '#fff';
+            let textColor = '#333';
+            let cursor = 'pointer';
+            let clickable = isFullyAvailable && !isPast;
+
+            if (isPast) {
+                bgColor = '#f5f5f5';
+                textColor = '#999';
+                cursor = 'not-allowed';
+            } else if (!isFullyAvailable) {
+                bgColor = '#ffebee';
+                textColor = '#c62828';
+                cursor = 'not-allowed';
+            } else if (isCheckIn || isCheckOut) {
+                bgColor = '#667eea';
+                textColor = '#fff';
+            } else if (isInRange) {
+                bgColor = '#e8eaf6';
+                textColor = '#333';
+            }
+
+            dayEl.style.cssText = `
+                text-align: center;
+                padding: 0.5rem;
+                background: ${bgColor};
+                color: ${textColor};
+                border-radius: 4px;
+                cursor: ${cursor};
+                font-size: 0.9rem;
+                transition: all 0.2s;
+                -webkit-user-select: none;
+                -moz-user-select: none;
+                -ms-user-select: none;
+                user-select: none;
+            `;
+
+            if (clickable) {
+                // Store available date
+                dayEl.dataset.date = dateStr;
+                this.bulkAvailableDates.set(dateStr, { date, element: dayEl, originalBg: bgColor });
+
+                // Add drag selection support
+                dayEl.onmousedown = (e) => {
+                    e.preventDefault();
+                    this.isBulkDragging = true;
+                    this.bulkDragStartDate = dateStr;
+                    this.bulkDragEndDate = dateStr;
+                    this.bulkDragClickStart = Date.now();
+                    this.updateBulkDragSelection();
+                    return false;
+                };
+
+                dayEl.onmouseenter = () => {
+                    if (this.isBulkDragging) {
+                        this.bulkDragEndDate = dateStr;
+                        this.updateBulkDragSelection();
+                    } else if (!isCheckIn && !isCheckOut && !isInRange) {
+                        dayEl.style.background = '#f3f4f6';
+                    }
+                };
+
+                dayEl.onmouseleave = () => {
+                    if (!this.isBulkDragging && !isCheckIn && !isCheckOut && !isInRange) {
+                        dayEl.style.background = bgColor;
+                    }
+                };
+
+                dayEl.ondragstart = (e) => {
+                    e.preventDefault();
+                    return false;
+                };
+            }
+
+            dayEl.textContent = day;
+            grid.appendChild(dayEl);
+        }
+
+        // Add global mouse up handler
+        document.addEventListener('mouseup', this.handleBulkDragEnd);
+
+        // Prevent text selection
+        grid.style.userSelect = 'none';
+    }
+
+    handleBulkDragEnd = async () => {
+        if (this.isBulkDragging) {
+            const clickDuration = Date.now() - this.bulkDragClickStart;
+            const isClick = clickDuration < 200 && this.bulkDragStartDate === this.bulkDragEndDate;
+
+            if (isClick) {
+                // Handle as a click
+                const dateObj = this.bulkAvailableDates.get(this.bulkDragStartDate).date;
+                await this.selectBulkCalendarDate(dateObj);
+            } else if (this.bulkDragStartDate && this.bulkDragEndDate) {
+                // Handle as a drag selection
+                let start = this.bulkDragStartDate;
+                let end = this.bulkDragEndDate;
+
+                if (start > end) {
+                    [start, end] = [end, start];
+                }
+
+                // Check if all days in range are available for ALL rooms
+                let canBook = true;
+                const checkIn = new Date(start);
+                const checkOut = new Date(end);
+                checkOut.setDate(checkOut.getDate() + 1); // Add one day for checkout
+
+                const allRooms = await dataManager.getRooms();
+                const currentDate = new Date(checkIn);
+                while (currentDate < checkOut && canBook) {
+                    const dateStr = dataManager.formatDate(currentDate);
+
+                    // Check if this date is available for ALL rooms
+                    for (const room of allRooms) {
+                        const availability = await dataManager.getRoomAvailability(currentDate, room.id);
+                        if (availability.status !== 'available') {
+                            canBook = false;
+                            break;
+                        }
+                    }
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+
+                if (canBook) {
+                    this.currentBulkBooking.checkIn = start;
+                    this.currentBulkBooking.checkOut = dataManager.formatDate(checkOut);
+                    this.updateBulkDateSelectionSummary();
+                    await this.updateBulkBookingPrice();
+                    await this.renderBulkCalendarDays();
+                } else {
+                    alert('Některé dny v tomto rozmezí nejsou dostupné pro všechny pokoje.');
+                    this.currentBulkBooking.checkIn = null;
+                    this.currentBulkBooking.checkOut = null;
+                    await this.renderBulkCalendarDays();
+                }
+            }
+        }
+
+        this.isBulkDragging = false;
+        this.bulkDragStartDate = null;
+        this.bulkDragEndDate = null;
+        this.bulkDragClickStart = null;
+
+        // Remove the event listener
+        document.removeEventListener('mouseup', this.handleBulkDragEnd);
+    }
+
+    updateBulkDragSelection() {
+        if (!this.bulkDragStartDate || !this.bulkDragEndDate) return;
+
+        let start = this.bulkDragStartDate;
+        let end = this.bulkDragEndDate;
+
+        if (start > end) {
+            [start, end] = [end, start];
+        }
+
+        // Reset all dates to original background
+        this.bulkAvailableDates.forEach((data, dateStr) => {
+            data.element.style.background = data.originalBg;
+            data.element.style.color = '#333';
+        });
+
+        // Highlight range
+        this.bulkAvailableDates.forEach((data, dateStr) => {
+            if (dateStr >= start && dateStr <= end) {
+                if (dateStr === start || dateStr === end) {
+                    data.element.style.background = '#667eea';
+                    data.element.style.color = '#fff';
+                } else {
+                    data.element.style.background = '#e8eaf6';
+                    data.element.style.color = '#333';
+                }
+            }
+        });
+    }
+
+    async selectBulkCalendarDate(date) {
+        const dateStr = dataManager.formatDate(date);
+
+        // Check if clicking on the same date (toggle behavior)
+        if (this.currentBulkBooking.checkIn === dateStr) {
+            this.currentBulkBooking.checkIn = null;
+            this.currentBulkBooking.checkOut = null;
+        } else if (this.currentBulkBooking.checkOut === dateStr) {
+            this.currentBulkBooking.checkOut = null;
+        } else if (!this.currentBulkBooking.checkIn || (this.currentBulkBooking.checkIn && this.currentBulkBooking.checkOut)) {
+            // First click or reset if both dates selected
+            this.currentBulkBooking.checkIn = dateStr;
+            this.currentBulkBooking.checkOut = null;
+        } else if (this.currentBulkBooking.checkIn && !this.currentBulkBooking.checkOut) {
+            // Second click - set checkout
+            if (dateStr <= this.currentBulkBooking.checkIn) {
+                // If selected date is before check-in, swap them
+                this.currentBulkBooking.checkOut = this.currentBulkBooking.checkIn;
+                this.currentBulkBooking.checkIn = dateStr;
+            } else {
+                this.currentBulkBooking.checkOut = dateStr;
+            }
+
+            // Validate that all rooms are available for the entire range
+            const checkIn = new Date(this.currentBulkBooking.checkIn);
+            const checkOut = new Date(this.currentBulkBooking.checkOut);
+            checkOut.setDate(checkOut.getDate() + 1);
+
+            const allRooms = await dataManager.getRooms();
+            let allAvailable = true;
+            const currentDate = new Date(checkIn);
+
+            while (currentDate < checkOut && allAvailable) {
+                for (const room of allRooms) {
+                    const availability = await dataManager.getRoomAvailability(currentDate, room.id);
+                    if (availability.status !== 'available') {
+                        allAvailable = false;
+                        break;
+                    }
+                }
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+
+            if (!allAvailable) {
+                alert('Některé pokoje nejsou v tomto období dostupné.');
+                this.currentBulkBooking.checkIn = null;
+                this.currentBulkBooking.checkOut = null;
+            }
+        }
+
+        this.updateBulkDateSelectionSummary();
+        await this.updateBulkBookingPrice();
+        await this.renderBulkCalendarDays();
+    }
+
+    updateBulkDateSelectionSummary() {
+        const summaryDiv = document.getElementById('bulkDateSelectionSummary');
+        const rangeDiv = document.getElementById('bulkSelectedDateRange');
+        const nightsDiv = document.getElementById('bulkNightsCount');
+        const confirmBtn = document.getElementById('confirmBulkBookingBtn');
+        const capacityWarning = document.getElementById('bulkCapacityWarning');
+
+        if (this.currentBulkBooking.checkIn && this.currentBulkBooking.checkOut) {
+            const checkIn = new Date(this.currentBulkBooking.checkIn);
+            const checkOut = new Date(this.currentBulkBooking.checkOut);
+            const nights = Math.round((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+
+            rangeDiv.textContent = `${checkIn.toLocaleDateString('cs-CZ')} - ${checkOut.toLocaleDateString('cs-CZ')}`;
+            nightsDiv.textContent = nights;
+            summaryDiv.style.display = 'block';
+
+            // Check capacity and enable/disable button
+            const totalGuests = this.currentBulkBooking.adults + this.currentBulkBooking.children;
+            if (totalGuests > 26) {
+                confirmBtn.disabled = true;
+                if (capacityWarning) capacityWarning.style.display = 'block';
+            } else {
+                confirmBtn.disabled = false;
+                if (capacityWarning) capacityWarning.style.display = 'none';
+            }
+        } else {
+            summaryDiv.style.display = 'none';
+            confirmBtn.disabled = true;
+        }
+    }
+
+    async updateBulkBookingPrice() {
+        if (!this.currentBulkBooking.checkIn || !this.currentBulkBooking.checkOut) {
+            // Clear price display
+            const totalPriceEl = document.getElementById('bulkTotalPrice');
+            if (totalPriceEl) totalPriceEl.textContent = '0 Kč';
+            return;
+        }
+
+        const settings = await dataManager.getSettings();
+        const allRooms = await dataManager.getRooms();
+        const checkIn = new Date(this.currentBulkBooking.checkIn);
+        const checkOut = new Date(this.currentBulkBooking.checkOut);
+        checkOut.setDate(checkOut.getDate() + 1);
+        const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+
+        let totalPrice = 0;
+        const guestType = this.currentBulkBooking.guestType || 'external';
+        const adults = this.currentBulkBooking.adults || 1;
+        const children = this.currentBulkBooking.children || 0;
+
+        // Calculate price for all rooms
+        for (const room of allRooms) {
+            const roomType = room.type || 'small';
+            const priceData = settings.prices[guestType][roomType];
+
+            if (priceData) {
+                const basePrice = priceData.base;
+                const adultSurcharge = Math.max(0, adults - 1) * priceData.adult;
+                const childSurcharge = children * priceData.child;
+                const roomTotal = (basePrice + adultSurcharge + childSurcharge) * nights;
+                totalPrice += roomTotal;
+            }
+        }
+
+        // Check for Christmas period
+        const isChristmasBooking = dataManager.isChristmasPeriod(checkIn) || dataManager.isChristmasPeriod(checkOut);
+        const christmasWarning = document.getElementById('bulkChristmasWarning');
+
+        if (isChristmasBooking && christmasWarning) {
+            christmasWarning.style.display = 'block';
+            christmasWarning.textContent = 'Pozor: Rezervace v období vánočních prázdnin vyžaduje přístupový kód.';
+        } else if (christmasWarning) {
+            christmasWarning.style.display = 'none';
+        }
+
+        // Display price breakdown
+        const roomCountEl = document.getElementById('bulkRoomCount');
+        const nightsCountEl = document.getElementById('bulkNightsCount');
+        const totalPriceEl = document.getElementById('bulkTotalPrice');
+
+        if (roomCountEl) roomCountEl.textContent = `${allRooms.length} pokojů`;
+        if (nightsCountEl) nightsCountEl.textContent = `${nights} ${nights === 1 ? 'noc' : nights < 5 ? 'noci' : 'nocí'}`;
+        if (totalPriceEl) totalPriceEl.textContent = `${totalPrice.toLocaleString()} Kč`;
+
+        this.currentBulkBooking.totalPrice = totalPrice;
+        this.currentBulkBooking.nights = nights;
+        this.currentBulkBooking.roomCount = allRooms.length;
+    }
+
+    changeBulkCalendarMonth(direction) {
+        this.navigateBulkMonth(direction);
     }
 
     async navigateBulkMonth(direction) {
-        const newMonth = new Date(this.bulkCurrentMonth);
+        const newMonth = new Date(this.currentBulkCalendarMonth);
         newMonth.setMonth(newMonth.getMonth() + direction);
 
-        // Check if we're within allowed range (same as main calendar)
-        const newYear = newMonth.getFullYear();
-        const newMonthNum = newMonth.getMonth();
+        // Check if we're within allowed range
+        const currentYear = new Date().getFullYear();
+        if (newMonth.getFullYear() < currentYear || newMonth.getFullYear() > currentYear + 1) {
+            return;
+        }
 
-        if (newYear < this.minYear) return;
-        if (newYear > this.maxYear || (newYear === this.maxYear && newMonthNum > this.maxMonth)) return;
+        this.currentBulkCalendarMonth = newMonth;
 
-        this.bulkCurrentMonth = newMonth;
-        await this.renderBulkCalendar();
+        // Update month display
+        const monthEl = document.getElementById('bulkCalendarMonth');
+        if (monthEl) {
+            monthEl.textContent = newMonth.toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' });
+        }
+
+        await this.renderBulkCalendarDays();
     }
 
+    // Legacy function kept for compatibility
     async renderBulkCalendar() {
-        const calendar = document.getElementById('bulkCalendar');
-        const monthTitle = document.getElementById('bulkCurrentMonth');
-
-        const year = this.bulkCurrentMonth.getFullYear();
-        const month = this.bulkCurrentMonth.getMonth();
-
-        // Update month title
-        const monthNames = langManager.t('months');
-        monthTitle.textContent = `${monthNames[month]} ${year}`;
-
-        // Update navigation buttons
-        const prevBtn = document.getElementById('bulkPrevMonth');
-        const nextBtn = document.getElementById('bulkNextMonth');
-
-        if (year <= this.minYear && month <= 0) {
-            prevBtn.style.opacity = '0.3';
-            prevBtn.style.cursor = 'not-allowed';
-        } else {
-            prevBtn.style.opacity = '1';
-            prevBtn.style.cursor = 'pointer';
-        }
-
-        if (year === this.maxYear && month >= this.maxMonth) {
-            nextBtn.style.opacity = '0.3';
-            nextBtn.style.cursor = 'not-allowed';
-        } else {
-            nextBtn.style.opacity = '1';
-            nextBtn.style.cursor = 'pointer';
-        }
-
-        // Clear calendar
-        calendar.innerHTML = '';
-
-        // Add day headers
-        const dayHeaders = langManager.t('weekDays');
-        const headerRow = document.createElement('div');
-        headerRow.className = 'calendar-week';
-        dayHeaders.forEach(day => {
-            const dayHeader = document.createElement('div');
-            dayHeader.className = 'calendar-day-header';
-            dayHeader.textContent = day;
-            dayHeader.style.cssText = 'font-weight: 600; text-align: center; padding: 0.5rem; background: var(--gray-100);';
-            headerRow.appendChild(dayHeader);
-        });
-        calendar.appendChild(headerRow);
-
-        // Get first day of month and adjust for Monday start
-        const firstDay = new Date(year, month, 1);
-        let startDay = firstDay.getDay() - 1;
-        if (startDay < 0) startDay = 6;
-
-        // Get days in month
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const daysInPrevMonth = new Date(year, month, 0).getDate();
-
-        // Create calendar grid
-        let currentWeek = document.createElement('div');
-        currentWeek.className = 'calendar-week';
-
-        // Add previous month days
-        for (let i = startDay - 1; i >= 0; i--) {
-            const dayEl = await this.createBulkDayElement(
-                new Date(year, month - 1, daysInPrevMonth - i),
-                true
-            );
-            currentWeek.appendChild(dayEl);
-        }
-
-        // Add current month days
-        for (let day = 1; day <= daysInMonth; day++) {
-            if (currentWeek.children.length === 7) {
-                calendar.appendChild(currentWeek);
-                currentWeek = document.createElement('div');
-                currentWeek.className = 'calendar-week';
-            }
-
-            const dayEl = await this.createBulkDayElement(new Date(year, month, day), false);
-            currentWeek.appendChild(dayEl);
-        }
-
-        // Add next month days to complete the week
-        let nextMonthDay = 1;
-        while (currentWeek.children.length < 7) {
-            const dayEl = await this.createBulkDayElement(
-                new Date(year, month + 1, nextMonthDay),
-                true
-            );
-            currentWeek.appendChild(dayEl);
-            nextMonthDay++;
-        }
-        calendar.appendChild(currentWeek);
+        // This function is no longer needed, we use renderBulkCalendarDays directly
+        await this.renderBulkCalendarDays();
     }
 
     async createBulkDayElement(date, isOtherMonth) {
@@ -1950,6 +2418,7 @@ class BookingApp {
         // Add Christmas styling if applicable
         if (isChristmas && !isOtherMonth) {
             dayEl.classList.add('christmas');
+            dayEl.style.background = 'linear-gradient(135deg, #ffcccc, #ffdddd)';
             dayEl.style.border = '3px solid #ff8c00';
         }
 
@@ -1969,7 +2438,7 @@ class BookingApp {
         if (isDisabled) {
             // Deactivated style for disabled dates
             dayEl.classList.add('disabled');
-            dayEl.style.cssText = `background: var(--gray-200); color: var(--gray-500); cursor: pointer; opacity: 0.7; ${isChristmas ? 'border: 3px solid #ff8c00;' : ''}`;
+            dayEl.style.cssText = `background: var(--gray-200); color: var(--gray-500); cursor: pointer; opacity: 0.7; ${isChristmas ? 'background: linear-gradient(135deg, #ffcccc, #ffdddd); border: 3px solid #ff8c00;' : ''}`;
             dayEl.title = disabledReason;
 
             // Add click handler to show reason
@@ -1983,7 +2452,7 @@ class BookingApp {
 
             if (roomAvailability.hasAnyBooking) {
                 // Day has at least one booking - deactivate with same style as past dates
-                dayEl.style.cssText = `background: var(--gray-200); color: var(--gray-500); cursor: pointer; opacity: 0.7; ${isChristmas ? 'border: 3px solid #ff8c00;' : ''}`;
+                dayEl.style.cssText = `background: var(--gray-200); color: var(--gray-500); cursor: pointer; opacity: 0.7; ${isChristmas ? 'background: linear-gradient(135deg, #ffcccc, #ffdddd); border: 3px solid #ff8c00;' : ''}`;
                 const reason = 'Některé pokoje jsou již rezervované - není možná hromadná rezervace';
                 dayEl.title = reason;
 
@@ -1993,11 +2462,11 @@ class BookingApp {
                 });
             } else {
                 // All rooms are available - GREEN for available days
-                dayEl.style.cssText = `background: var(--success-50); border: 2px solid var(--success-200); cursor: pointer; transition: all 0.2s; ${isChristmas ? 'border: 3px solid #ff8c00;' : ''}`;
+                dayEl.style.cssText = `background: var(--success-50); border: 2px solid var(--success-200); cursor: pointer; transition: all 0.2s; ${isChristmas ? 'background: linear-gradient(135deg, #ffcccc, #ffdddd); border: 3px solid #ff8c00;' : ''}`;
 
                 // Check if this date is selected
                 if (this.bulkSelectedDates.has(dateStr)) {
-                    dayEl.style.cssText = `background: var(--success-500); color: white; border: 2px solid var(--success-700); cursor: pointer; ${isChristmas ? 'border: 3px solid #ff8c00;' : ''}`;
+                    dayEl.style.cssText = `background: var(--success-500); color: white; border: 2px solid var(--success-700); cursor: pointer; ${isChristmas ? 'background: linear-gradient(135deg, #ffcccc, #ffdddd); border: 3px solid #ff8c00;' : ''}`;
                 }
 
                 dayEl.addEventListener('click', async () => {
@@ -2006,15 +2475,23 @@ class BookingApp {
 
                 dayEl.addEventListener('mouseover', () => {
                     if (!this.bulkSelectedDates.has(dateStr)) {
-                        dayEl.style.background = 'var(--success-100)';
-                        if (isChristmas) dayEl.style.border = '3px solid #ff8c00';
+                        if (isChristmas) {
+                            dayEl.style.background = 'linear-gradient(135deg, #ffcccc, #ffdddd)';
+                            dayEl.style.border = '3px solid #ff8c00';
+                        } else {
+                            dayEl.style.background = 'var(--success-100)';
+                        }
                     }
                 });
 
                 dayEl.addEventListener('mouseout', () => {
                     if (!this.bulkSelectedDates.has(dateStr)) {
-                        dayEl.style.background = 'var(--success-50)';
-                        if (isChristmas) dayEl.style.border = '3px solid #ff8c00';
+                        if (isChristmas) {
+                            dayEl.style.background = 'linear-gradient(135deg, #ffcccc, #ffdddd)';
+                            dayEl.style.border = '3px solid #ff8c00';
+                        } else {
+                            dayEl.style.background = 'var(--success-50)';
+                        }
                     }
                 });
             }
@@ -2069,11 +2546,11 @@ class BookingApp {
         if (this.bulkSelectedDates.has(dateStr)) {
             // Remove date
             this.bulkSelectedDates.delete(dateStr);
-            dayEl.style.cssText = `background: var(--success-50); border: 2px solid var(--success-200); cursor: pointer; transition: all 0.2s; ${isChristmas ? 'border: 3px solid #ff8c00;' : ''}`;
+            dayEl.style.cssText = `background: var(--success-50); border: 2px solid var(--success-200); cursor: pointer; transition: all 0.2s; ${isChristmas ? 'background: linear-gradient(135deg, #ffcccc, #ffdddd); border: 3px solid #ff8c00;' : ''}`;
         } else {
             // Add date
             this.bulkSelectedDates.add(dateStr);
-            dayEl.style.cssText = `background: var(--success-500); color: white; border: 2px solid var(--success-700); cursor: pointer; ${isChristmas ? 'border: 3px solid #ff8c00;' : ''}`;
+            dayEl.style.cssText = `background: var(--success-500); color: white; border: 2px solid var(--success-700); cursor: pointer; ${isChristmas ? 'background: linear-gradient(135deg, #ffcccc, #ffdddd); border: 3px solid #ff8c00;' : ''}`;
         }
 
         await this.updateBulkDateSelection();
@@ -2246,9 +2723,933 @@ class BookingApp {
             </div>
         `;
     }
+
+    // Single Room Booking Modal Functions
+    async openSingleRoomBookingModal(roomId, initialDate = null, editingReservation = null) {
+        this.currentSingleRoom = {
+            roomId: roomId,
+            checkIn: null,
+            checkOut: null,
+            adults: 1,
+            children: 0,
+            toddlers: 0,
+            guestType: 'utia'
+        };
+
+        // If editing existing reservation, populate data
+        if (editingReservation) {
+            this.currentSingleRoom = { ...editingReservation };
+            this.editingReservationIndex = this.newReservations.findIndex(r => r === editingReservation);
+        }
+
+        // Get room info
+        const rooms = await dataManager.getRooms();
+        const room = rooms.find(r => r.id === roomId);
+        this.currentSingleRoom.roomInfo = room;
+
+        // Set modal title
+        const titleText = editingReservation ? 'Upravit rezervaci pokoje' : 'Rezervace pokoje';
+        document.getElementById('roomBookingTitle').textContent = `${titleText} ${roomId}`;
+        document.getElementById('roomBookingBadge').innerHTML = `
+            <span style="background: rgba(255,255,255,0.2); padding: 0.5rem 1rem; border-radius: 6px; font-size: 1.1rem;">
+                ${room.name} - ${room.beds} ${room.beds === 1 ? 'lůžko' : room.beds < 5 ? 'lůžka' : 'lůžek'}
+            </span>
+        `;
+
+        // Reset form
+        document.getElementById('dateSelectionSummary').style.display = 'none';
+        document.getElementById('singleRoomAdults').textContent = this.currentSingleRoom.adults;
+        document.getElementById('singleRoomChildren').textContent = this.currentSingleRoom.children;
+        document.getElementById('singleRoomToddlers').textContent = this.currentSingleRoom.toddlers;
+        document.querySelector(`input[name="singleRoomGuestType"][value="${this.currentSingleRoom.guestType}"]`).checked = true;
+        document.getElementById('confirmSingleRoomBtn').disabled = !this.currentSingleRoom.checkIn || !this.currentSingleRoom.checkOut;
+
+        // If initial date provided, set it as check-in
+        if (initialDate && !editingReservation) {
+            this.currentSingleRoom.checkIn = dataManager.formatDate(initialDate);
+        }
+
+        // Update date selection summary
+        this.updateDateSelectionSummary();
+
+        // Generate mini calendar
+        await this.generateMiniCalendar();
+
+        // Update price
+        await this.updateSingleRoomPrice();
+
+        // Show modal
+        document.getElementById('singleRoomBookingModal').classList.add('active');
+    }
+
+    async generateMiniCalendar() {
+        const container = document.getElementById('miniCalendar');
+        const currentMonth = new Date();
+        const roomId = this.currentSingleRoom.roomId;
+
+        // Create calendar header
+        container.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <button onclick="bookingApp.changeMiniCalendarMonth(-1)" style="padding: 0.25rem 0.5rem; background: white; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer;">‹</button>
+                <span id="miniCalendarMonth" style="font-weight: 600;">${currentMonth.toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' })}</span>
+                <button onclick="bookingApp.changeMiniCalendarMonth(1)" style="padding: 0.25rem 0.5rem; background: white; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer;">›</button>
+            </div>
+            <div id="miniCalendarGrid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.25rem;">
+                <!-- Days will be generated here -->
+            </div>
+        `;
+
+        this.currentMiniCalendarMonth = currentMonth;
+        await this.renderMiniCalendarDays();
+    }
+
+    async renderMiniCalendarDays() {
+        const grid = document.getElementById('miniCalendarGrid');
+        const month = this.currentMiniCalendarMonth;
+        const roomId = this.currentSingleRoom.roomId;
+
+        grid.innerHTML = '';
+
+        // Initialize drag selection variables
+        this.isDragging = false;
+        this.dragStartDate = null;
+        this.dragEndDate = null;
+        this.availableDates = new Map(); // Store available dates for drag selection
+
+        // Day headers
+        const dayHeaders = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
+        dayHeaders.forEach(day => {
+            const header = document.createElement('div');
+            header.style.cssText = 'text-align: center; font-size: 0.8rem; font-weight: 600; color: #666; padding: 0.25rem;';
+            header.textContent = day;
+            grid.appendChild(header);
+        });
+
+        // Get first day of month (0 = Sunday, convert to Monday start)
+        const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
+        let startDay = firstDay.getDay();
+        startDay = startDay === 0 ? 6 : startDay - 1;
+
+        // Add empty cells for days before month starts
+        for (let i = 0; i < startDay; i++) {
+            const emptyCell = document.createElement('div');
+            grid.appendChild(emptyCell);
+        }
+
+        // Add days of month
+        const lastDay = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        for (let day = 1; day <= lastDay; day++) {
+            const date = new Date(month.getFullYear(), month.getMonth(), day);
+            const dateStr = dataManager.formatDate(date);
+            const dayEl = document.createElement('div');
+
+            // Check availability
+            const availability = await dataManager.getRoomAvailability(date, roomId);
+            const isPast = date < today;
+            const isCheckIn = dateStr === this.currentSingleRoom.checkIn;
+            const isCheckOut = dateStr === this.currentSingleRoom.checkOut;
+            const isInRange = this.currentSingleRoom.checkIn && this.currentSingleRoom.checkOut &&
+                              dateStr > this.currentSingleRoom.checkIn && dateStr < this.currentSingleRoom.checkOut;
+
+            let bgColor = '#fff';
+            let textColor = '#333';
+            let cursor = 'pointer';
+            let clickable = true;
+
+            if (isPast) {
+                bgColor = '#f5f5f5';
+                textColor = '#999';
+                cursor = 'not-allowed';
+                clickable = false;
+            } else if (availability.status === 'booked') {
+                bgColor = '#ffebee';
+                textColor = '#c62828';
+                cursor = 'not-allowed';
+                clickable = false;
+            } else if (availability.status === 'blocked') {
+                bgColor = '#e0e0e0';
+                textColor = '#757575';
+                cursor = 'not-allowed';
+                clickable = false;
+            } else if (isCheckIn || isCheckOut) {
+                bgColor = '#667eea';
+                textColor = '#fff';
+            } else if (isInRange) {
+                bgColor = '#e8eaf6';
+                textColor = '#333';
+            }
+
+            dayEl.style.cssText = `
+                text-align: center;
+                padding: 0.5rem;
+                background: ${bgColor};
+                color: ${textColor};
+                border-radius: 4px;
+                cursor: ${cursor};
+                font-size: 0.9rem;
+                transition: all 0.2s;
+                -webkit-user-select: none;
+                -moz-user-select: none;
+                -ms-user-select: none;
+                user-select: none;
+                -webkit-touch-callout: none;
+            `;
+
+            if (clickable && !isPast && availability.status === 'available') {
+                // Store available date and element reference
+                dayEl.dataset.date = dateStr;
+                this.availableDates.set(dateStr, { date, element: dayEl, originalBg: bgColor });
+
+                // Add drag selection support
+                dayEl.style.userSelect = 'none';
+                dayEl.style.cursor = 'pointer';
+
+                dayEl.onmousedown = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Prevent text selection
+                    if (e.detail > 1) {
+                        e.preventDefault();
+                        return false;
+                    }
+                    this.isDragging = true;
+                    this.dragStartDate = dateStr;
+                    this.dragEndDate = dateStr;
+                    this.dragClickStart = Date.now();
+                    this.dragStartElement = dayEl;
+                    this.updateDragSelection();
+                    return false;
+                };
+
+                // Prevent double-click text selection
+                dayEl.ondblclick = (e) => {
+                    e.preventDefault();
+                    return false;
+                };
+
+                // Prevent drag start event
+                dayEl.ondragstart = (e) => {
+                    e.preventDefault();
+                    return false;
+                };
+
+                // Prevent selection on touch devices
+                dayEl.onselectstart = (e) => {
+                    e.preventDefault();
+                    return false;
+                };
+
+                dayEl.onmouseenter = () => {
+                    if (this.isDragging) {
+                        this.dragEndDate = dateStr;
+                        this.updateDragSelection();
+                    } else if (!isCheckIn && !isCheckOut && !isInRange) {
+                        dayEl.style.background = '#f3f4f6';
+                    }
+                };
+
+                dayEl.onmouseleave = () => {
+                    if (!this.isDragging && !isCheckIn && !isCheckOut && !isInRange) {
+                        dayEl.style.background = bgColor;
+                    }
+                };
+            }
+
+            dayEl.textContent = day;
+            grid.appendChild(dayEl);
+        }
+
+        // Add global mouse up handler for ending drag
+        document.addEventListener('mouseup', this.handleDragEnd);
+
+        // Prevent text selection during drag
+        grid.style.cssText += `
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        `;
+
+        // Prevent context menu on right click
+        grid.oncontextmenu = (e) => {
+            e.preventDefault();
+            return false;
+        };
+    }
+
+    handleDragEnd = async () => {
+        if (this.isDragging) {
+            const clickDuration = Date.now() - this.dragClickStart;
+            const isClick = clickDuration < 200 && this.dragStartDate === this.dragEndDate;
+
+            if (isClick) {
+                // Handle as a click
+                const dateObj = this.availableDates.get(this.dragStartDate).date;
+                await this.selectMiniCalendarDate(dateObj);
+            } else if (this.dragStartDate && this.dragEndDate) {
+                // Handle as a drag selection
+                let start = this.dragStartDate;
+                let end = this.dragEndDate;
+
+                if (start > end) {
+                    [start, end] = [end, start];
+                }
+
+                // Check if all days in range are available
+                let canBook = true;
+                const checkIn = new Date(start);
+                const checkOut = new Date(end);
+                checkOut.setDate(checkOut.getDate() + 1); // Add one day for checkout
+
+                const currentDate = new Date(checkIn);
+                while (currentDate < checkOut) {
+                    const dateStr = dataManager.formatDate(currentDate);
+                    if (!this.availableDates.has(dateStr)) {
+                        canBook = false;
+                        break;
+                    }
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+
+                if (canBook) {
+                    this.currentSingleRoom.checkIn = start;
+                    this.currentSingleRoom.checkOut = dataManager.formatDate(checkOut);
+                    this.updateDateSelectionSummary();
+                    await this.updateSingleRoomPrice();
+                    await this.renderMiniCalendarDays();
+                } else {
+                    alert('Některé dny v tomto rozmezí nejsou dostupné.');
+                    this.currentSingleRoom.checkIn = null;
+                    this.currentSingleRoom.checkOut = null;
+                    await this.renderMiniCalendarDays();
+                }
+            }
+        }
+
+        this.isDragging = false;
+        this.dragStartDate = null;
+        this.dragEndDate = null;
+        this.dragClickStart = null;
+        this.dragStartElement = null;
+
+        // Remove the event listener
+        document.removeEventListener('mouseup', this.handleDragEnd);
+    }
+
+    updateDragSelection() {
+        if (!this.dragStartDate || !this.dragEndDate) return;
+
+        let start = this.dragStartDate;
+        let end = this.dragEndDate;
+
+        if (start > end) {
+            [start, end] = [end, start];
+        }
+
+        // Reset all dates to original background
+        this.availableDates.forEach((data, dateStr) => {
+            data.element.style.background = data.originalBg;
+            data.element.style.color = '#333';
+        });
+
+        // Highlight range
+        this.availableDates.forEach((data, dateStr) => {
+            if (dateStr >= start && dateStr <= end) {
+                if (dateStr === start || dateStr === end) {
+                    data.element.style.background = '#667eea';
+                    data.element.style.color = '#fff';
+                } else {
+                    data.element.style.background = '#e8eaf6';
+                    data.element.style.color = '#333';
+                }
+            }
+        });
+    }
+
+    async changeMiniCalendarMonth(direction) {
+        const newMonth = new Date(this.currentMiniCalendarMonth);
+        newMonth.setMonth(newMonth.getMonth() + direction);
+
+        // Limit to current year and next year
+        const currentYear = new Date().getFullYear();
+        if (newMonth.getFullYear() < currentYear || newMonth.getFullYear() > currentYear + 1) {
+            return;
+        }
+
+        this.currentMiniCalendarMonth = newMonth;
+        document.getElementById('miniCalendarMonth').textContent = newMonth.toLocaleDateString('cs-CZ', {
+            month: 'long',
+            year: 'numeric'
+        });
+
+        await this.renderMiniCalendarDays();
+    }
+
+    async selectMiniCalendarDate(date) {
+        const dateStr = dataManager.formatDate(date);
+
+        // If we have both dates selected, decide which boundary to move
+        if (this.currentSingleRoom.checkIn && this.currentSingleRoom.checkOut) {
+            const clickedDate = new Date(dateStr);
+            const checkInDate = new Date(this.currentSingleRoom.checkIn);
+            const checkOutDate = new Date(this.currentSingleRoom.checkOut);
+
+            // Calculate distances to both boundaries
+            const distanceToCheckIn = Math.abs(clickedDate - checkInDate);
+            const distanceToCheckOut = Math.abs(clickedDate - checkOutDate);
+
+            // Move the closer boundary
+            if (distanceToCheckIn <= distanceToCheckOut) {
+                // Move check-in date
+                if (dateStr < this.currentSingleRoom.checkOut) {
+                    // Check availability for the range
+                    let canBook = true;
+                    const currentDate = new Date(dateStr);
+                    const endDate = new Date(this.currentSingleRoom.checkOut);
+
+                    while (currentDate < endDate) {
+                        const availability = await dataManager.getRoomAvailability(currentDate, this.currentSingleRoom.roomId);
+                        if (availability.status !== 'available') {
+                            canBook = false;
+                            break;
+                        }
+                        currentDate.setDate(currentDate.getDate() + 1);
+                    }
+
+                    if (canBook) {
+                        this.currentSingleRoom.checkIn = dateStr;
+                    } else {
+                        alert('Některé dny v tomto rozmezí nejsou dostupné.');
+                    }
+                } else {
+                    // If trying to move check-in after check-out, reset to single date
+                    this.currentSingleRoom.checkIn = dateStr;
+                    this.currentSingleRoom.checkOut = null;
+                }
+            } else {
+                // Move check-out date
+                if (dateStr > this.currentSingleRoom.checkIn) {
+                    // Check availability for the range
+                    let canBook = true;
+                    const currentDate = new Date(this.currentSingleRoom.checkIn);
+                    const endDate = new Date(dateStr);
+
+                    while (currentDate < endDate) {
+                        const availability = await dataManager.getRoomAvailability(currentDate, this.currentSingleRoom.roomId);
+                        if (availability.status !== 'available') {
+                            canBook = false;
+                            break;
+                        }
+                        currentDate.setDate(currentDate.getDate() + 1);
+                    }
+
+                    if (canBook) {
+                        this.currentSingleRoom.checkOut = dateStr;
+                    } else {
+                        alert('Některé dny v tomto rozmezí nejsou dostupné.');
+                    }
+                } else {
+                    // If trying to move check-out before check-in, reset to single date
+                    this.currentSingleRoom.checkIn = dateStr;
+                    this.currentSingleRoom.checkOut = null;
+                }
+            }
+            this.updateDateSelectionSummary();
+        }
+        // Check if clicking on already selected check-in date - deselect it
+        else if (this.currentSingleRoom.checkIn === dateStr && !this.currentSingleRoom.checkOut) {
+            this.currentSingleRoom.checkIn = null;
+            this.currentSingleRoom.checkOut = null;
+            this.updateDateSelectionSummary();
+        }
+        // Check if clicking on already selected check-out date - deselect it
+        else if (this.currentSingleRoom.checkOut === dateStr) {
+            this.currentSingleRoom.checkOut = null;
+            this.updateDateSelectionSummary();
+        }
+        // Normal selection logic - no dates or only check-in selected
+        else if (!this.currentSingleRoom.checkIn) {
+            // Set as check-in
+            this.currentSingleRoom.checkIn = dateStr;
+            this.currentSingleRoom.checkOut = null;
+            this.updateDateSelectionSummary();
+        } else if (!this.currentSingleRoom.checkOut) {
+            // Set as check-out if after check-in
+            if (dateStr > this.currentSingleRoom.checkIn) {
+                // Check if all days in range are available
+                let canBook = true;
+                const checkIn = new Date(this.currentSingleRoom.checkIn);
+                const checkOut = new Date(dateStr);
+                const currentDate = new Date(checkIn);
+
+                while (currentDate < checkOut) {
+                    const availability = await dataManager.getRoomAvailability(currentDate, this.currentSingleRoom.roomId);
+                    if (availability.status !== 'available') {
+                        canBook = false;
+                        break;
+                    }
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+
+                if (canBook) {
+                    this.currentSingleRoom.checkOut = dateStr;
+
+                    // Update date selection summary
+                    this.updateDateSelectionSummary();
+                } else {
+                    alert('Některé dny v tomto rozmezí nejsou dostupné.');
+                }
+            } else if (dateStr < this.currentSingleRoom.checkIn) {
+                // If selected date is before check-in, set it as new check-in
+                this.currentSingleRoom.checkIn = dateStr;
+                this.currentSingleRoom.checkOut = null; // Reset checkout when changing checkin
+                this.updateDateSelectionSummary();
+            }
+        }
+
+        await this.renderMiniCalendarDays();
+        await this.updateSingleRoomPrice();
+    }
+
+    async calculateSingleRoomPrice(data) {
+        if (!data.checkIn || !data.checkOut) return 0;
+
+        const checkIn = new Date(data.checkIn);
+        const checkOut = new Date(data.checkOut);
+        const nights = Math.round((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+
+        const room = data.roomInfo;
+        const settings = await dataManager.getSettings();
+        const prices = settings.prices[data.guestType];
+        const roomType = room.type || (room.beds <= 2 ? 'small' : 'large');
+        const roomPrices = prices[roomType];
+
+        const basePrice = roomPrices.base * nights;
+        const additionalAdults = Math.max(0, data.adults - 1);
+        const adultsPrice = additionalAdults * roomPrices.adult * nights;
+        const childrenPrice = data.children * roomPrices.child * nights;
+
+        return basePrice + adultsPrice + childrenPrice;
+    }
+
+    updateNewReservationsDisplay() {
+        const list = document.getElementById('newReservationsList');
+        const finalizeDiv = document.getElementById('finalizeReservationsDiv');
+
+        if (this.newReservations.length === 0) {
+            list.innerHTML = '';
+            if (finalizeDiv) finalizeDiv.style.display = 'none';
+            return;
+        }
+
+        if (finalizeDiv) finalizeDiv.style.display = 'block';
+        list.innerHTML = '';
+
+        this.newReservations.forEach((reservation, index) => {
+            const checkIn = new Date(reservation.checkIn);
+            const checkOut = new Date(reservation.checkOut);
+            const nights = Math.round((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+
+            const item = document.createElement('div');
+            item.className = 'reservation-item';
+            item.innerHTML = `
+                <div class="reservation-details">
+                    <div style="font-weight: 600; margin-bottom: 0.5rem;">
+                        ${reservation.roomInfo.name} - ${checkIn.toLocaleDateString('cs-CZ')} až ${checkOut.toLocaleDateString('cs-CZ')}
+                    </div>
+                    <div style="color: #666; font-size: 0.9rem;">
+                        ${nights} ${nights === 1 ? 'noc' : 'nocí'} • ${reservation.adults} dospělí, ${reservation.children} děti • ${reservation.totalPrice} Kč
+                    </div>
+                </div>
+                <div class="reservation-actions">
+                    <button class="btn btn-secondary btn-small" onclick="bookingApp.editReservation(${index})">
+                        <span data-translate="changeReservation">Změnit rezervaci</span>
+                    </button>
+                    <button class="btn btn-danger btn-small" onclick="bookingApp.removeReservation(${index})">
+                        <span data-translate="removeReservation">Odstranit</span>
+                    </button>
+                </div>
+            `;
+            list.appendChild(item);
+        });
+    }
+
+    editReservation(index) {
+        const reservation = this.newReservations[index];
+        this.openSingleRoomBookingModal(reservation.roomId, null, reservation);
+    }
+
+    removeReservation(index) {
+        this.newReservations.splice(index, 1);
+        this.updateNewReservationsDisplay();
+    }
+
+    updateDateSelectionSummary() {
+        const summaryDiv = document.getElementById('dateSelectionSummary');
+        const rangeDiv = document.getElementById('selectedDateRange');
+        const nightsDiv = document.getElementById('nightsCount');
+
+        if (this.currentSingleRoom.checkIn && this.currentSingleRoom.checkOut) {
+            const checkIn = new Date(this.currentSingleRoom.checkIn);
+            const checkOut = new Date(this.currentSingleRoom.checkOut);
+            const nights = Math.round((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+
+            rangeDiv.textContent = `${checkIn.toLocaleDateString('cs-CZ')} - ${checkOut.toLocaleDateString('cs-CZ')}`;
+            nightsDiv.textContent = nights;
+            summaryDiv.style.display = 'block';
+
+            // Enable confirm button
+            document.getElementById('confirmSingleRoomBtn').disabled = false;
+        } else {
+            summaryDiv.style.display = 'none';
+            document.getElementById('confirmSingleRoomBtn').disabled = true;
+        }
+    }
+
+    async updateSingleRoomPrice() {
+        // Find the correct totalPrice element in the modal
+        const modal = document.getElementById('singleRoomBookingModal');
+        const totalPriceEl = modal ? modal.querySelector('#totalPrice') : null;
+
+        if (!this.currentSingleRoom.checkIn || !this.currentSingleRoom.checkOut || !this.currentSingleRoom.roomInfo) {
+            if (totalPriceEl) totalPriceEl.textContent = '0 Kč';
+            return;
+        }
+
+        const checkIn = new Date(this.currentSingleRoom.checkIn);
+        const checkOut = new Date(this.currentSingleRoom.checkOut);
+        const nights = Math.round((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+
+        const room = this.currentSingleRoom.roomInfo;
+        const guestTypeEl = document.querySelector('input[name="singleRoomGuestType"]:checked');
+        const guestType = guestTypeEl ? guestTypeEl.value : 'utia';
+        const adultsEl = document.getElementById('singleRoomAdults');
+        const childrenEl = document.getElementById('singleRoomChildren');
+        const adults = adultsEl ? parseInt(adultsEl.textContent) : 1;
+        const children = childrenEl ? parseInt(childrenEl.textContent) : 0;
+
+        const settings = await dataManager.getSettings();
+        const prices = settings.prices[guestType];
+        const roomType = room.type || (room.beds <= 2 ? 'small' : 'large');
+        const roomPrices = prices[roomType];
+
+        const basePrice = roomPrices.base;
+        const adultSurcharge = Math.max(0, adults - 1) * roomPrices.adult;
+        const childrenSurcharge = children * roomPrices.child;
+
+        const pricePerNight = basePrice + adultSurcharge + childrenSurcharge;
+        const totalPrice = pricePerNight * nights;
+
+        // Update price display with null checks - all in modal
+        const basePriceEl = modal ? modal.querySelector('#basePrice') : null;
+        const nightsMultiplierEl = modal ? modal.querySelector('#nightsMultiplier') : null;
+        const adultsPriceEl = modal ? modal.querySelector('#adultsPrice') : null;
+        const adultsSurchargeEl = modal ? modal.querySelector('#adultsSurcharge') : null;
+        const childrenPriceEl = modal ? modal.querySelector('#childrenPrice') : null;
+        const childrenSurchargeEl = modal ? modal.querySelector('#childrenSurcharge') : null;
+
+        if (basePriceEl) basePriceEl.textContent = `${basePrice} Kč/noc`;
+        if (nightsMultiplierEl) nightsMultiplierEl.textContent = nights;
+
+        if (adultSurcharge > 0) {
+            if (adultsPriceEl) adultsPriceEl.style.display = 'flex';
+            if (adultsSurchargeEl) adultsSurchargeEl.textContent = `${adultSurcharge} Kč/noc`;
+        } else {
+            if (adultsPriceEl) adultsPriceEl.style.display = 'none';
+        }
+
+        if (childrenSurcharge > 0) {
+            if (childrenPriceEl) childrenPriceEl.style.display = 'flex';
+            if (childrenSurchargeEl) childrenSurchargeEl.textContent = `${childrenSurcharge} Kč/noc`;
+        } else {
+            if (childrenPriceEl) childrenPriceEl.style.display = 'none';
+        }
+
+        if (totalPriceEl) totalPriceEl.textContent = `${totalPrice.toLocaleString()} Kč`;
+
+        // Store the total price
+        this.currentSingleRoom.totalPrice = totalPrice;
+    }
+
+    // Toggle legend visibility
+    toggleLegend() {
+        const legend = document.getElementById('calendarLegend');
+        const toggleBtn = document.getElementById('legendToggle');
+        const toggleText = toggleBtn.querySelector('.legend-toggle-text');
+        const isHidden = legend.classList.contains('legend-hidden');
+
+        if (isHidden) {
+            // Show legend
+            legend.classList.remove('legend-hidden');
+            legend.classList.add('legend-visible');
+            toggleBtn.setAttribute('aria-expanded', 'true');
+            toggleText.textContent = langManager.t('hideLegend');
+        } else {
+            // Hide legend
+            legend.classList.remove('legend-visible');
+            legend.classList.add('legend-hidden');
+            toggleBtn.setAttribute('aria-expanded', 'false');
+            toggleText.textContent = langManager.t('showLegend');
+        }
+    }
 }
+
+// Global functions for modal
+window.closeSingleRoomModal = function() {
+    document.getElementById('singleRoomBookingModal').classList.remove('active');
+};
+
+window.adjustSingleRoomGuests = async function(type, change) {
+    const elementId = `singleRoom${type.charAt(0).toUpperCase() + type.slice(1)}`;
+    const element = document.getElementById(elementId);
+    const current = parseInt(element.textContent);
+    const newValue = Math.max(0, current + change);
+
+    // Check capacity
+    const room = window.bookingApp.currentSingleRoom.roomInfo;
+    const adults = type === 'adults' ? newValue : parseInt(document.getElementById('singleRoomAdults').textContent);
+    const children = type === 'children' ? newValue : parseInt(document.getElementById('singleRoomChildren').textContent);
+    const totalGuests = adults + children;
+
+    if (totalGuests > room.beds) {
+        document.getElementById('capacityWarning').style.display = 'block';
+        return;
+    } else {
+        document.getElementById('capacityWarning').style.display = 'none';
+    }
+
+    element.textContent = newValue;
+    window.bookingApp.currentSingleRoom[type] = newValue;
+
+    if (type === 'adults' && newValue === 0) {
+        element.textContent = 1;
+        window.bookingApp.currentSingleRoom.adults = 1;
+    }
+
+    await window.bookingApp.updateSingleRoomPrice();
+};
+
+window.addSingleRoomReservation = async function() {
+    const data = window.bookingApp.currentSingleRoom;
+
+    if (!data.checkIn || !data.checkOut) {
+        alert('Vyberte prosím datum příjezdu a odjezdu.');
+        return;
+    }
+
+    // Create reservation object
+    const reservation = {
+        roomId: data.roomId,
+        roomInfo: data.roomInfo,
+        checkIn: data.checkIn,
+        checkOut: data.checkOut,
+        adults: data.adults,
+        children: data.children,
+        toddlers: data.toddlers,
+        guestType: data.guestType,
+        totalPrice: await window.bookingApp.calculateSingleRoomPrice(data),
+        id: Date.now() + Math.random() // Temporary ID
+    };
+
+    // If editing existing reservation, replace it
+    if (window.bookingApp.editingReservationIndex !== null) {
+        window.bookingApp.newReservations[window.bookingApp.editingReservationIndex] = reservation;
+        window.bookingApp.editingReservationIndex = null;
+    } else {
+        // Add new reservation
+        window.bookingApp.newReservations.push(reservation);
+    }
+
+    // Update reservations display
+    window.bookingApp.updateNewReservationsDisplay();
+
+    // Close modal
+    document.getElementById('singleRoomBookingModal').classList.remove('active');
+};
+
+window.finalizeAllReservations = async function() {
+    if (window.bookingApp.newReservations.length === 0) {
+        alert('Nejsou žádné rezervace k dokončení.');
+        return;
+    }
+
+    // Prepare data for regular booking form
+    window.bookingApp.selectedDates.clear();
+    window.bookingApp.selectedRooms.clear();
+    window.bookingApp.roomGuests.clear();
+    window.bookingApp.roomGuestTypes.clear();
+
+    // Add all reservations to the booking system
+    window.bookingApp.newReservations.forEach(reservation => {
+        const checkIn = new Date(reservation.checkIn);
+        const checkOut = new Date(reservation.checkOut);
+        const current = new Date(checkIn);
+
+        while (current < checkOut) {
+            const dateStr = dataManager.formatDate(current);
+            window.bookingApp.selectedDates.add(dateStr);
+
+            if (!window.bookingApp.selectedRooms.has(dateStr)) {
+                window.bookingApp.selectedRooms.set(dateStr, new Set());
+            }
+            window.bookingApp.selectedRooms.get(dateStr).add(reservation.roomId);
+
+            current.setDate(current.getDate() + 1);
+        }
+
+        // Set guest data
+        window.bookingApp.roomGuests.set(reservation.roomId, {
+            adults: reservation.adults,
+            children: reservation.children,
+            toddlers: reservation.toddlers
+        });
+        window.bookingApp.roomGuestTypes.set(reservation.roomId, reservation.guestType);
+    });
+
+    // Clear new reservations
+    window.bookingApp.newReservations = [];
+    window.bookingApp.updateNewReservationsDisplay();
+
+    // Open regular booking form
+    await window.bookingApp.openBookingModal();
+};
+
+// Global functions for bulk modal
+window.closeBulkModal = function() {
+    document.getElementById('bulkBookingModal').classList.remove('active');
+};
+
+window.adjustBulkGuests = async function(type, change) {
+    const elementId = `bulk${type.charAt(0).toUpperCase() + type.slice(1)}`;
+    const element = document.getElementById(elementId);
+    const current = parseInt(element.textContent);
+    const newValue = Math.max(0, current + change);
+
+    // Ensure at least 1 adult
+    if (type === 'adults' && newValue === 0) {
+        element.textContent = 1;
+        window.bookingApp.currentBulkBooking.adults = 1;
+        return;
+    }
+
+    // Calculate total guests
+    const adults = type === 'adults' ? newValue : window.bookingApp.currentBulkBooking.adults;
+    const children = type === 'children' ? newValue : window.bookingApp.currentBulkBooking.children;
+    const totalGuests = adults + children;
+
+    // Check capacity (26 beds total)
+    const maxCapacity = 26;
+    const capacityWarning = document.getElementById('bulkCapacityWarning');
+    const confirmBtn = document.getElementById('confirmBulkBookingBtn');
+
+    if (totalGuests > maxCapacity) {
+        // Show warning
+        if (capacityWarning) capacityWarning.style.display = 'block';
+        // Disable confirm button
+        if (confirmBtn) confirmBtn.disabled = true;
+    } else {
+        // Hide warning
+        if (capacityWarning) capacityWarning.style.display = 'none';
+        // Enable confirm button if dates are selected
+        if (confirmBtn && window.bookingApp.currentBulkBooking.checkIn && window.bookingApp.currentBulkBooking.checkOut) {
+            confirmBtn.disabled = false;
+        }
+    }
+
+    element.textContent = newValue;
+    window.bookingApp.currentBulkBooking[type] = newValue;
+
+    await window.bookingApp.updateBulkBookingPrice();
+};
+
+window.addBulkBooking = async function() {
+    const data = window.bookingApp.currentBulkBooking;
+
+    if (!data.checkIn || !data.checkOut) {
+        alert('Vyberte prosím datum příjezdu a odjezdu.');
+        return;
+    }
+
+    // Check Christmas period restrictions
+    const isChristmasBooking = dataManager.isChristmasPeriod(new Date(data.checkIn)) ||
+                              dataManager.isChristmasPeriod(new Date(data.checkOut));
+
+    if (isChristmasBooking) {
+        const accessCode = prompt('Zadejte přístupový kód pro vánoční období:');
+        const settings = await dataManager.getSettings();
+
+        if (!accessCode || !settings.christmasAccessCodes.includes(accessCode)) {
+            alert('Neplatný přístupový kód pro vánoční období.');
+            return;
+        }
+    }
+
+    // Get all rooms for bulk booking
+    const allRooms = await dataManager.getRooms();
+
+    // Create reservations for all rooms
+    const reservations = [];
+    for (const room of allRooms) {
+        const reservation = {
+            roomId: room.id,
+            roomInfo: room,
+            checkIn: data.checkIn,
+            checkOut: data.checkOut,
+            adults: data.adults || 1,
+            children: data.children || 0,
+            toddlers: data.toddlers || 0,
+            guestType: data.guestType || 'external',
+            totalPrice: await dataManager.calculatePrice({
+                guestType: data.guestType || 'external',
+                roomType: room.type || 'small',
+                adults: data.adults || 1,
+                children: data.children || 0,
+                nights: data.nights || 1
+            }),
+            id: Date.now() + Math.random() + room.id // Unique ID for each room
+        };
+        reservations.push(reservation);
+    }
+
+    // Add all reservations to the booking system
+    window.bookingApp.newReservations.push(...reservations);
+
+    // Update reservations display
+    window.bookingApp.updateNewReservationsDisplay();
+
+    // Close modal
+    document.getElementById('bulkBookingModal').classList.remove('active');
+
+    alert(`Přidána rezervace všech ${allRooms.length} pokojů od ${new Date(data.checkIn).toLocaleDateString('cs-CZ')} do ${new Date(data.checkOut).toLocaleDateString('cs-CZ')}.`);
+};
 
 // Initialize app when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     window.bookingApp = new BookingApp();
+
+    // Add event listener for guest type change
+    const guestTypeRadios = document.querySelectorAll('input[name="singleRoomGuestType"]');
+    guestTypeRadios.forEach(radio => {
+        radio.addEventListener('change', async function() {
+            if (window.bookingApp && window.bookingApp.currentSingleRoom) {
+                window.bookingApp.currentSingleRoom.guestType = this.value;
+                await window.bookingApp.updateSingleRoomPrice();
+            }
+        });
+    });
+
+    // Add event listener for bulk guest type change
+    const bulkGuestTypeRadios = document.querySelectorAll('input[name="bulkGuestType"]');
+    bulkGuestTypeRadios.forEach(radio => {
+        radio.addEventListener('change', async function() {
+            if (window.bookingApp && window.bookingApp.currentBulkBooking) {
+                window.bookingApp.currentBulkBooking.guestType = this.value;
+                await window.bookingApp.updateBulkBookingPrice();
+            }
+        });
+    });
 });
