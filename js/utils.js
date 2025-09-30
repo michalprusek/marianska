@@ -7,7 +7,6 @@ class UtilsModule {
   formatDateDisplay(date) {
     const day = date.getDate();
     const month = date.getMonth() + 1;
-    const year = date.getFullYear();
 
     const dayNames =
       this.app.currentLanguage === 'cs'
@@ -178,12 +177,15 @@ class UtilsModule {
   async sendContactMessage(bookingId, fromEmail, message, modalElement) {
     // Validate inputs using ValidationUtils
     if (!fromEmail || !message || !ValidationUtils.validateEmail(fromEmail)) {
-      const errorMsg =
-        !fromEmail || !message
-          ? this.app.currentLanguage === 'cs'
+      let errorMsg;
+      if (!fromEmail || !message) {
+        errorMsg =
+          this.app.currentLanguage === 'cs'
             ? 'Vyplňte prosím všechna pole'
-            : 'Please fill in all fields'
-          : ValidationUtils.getValidationError('email', fromEmail, this.app.currentLanguage);
+            : 'Please fill in all fields';
+      } else {
+        errorMsg = ValidationUtils.getValidationError('email', fromEmail, this.app.currentLanguage);
+      }
       this.showNotification(errorMsg, 'error');
       return;
     }
@@ -316,7 +318,7 @@ class UtilsModule {
     }, duration);
   }
 
-  async updateBookingButton() {
+  updateBookingButton() {
     const bookBtn = document.getElementById('makeBookingBtn');
     if (!bookBtn) {
       return;
@@ -336,7 +338,7 @@ class UtilsModule {
     }
   }
 
-  async updateSelectedDatesDisplay() {
+  updateSelectedDatesDisplay() {
     const display = document.getElementById('selectedDatesDisplay');
     const confirmBtn = document.getElementById('confirmSingleRoomBtn');
 
@@ -379,9 +381,22 @@ class UtilsModule {
                     <span class="nights-count">0 ${this.app.currentLanguage === 'cs' ? 'nocí' : 'nights'}</span>
                 </div>`;
       } else {
+        let nightsLabel;
+        if (this.app.currentLanguage === 'cs') {
+          if (nights === 1) {
+            nightsLabel = 'noc';
+          } else if (nights < 5) {
+            nightsLabel = 'noci';
+          } else {
+            nightsLabel = 'nocí';
+          }
+        } else {
+          nightsLabel = nights === 1 ? 'night' : 'nights';
+        }
+
         html += `<div class="selected-date-range">
                     <span>${this.formatDateDisplay(start)} - ${this.formatDateDisplay(end)}</span>
-                    <span class="nights-count">${nights} ${this.app.currentLanguage === 'cs' ? (nights === 1 ? 'noc' : nights < 5 ? 'noci' : 'nocí') : nights === 1 ? 'night' : 'nights'}</span>
+                    <span class="nights-count">${nights} ${nightsLabel}</span>
                 </div>`;
       }
     });
@@ -459,24 +474,26 @@ class UtilsModule {
     let pricePerNight = 0;
 
     // Determine which rooms to calculate price for
-    const roomsToCalculate =
-      this.app.selectedRooms.size > 0
-        ? this.app.selectedRooms
-        : this.app.currentBookingRoom
-          ? new Set([this.app.currentBookingRoom])
-          : new Set();
+    let roomsToCalculate;
+    if (this.app.selectedRooms.size > 0) {
+      roomsToCalculate = this.app.selectedRooms;
+    } else if (this.app.currentBookingRoom) {
+      roomsToCalculate = new Set([this.app.currentBookingRoom]);
+    } else {
+      roomsToCalculate = new Set();
+    }
 
-    for (const roomId of roomsToCalculate) {
+    const rooms = await dataManager.getRooms();
+    const roomPrices = Array.from(roomsToCalculate).map((roomId) => {
       const guests = this.app.roomGuests.get(roomId) || { adults: 1, children: 0, toddlers: 0 };
       const guestType = this.app.roomGuestTypes.get(roomId) || 'utia';
 
-      const rooms = await dataManager.getRooms();
       const room = rooms.find((r) => r.id === roomId);
       if (!room) {
-        continue;
+        return 0;
       }
 
-      const roomPrice = await dataManager.calculatePrice(
+      return dataManager.calculatePrice(
         guestType,
         guests.adults,
         guests.children,
@@ -484,9 +501,8 @@ class UtilsModule {
         1, // nights per room calculation
         1 // single room
       );
-
-      pricePerNight += roomPrice;
-    }
+    });
+    pricePerNight = roomPrices.reduce((sum, price) => sum + price, 0);
 
     totalPrice = pricePerNight * nights;
 
@@ -504,7 +520,6 @@ class UtilsModule {
     if (modal && modal.classList.contains('active')) {
       // Find the "Celkem:" element in the modal and update its sibling
       const modalTotalEl = modal.querySelector('#totalPrice');
-      const modalNightsText = modal.querySelector('.price-breakdown .nights-display');
 
       if (modalTotalEl) {
         modalTotalEl.textContent = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
@@ -518,8 +533,8 @@ class UtilsModule {
           toddlers: 0,
         };
         const guestType = this.app.roomGuestTypes.get(this.app.currentBookingRoom) || 'utia';
-        const guestKey = guestType === 'utia' ? 'utia' : 'external';
-        const priceConfig = prices[guestKey];
+        const roomGuestKey = guestType === 'utia' ? 'utia' : 'external';
+        const priceConfig = prices[roomGuestKey];
 
         // Update guest counts summary
         const guestCountsSummary = document.getElementById('guestCountsSummary');
@@ -594,7 +609,8 @@ class UtilsModule {
 
   updateTranslations() {
     document.querySelectorAll('[data-cs][data-en]').forEach((el) => {
-      el.textContent = el.getAttribute(`data-${this.app.currentLanguage}`);
+      const element = el;
+      element.textContent = element.getAttribute(`data-${this.app.currentLanguage}`);
     });
   }
 }

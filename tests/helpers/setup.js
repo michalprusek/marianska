@@ -1,4 +1,5 @@
 // Test environment setup
+// eslint-disable-next-line no-unused-vars
 const path = require('path');
 
 // Set test environment variables
@@ -9,6 +10,7 @@ process.env.API_KEY = 'test-api-key-123';
 process.env.ADMIN_PASSWORD = 'test-admin-pass';
 
 // Extend Jest matchers
+/* eslint-disable no-confusing-arrow */
 expect.extend({
   toBeValidDate(received) {
     const date = new Date(received);
@@ -23,7 +25,7 @@ expect.extend({
   },
 
   toBeValidBookingId(received) {
-    const pass = /^BK[A-Z0-9]{13}$/.test(received);
+    const pass = /^BK[A-Z0-9]{13}$/u.test(received);
     return {
       pass,
       message: () =>
@@ -76,7 +78,9 @@ global.testUtils = {
 
   // Sleep utility for async tests
   sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    });
   },
 
   // Mock fetch response

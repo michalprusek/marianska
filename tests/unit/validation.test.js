@@ -2,7 +2,7 @@
 
 describe('Validation Utilities', () => {
   describe('Email Validation', () => {
-    const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email);
 
     it('should validate correct email formats', () => {
       expect(validateEmail('user@example.com')).toBe(true);
@@ -31,8 +31,8 @@ describe('Validation Utilities', () => {
   describe('Phone Number Validation', () => {
     describe('Czech/Slovak Format', () => {
       const validateCzSkPhone = (phone) => {
-        const cleaned = phone.replace(/\s/g, '');
-        const czSkRegex = /^\+42[01]\d{9}$/;
+        const cleaned = phone.replace(/\s/gu, '');
+        const czSkRegex = /^\+42[01]\d{9}$/u;
         return czSkRegex.test(cleaned);
       };
 
@@ -57,8 +57,8 @@ describe('Validation Utilities', () => {
 
     describe('International Format', () => {
       const validateInternationalPhone = (phone) => {
-        const cleaned = phone.replace(/\s/g, '');
-        const intlRegex = /^\+[1-9]\d{7,14}$/;
+        const cleaned = phone.replace(/\s/gu, '');
+        const intlRegex = /^\+[1-9]\d{7,14}$/u;
         return intlRegex.test(cleaned);
       };
 
@@ -78,10 +78,10 @@ describe('Validation Utilities', () => {
 
     describe('Phone Formatting', () => {
       const formatCzSkPhone = (phone) => {
-        const cleaned = phone.replace(/\s/g, '');
-        const match = cleaned.match(/^\+42[01](\d{3})(\d{3})(\d{3})$/);
+        const cleaned = phone.replace(/\s/gu, '');
+        const match = cleaned.match(/^\+42[01](?<part1>\d{3})(?<part2>\d{3})(?<part3>\d{3})$/u);
         if (match) {
-          return `${cleaned.substring(0, 4)} ${match[1]} ${match[2]} ${match[3]}`;
+          return `${cleaned.substring(0, 4)} ${match.groups.part1} ${match.groups.part2} ${match.groups.part3}`;
         }
         return phone;
       };
@@ -103,7 +103,7 @@ describe('Validation Utilities', () => {
   });
 
   describe('ZIP Code Validation', () => {
-    const validateZIP = (zip) => /^\d{5}$/.test(zip.replace(/\s/g, ''));
+    const validateZIP = (zip) => /^\d{5}$/u.test(zip.replace(/\s/gu, ''));
 
     it('should validate 5-digit ZIP codes', () => {
       expect(validateZIP('12345')).toBe(true);
@@ -122,8 +122,8 @@ describe('Validation Utilities', () => {
 
     describe('ZIP Formatting', () => {
       const formatZIP = (zip) => {
-        const cleaned = zip.replace(/\s/g, '');
-        if (/^\d{5}$/.test(cleaned)) {
+        const cleaned = zip.replace(/\s/gu, '');
+        if (/^\d{5}$/u.test(cleaned)) {
           return `${cleaned.substring(0, 3)} ${cleaned.substring(3)}`;
         }
         return zip;
@@ -149,7 +149,7 @@ describe('Validation Utilities', () => {
       if (!ico) {
         return true;
       } // Optional field
-      return /^\d{8}$/.test(ico.replace(/\s/g, ''));
+      return /^\d{8}$/u.test(ico.replace(/\s/gu, ''));
     };
 
     it('should validate 8-digit IČO', () => {
@@ -176,7 +176,7 @@ describe('Validation Utilities', () => {
       if (!dic) {
         return true;
       } // Optional field
-      return /^CZ\d{8,10}$/.test(dic.replace(/\s/g, ''));
+      return /^CZ\d{8,10}$/u.test(dic.replace(/\s/gu, ''));
     };
 
     it('should validate DIČ with 8 digits', () => {
@@ -237,7 +237,7 @@ describe('Validation Utilities', () => {
     });
 
     describe('Date Format Validation', () => {
-      const isValidDateFormat = (dateStr) => /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
+      const isValidDateFormat = (dateStr) => /^\d{4}-\d{2}-\d{2}$/u.test(dateStr);
 
       it('should validate YYYY-MM-DD format', () => {
         expect(isValidDateFormat('2025-06-10')).toBe(true);

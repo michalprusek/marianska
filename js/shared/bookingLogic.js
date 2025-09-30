@@ -142,11 +142,13 @@ class BookingLogic {
       for (const booking of existingBookings) {
         // Skip if this is the booking being updated
         if (excludeBookingId && booking.id === excludeBookingId) {
+          // eslint-disable-next-line no-continue -- Reduces nesting depth to avoid max-depth error
           continue;
         }
 
         // Skip if booking doesn't include this room
         if (!booking.rooms || !booking.rooms.includes(roomId)) {
+          // eslint-disable-next-line no-continue -- Reduces nesting depth to avoid max-depth error
           continue;
         }
 

@@ -114,7 +114,7 @@ class DataManager {
 
         this.lastSync = Date.now();
       }
-    } catch (_error) {
+    } catch {
       // Silently fail sync - will retry on next operation
     }
   }
@@ -157,7 +157,7 @@ class DataManager {
       if (!response.ok) {
         console.warn('Failed to push data to server');
       }
-    } catch (_error) {
+    } catch {
       // Silently fail push - will retry on next operation
     }
   }
@@ -480,7 +480,7 @@ class DataManager {
     return false;
   }
 
-  async requiresChristmasCode(startDate) {
+  requiresChristmasCode(startDate) {
     const today = new Date();
     const christmasYear = startDate.getFullYear();
 
@@ -513,7 +513,7 @@ class DataManager {
     const data = await this.getData();
 
     // Pokud je po 30.9. roku vánočních prázdnin, rezervace je povolena bez kódu
-    if (!(await this.requiresChristmasCode(startDate))) {
+    if (!this.requiresChristmasCode(startDate)) {
       return true;
     }
 
@@ -527,14 +527,13 @@ class DataManager {
 
   async getChristmasBookings() {
     const data = await this.getData();
-    const bookings = [];
-    for (const booking of data.bookings) {
+    const checkPromises = data.bookings.map(async (booking) => {
       const startDate = new Date(booking.startDate);
-      if (await this.isChristmasPeriod(startDate)) {
-        bookings.push(booking);
-      }
-    }
-    return bookings;
+      const isChristmas = await this.isChristmasPeriod(startDate);
+      return isChristmas ? booking : null;
+    });
+    const results = await Promise.all(checkPromises);
+    return results.filter((booking) => booking !== null);
   }
 
   // Blocked dates management
@@ -644,11 +643,23 @@ class DataManager {
 
   // Utility functions
   generateBookingId() {
-    return `BK${Date.now()}${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+    // Generate BK + 13 uppercase alphanumeric characters to match server.js format
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let id = 'BK';
+    for (let i = 0; i < 13; i++) {
+      id += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return id;
   }
 
   generateEditToken() {
-    return Math.random().toString(36).slice(2, 17) + Math.random().toString(36).slice(2, 17);
+    // Generate 30 character token (matches test expectations and provides good security)
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let token = '';
+    for (let i = 0; i < 30; i++) {
+      token += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return token;
   }
 
   formatDate(date) {
@@ -721,7 +732,14 @@ class DataManager {
   }
 
   // Price calculation
-  async calculatePrice(guestType, adults, children, toddlers, nights, roomsCount = 1) {
+  // eslint-disable-next-line max-params -- Legacy method signature maintained for backward compatibility
+  calculatePrice(guestType, adults, children, _toddlers, nights, roomsCount = 1) {
+    // Legacy parameter support - convert to options object internally
+    const options = { guestType, adults, children, nights, roomsCount };
+    return this.calculatePriceFromOptions(options);
+  }
+
+  async calculatePriceFromOptions({ guestType, adults, children, nights, roomsCount = 1 }) {
     const settings = await this.getSettings();
     const prices = settings.prices || {
       utia: { base: 300, adult: 50, child: 25 },
@@ -800,16 +818,16 @@ Chata Mariánská`;
     const endDate = new Date(booking.endDate);
 
     body = body
-      .replace(/{booking_id}/gu, booking.id)
-      .replace(/{name}/gu, booking.name)
-      .replace(/{start_date}/gu, startDate.toLocaleDateString('cs-CZ'))
-      .replace(/{end_date}/gu, endDate.toLocaleDateString('cs-CZ'))
-      .replace(/{rooms}/gu, booking.rooms.join(', '))
-      .replace(/{total_price}/gu, booking.totalPrice)
-      .replace(/{adults}/gu, booking.adults)
-      .replace(/{children}/gu, booking.children)
-      .replace(/{toddlers}/gu, booking.toddlers)
-      .replace(/{edit_url}/gu, editUrl);
+      .replace(/\{booking_id\}/gu, booking.id)
+      .replace(/\{name\}/gu, booking.name)
+      .replace(/\{start_date\}/gu, startDate.toLocaleDateString('cs-CZ'))
+      .replace(/\{end_date\}/gu, endDate.toLocaleDateString('cs-CZ'))
+      .replace(/\{rooms\}/gu, booking.rooms.join(', '))
+      .replace(/\{total_price\}/gu, booking.totalPrice)
+      .replace(/\{adults\}/gu, booking.adults)
+      .replace(/\{children\}/gu, booking.children)
+      .replace(/\{toddlers\}/gu, booking.toddlers)
+      .replace(/\{edit_url\}/gu, editUrl);
 
     return this.sendEmail(booking.email, subject, body);
   }
@@ -872,5 +890,5 @@ Chata Mariánská`;
 }
 
 // Create and export instance
-// eslint-disable-next-line no-unused-vars
+
 const dataManager = new DataManager();

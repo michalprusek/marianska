@@ -202,7 +202,7 @@ app.get('/health', (req, res) => {
 });
 
 // Public endpoint - read all data from SQLite
-app.get('/api/data', async (req, res) => {
+app.get('/api/data', (req, res) => {
   try {
     const data = db.getAllData();
 
@@ -213,7 +213,7 @@ app.get('/api/data', async (req, res) => {
       data.settings.adminPassword = '';
     }
 
-    res.json(data);
+    return res.json(data);
   } catch (error) {
     console.error('Error reading data:', error);
     return res.status(500).json({ error: 'Nepodařilo se načíst data' });
@@ -221,7 +221,7 @@ app.get('/api/data', async (req, res) => {
 });
 
 // Admin endpoint - save all data (for bulk operations)
-app.post('/api/data', requireApiKey, async (req, res) => {
+app.post('/api/data', requireApiKey, (req, res) => {
   try {
     const dataToSave = req.body;
 
@@ -254,7 +254,7 @@ app.post('/api/data', requireApiKey, async (req, res) => {
 
     transaction();
 
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error) {
     console.error('Error saving data:', error);
     return res.status(500).json({ error: 'Nepodařilo se uložit data' });
@@ -262,7 +262,7 @@ app.post('/api/data', requireApiKey, async (req, res) => {
 });
 
 // Public endpoint for creating bookings with rate limiting
-app.post('/api/booking', bookingLimiter, async (req, res) => {
+app.post('/api/booking', bookingLimiter, (req, res) => {
   try {
     const bookingData = req.body;
 
@@ -325,8 +325,9 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
 
     // Check availability for each room
     for (const roomId of bookingData.rooms) {
-      const current = new Date(bookingData.startDate);
-      while (current < endDate) {
+      const checkStart = new Date(bookingData.startDate);
+      const current = new Date(checkStart);
+      while (current.getTime() < endDate.getTime()) {
         const dateStr = formatDate(current);
         const availability = db.getRoomAvailability(roomId, dateStr);
         if (!availability.available) {
@@ -357,7 +358,7 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
     // Create the booking
     db.createBooking(bookingData);
 
-    res.json({
+    return res.json({
       success: true,
       booking: bookingData,
       editToken: bookingData.editToken,
@@ -369,7 +370,7 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
 });
 
 // Update booking - requires edit token or API key
-app.put('/api/booking/:id', async (req, res) => {
+app.put('/api/booking/:id', (req, res) => {
   try {
     const bookingId = req.params.id;
     const bookingData = req.body;
@@ -440,7 +441,7 @@ app.put('/api/booking/:id', async (req, res) => {
     db.updateBooking(bookingId, bookingData);
     const updatedBooking = db.getBooking(bookingId);
 
-    res.json({
+    return res.json({
       success: true,
       booking: updatedBooking,
     });
@@ -451,7 +452,7 @@ app.put('/api/booking/:id', async (req, res) => {
 });
 
 // Delete booking - requires API key or edit token
-app.delete('/api/booking/:id', async (req, res) => {
+app.delete('/api/booking/:id', (req, res) => {
   try {
     const bookingId = req.params.id;
     const editToken = req.headers['x-edit-token'];
@@ -474,7 +475,7 @@ app.delete('/api/booking/:id', async (req, res) => {
 
     db.deleteBooking(bookingId);
 
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error) {
     console.error('Error deleting booking:', error);
     return res.status(500).json({ error: 'Nepodařilo se smazat rezervaci' });
@@ -507,14 +508,13 @@ app.post('/api/admin/login', async (req, res) => {
     if (isValid) {
       // Generate session token
       const sessionToken = generateSecureToken();
-      res.json({
+      return res.json({
         success: true,
         sessionToken,
         apiKey: process.env.API_KEY, // Send API key for admin operations
       });
-    } else {
-      res.status(401).json({ error: 'Nesprávné heslo' });
     }
+    return res.status(401).json({ error: 'Nesprávné heslo' });
   } catch (error) {
     console.error('Error during admin login:', error);
     return res.status(500).json({ error: 'Chyba při přihlašování' });
@@ -534,7 +534,7 @@ app.post('/api/admin/update-password', requireApiKey, async (req, res) => {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     db.setSetting('adminPassword', hashedPassword);
 
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error) {
     console.error('Error updating password:', error);
     return res.status(500).json({ error: 'Nepodařilo se aktualizovat heslo' });
@@ -554,7 +554,7 @@ app.post('/api/admin/settings', requireApiKey, async (req, res) => {
 
     db.updateSettings(settings);
 
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error) {
     console.error('Error updating settings:', error);
     return res.status(500).json({ error: 'Chyba při ukládání nastavení' });
@@ -562,7 +562,7 @@ app.post('/api/admin/settings', requireApiKey, async (req, res) => {
 });
 
 // Protected admin endpoint - block dates
-app.post('/api/admin/block-dates', requireApiKey, async (req, res) => {
+app.post('/api/admin/block-dates', requireApiKey, (req, res) => {
   try {
     const { startDate, endDate, rooms, reason } = req.body;
 
@@ -573,9 +573,10 @@ app.post('/api/admin/block-dates', requireApiKey, async (req, res) => {
     const blocked = [];
     const start = new Date(startDate);
     const end = new Date(endDate);
+    const current = new Date(start);
 
-    for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
-      const dateStr = formatDate(date);
+    while (current.getTime() <= end.getTime()) {
+      const dateStr = formatDate(current);
       for (const roomId of rooms) {
         const blockageId = `BLK${Math.random().toString(36).slice(2, 11).toUpperCase()}`;
         const blockedDate = {
@@ -588,9 +589,10 @@ app.post('/api/admin/block-dates', requireApiKey, async (req, res) => {
         db.createBlockedDate(blockedDate);
         blocked.push(blockedDate);
       }
+      current.setDate(current.getDate() + 1);
     }
 
-    res.json({ success: true, blocked });
+    return res.json({ success: true, blocked });
   } catch (error) {
     console.error('Error blocking dates:', error);
     return res.status(500).json({ error: 'Chyba při blokování dat' });
@@ -598,13 +600,13 @@ app.post('/api/admin/block-dates', requireApiKey, async (req, res) => {
 });
 
 // Protected admin endpoint - unblock dates
-app.delete('/api/admin/block-dates/:blockageId', requireApiKey, async (req, res) => {
+app.delete('/api/admin/block-dates/:blockageId', requireApiKey, (req, res) => {
   try {
     const { blockageId } = req.params;
 
     db.deleteBlockedDate(blockageId);
 
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error) {
     console.error('Error unblocking dates:', error);
     return res.status(500).json({ error: 'Chyba při odblokování dat' });
@@ -612,17 +614,17 @@ app.delete('/api/admin/block-dates/:blockageId', requireApiKey, async (req, res)
 });
 
 // Christmas periods API endpoints
-app.get('/api/admin/christmas-periods', async (req, res) => {
+app.get('/api/admin/christmas-periods', (req, res) => {
   try {
     const periods = db.getAllChristmasPeriods();
-    res.json({ success: true, periods });
+    return res.json({ success: true, periods });
   } catch (error) {
     console.error('Error fetching Christmas periods:', error);
     return res.status(500).json({ error: 'Chyba při načítání vánočních období' });
   }
 });
 
-app.post('/api/admin/christmas-periods', requireApiKey, async (req, res) => {
+app.post('/api/admin/christmas-periods', requireApiKey, (req, res) => {
   try {
     const { name, startDate, endDate } = req.body;
 
@@ -638,14 +640,14 @@ app.post('/api/admin/christmas-periods', requireApiKey, async (req, res) => {
     };
 
     db.createChristmasPeriod(periodData);
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error) {
     console.error('Error creating Christmas period:', error);
     return res.status(500).json({ error: 'Chyba při vytváření vánočního období' });
   }
 });
 
-app.put('/api/admin/christmas-periods/:periodId', requireApiKey, async (req, res) => {
+app.put('/api/admin/christmas-periods/:periodId', requireApiKey, (req, res) => {
   try {
     const { periodId } = req.params;
     const { name, startDate, endDate } = req.body;
@@ -658,20 +660,20 @@ app.put('/api/admin/christmas-periods/:periodId', requireApiKey, async (req, res
     };
 
     db.updateChristmasPeriod(periodId, periodData);
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error) {
     console.error('Error updating Christmas period:', error);
     return res.status(500).json({ error: 'Chyba při aktualizaci vánočního období' });
   }
 });
 
-app.delete('/api/admin/christmas-periods/:periodId', requireApiKey, async (req, res) => {
+app.delete('/api/admin/christmas-periods/:periodId', requireApiKey, (req, res) => {
   try {
     const { periodId } = req.params;
 
     db.deleteChristmasPeriod(periodId);
 
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error) {
     console.error('Error deleting Christmas period:', error);
     return res.status(500).json({ error: 'Chyba při mazání vánočního období' });
@@ -679,7 +681,7 @@ app.delete('/api/admin/christmas-periods/:periodId', requireApiKey, async (req, 
 });
 
 // Proposed bookings endpoints
-app.post('/api/proposed-booking', async (req, res) => {
+app.post('/api/proposed-booking', (req, res) => {
   try {
     const { sessionId, startDate, endDate, rooms } = req.body;
 
@@ -693,24 +695,24 @@ app.post('/api/proposed-booking', async (req, res) => {
     // Create new proposed booking
     const proposalId = db.createProposedBooking(sessionId, startDate, endDate, rooms);
 
-    res.json({ success: true, proposalId });
+    return res.json({ success: true, proposalId });
   } catch (error) {
     console.error('Error creating proposed booking:', error);
     return res.status(500).json({ error: 'Chyba při vytváření navrhované rezervace' });
   }
 });
 
-app.get('/api/proposed-bookings', async (req, res) => {
+app.get('/api/proposed-bookings', (req, res) => {
   try {
     const proposedBookings = db.getActiveProposedBookings();
-    res.json(proposedBookings);
+    return res.json(proposedBookings);
   } catch (error) {
     console.error('Error getting proposed bookings:', error);
     return res.status(500).json({ error: 'Chyba při načítání navrhovaných rezervací' });
   }
 });
 
-app.post('/api/proposed-bookings', async (req, res) => {
+app.post('/api/proposed-bookings', (req, res) => {
   try {
     const { sessionId, startDate, endDate, rooms } = req.body;
 
@@ -719,33 +721,33 @@ app.post('/api/proposed-bookings', async (req, res) => {
     }
 
     const proposalId = db.createProposedBooking(sessionId, startDate, endDate, rooms);
-    res.json({ success: true, proposalId });
+    return res.json({ success: true, proposalId });
   } catch (error) {
     console.error('Error creating proposed booking:', error);
     return res.status(500).json({ error: 'Chyba při vytváření navrhované rezervace' });
   }
 });
 
-app.delete('/api/proposed-booking/:proposalId', async (req, res) => {
+app.delete('/api/proposed-booking/:proposalId', (req, res) => {
   try {
     const { proposalId } = req.params;
 
     db.deleteProposedBooking(proposalId);
 
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error) {
     console.error('Error deleting proposed booking:', error);
     return res.status(500).json({ error: 'Chyba při mazání navrhované rezervace' });
   }
 });
 
-app.delete('/api/proposed-bookings/session/:sessionId', async (req, res) => {
+app.delete('/api/proposed-bookings/session/:sessionId', (req, res) => {
   try {
     const { sessionId } = req.params;
 
     db.deleteProposedBookingsBySession(sessionId);
 
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error) {
     console.error('Error deleting proposed bookings by session:', error);
     return res.status(500).json({ error: 'Chyba při mazání navrhovaných rezervací' });
@@ -774,16 +776,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.info('SIGTERM signal received: closing HTTP server');
-  server.close(() => {
-    console.info('HTTP server closed');
-    db.close();
-    process.exit(0);
-  });
-});
-
+// Start server
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.info(`Server běží na http://localhost:${PORT}`);
   console.info(`Prostředí: ${process.env.NODE_ENV || 'development'}`);
@@ -793,6 +786,16 @@ const server = app.listen(PORT, '0.0.0.0', () => {
       '⚠️  VAROVÁNÍ: Server běží v development módu. Pro produkci nastavte NODE_ENV=production'
     );
   }
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.info('SIGTERM signal received: closing HTTP server');
+  server.close(() => {
+    console.info('HTTP server closed');
+    db.close();
+    process.exit(0);
+  });
 });
 
 module.exports = app;

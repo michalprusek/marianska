@@ -1,3 +1,4 @@
+/* eslint-disable max-classes-per-file */
 // Mock data and utilities for tests
 
 // Sample booking data
@@ -79,11 +80,11 @@ class MockDataManager {
     };
   }
 
-  async initData() {
+  initData() {
     return this.data;
   }
 
-  async createBooking(bookingData) {
+  createBooking(bookingData) {
     const booking = {
       ...bookingData,
       id: this.generateBookingId(),
@@ -95,7 +96,7 @@ class MockDataManager {
     return booking;
   }
 
-  async updateBooking(id, updates) {
+  updateBooking(id, updates) {
     const index = this.data.bookings.findIndex((b) => b.id === id);
     if (index === -1) {
       return null;
@@ -109,7 +110,7 @@ class MockDataManager {
     return this.data.bookings[index];
   }
 
-  async deleteBooking(id) {
+  deleteBooking(id) {
     const index = this.data.bookings.findIndex((b) => b.id === id);
     if (index === -1) {
       return false;
@@ -128,14 +129,26 @@ class MockDataManager {
   }
 
   generateBookingId() {
-    return `BK${Math.random().toString(36).substr(2, 13).toUpperCase()}`;
+    // Generate BK + 13 uppercase alphanumeric characters
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let id = 'BK';
+    for (let i = 0; i < 13; i++) {
+      id += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return id;
   }
 
   generateEditToken() {
-    return Math.random().toString(36).substr(2, 30);
+    // Generate exactly 30 character token
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let token = '';
+    for (let i = 0; i < 30; i++) {
+      token += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return token;
   }
 
-  async getRoomAvailability(date, roomId) {
+  getRoomAvailability(date, roomId) {
     // Check blocked dates
     const blocked = this.data.blockedDates.find((bd) => bd.date === date && bd.roomId === roomId);
     if (blocked) {
@@ -157,7 +170,14 @@ class MockDataManager {
     return { status: 'available', email: null };
   }
 
-  calculatePrice(guestType, adults, children, toddlers, nights, roomsCount = 1) {
+  // eslint-disable-next-line max-params -- Legacy method signature maintained for backward compatibility
+  calculatePrice(guestType, adults, children, _toddlers, nights, roomsCount = 1) {
+    // Legacy parameter support - convert to options object internally
+    const options = { guestType, adults, children, nights, roomsCount };
+    return this.calculatePriceFromOptions(options);
+  }
+
+  calculatePriceFromOptions({ guestType, adults, children, nights, roomsCount = 1 }) {
     // Simplified calculation for testing
     const prices = this.data.settings.prices[guestType];
     const roomType = roomsCount > 1 ? 'large' : 'small';
@@ -179,13 +199,13 @@ class MockDataManager {
 }
 
 // Mock fetch for API testing
-function mockFetch(url, options = {}) {
+function mockFetch(url, _options = {}) {
   return new Promise((resolve) => {
     const response = {
       ok: true,
       status: 200,
-      json: async () => ({ success: true, data: {} }),
-      text: async () => JSON.stringify({ success: true }),
+      json: () => Promise.resolve({ success: true, data: {} }),
+      text: () => Promise.resolve(JSON.stringify({ success: true })),
     };
     resolve(response);
   });

@@ -114,7 +114,7 @@ class AdminPanel {
       sessionStorage.setItem('adminAuth', 'authenticated');
       await this.showAdminPanel();
     } else {
-      alert('Nesprávné heslo');
+      this.showErrorMessage('Nesprávné heslo');
     }
   }
 
@@ -613,7 +613,7 @@ class AdminPanel {
       const dates = Array.from(this.editSelectedDates).sort();
       this.editStartDate = dates[0];
       this.editEndDate = this.formatDate(
-        new Date(new Date(dates[dates.length - 1]).getTime() + (24 * 60 * 60 * 1000))
+        new Date(new Date(dates[dates.length - 1]).getTime() + 24 * 60 * 60 * 1000)
       );
 
       document.getElementById('editSelectedDates').textContent =
@@ -684,9 +684,9 @@ class AdminPanel {
     const childPrice = guestType === 'utia' ? 25 : 50;
 
     const totalPrice =
-      (nights * roomCount * basePrice) +
-      (nights * (adults - roomCount) * adultPrice) +
-      (nights * children * childPrice);
+      nights * roomCount * basePrice +
+      nights * (adults - roomCount) * adultPrice +
+      nights * children * childPrice;
 
     document.getElementById('editTotalPrice').textContent = `${totalPrice} Kč`;
     return totalPrice;
@@ -780,11 +780,11 @@ class AdminPanel {
   }
 
   deleteBooking(bookingId) {
-    if (confirm('Opravdu chcete smazat tuto rezervaci?')) {
+    this.showConfirm('Opravdu chcete smazat tuto rezervaci?', () => {
       dataManager.deleteBooking(bookingId);
       this.loadBookings();
       this.showSuccessMessage('Rezervace byla smazána');
-    }
+    });
   }
 
   async loadBlockedDates() {
@@ -937,7 +937,7 @@ class AdminPanel {
                     </div>
                 </div>
                 <div style="margin-top: auto; padding-top: 0.5rem;">
-                    <button onclick="adminPanel.unblockRangeByDates('${group.startDate}', '${group.endDate}', '${JSON.stringify(group.roomsList).replace(/'/g, "\\'")}').catch(console.error)"
+                    <button onclick="adminPanel.unblockRangeByDates('${group.startDate}', '${group.endDate}', '${JSON.stringify(group.roomsList).replace(/'/gu, "\\'")}').catch(console.error)"
                             style="width: 100%; padding: 0.5rem; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 0.85rem; transition: background 0.2s;"
                             onmouseover="this.style.background='#b91c1c'"
                             onmouseout="this.style.background='#dc2626'">
@@ -977,7 +977,7 @@ class AdminPanel {
 
     // Validate dates
     if (new Date(endDate) < new Date(startDate)) {
-      alert('Konec období musí být po začátku');
+      this.showErrorMessage('Konec období musí být po začátku');
       return;
     }
 
@@ -991,17 +991,21 @@ class AdminPanel {
     if (selectedRooms.length === 0) {
       // Block all rooms for this date range with same blockage ID
       const endTime = end.getTime();
+      const blockPromises = [];
       for (let d = new Date(start); d.getTime() <= endTime; d.setDate(d.getDate() + 1)) {
-        await dataManager.blockDate(new Date(d), null, reason, blockageId);
+        blockPromises.push(dataManager.blockDate(new Date(d), null, reason, blockageId));
       }
+      await Promise.all(blockPromises);
     } else {
       // Block specific rooms for this date range
       const endTime = end.getTime();
+      const blockPromises = [];
       for (const roomId of selectedRooms) {
         for (let d = new Date(start); d.getTime() <= endTime; d.setDate(d.getDate() + 1)) {
-          await dataManager.blockDate(new Date(d), roomId, reason, blockageId);
+          blockPromises.push(dataManager.blockDate(new Date(d), roomId, reason, blockageId));
         }
       }
+      await Promise.all(blockPromises);
     }
 
     e.target.reset();
@@ -1083,7 +1087,7 @@ class AdminPanel {
         return;
       }
 
-      for (const blockageId of blockageIds) {
+      const deletePromises = blockageIds.map(async (blockageId) => {
         const response = await fetch(`/api/admin/block-dates/${blockageId}`, {
           method: 'DELETE',
           headers: {
@@ -1094,7 +1098,8 @@ class AdminPanel {
         if (!response.ok) {
           console.error(`Failed to delete blockageId: ${blockageId}`);
         }
-      }
+      });
+      await Promise.all(deletePromises);
 
       await this.loadBlockedDates();
       this.showSuccessMessage('Blokace byla odstraněna');
@@ -1328,39 +1333,47 @@ class AdminPanel {
       const endDate = new Date(period.end).toLocaleDateString('cs-CZ');
       const year = period.year || new Date(period.start).getFullYear();
 
-      if (!confirm(`Opravdu chcete odstranit vánoční období ${year}?\n${startDate} - ${endDate}`)) {
-        return;
-      }
+      // Use showConfirm instead of confirm
+      this.showConfirm(
+        `Opravdu chcete odstranit vánoční období ${year}?<br>${startDate} - ${endDate}`,
+        async () => {
+          try {
+            // Use API endpoint to delete from database
+            if (period.periodId) {
+              const apiKey =
+                sessionStorage.getItem('apiKey') || sessionStorage.getItem('adminApiKey');
+              if (!apiKey) {
+                this.showErrorMessage('Chyba autentizace');
+                return;
+              }
 
-      // Use API endpoint to delete from database
-      if (period.periodId) {
-        const apiKey = sessionStorage.getItem('apiKey') || sessionStorage.getItem('adminApiKey');
-        if (!apiKey) {
-          this.showErrorMessage('Chyba autentizace');
-          return;
+              const response = await fetch(`/api/admin/christmas-periods/${period.periodId}`, {
+                method: 'DELETE',
+                headers: {
+                  'X-API-Key': apiKey,
+                },
+              });
+
+              if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Chyba při mazání vánočního období');
+              }
+            } else {
+              // Fallback for periods without periodId - update settings directly
+              settings.christmasPeriods.splice(index, 1);
+              await dataManager.updateSettings(settings);
+            }
+
+            await dataManager.syncWithServer();
+            await this.loadChristmasPeriods();
+
+            this.showToast(`Vánoční období ${year} bylo odstraněno`, 'success');
+          } catch (error) {
+            console.error('Chyba při odstraňování vánočního období:', error);
+            this.showToast(`Chyba při odstraňování vánočního období: ${error.message}`, 'error');
+          }
         }
-
-        const response = await fetch(`/api/admin/christmas-periods/${period.periodId}`, {
-          method: 'DELETE',
-          headers: {
-            'X-API-Key': apiKey,
-          },
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || 'Chyba při mazání vánočního období');
-        }
-      } else {
-        // Fallback for periods without periodId - update settings directly
-        settings.christmasPeriods.splice(index, 1);
-        await dataManager.updateSettings(settings);
-      }
-
-      await dataManager.syncWithServer();
-      await this.loadChristmasPeriods();
-
-      this.showToast(`Vánoční období ${year} bylo odstraněno`, 'success');
+      );
     } catch (error) {
       console.error('Chyba při odstraňování vánočního období:', error);
       this.showToast(`Chyba při odstraňování vánočního období: ${error.message}`, 'error');
@@ -1593,17 +1606,17 @@ class AdminPanel {
     // First verify current password
     const isAuthenticated = await dataManager.authenticateAdmin(currentPassword);
     if (!isAuthenticated) {
-      alert('Nesprávné současné heslo');
+      this.showErrorMessage('Nesprávné současné heslo');
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      alert('Nová hesla se neshodují');
+      this.showErrorMessage('Nová hesla se neshodují');
       return;
     }
 
     if (newPassword.length < 8) {
-      alert('Nové heslo musí mít alespoň 8 znaků');
+      this.showErrorMessage('Nové heslo musí mít alespoň 8 znaků');
       return;
     }
 
@@ -1624,11 +1637,11 @@ class AdminPanel {
         this.showSuccessMessage('Heslo bylo úspěšně změněno');
       } else {
         const error = await response.json();
-        alert(`Chyba při změně hesla: ${error.error}`);
+        this.showErrorMessage(`Chyba při změně hesla: ${error.error}`);
       }
     } catch (error) {
       console.error('Error updating password:', error);
-      alert('Nepodařilo se změnit heslo');
+      this.showErrorMessage('Nepodařilo se změnit heslo');
     }
   }
 
@@ -1794,6 +1807,52 @@ class AdminPanel {
 
   showInfoMessage(message) {
     this.showToast(message, 'info');
+  }
+
+  // Confirm dialog replacement for no-alert ESLint rule
+  showConfirm(message, onConfirm, onCancel = null) {
+    const confirmDialog = document.createElement('div');
+    confirmDialog.className = 'confirm-overlay';
+    confirmDialog.innerHTML = `
+      <div class="confirm-dialog">
+        <div class="confirm-message">${message}</div>
+        <div class="confirm-buttons">
+          <button class="confirm-cancel">Zrušit</button>
+          <button class="confirm-ok">Potvrdit</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(confirmDialog);
+    setTimeout(() => confirmDialog.classList.add('active'), 10);
+
+    const removeDialog = () => {
+      confirmDialog.classList.remove('active');
+      setTimeout(() => confirmDialog.remove(), 300);
+    };
+
+    confirmDialog.querySelector('.confirm-ok').addEventListener('click', () => {
+      removeDialog();
+      if (onConfirm) {
+        onConfirm();
+      }
+    });
+
+    confirmDialog.querySelector('.confirm-cancel').addEventListener('click', () => {
+      removeDialog();
+      if (onCancel) {
+        onCancel();
+      }
+    });
+
+    confirmDialog.addEventListener('click', (e) => {
+      if (e.target === confirmDialog) {
+        removeDialog();
+        if (onCancel) {
+          onCancel();
+        }
+      }
+    });
   }
 }
 

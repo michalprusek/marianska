@@ -46,7 +46,7 @@ describe('DataManager', () => {
     it('should generate ID in format BK + 13 characters', () => {
       const id = dataManager.generateBookingId();
 
-      expect(id).toMatch(/^BK[A-Z0-9]{13}$/);
+      expect(id).toMatch(/^BK[A-Z0-9]{13}$/u);
       expect(id.length).toBe(15);
     });
   });
@@ -334,8 +334,8 @@ describe('DataManager', () => {
 
       it('should handle multiple rooms', () => {
         const price = dataManager.calculatePrice('utia', 3, 0, 0, 1, 2);
-        // (300 * 2) + (3 - 2) * 50 = 650
-        expect(price).toBe(650);
+        // 2 rooms = large pricing: (400 * 2) + (3 - 2) * 50 = 850
+        expect(price).toBe(850);
       });
     });
 
@@ -358,9 +358,9 @@ describe('DataManager', () => {
       it('should calculate complex scenario correctly', () => {
         // 2 rooms, 3 adults, 2 children, 2 nights
         const price = dataManager.calculatePrice('external', 3, 2, 0, 2, 2);
-        // (500 * 2) + (3 - 2) * 100 + (2 * 50) = 1200 per night
-        // 1200 * 2 = 2400
-        expect(price).toBe(2400);
+        // 2 rooms = large pricing: (600 * 2) + (3 - 2) * 100 + (2 * 50) = 1400 per night
+        // 1400 * 2 = 2800
+        expect(price).toBe(2800);
       });
     });
   });
@@ -443,7 +443,7 @@ describe('DataManager', () => {
 
     it('should handle date string', () => {
       const dateStr = '2025-06-15';
-      expect(dateStr).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(dateStr).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
     });
   });
 
@@ -492,8 +492,8 @@ describe('DataManager', () => {
 
       // Not guaranteed to be different, but highly likely
       // Test just checks both are valid colors
-      expect(color1).toMatch(/^#[0-9A-F]{6}$/i);
-      expect(color2).toMatch(/^#[0-9A-F]{6}$/i);
+      expect(color1).toMatch(/^#[0-9A-F]{6}$/iu);
+      expect(color2).toMatch(/^#[0-9A-F]{6}$/iu);
     });
   });
 });

@@ -3,10 +3,9 @@
 
 describe('Complete Booking Flow (E2E)', () => {
   let browser;
-  let page;
   const baseURL = 'http://localhost:3000';
 
-  beforeAll(async () => {
+  beforeAll(() => {
     if (typeof browser === 'undefined') {
       // Skip if Playwright not available
     }
@@ -21,7 +20,7 @@ describe('Complete Booking Flow (E2E)', () => {
   });
 
   describe('Single Room Booking', () => {
-    it('should complete full booking flow', async () => {
+    it('should complete full booking flow', () => {
       // This test demonstrates the expected flow
       // Actual Playwright implementation would use real selectors
 
@@ -42,7 +41,7 @@ describe('Complete Booking Flow (E2E)', () => {
       // Full implementation would use Playwright API
     });
 
-    it('should validate form fields before submission', async () => {
+    it('should validate form fields before submission', () => {
       const formValidations = {
         nameRequired: true,
         emailRequired: true,
@@ -54,8 +53,8 @@ describe('Complete Booking Flow (E2E)', () => {
       expect(formValidations.nameRequired).toBe(true);
     });
 
-    it('should show error for invalid email', async () => {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    it('should show error for invalid email', () => {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
       const invalidEmails = ['invalid-email', '@example.com', 'user@'];
 
       invalidEmails.forEach((email) => {
@@ -63,20 +62,13 @@ describe('Complete Booking Flow (E2E)', () => {
       });
     });
 
-    it('should show error for unavailable room', async () => {
+    it('should show error for unavailable room', () => {
       const expectedError = 'Pokoj není k dispozici pro vybrané datum';
       expect(expectedError).toBeDefined();
     });
 
-    it('should calculate price correctly', async () => {
-      // Mock calculation
-      const booking = {
-        guestType: 'utia',
-        rooms: 1,
-        adults: 2,
-        children: 1,
-        nights: 2,
-      };
+    it('should calculate price correctly', () => {
+      // Mock calculation (not used in this simple test)
 
       // (300 + 50 + 25) * 2 = 750
       const expectedPrice = 750;
@@ -85,7 +77,7 @@ describe('Complete Booking Flow (E2E)', () => {
   });
 
   describe('Multi-Room Booking', () => {
-    it('should allow adding multiple rooms to reservation', async () => {
+    it('should allow adding multiple rooms to reservation', () => {
       const tempReservations = [
         { roomId: '12', nights: 2, price: 600 },
         { roomId: '13', nights: 2, price: 650 },
@@ -97,7 +89,7 @@ describe('Complete Booking Flow (E2E)', () => {
       expect(totalPrice).toBe(1250);
     });
 
-    it('should allow removing rooms from temporary list', async () => {
+    it('should allow removing rooms from temporary list', () => {
       const tempReservations = [
         { id: '1', roomId: '12' },
         { id: '2', roomId: '13' },
@@ -109,16 +101,18 @@ describe('Complete Booking Flow (E2E)', () => {
       expect(filtered.find((r) => r.id === '2')).toBeUndefined();
     });
 
-    it('should create all bookings when finalizing', async () => {
+    it('should create all bookings when finalizing', () => {
       const tempReservations = [
         { roomId: '12', startDate: '2025-06-10', endDate: '2025-06-12' },
         { roomId: '13', startDate: '2025-06-15', endDate: '2025-06-17' },
       ];
 
       // Simulate booking creation
-      const createdBookings = tempReservations.map((res, index) => ({
+      const createdBookings = tempReservations.map((_res, index) => ({
         id: `BK_TEST_${index}`,
-        ...res,
+        roomId: tempReservations[index].roomId,
+        startDate: tempReservations[index].startDate,
+        endDate: tempReservations[index].endDate,
       }));
 
       expect(createdBookings.length).toBe(tempReservations.length);
@@ -128,12 +122,12 @@ describe('Complete Booking Flow (E2E)', () => {
   });
 
   describe('Bulk Booking Flow', () => {
-    it('should open bulk booking modal', async () => {
+    it('should open bulk booking modal', () => {
       const bulkModalExists = true;
       expect(bulkModalExists).toBe(true);
     });
 
-    it('should only show fully available dates', async () => {
+    it('should only show fully available dates', () => {
       const dates = [
         { date: '2025-06-10', allRoomsAvailable: true },
         { date: '2025-06-11', allRoomsAvailable: false }, // One room booked
@@ -144,7 +138,7 @@ describe('Complete Booking Flow (E2E)', () => {
       expect(selectableDates.length).toBe(2);
     });
 
-    it('should validate guest count against total capacity', async () => {
+    it('should validate guest count against total capacity', () => {
       const totalCapacity = 26;
       const guests = {
         adults: 20,
@@ -158,7 +152,7 @@ describe('Complete Booking Flow (E2E)', () => {
       expect(exceedsCapacity).toBe(true);
     });
 
-    it('should calculate bulk pricing correctly', async () => {
+    it('should calculate bulk pricing correctly', () => {
       const bulkPrices = {
         basePrice: 2000,
         externalAdult: 250,
@@ -177,9 +171,8 @@ describe('Complete Booking Flow (E2E)', () => {
       expect(totalPrice).toBe((2000 + 2500 + 250) * 2); // 9500
     });
 
-    it('should block Christmas dates after Oct 1', async () => {
+    it('should block Christmas dates after Oct 1', () => {
       const today = new Date('2024-11-15');
-      const christmasDate = '2024-12-25';
       const oct1 = new Date('2024-10-01');
 
       const isAfterOct1 = today >= oct1;
@@ -190,7 +183,7 @@ describe('Complete Booking Flow (E2E)', () => {
   });
 
   describe('Proposed Bookings (Temporary Reservations)', () => {
-    it('should create proposed booking when confirming room', async () => {
+    it('should create proposed booking when confirming room', () => {
       const proposalData = {
         sessionId: 'SESSION_123',
         startDate: '2025-06-10',
@@ -202,7 +195,7 @@ describe('Complete Booking Flow (E2E)', () => {
       expect(proposalData.expiresAt).toBeGreaterThan(Date.now());
     });
 
-    it('should show proposed bookings in calendar', async () => {
+    it('should show proposed bookings in calendar', () => {
       const proposedBooking = {
         roomId: '12',
         startDate: '2025-06-10',
@@ -213,7 +206,7 @@ describe('Complete Booking Flow (E2E)', () => {
       expect(proposedBooking.status).toBe('proposed');
     });
 
-    it('should delete proposed bookings after finalization', async () => {
+    it('should delete proposed bookings after finalization', () => {
       const proposalIds = ['PROP1', 'PROP2', 'PROP3'];
 
       // Simulate deletion
@@ -224,9 +217,8 @@ describe('Complete Booking Flow (E2E)', () => {
       expect(deletedIds.length).toBe(3);
     });
 
-    it('should expire proposed bookings after 15 minutes', async () => {
+    it('should expire proposed bookings after 15 minutes', () => {
       const now = Date.now();
-      const expiryTime = 15 * 60 * 1000; // 15 minutes
 
       const proposal = {
         createdAt: now - 16 * 60 * 1000, // 16 minutes ago
@@ -239,7 +231,7 @@ describe('Complete Booking Flow (E2E)', () => {
   });
 
   describe('Christmas Period Booking', () => {
-    it('should require access code before Sept 30', async () => {
+    it('should require access code before Sept 30', () => {
       const today = new Date('2024-09-15');
       const christmasYear = 2024;
       const deadline = new Date(christmasYear, 8, 30); // Sept 30
@@ -248,7 +240,7 @@ describe('Complete Booking Flow (E2E)', () => {
       expect(requiresCode).toBe(true);
     });
 
-    it('should validate Christmas access code', async () => {
+    it('should validate Christmas access code', () => {
       const validCodes = ['XMAS2024', 'VIP123'];
       const userCode = 'XMAS2024';
 
@@ -256,7 +248,7 @@ describe('Complete Booking Flow (E2E)', () => {
       expect(isValid).toBe(true);
     });
 
-    it('should allow booking without code after Sept 30', async () => {
+    it('should allow booking without code after Sept 30', () => {
       const today = new Date('2024-10-15');
       const deadline = new Date(2024, 8, 30);
 
@@ -264,7 +256,7 @@ describe('Complete Booking Flow (E2E)', () => {
       expect(requiresCode).toBe(false);
     });
 
-    it('should reject booking with invalid Christmas code', async () => {
+    it('should reject booking with invalid Christmas code', () => {
       const validCodes = ['XMAS2024'];
       const userCode = 'INVALID';
 
@@ -274,7 +266,7 @@ describe('Complete Booking Flow (E2E)', () => {
   });
 
   describe('Booking Confirmation', () => {
-    it('should display success modal with booking details', async () => {
+    it('should display success modal with booking details', () => {
       const booking = {
         id: 'BK1234567890ABC',
         editToken: 'abc123def456ghi789jkl012mno345',
@@ -288,7 +280,7 @@ describe('Complete Booking Flow (E2E)', () => {
       expect(booking.editToken).toBeValidEditToken();
     });
 
-    it('should provide edit link with token', async () => {
+    it('should provide edit link with token', () => {
       const editToken = 'abc123def456ghi789jkl012mno345';
       const editUrl = `${baseURL}/edit.html?token=${editToken}`;
 
@@ -296,7 +288,7 @@ describe('Complete Booking Flow (E2E)', () => {
       expect(editUrl).toContain(editToken);
     });
 
-    it('should allow copying edit link to clipboard', async () => {
+    it('should allow copying edit link to clipboard', () => {
       const editLink = 'http://localhost:3000/edit.html?token=abc123';
 
       // Simulate clipboard copy
@@ -306,7 +298,7 @@ describe('Complete Booking Flow (E2E)', () => {
   });
 
   describe('Error Handling', () => {
-    it('should show error for concurrent booking conflict', async () => {
+    it('should show error for concurrent booking conflict', () => {
       const booking1 = {
         roomId: '12',
         startDate: '2025-06-10',
@@ -328,12 +320,12 @@ describe('Complete Booking Flow (E2E)', () => {
       expect(overlaps).toBe(true);
     });
 
-    it('should show error for server unavailable', async () => {
+    it('should show error for server unavailable', () => {
       const expectedError = 'Server není dostupný. Zkuste to prosím později.';
       expect(expectedError).toBeDefined();
     });
 
-    it('should fallback to localStorage when server down', async () => {
+    it('should fallback to localStorage when server down', () => {
       const serverAvailable = false;
       const useLocalStorage = !serverAvailable;
 
@@ -342,14 +334,15 @@ describe('Complete Booking Flow (E2E)', () => {
   });
 
   describe('Real-time Updates', () => {
-    it('should sync data every 5 seconds', async () => {
+    it('should sync data every 5 seconds', () => {
       const syncInterval = 5000; // 5 seconds
       expect(syncInterval).toBe(5000);
     });
 
-    it('should update calendar when new booking created', async () => {
+    it('should update calendar when new booking created', () => {
       // Simulate booking creation
-      const newBooking = {
+      // eslint-disable-next-line no-underscore-dangle
+      const _newBooking = {
         id: 'BK_NEW',
         roomId: '12',
         startDate: '2025-06-10',
@@ -359,11 +352,10 @@ describe('Complete Booking Flow (E2E)', () => {
       expect(calendarShouldUpdate).toBe(true);
     });
 
-    it('should highlight newly created booking', async () => {
+    it('should highlight newly created booking', () => {
       const bookingElement = {
         classList: {
           add: jest.fn(),
-          remove: jest.fn(),
         },
       };
 
@@ -375,7 +367,7 @@ describe('Complete Booking Flow (E2E)', () => {
   });
 
   describe('Calendar Interactions', () => {
-    it('should navigate between months', async () => {
+    it('should navigate between months', () => {
       const currentMonth = new Date('2025-06-01');
       const nextMonth = new Date(currentMonth);
       nextMonth.setMonth(nextMonth.getMonth() + 1);
@@ -383,7 +375,7 @@ describe('Complete Booking Flow (E2E)', () => {
       expect(nextMonth.getMonth()).toBe(6); // July (0-indexed)
     });
 
-    it('should highlight Christmas period dates', async () => {
+    it('should highlight Christmas period dates', () => {
       const christmasDate = '2024-12-25';
       const period = {
         start_date: '2024-12-23',
@@ -395,7 +387,7 @@ describe('Complete Booking Flow (E2E)', () => {
       expect(isChristmas).toBe(true);
     });
 
-    it('should disable past dates', async () => {
+    it('should disable past dates', () => {
       const today = new Date();
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
@@ -404,8 +396,10 @@ describe('Complete Booking Flow (E2E)', () => {
       expect(isPast).toBe(true);
     });
 
-    it('should show booking details on click', async () => {
-      const booking = {
+    it('should show booking details on click', () => {
+      // Simulated booking object (not used in this test)
+      // eslint-disable-next-line no-underscore-dangle
+      const _booking = {
         id: 'BK123',
         name: 'Jan Novák',
         email: 'jan@example.com',
@@ -419,12 +413,12 @@ describe('Complete Booking Flow (E2E)', () => {
   });
 
   describe('Accessibility', () => {
-    it('should have keyboard navigation', async () => {
+    it('should have keyboard navigation', () => {
       const supportedKeys = ['Tab', 'Enter', 'Escape', 'ArrowLeft', 'ArrowRight'];
       expect(supportedKeys.length).toBeGreaterThan(0);
     });
 
-    it('should have ARIA labels', async () => {
+    it('should have ARIA labels', () => {
       const ariaLabels = {
         calendar: 'Booking calendar',
         modal: 'Room booking modal',
@@ -434,7 +428,7 @@ describe('Complete Booking Flow (E2E)', () => {
       expect(ariaLabels.calendar).toBeDefined();
     });
 
-    it('should have alt text for images', async () => {
+    it('should have alt text for images', () => {
       const imageShouldHaveAlt = true;
       expect(imageShouldHaveAlt).toBe(true);
     });

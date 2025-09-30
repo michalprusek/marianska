@@ -366,10 +366,10 @@ class DatabaseManager {
   }
 
   updateBooking(id, bookingData) {
-    const transaction = this.db.transaction((id, data) => {
+    const transaction = this.db.transaction((bookingId, data) => {
       // Update booking
       this.statements.updateBooking.run({
-        id,
+        id: bookingId,
         name: data.name,
         email: data.email,
         phone: data.phone,
@@ -391,12 +391,12 @@ class DatabaseManager {
       });
 
       // Update rooms (delete and re-insert)
-      this.statements.deleteBookingRooms.run(id);
+      this.statements.deleteBookingRooms.run(bookingId);
       if (data.rooms && data.rooms.length > 0) {
         for (const roomId of data.rooms) {
           // Skip null/undefined room IDs
           if (roomId != null && roomId !== '') {
-            this.statements.insertBookingRoom.run(id, roomId);
+            this.statements.insertBookingRoom.run(bookingId, roomId);
           }
         }
       }
@@ -561,18 +561,18 @@ class DatabaseManager {
   }
 
   updateSettings(settings) {
-    const transaction = this.db.transaction((settings) => {
-      if (settings.adminPassword) {
-        this.setSetting('adminPassword', settings.adminPassword);
+    const transaction = this.db.transaction((updatedSettings) => {
+      if (updatedSettings.adminPassword) {
+        this.setSetting('adminPassword', updatedSettings.adminPassword);
       }
 
       // Handle new Christmas periods format
-      if (settings.christmasPeriods && Array.isArray(settings.christmasPeriods)) {
+      if (updatedSettings.christmasPeriods && Array.isArray(updatedSettings.christmasPeriods)) {
         // Clear existing periods
         this.db.exec('DELETE FROM christmas_periods');
 
         // Add new periods
-        for (const period of settings.christmasPeriods) {
+        for (const period of updatedSettings.christmasPeriods) {
           this.createChristmasPeriod({
             periodId: period.periodId,
             name: period.name || `Vánoce ${period.year}`,
@@ -581,27 +581,27 @@ class DatabaseManager {
             year: period.year,
           });
         }
-      } else if (settings.christmasPeriod) {
+      } else if (updatedSettings.christmasPeriod) {
         // Backward compatibility - update old format
-        if (settings.christmasPeriod.start) {
-          this.setSetting('christmasPeriodStart', settings.christmasPeriod.start);
+        if (updatedSettings.christmasPeriod.start) {
+          this.setSetting('christmasPeriodStart', updatedSettings.christmasPeriod.start);
         }
-        if (settings.christmasPeriod.end) {
-          this.setSetting('christmasPeriodEnd', settings.christmasPeriod.end);
+        if (updatedSettings.christmasPeriod.end) {
+          this.setSetting('christmasPeriodEnd', updatedSettings.christmasPeriod.end);
         }
       }
 
-      if (settings.prices) {
-        this.setSetting('prices', JSON.stringify(settings.prices));
+      if (updatedSettings.prices) {
+        this.setSetting('prices', JSON.stringify(updatedSettings.prices));
       }
 
-      if (settings.christmasAccessCodes) {
+      if (updatedSettings.christmasAccessCodes) {
         // Clear existing codes
         this.db.exec('DELETE FROM christmas_codes');
 
         // Add new codes
         const now = new Date().toISOString();
-        for (const code of settings.christmasAccessCodes) {
+        for (const code of updatedSettings.christmasAccessCodes) {
           this.statements.insertChristmasCode.run(code, now);
         }
       }
@@ -669,8 +669,8 @@ class DatabaseManager {
 
   // Migrate data from JSON file
   async migrateFromJSON(jsonPath) {
-    const fs = require('fs').promises;
-    const data = JSON.parse(await fs.readFile(jsonPath, 'utf8'));
+    const fsPromises = require('fs').promises;
+    const data = JSON.parse(await fsPromises.readFile(jsonPath, 'utf8'));
 
     const transaction = this.db.transaction(() => {
       // Migrate bookings

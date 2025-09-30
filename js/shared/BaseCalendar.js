@@ -167,23 +167,33 @@ class BaseCalendar {
     }
     html += '</div>';
 
-    // Day rows
-    for (const day of calendarData.days) {
+    // Collect all room cell promises for all days
+    const allRoomCellPromises = calendarData.days.map((day) => {
       const { dateStr } = day;
       const date = new Date(dateStr);
 
+      return {
+        day,
+        cellPromises: rooms.map(async (room) => {
+          const availability = await dataManager.getRoomAvailability(date, room.id);
+          return this.createDayCell(day, room.id, availability);
+        }),
+      };
+    });
+
+    // Await all promises at once
+    const dayRowsData = await Promise.all(
+      allRoomCellPromises.map(async ({ day, cellPromises }) => ({
+        day,
+        cells: await Promise.all(cellPromises),
+      }))
+    );
+
+    // Build HTML for all day rows
+    for (const { day, cells } of dayRowsData) {
       html += '<div class="calendar-row">';
-
-      // Date cell
       html += `<div class="calendar-cell-date">${day.dayOfMonth}</div>`;
-
-      // Room cells
-      for (const room of rooms) {
-        const availability = await dataManager.getRoomAvailability(date, room.id);
-        const dayCell = await this.createDayCell(day, room.id, availability);
-        html += dayCell;
-      }
-
+      html += cells.join('');
       html += '</div>';
     }
 
@@ -195,33 +205,32 @@ class BaseCalendar {
    * Build single room mode calendar
    */
   async buildSingleRoomMode(calendarData) {
-    let html = '';
-
-    for (const day of calendarData.days) {
+    const dayCellPromises = calendarData.days.map(async (day) => {
       const date = new Date(day.dateStr);
       const availability = await dataManager.getRoomAvailability(date, this.config.roomId);
-      const dayCell = await this.createDayCell(day, this.config.roomId, availability);
-      html += dayCell;
-    }
+      return this.createDayCell(day, this.config.roomId, availability);
+    });
 
-    return html;
+    const dayCells = await Promise.all(dayCellPromises);
+    return dayCells.join('');
   }
 
   /**
    * Build bulk mode calendar (entire chalet)
    */
   async buildBulkMode(calendarData) {
-    let html = '';
-
-    for (const day of calendarData.days) {
+    const availabilityPromises = calendarData.days.map(async (day) => {
       const date = new Date(day.dateStr);
       const isFullyAvailable = await this.isDateFullyAvailable(date);
+      return { day, isFullyAvailable };
+    });
 
-      const dayCell = this.createBulkDayCell(day, isFullyAvailable);
-      html += dayCell;
-    }
+    const availabilityResults = await Promise.all(availabilityPromises);
+    const dayCells = availabilityResults.map(({ day, isFullyAvailable }) =>
+      this.createBulkDayCell(day, isFullyAvailable)
+    );
 
-    return html;
+    return dayCells.join('');
   }
 
   /**
@@ -344,14 +353,12 @@ class BaseCalendar {
     const data = await dataManager.getData();
     const rooms = data.settings?.rooms || [];
 
-    for (const room of rooms) {
-      const availability = await dataManager.getRoomAvailability(date, room.id);
-      if (availability.status !== 'available') {
-        return false;
-      }
-    }
+    const availabilityPromises = rooms.map((room) =>
+      dataManager.getRoomAvailability(date, room.id)
+    );
+    const availabilities = await Promise.all(availabilityPromises);
 
-    return true;
+    return availabilities.every((availability) => availability.status === 'available');
   }
 
   /**

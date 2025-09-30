@@ -350,10 +350,11 @@ class BookingApp {
   // Delegated methods
   async renderCalendar() {
     await this.calendar.renderCalendar();
-    await this.updateBookingButton();
+    this.updateBookingButton();
   }
 
-  async toggleRoomSelection(date, roomId, element) {
+  // eslint-disable-next-line no-unused-vars
+  async toggleRoomSelection(date, roomId, _element) {
     // Open single room booking modal instead of the old selection
     await this.showRoomBookingModal(roomId);
   }
@@ -425,11 +426,11 @@ class BookingApp {
   }
 
   updateBookingButton() {
-    return this.utils.updateBookingButton();
+    this.utils.updateBookingButton();
   }
 
   updateSelectedDatesDisplay() {
-    return this.utils.updateSelectedDatesDisplay();
+    this.utils.updateSelectedDatesDisplay();
   }
 
   updatePriceCalculation() {
@@ -497,24 +498,45 @@ class BookingApp {
       totalPrice += booking.totalPrice;
 
       const guestText = [];
-      guestText.push(
-        `${booking.guests.adults} ${this.currentLanguage === 'cs' ? (booking.guests.adults === 1 ? 'dospělý' : 'dospělí') : booking.guests.adults === 1 ? 'adult' : 'adults'}`
-      );
+      let adultsLabel;
+      if (this.currentLanguage === 'cs') {
+        adultsLabel = booking.guests.adults === 1 ? 'dospělý' : 'dospělí';
+      } else {
+        adultsLabel = booking.guests.adults === 1 ? 'adult' : 'adults';
+      }
+      guestText.push(`${booking.guests.adults} ${adultsLabel}`);
       if (booking.guests.children > 0) {
-        guestText.push(
-          `${booking.guests.children} ${this.currentLanguage === 'cs' ? (booking.guests.children === 1 ? 'dítě' : 'děti') : booking.guests.children === 1 ? 'child' : 'children'}`
-        );
+        let childrenLabel;
+        if (this.currentLanguage === 'cs') {
+          childrenLabel = booking.guests.children === 1 ? 'dítě' : 'děti';
+        } else {
+          childrenLabel = booking.guests.children === 1 ? 'child' : 'children';
+        }
+        guestText.push(`${booking.guests.children} ${childrenLabel}`);
       }
       if (booking.guests.toddlers > 0) {
-        guestText.push(
-          `${booking.guests.toddlers} ${this.currentLanguage === 'cs' ? (booking.guests.toddlers === 1 ? 'batole' : 'batolata') : booking.guests.toddlers === 1 ? 'toddler' : 'toddlers'}`
-        );
+        let toddlersLabel;
+        if (this.currentLanguage === 'cs') {
+          toddlersLabel = booking.guests.toddlers === 1 ? 'batole' : 'batolata';
+        } else {
+          toddlersLabel = booking.guests.toddlers === 1 ? 'toddler' : 'toddlers';
+        }
+        guestText.push(`${booking.guests.toddlers} ${toddlersLabel}`);
       }
 
-      const nightsText =
-        this.currentLanguage === 'cs'
-          ? `${booking.nights} ${booking.nights === 1 ? 'noc' : booking.nights < 5 ? 'noci' : 'nocí'}`
-          : `${booking.nights} ${booking.nights === 1 ? 'night' : 'nights'}`;
+      let nightsLabel;
+      if (this.currentLanguage === 'cs') {
+        if (booking.nights === 1) {
+          nightsLabel = 'noc';
+        } else if (booking.nights < 5) {
+          nightsLabel = 'noci';
+        } else {
+          nightsLabel = 'nocí';
+        }
+      } else {
+        nightsLabel = booking.nights === 1 ? 'night' : 'nights';
+      }
+      const nightsText = `${booking.nights} ${nightsLabel}`;
 
       const guestTypeText = booking.guestType === 'utia' ? 'ÚTIA zaměstnanec' : 'Externí host';
 
@@ -672,7 +694,7 @@ class BookingApp {
   }
 
   // Finalize all temporary reservations - show booking form modal for contact details
-  async finalizeAllReservations() {
+  finalizeAllReservations() {
     // Check if we have any temporary reservations
     if (!this.tempReservations || this.tempReservations.length === 0) {
       this.showNotification(
@@ -826,10 +848,23 @@ class BookingApp {
         const roomColor = '#28a745';
         const roomBorder = '#1e7e34';
 
+        let bedsLabel;
+        if (this.currentLanguage === 'cs') {
+          if (room.beds === 1) {
+            bedsLabel = 'lůžko';
+          } else if (room.beds < 5) {
+            bedsLabel = 'lůžka';
+          } else {
+            bedsLabel = 'lůžek';
+          }
+        } else {
+          bedsLabel = room.beds === 1 ? 'bed' : 'beds';
+        }
+
         roomDiv.innerHTML = `
                     <div style="background: white; padding: 0.75rem; border-radius: var(--radius-lg); box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
                         <span style="display: block; background: ${roomColor}; color: white; padding: 0.75rem; border: 2px solid ${roomBorder}; border-radius: var(--radius-md); font-size: 1.3rem; font-weight: 700; margin-bottom: 0.5rem; box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3); text-align: center;">${room.id}</span>
-                        <span style="font-size: 0.95rem; color: var(--gray-800); display: block; text-align: center; margin-top: 0.5rem;" class="room-beds" data-beds="${room.beds}">${room.beds} ${this.currentLanguage === 'cs' ? (room.beds === 1 ? 'lůžko' : room.beds < 5 ? 'lůžka' : 'lůžek') : room.beds === 1 ? 'bed' : 'beds'}</span>
+                        <span style="font-size: 0.95rem; color: var(--gray-800); display: block; text-align: center; margin-top: 0.5rem;" class="room-beds" data-beds="${room.beds}">${room.beds} ${bedsLabel}</span>
                     </div>
                 `;
 
@@ -920,8 +955,8 @@ class BookingApp {
     }
   }
 
-  // Finalize all temporary reservations
-  async finalizeAllReservations() {
+  // Finalize all temporary reservations (duplicate method - keeping for compatibility)
+  finalizeAllReservationsOld() {
     if (!this.tempReservations || this.tempReservations.length === 0) {
       this.showNotification(
         this.currentLanguage === 'cs'
@@ -972,7 +1007,16 @@ class BookingApp {
     this.tempReservations.forEach((reservation) => {
       const guestTypeLabel = reservation.guestType === 'utia' ? 'ÚTIA' : 'Externí';
       const guestDetails = reservation.guests;
-      const guestCount = guestDetails.adults + guestDetails.children;
+
+      // Determine nights label
+      let nightsLabel;
+      if (reservation.nights === 1) {
+        nightsLabel = 'noc';
+      } else if (reservation.nights < 5) {
+        nightsLabel = 'noci';
+      } else {
+        nightsLabel = 'nocí';
+      }
 
       summaryHTML += `
         <div style="padding: 0.5rem; margin-bottom: 0.5rem; background: white; border-radius: 4px; border-left: 3px solid var(--primary-color);">
@@ -981,7 +1025,7 @@ class BookingApp {
               <strong>${reservation.roomName}</strong> | ${guestTypeLabel}
               <div style="font-size: 0.85rem; color: var(--gray-600); margin-top: 0.25rem;">
                 ${new Date(reservation.startDate).toLocaleDateString('cs-CZ')} - ${new Date(reservation.endDate).toLocaleDateString('cs-CZ')}
-                (${reservation.nights} ${reservation.nights === 1 ? 'noc' : reservation.nights < 5 ? 'noci' : 'nocí'})
+                (${reservation.nights} ${nightsLabel})
               </div>
               <div style="font-size: 0.85rem; color: var(--gray-600);">
                 👤 ${guestDetails.adults} ${guestDetails.adults === 1 ? 'dospělý' : 'dospělí'}
@@ -1018,7 +1062,7 @@ class BookingApp {
     const phoneNumber = document
       .getElementById('finalBookingPhone')
       .value.trim()
-      .replace(/\s/g, '');
+      .replace(/\s/gu, '');
     const phone = phonePrefix + phoneNumber;
     const company = document.getElementById('finalBookingCompany').value.trim();
     const address = document.getElementById('finalBookingAddress').value.trim();
@@ -1068,6 +1112,7 @@ class BookingApp {
       };
 
       // Create the booking
+      // eslint-disable-next-line no-await-in-loop -- Sequential processing required: each booking must check room availability before creating
       const booking = await dataManager.createBooking(bookingData);
       if (booking) {
         createdBookings.push(booking);
@@ -1084,15 +1129,16 @@ class BookingApp {
     }
 
     // All bookings created successfully - now clean up proposed bookings
-    for (const tempReservation of this.tempReservations) {
-      if (tempReservation.proposalId) {
+    const deletePromises = this.tempReservations
+      .filter((tempReservation) => tempReservation.proposalId)
+      .map(async (tempReservation) => {
         try {
           await dataManager.deleteProposedBooking(tempReservation.proposalId);
         } catch (error) {
           console.error('Failed to delete proposed booking:', error);
         }
-      }
-    }
+      });
+    await Promise.all(deletePromises);
 
     // Clear all session proposed bookings (in case any were missed)
     try {

@@ -119,35 +119,43 @@ class CalendarModule {
     let currentWeek = document.createElement('div');
     currentWeek.className = 'calendar-week';
 
+    // Collect all day elements to create in parallel
+    const dayElementPromises = [];
+
     // Add previous month days
     for (let i = startDay - 1; i >= 0; i--) {
-      const dayEl = await this.createDayElement(
-        new Date(year, month - 1, daysInPrevMonth - i),
-        true
+      dayElementPromises.push(
+        this.createDayElement(new Date(year, month - 1, daysInPrevMonth - i), true)
       );
-      currentWeek.appendChild(dayEl);
     }
 
     // Add current month days
     for (let day = 1; day <= daysInMonth; day++) {
+      dayElementPromises.push(this.createDayElement(new Date(year, month, day), false));
+    }
+
+    // Calculate next month days needed to complete the week
+    const totalCells = startDay + daysInMonth;
+    const nextMonthDaysNeeded = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+    for (let day = 1; day <= nextMonthDaysNeeded; day++) {
+      dayElementPromises.push(this.createDayElement(new Date(year, month + 1, day), true));
+    }
+
+    // Create all day elements in parallel
+    const dayElements = await Promise.all(dayElementPromises);
+
+    // Now arrange them into weeks
+    for (const dayEl of dayElements) {
       if (currentWeek.children.length === 7) {
         calendar.appendChild(currentWeek);
         currentWeek = document.createElement('div');
         currentWeek.className = 'calendar-week';
       }
-
-      const dayEl = await this.createDayElement(new Date(year, month, day), false);
       currentWeek.appendChild(dayEl);
     }
-
-    // Add next month days to complete the week
-    let nextMonthDay = 1;
-    while (currentWeek.children.length < 7) {
-      const dayEl = await this.createDayElement(new Date(year, month + 1, nextMonthDay), true);
-      currentWeek.appendChild(dayEl);
-      nextMonthDay++;
+    if (currentWeek.children.length > 0) {
+      calendar.appendChild(currentWeek);
     }
-    calendar.appendChild(currentWeek);
   }
 
   async createDayElement(date, isOtherMonth) {
@@ -222,8 +230,12 @@ class CalendarModule {
     roomsContainer.className = 'calendar-day-rooms';
 
     const rooms = await dataManager.getRooms();
-    for (const room of rooms) {
-      const roomEl = await this.createRoomElement(date, room, isPast, isOtherMonth);
+    const roomElementPromises = rooms.map((room) =>
+      this.createRoomElement(date, room, isPast, isOtherMonth)
+    );
+    const roomElements = await Promise.all(roomElementPromises);
+
+    for (const roomEl of roomElements) {
       roomsContainer.appendChild(roomEl);
     }
 
@@ -323,7 +335,7 @@ class CalendarModule {
     const checkOut = new Date(booking.endDate);
     const current = new Date(checkIn);
 
-    while (current <= checkOut) {
+    while (current.getTime() <= checkOut.getTime()) {
       const dateStr = dataManager.formatDate(current);
       booking.rooms.forEach((roomId) => {
         this.app.recentlyBookedRooms.push({ date: dateStr, roomId });

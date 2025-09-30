@@ -123,12 +123,13 @@ class CalendarUtils {
    */
   static getDateRange(startDate, endDate) {
     const dates = [];
-    const currentDate = new Date(startDate);
+    const start = new Date(startDate);
     const end = new Date(endDate);
+    const current = new Date(start);
 
-    while (currentDate <= end) {
-      dates.push(dataManager.formatDate(currentDate));
-      currentDate.setDate(currentDate.getDate() + 1);
+    while (current.getTime() <= end.getTime()) {
+      dates.push(dataManager.formatDate(current));
+      current.setDate(current.getDate() + 1);
     }
 
     return dates;
@@ -204,15 +205,18 @@ class CalendarUtils {
         const startStr = start.toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit' });
         const endStr = end.toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit' });
 
+        let nightsLabel;
+        if (nights === 1) {
+          nightsLabel = translations.night;
+        } else if (nights < 5) {
+          nightsLabel = translations.nights2_4;
+        } else {
+          nightsLabel = translations.nights5plus;
+        }
+
         return `<div class="date-range">
         ${startStr} - ${endStr}
-        <span class="nights-count">(${nights} ${
-          nights === 1
-            ? translations.night
-            : nights < 5
-              ? translations.nights2_4
-              : translations.nights5plus
-        })</span>
+        <span class="nights-count">(${nights} ${nightsLabel})</span>
       </div>`;
       })
       .join('');

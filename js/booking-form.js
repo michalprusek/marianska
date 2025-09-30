@@ -84,10 +84,10 @@ class BookingFormModule {
     let totalPrice = 0;
 
     html += `<div class="summary-rooms">`;
-    for (const roomId of this.app.selectedRooms) {
+    const roomPricePromises = Array.from(this.app.selectedRooms).map(async (roomId) => {
       const room = rooms.find((r) => r.id === roomId);
       if (!room) {
-        continue;
+        return null;
       }
 
       const guests = this.app.roomGuests.get(roomId) || { adults: 1, children: 0, toddlers: 0 };
@@ -100,23 +100,32 @@ class BookingFormModule {
         1 // single room
       );
 
-      totalPrice += roomPrice * sortedDates.length;
+      return { room, guests, roomPrice };
+    });
 
-      html += `
+    const roomPriceResults = await Promise.all(roomPricePromises);
+
+    for (const result of roomPriceResults) {
+      if (result) {
+        const { room, guests, roomPrice } = result;
+        totalPrice += roomPrice * sortedDates.length;
+
+        html += `
                 <div class="room-summary">
                     <strong>${room.name}</strong>
                     <span>${guests.adults} ${this.app.currentLanguage === 'cs' ? 'dospělí' : 'adults'}`;
 
-      if (guests.children > 0) {
-        html += `, ${guests.children} ${this.app.currentLanguage === 'cs' ? 'děti' : 'children'}`;
-      }
-      if (guests.toddlers > 0) {
-        html += `, ${guests.toddlers} ${this.app.currentLanguage === 'cs' ? 'batolata' : 'toddlers'}`;
-      }
+        if (guests.children > 0) {
+          html += `, ${guests.children} ${this.app.currentLanguage === 'cs' ? 'děti' : 'children'}`;
+        }
+        if (guests.toddlers > 0) {
+          html += `, ${guests.toddlers} ${this.app.currentLanguage === 'cs' ? 'batolata' : 'toddlers'}`;
+        }
 
-      html += `</span>
+        html += `</span>
                     <span>${roomPrice * sortedDates.length} Kč</span>
                 </div>`;
+      }
     }
     html += `</div>`;
 
@@ -137,7 +146,7 @@ class BookingFormModule {
     const email = document.getElementById('email').value.trim();
     // Combine phone prefix with number (remove spaces from number)
     const phonePrefix = document.getElementById('phonePrefix')?.value || '+420';
-    const phoneNumber = document.getElementById('phone').value.trim().replace(/\s/g, '');
+    const phoneNumber = document.getElementById('phone').value.trim().replace(/\s/gu, '');
     const phone = phonePrefix + phoneNumber;
     const company = document.getElementById('company')?.value.trim() || '';
     const address = document.getElementById('address')?.value.trim() || '';
@@ -206,11 +215,12 @@ class BookingFormModule {
           };
 
           try {
+            // eslint-disable-next-line no-await-in-loop -- Sequential processing required: each booking must check room availability before creating
             await dataManager.createBooking(booking);
-            successCount++;
+            successCount += 1;
           } catch (error) {
             console.error('Error creating bulk booking', error);
-            errorCount++;
+            errorCount += 1;
           }
         } else {
           // Regular single room booking
@@ -237,11 +247,12 @@ class BookingFormModule {
           };
 
           try {
+            // eslint-disable-next-line no-await-in-loop -- Sequential processing required: each booking must check room availability before creating
             await dataManager.createBooking(booking);
-            successCount++;
+            successCount += 1;
           } catch (error) {
             console.error('Error creating booking for room', tempReservation.roomName, error);
-            errorCount++;
+            errorCount += 1;
           }
         }
       }
@@ -470,43 +481,45 @@ class BookingFormModule {
 
   validatePhoneNumber(input) {
     const value = input.value.trim();
+    const inputElement = input;
 
     // Allow empty if not required, or validate format
     if (!value) {
-      input.setCustomValidity('');
-      input.classList.remove('error');
+      inputElement.setCustomValidity('');
+      inputElement.classList.remove('error');
       return;
     }
 
     // Validate phone format using ValidationUtils
     if (ValidationUtils.validatePhone(value)) {
-      input.setCustomValidity('');
-      input.classList.remove('error');
+      inputElement.setCustomValidity('');
+      inputElement.classList.remove('error');
       // Format for display
-      input.value = ValidationUtils.formatPhone(value);
+      inputElement.value = ValidationUtils.formatPhone(value);
     } else {
       const errorMsg = ValidationUtils.getValidationError('phone', value, this.app.currentLanguage);
-      input.setCustomValidity(errorMsg);
-      input.classList.add('error');
+      inputElement.setCustomValidity(errorMsg);
+      inputElement.classList.add('error');
     }
   }
 
   validateZipCode(input) {
-    const value = input.value.replace(/\s/g, '');
+    const value = input.value.replace(/\s/gu, '');
+    const inputElement = input;
 
     if (ValidationUtils.validateZIP(value)) {
-      input.setCustomValidity('');
-      input.classList.remove('error');
-      input.value = ValidationUtils.formatZIP(value);
+      inputElement.setCustomValidity('');
+      inputElement.classList.remove('error');
+      inputElement.value = ValidationUtils.formatZIP(value);
     } else {
       const errorMsg = ValidationUtils.getValidationError('zip', value, this.app.currentLanguage);
-      input.setCustomValidity(errorMsg);
-      input.classList.add('error');
+      inputElement.setCustomValidity(errorMsg);
+      inputElement.classList.add('error');
     }
   }
 
   validateICO(input) {
-    const value = input.value.replace(/\s/g, '');
+    const value = input.value.replace(/\s/gu, '');
 
     if (ValidationUtils.validateICO(value)) {
       input.setCustomValidity('');
@@ -520,16 +533,17 @@ class BookingFormModule {
 
   validateDIC(input) {
     const value = input.value.toUpperCase();
+    const inputElement = input;
 
     if (ValidationUtils.validateDIC(value)) {
-      input.setCustomValidity('');
-      input.classList.remove('error');
+      inputElement.setCustomValidity('');
+      inputElement.classList.remove('error');
     } else {
       const errorMsg = ValidationUtils.getValidationError('dic', value, this.app.currentLanguage);
-      input.setCustomValidity(errorMsg);
-      input.classList.add('error');
+      inputElement.setCustomValidity(errorMsg);
+      inputElement.classList.add('error');
     }
 
-    input.value = value;
+    inputElement.value = value;
   }
 }

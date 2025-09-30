@@ -424,7 +424,7 @@ class BulkBookingModule {
         startDate,
         endDate,
         nights,
-        guests: { adults, children, toddlers },
+        guests: { adults, children, toddlers: 0 },
         guestType,
         totalPrice,
         id: `temp-bulk-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -516,18 +516,17 @@ class BulkBookingModule {
 
     if (isAfterOct1) {
       // Check if any of the selected dates are in the Christmas period
-      for (const dateStr of sortedDates) {
-        const date = new Date(dateStr);
-        const isChristmas = await dataManager.isChristmasPeriod(date);
-        if (isChristmas) {
-          this.app.showNotification(
-            this.app.currentLanguage === 'cs'
-              ? 'Hromadné rezervace v období vánočních prázdnin nejsou po 1.10. povoleny'
-              : 'Bulk bookings during Christmas period are not allowed after October 1st',
-            'error'
-          );
-          return;
-        }
+      const christmasChecks = await Promise.all(
+        sortedDates.map((dateStr) => dataManager.isChristmasPeriod(new Date(dateStr)))
+      );
+      if (christmasChecks.some((isChristmas) => isChristmas)) {
+        this.app.showNotification(
+          this.app.currentLanguage === 'cs'
+            ? 'Hromadné rezervace v období vánočních prázdnin nejsou po 1.10. povoleny'
+            : 'Bulk bookings during Christmas period are not allowed after October 1st',
+          'error'
+        );
+        return;
       }
     }
 
@@ -542,7 +541,7 @@ class BulkBookingModule {
       guestType: 'external', // Bulk bookings are external
       adults,
       children,
-      toddlers,
+      toddlers: 0, // Bulk bookings don't track toddlers separately
       notes:
         notes || `${this.app.currentLanguage === 'cs' ? 'Hromadná rezervace' : 'Bulk booking'}`,
       isBulkBooking: true,

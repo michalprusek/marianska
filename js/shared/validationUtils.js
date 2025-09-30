@@ -123,15 +123,15 @@ class ValidationUtils {
 
     switch (field) {
       case 'email':
-        return !this.validateEmail(value) ? errors[lang].email : null;
+        return this.validateEmail(value) ? null : errors[lang].email;
       case 'phone':
-        return !this.validatePhone(value) ? errors[lang].phone : null;
+        return this.validatePhone(value) ? null : errors[lang].phone;
       case 'zip':
-        return !this.validateZIP(value) ? errors[lang].zip : null;
+        return this.validateZIP(value) ? null : errors[lang].zip;
       case 'ico':
-        return !this.validateICO(value) ? errors[lang].ico : null;
+        return this.validateICO(value) ? null : errors[lang].ico;
       case 'dic':
-        return !this.validateDIC(value) ? errors[lang].dic : null;
+        return this.validateDIC(value) ? null : errors[lang].dic;
       default:
         return value ? null : errors[lang].required;
     }
