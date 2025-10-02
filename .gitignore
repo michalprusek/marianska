@@ -75,3 +75,9 @@ data/*.db-wal
 report/
 .playwright-mcp/
 *.backup
+
+# Generated code duplication reports
+jscpd-report.json/
+
+# Migration artifacts
+data/*.migrated*
