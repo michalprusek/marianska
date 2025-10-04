@@ -56,10 +56,31 @@ class DatabaseManager {
             )
         `);
 
-    // Create blocked dates table
+    // Create blockage instances table - ONE row per blockage action
     this.db.exec(`
-            CREATE TABLE IF NOT EXISTS blocked_dates (
+            CREATE TABLE IF NOT EXISTS blockage_instances (
                 blockage_id TEXT PRIMARY KEY,
+                start_date TEXT NOT NULL,
+                end_date TEXT NOT NULL,
+                reason TEXT,
+                created_at TEXT NOT NULL
+            )
+        `);
+
+    // Create blockage rooms table - which rooms are blocked for each instance
+    this.db.exec(`
+            CREATE TABLE IF NOT EXISTS blockage_rooms (
+                blockage_id TEXT NOT NULL,
+                room_id TEXT NOT NULL,
+                PRIMARY KEY (blockage_id, room_id),
+                FOREIGN KEY (blockage_id) REFERENCES blockage_instances(blockage_id) ON DELETE CASCADE
+            )
+        `);
+
+    // Keep old blocked_dates table for backward compatibility during migration
+    this.db.exec(`
+            CREATE TABLE IF NOT EXISTS blocked_dates_legacy (
+                blockage_id TEXT,
                 date TEXT NOT NULL,
                 room_id TEXT NOT NULL,
                 reason TEXT,
@@ -112,7 +133,8 @@ class DatabaseManager {
     this.db.exec(`
             CREATE INDEX IF NOT EXISTS idx_bookings_dates ON bookings(start_date, end_date);
             CREATE INDEX IF NOT EXISTS idx_bookings_email ON bookings(email);
-            CREATE INDEX IF NOT EXISTS idx_blocked_dates ON blocked_dates(date, room_id);
+            CREATE INDEX IF NOT EXISTS idx_blockage_dates ON blockage_instances(start_date, end_date);
+            CREATE INDEX IF NOT EXISTS idx_blockage_rooms ON blockage_rooms(blockage_id, room_id);
             CREATE INDEX IF NOT EXISTS idx_booking_rooms ON booking_rooms(room_id);
             CREATE INDEX IF NOT EXISTS idx_christmas_periods ON christmas_periods(start_date, end_date);
         `);
@@ -163,18 +185,30 @@ class DatabaseManager {
       insertSetting.run('christmasPeriodStart', '2024-12-23');
       insertSetting.run('christmasPeriodEnd', '2025-01-02');
 
-      // Prices as JSON
+      // Individual room prices (flat structure - no small/large distinction)
       const prices = {
         utia: {
-          small: { base: 300, adult: 50, child: 25 },
-          large: { base: 400, adult: 50, child: 25 },
+          base: 298,
+          adult: 49,
+          child: 24,
         },
         external: {
-          small: { base: 500, adult: 100, child: 50 },
-          large: { base: 600, adult: 100, child: 50 },
+          base: 499,
+          adult: 99,
+          child: 49,
         },
       };
       insertSetting.run('prices', JSON.stringify(prices));
+
+      // Bulk booking prices
+      const bulkPrices = {
+        basePrice: 2000,
+        utiaAdult: 100,
+        utiaChild: 0,
+        externalAdult: 250,
+        externalChild: 50,
+      };
+      insertSetting.run('bulkPrices', JSON.stringify(bulkPrices));
     }
 
     // Check if rooms exist
@@ -241,15 +275,38 @@ class DatabaseManager {
 
       getBookingRooms: this.db.prepare('SELECT room_id FROM booking_rooms WHERE booking_id = ?'),
 
-      // Blocked dates
-      insertBlockedDate: this.db.prepare(`
-                INSERT INTO blocked_dates (blockage_id, date, room_id, reason, blocked_at)
+      // Blockage instances
+      insertBlockageInstance: this.db.prepare(`
+                INSERT INTO blockage_instances (blockage_id, start_date, end_date, reason, created_at)
                 VALUES (?, ?, ?, ?, ?)
             `),
 
-      deleteBlockedDate: this.db.prepare('DELETE FROM blocked_dates WHERE blockage_id = ?'),
+      insertBlockageRoom: this.db.prepare(`
+                INSERT INTO blockage_rooms (blockage_id, room_id)
+                VALUES (?, ?)
+            `),
 
-      getAllBlockedDates: this.db.prepare('SELECT * FROM blocked_dates'),
+      deleteBlockageInstance: this.db.prepare(
+        'DELETE FROM blockage_instances WHERE blockage_id = ?'
+      ),
+
+      getAllBlockageInstances: this.db.prepare(`
+                SELECT bi.*, GROUP_CONCAT(br.room_id) as room_ids
+                FROM blockage_instances bi
+                LEFT JOIN blockage_rooms br ON bi.blockage_id = br.blockage_id
+                GROUP BY bi.blockage_id
+                ORDER BY bi.start_date DESC
+            `),
+
+      getBlockageInstance: this.db.prepare(`
+                SELECT bi.*, GROUP_CONCAT(br.room_id) as room_ids
+                FROM blockage_instances bi
+                LEFT JOIN blockage_rooms br ON bi.blockage_id = br.blockage_id
+                WHERE bi.blockage_id = ?
+                GROUP BY bi.blockage_id
+            `),
+
+      getBlockageRooms: this.db.prepare('SELECT room_id FROM blockage_rooms WHERE blockage_id = ?'),
 
       // Settings
       getSetting: this.db.prepare('SELECT value FROM settings WHERE key = ?'),
@@ -476,30 +533,100 @@ class DatabaseManager {
     });
   }
 
-  // Blocked dates operations
-  createBlockedDate(blockData) {
-    return this.statements.insertBlockedDate.run(
-      blockData.blockageId,
-      blockData.date,
-      blockData.roomId,
-      blockData.reason || null,
-      blockData.blockedAt
-    );
+  // Blockage instances operations
+  createBlockageInstance(blockageData) {
+    const transaction = this.db.transaction((data) => {
+      // Insert blockage instance
+      this.statements.insertBlockageInstance.run(
+        data.blockageId,
+        data.startDate,
+        data.endDate,
+        data.reason || null,
+        data.createdAt
+      );
+
+      // Insert room associations (empty = all rooms blocked)
+      if (data.rooms && data.rooms.length > 0) {
+        for (const roomId of data.rooms) {
+          this.statements.insertBlockageRoom.run(data.blockageId, roomId);
+        }
+      }
+    });
+
+    return transaction(blockageData);
   }
 
-  deleteBlockedDate(blockageId) {
-    return this.statements.deleteBlockedDate.run(blockageId);
+  deleteBlockageInstance(blockageId) {
+    // CASCADE will automatically delete associated rooms
+    return this.statements.deleteBlockageInstance.run(blockageId);
   }
 
-  getAllBlockedDates() {
-    const blocked = this.statements.getAllBlockedDates.all();
-    return blocked.map((b) => ({
-      date: b.date,
-      roomId: b.room_id,
-      reason: b.reason,
-      blockageId: b.blockage_id,
-      blockedAt: b.blocked_at,
+  getAllBlockageInstances() {
+    const instances = this.statements.getAllBlockageInstances.all();
+    return instances.map((inst) => ({
+      blockageId: inst.blockage_id,
+      startDate: inst.start_date,
+      endDate: inst.end_date,
+      reason: inst.reason,
+      createdAt: inst.created_at,
+      rooms: inst.room_ids ? inst.room_ids.split(',') : [], // Empty = all rooms
     }));
+  }
+
+  getBlockageInstance(blockageId) {
+    const inst = this.statements.getBlockageInstance.get(blockageId);
+    if (!inst) {
+      return null;
+    }
+
+    return {
+      blockageId: inst.blockage_id,
+      startDate: inst.start_date,
+      endDate: inst.end_date,
+      reason: inst.reason,
+      createdAt: inst.created_at,
+      rooms: inst.room_ids ? inst.room_ids.split(',') : [],
+    };
+  }
+
+  // Legacy compatibility - convert blockage instances to old blocked_dates format
+  getAllBlockedDates() {
+    const instances = this.getAllBlockageInstances();
+    const blockedDates = [];
+
+    for (const inst of instances) {
+      // Expand date range to individual dates
+      const start = new Date(inst.startDate);
+      const end = new Date(inst.endDate);
+
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+
+        if (inst.rooms.length === 0) {
+          // All rooms blocked
+          blockedDates.push({
+            date: dateStr,
+            roomId: null,
+            reason: inst.reason,
+            blockageId: inst.blockageId,
+            blockedAt: inst.createdAt,
+          });
+        } else {
+          // Specific rooms blocked
+          for (const roomId of inst.rooms) {
+            blockedDates.push({
+              date: dateStr,
+              roomId,
+              reason: inst.reason,
+              blockageId: inst.blockageId,
+              blockedAt: inst.createdAt,
+            });
+          }
+        }
+      }
+    }
+
+    return blockedDates;
   }
 
   // Settings operations
@@ -521,12 +648,12 @@ class DatabaseManager {
     // Get christmas periods from the new table
     const christmasPeriods = this.getAllChristmasPeriods();
     if (christmasPeriods.length > 0) {
-      // Support multiple periods
+      // Support multiple periods - map database fields to frontend format
       settings.christmasPeriods = christmasPeriods.map((p) => ({
         start: p.start_date,
         end: p.end_date,
         year: p.year,
-        periodId: p.period_id,
+        periodId: p.period_id, // Map period_id to periodId for frontend
         name: p.name,
       }));
 
@@ -542,8 +669,31 @@ class DatabaseManager {
       const end = this.getSetting('christmasPeriodEnd');
       if (start && end) {
         settings.christmasPeriod = { start, end };
+        settings.christmasPeriods = [{ start, end, year: new Date(start).getFullYear() }];
         // Migrate to new table
         this.migrateChristmasSettings();
+      } else {
+        // ✅ FIX: Check if periods were intentionally deleted by checking for explicit empty flag
+        const periodsDeleted = this.getSetting('christmasPeriodsDeleted');
+
+        if (!periodsDeleted) {
+          // Only create defaults on first initialization (not when user deleted all periods)
+          const defaultStart = '2024-12-23';
+          const defaultEnd = '2025-01-02';
+          settings.christmasPeriod = { start: defaultStart, end: defaultEnd };
+          settings.christmasPeriods = [{ start: defaultStart, end: defaultEnd, year: 2024 }];
+          // Create default period in database
+          this.createChristmasPeriod({
+            name: 'Vánoce 2024',
+            startDate: defaultStart,
+            endDate: defaultEnd,
+            year: 2024,
+          });
+        } else {
+          // User intentionally deleted all periods - return empty arrays
+          settings.christmasPeriod = null;
+          settings.christmasPeriods = [];
+        }
       }
     }
 
@@ -552,7 +702,24 @@ class DatabaseManager {
 
     // Get prices
     const pricesJson = this.getSetting('prices');
-    settings.prices = pricesJson ? JSON.parse(pricesJson) : {};
+    settings.prices = pricesJson
+      ? JSON.parse(pricesJson)
+      : {
+          utia: { base: 298, adult: 49, child: 24 },
+          external: { base: 499, adult: 99, child: 49 },
+        };
+
+    // Get bulk prices
+    const bulkPricesJson = this.getSetting('bulkPrices');
+    settings.bulkPrices = bulkPricesJson
+      ? JSON.parse(bulkPricesJson)
+      : {
+          basePrice: 2000,
+          utiaAdult: 100,
+          utiaChild: 0,
+          externalAdult: 250,
+          externalChild: 50,
+        };
 
     // Get rooms
     settings.rooms = this.statements.getAllRooms.all();
@@ -570,6 +737,14 @@ class DatabaseManager {
       if (updatedSettings.christmasPeriods && Array.isArray(updatedSettings.christmasPeriods)) {
         // Clear existing periods
         this.db.exec('DELETE FROM christmas_periods');
+
+        // ✅ FIX: Set flag if array is empty (user deleted all periods)
+        if (updatedSettings.christmasPeriods.length === 0) {
+          this.setSetting('christmasPeriodsDeleted', 'true');
+        } else {
+          // Clear flag when periods are added
+          this.db.exec("DELETE FROM settings WHERE key = 'christmasPeriodsDeleted'");
+        }
 
         // Add new periods
         for (const period of updatedSettings.christmasPeriods) {
@@ -595,6 +770,10 @@ class DatabaseManager {
         this.setSetting('prices', JSON.stringify(updatedSettings.prices));
       }
 
+      if (updatedSettings.bulkPrices) {
+        this.setSetting('bulkPrices', JSON.stringify(updatedSettings.bulkPrices));
+      }
+
       if (updatedSettings.christmasAccessCodes) {
         // Clear existing codes
         this.db.exec('DELETE FROM christmas_codes');
@@ -605,26 +784,77 @@ class DatabaseManager {
           this.statements.insertChristmasCode.run(code, now);
         }
       }
+
+      // Handle room configuration updates
+      if (updatedSettings.rooms && Array.isArray(updatedSettings.rooms)) {
+        this.updateRooms(updatedSettings.rooms);
+      }
     });
 
     return transaction(settings);
+  }
+
+  /**
+   * Updates rooms in the database
+   * @param {Array<{id: string, name: string, type: string, beds: number}>} rooms - Array of room objects
+   */
+  updateRooms(rooms) {
+    if (!rooms || !Array.isArray(rooms)) {
+      throw new Error('Invalid rooms data: must be an array');
+    }
+
+    const updateTransaction = this.db.transaction((roomsList) => {
+      // Clear existing rooms
+      this.db.prepare('DELETE FROM rooms').run();
+
+      // Insert new rooms
+      const insertRoom = this.db.prepare(
+        'INSERT INTO rooms (id, name, type, beds) VALUES (?, ?, ?, ?)'
+      );
+
+      for (const room of roomsList) {
+        // Validate room structure
+        if (!room.id || !room.name || typeof room.beds !== 'number') {
+          console.warn(`Skipping invalid room:`, room);
+          continue;
+        }
+
+        insertRoom.run(
+          room.id,
+          room.name,
+          room.type || 'standard', // Default type if not provided
+          room.beds
+        );
+      }
+    });
+
+    return updateTransaction(rooms);
   }
 
   // Get all data (for compatibility with existing API)
   getAllData() {
     return {
       bookings: this.getAllBookings(),
-      blockedDates: this.getAllBlockedDates(),
+      blockedDates: this.getAllBlockedDates(), // Legacy compatibility
+      blockageInstances: this.getAllBlockageInstances(), // New structure
       settings: this.getSettings(),
     };
   }
 
   // Check room availability
   getRoomAvailability(roomId, date) {
-    // Check for blocked dates
+    // Check for blocked dates using new blockage_instances structure
     const blocked = this.db
-      .prepare('SELECT * FROM blocked_dates WHERE room_id = ? AND date = ?')
-      .get(roomId, date);
+      .prepare(
+        `
+            SELECT bi.*
+            FROM blockage_instances bi
+            LEFT JOIN blockage_rooms br ON bi.blockage_id = br.blockage_id
+            WHERE bi.start_date <= ? AND bi.end_date >= ?
+              AND (br.room_id = ? OR br.room_id IS NULL)
+        `
+      )
+      .get(date, date, roomId);
 
     if (blocked) {
       return { available: false, reason: 'blocked' };
@@ -849,7 +1079,20 @@ class DatabaseManager {
 
   getProposedBookingsBySession(sessionId) {
     const now = new Date().toISOString();
-    return this.statements.getProposedBookingsBySession.all(sessionId, now);
+    const query = `
+      SELECT pb.*, GROUP_CONCAT(pbr.room_id) as rooms
+      FROM proposed_bookings pb
+      JOIN proposed_booking_rooms pbr ON pb.proposal_id = pbr.proposal_id
+      WHERE pb.session_id = ? AND pb.expires_at > ?
+      GROUP BY pb.proposal_id
+    `;
+    const results = this.db.prepare(query).all(sessionId, now);
+
+    // Convert comma-separated rooms string to array
+    return results.map((booking) => ({
+      ...booking,
+      rooms: booking.rooms ? booking.rooms.split(',') : [],
+    }));
   }
 
   getProposedBookingsByDateRange(startDate, endDate) {

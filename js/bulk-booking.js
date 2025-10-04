@@ -60,7 +60,6 @@ class BulkBookingModule {
         mode: BaseCalendar.MODES.BULK,
         app: this.app,
         containerId: 'bulkCalendar',
-        enableDrag: true,
         allowPast: false,
         enforceContiguous: true,
         minNights: 1,
@@ -377,6 +376,29 @@ class BulkBookingModule {
       return;
     }
 
+    // Validate no blocked dates in selection for any room
+    const sortedDatesArray = Array.from(this.bulkSelectedDates).sort();
+    const rooms = await dataManager.getRooms();
+
+    for (const dateStr of sortedDatesArray) {
+      const date = new Date(dateStr + 'T12:00:00');
+
+      // Check each room for this date
+      for (const room of rooms) {
+        const availability = await dataManager.getRoomAvailability(date, room.id);
+
+        if (availability.status === 'blocked') {
+          this.app.showNotification(
+            this.app.currentLanguage === 'cs'
+              ? `Pokoj ${room.name} je blokován dne ${dateStr}. Pro hromadnou rezervaci musí být všechny pokoje volné.`
+              : `Room ${room.name} is blocked on ${dateStr}. All rooms must be available for bulk booking.`,
+            'error'
+          );
+          return;
+        }
+      }
+    }
+
     // Get guest configuration
     const adults = parseInt(document.getElementById('bulkAdults')?.textContent, 10) || 1;
     const children = parseInt(document.getElementById('bulkChildren')?.textContent, 10) || 0;
@@ -392,8 +414,8 @@ class BulkBookingModule {
     const nights = sortedDates.length - 1;
 
     // Get all rooms for bulk booking
-    const rooms = await dataManager.getRooms();
-    const roomIds = rooms.map((r) => r.id);
+    const allRooms = await dataManager.getRooms();
+    const roomIds = allRooms.map((r) => r.id);
 
     // Calculate price using bulk pricing
     const settings = await dataManager.getSettings();
@@ -420,7 +442,7 @@ class BulkBookingModule {
       const tempBulkBooking = {
         isBulkBooking: true,
         roomIds,
-        roomNames: rooms.map((r) => r.name).join(', '),
+        roomNames: allRooms.map((r) => r.name).join(', '),
         startDate,
         endDate,
         nights,
@@ -500,9 +522,9 @@ class BulkBookingModule {
       return;
     }
 
-    // Get all rooms for bulk booking
-    const rooms = await dataManager.getRooms();
-    const roomIds = rooms.map((r) => r.id);
+    // Get all rooms for bulk booking (reuse from above scope if possible)
+    const allRoomsForBooking = await dataManager.getRooms();
+    const roomIds = allRoomsForBooking.map((r) => r.id);
 
     // Get date range
     const sortedDates = Array.from(this.bulkSelectedDates).sort();

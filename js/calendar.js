@@ -255,13 +255,31 @@ class CalendarModule {
 
     // Check if this room and date is in temp reservations (proposed)
     let isProposed = false;
+    let isBulkProposed = false;
     if (this.app.tempReservations && this.app.tempReservations.length > 0) {
-      isProposed = this.app.tempReservations.some((reservation) => {
+      const proposedReservation = this.app.tempReservations.find((reservation) => {
         const startDate = new Date(reservation.startDate);
         const endDate = new Date(reservation.endDate);
         const currentDate = new Date(dateStr);
-        return reservation.roomId === room.id && currentDate >= startDate && currentDate <= endDate;
+
+        // Check if date is in range
+        if (!(currentDate >= startDate && currentDate <= endDate)) {
+          return false;
+        }
+
+        // Handle bulk bookings (all rooms)
+        if (reservation.isBulkBooking) {
+          return reservation.roomIds && reservation.roomIds.includes(room.id);
+        }
+
+        // Handle single room bookings
+        return reservation.roomId === room.id;
       });
+
+      if (proposedReservation) {
+        isProposed = true;
+        isBulkProposed = proposedReservation.isBulkBooking || false;
+      }
     }
 
     // Apply color for booked, available, proposed and blocked rooms
@@ -269,7 +287,9 @@ class CalendarModule {
       roomEl.style.background = '#ff4444';
       roomEl.style.color = 'white';
       roomEl.classList.add('proposed');
-      roomEl.title = 'Navrhovaná rezervace - dočasně blokováno';
+      roomEl.title = isBulkProposed
+        ? 'Navrhovaná HROMADNÁ rezervace - celá chata dočasně blokována'
+        : 'Navrhovaná rezervace - dočasně blokováno';
     } else if (availability === 'booked') {
       roomEl.style.background = '#ff8c00';
       roomEl.style.color = 'white';
