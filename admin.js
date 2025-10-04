@@ -808,7 +808,7 @@ class AdminPanel {
     await this.loadExistingBookingsForEdit();
   }
 
-  updateEditPrice() {
+  async updateEditPrice() {
     const guestType =
       document.querySelector('input[name="editGuestType"]:checked')?.value || 'external';
     const adults = parseInt(document.getElementById('editAdults').value, 10) || 0;
