@@ -5,45 +5,13 @@ class UtilsModule {
   }
 
   formatDateDisplay(date) {
-    const day = date.getDate();
-    const month = date.getMonth() + 1;
-
-    const dayNames =
-      this.app.currentLanguage === 'cs'
-        ? ['Ne', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So']
-        : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-    const monthNames =
-      this.app.currentLanguage === 'cs'
-        ? ['led', 'úno', 'bře', 'dub', 'kvě', 'čvn', 'čvc', 'srp', 'zář', 'říj', 'lis', 'pro']
-        : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-    return `${dayNames[date.getDay()]} ${day}. ${monthNames[month - 1]}`;
+    // Delegate to DateUtils for SSOT
+    return DateUtils.formatDateDisplay(date, this.app.currentLanguage);
   }
 
   getDateRanges(dates) {
-    if (dates.length === 0) {
-      return [];
-    }
-
-    const ranges = [];
-    let currentRange = { start: dates[0], end: dates[0] };
-
-    for (let i = 1; i < dates.length; i++) {
-      const currentDate = new Date(dates[i]);
-      const prevDate = new Date(dates[i - 1]);
-      const dayDiff = (currentDate - prevDate) / (1000 * 60 * 60 * 24);
-
-      if (dayDiff === 1) {
-        currentRange.end = dates[i];
-      } else {
-        ranges.push({ ...currentRange });
-        currentRange = { start: dates[i], end: dates[i] };
-      }
-    }
-    ranges.push(currentRange);
-
-    return ranges;
+    // Delegate to DateUtils for SSOT
+    return DateUtils.getDateRanges(dates);
   }
 
   async showBookingDetails(date, roomId) {
@@ -433,8 +401,8 @@ class UtilsModule {
     // Get current settings and prices
     const settings = await dataManager.getSettings();
     const prices = settings.prices || {
-      utia: { base: 300, adult: 50, child: 25 },
-      external: { base: 500, adult: 100, child: 50 },
+      utia: { base: 298, adult: 49, child: 24 },
+      external: { base: 499, adult: 99, child: 49 },
     };
 
     // Determine the current guest type for base price display
@@ -484,24 +452,26 @@ class UtilsModule {
     }
 
     const rooms = await dataManager.getRooms();
-    const roomPrices = Array.from(roomsToCalculate).map((roomId) => {
-      const guests = this.app.roomGuests.get(roomId) || { adults: 1, children: 0, toddlers: 0 };
-      const guestType = this.app.roomGuestTypes.get(roomId) || 'utia';
+    const roomPrices = await Promise.all(
+      Array.from(roomsToCalculate).map(async (roomId) => {
+        const guests = this.app.roomGuests.get(roomId) || { adults: 1, children: 0, toddlers: 0 };
+        const guestType = this.app.roomGuestTypes.get(roomId) || 'utia';
 
-      const room = rooms.find((r) => r.id === roomId);
-      if (!room) {
-        return 0;
-      }
+        const room = rooms.find((r) => r.id === roomId);
+        if (!room) {
+          return 0;
+        }
 
-      return dataManager.calculatePrice(
-        guestType,
-        guests.adults,
-        guests.children,
-        guests.toddlers,
-        1, // nights per room calculation
-        1 // single room
-      );
-    });
+        return await dataManager.calculatePrice(
+          guestType,
+          guests.adults,
+          guests.children,
+          guests.toddlers,
+          1, // nights per room calculation
+          1 // single room
+        );
+      })
+    );
     pricePerNight = roomPrices.reduce((sum, price) => sum + price, 0);
 
     totalPrice = pricePerNight * nights;

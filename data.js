@@ -78,19 +78,15 @@ class DataManager {
     });
   }
 
-  async syncWithServer() {
+  async syncWithServer(forceRefresh = false) {
     try {
       // Get latest data from server
       const response = await fetch(`${this.apiUrl}/data`);
       if (response.ok) {
         const serverData = await response.json();
 
-        // Check if server data is newer
-        const serverTimestamp = this.getLatestTimestamp(serverData);
-        const localTimestamp = this.getLatestTimestamp(this.cachedData);
-
-        if (serverTimestamp > localTimestamp) {
-          // Server has newer data - update local
+        if (forceRefresh) {
+          // Force refresh - ignore timestamps
           this.cachedData = serverData;
           localStorage.setItem(this.storageKey, JSON.stringify(this.cachedData));
 
@@ -99,17 +95,33 @@ class DataManager {
             await window.app.renderCalendar();
             await window.app.updatePriceCalculation();
           }
+        } else {
+          // Check if server data is newer
+          const serverTimestamp = this.getLatestTimestamp(serverData);
+          const localTimestamp = this.getLatestTimestamp(this.cachedData);
 
-          // Update admin panel if active
-          if (
-            window.adminPanel &&
-            document.querySelector('#bookingsTab')?.classList.contains('active')
-          ) {
-            await window.adminPanel.loadBookings();
+          if (serverTimestamp > localTimestamp) {
+            // Server has newer data - update local
+            this.cachedData = serverData;
+            localStorage.setItem(this.storageKey, JSON.stringify(this.cachedData));
+
+            // Trigger UI update
+            if (window.app) {
+              await window.app.renderCalendar();
+              await window.app.updatePriceCalculation();
+            }
+
+            // Update admin panel if active
+            if (
+              window.adminPanel &&
+              document.querySelector('#bookingsTab')?.classList.contains('active')
+            ) {
+              await window.adminPanel.loadBookings();
+            }
+          } else if (localTimestamp > serverTimestamp) {
+            // Local has newer data - push to server
+            await this.pushToServer();
           }
-        } else if (localTimestamp > serverTimestamp) {
-          // Local has newer data - push to server
-          await this.pushToServer();
         }
 
         this.lastSync = Date.now();
@@ -177,19 +189,26 @@ class DataManager {
           mockMode: true,
         },
         rooms: [
-          { id: '12', name: 'Pokoj 12', beds: 2 },
-          { id: '13', name: 'Pokoj 13', beds: 3 },
-          { id: '14', name: 'Pokoj 14', beds: 4 },
-          { id: '22', name: 'Pokoj 22', beds: 2 },
-          { id: '23', name: 'Pokoj 23', beds: 3 },
-          { id: '24', name: 'Pokoj 24', beds: 4 },
-          { id: '42', name: 'Pokoj 42', beds: 2 },
-          { id: '43', name: 'Pokoj 43', beds: 2 },
-          { id: '44', name: 'Pokoj 44', beds: 4 },
+          { id: '12', name: 'Pokoj 12', type: 'small', beds: 2 },
+          { id: '13', name: 'Pokoj 13', type: 'small', beds: 3 },
+          { id: '14', name: 'Pokoj 14', type: 'large', beds: 4 },
+          { id: '22', name: 'Pokoj 22', type: 'small', beds: 2 },
+          { id: '23', name: 'Pokoj 23', type: 'small', beds: 3 },
+          { id: '24', name: 'Pokoj 24', type: 'large', beds: 4 },
+          { id: '42', name: 'Pokoj 42', type: 'small', beds: 2 },
+          { id: '43', name: 'Pokoj 43', type: 'small', beds: 2 },
+          { id: '44', name: 'Pokoj 44', type: 'large', beds: 4 },
         ],
         prices: {
-          utia: { base: 300, adult: 50, child: 25 },
-          external: { base: 500, adult: 100, child: 50 },
+          utia: { base: 298, adult: 49, child: 24 },
+          external: { base: 499, adult: 99, child: 49 },
+        },
+        bulkPrices: {
+          basePrice: 2000,
+          utiaAdult: 100,
+          utiaChild: 0,
+          externalAdult: 250,
+          externalChild: 50,
         },
       },
     };
@@ -214,10 +233,10 @@ class DataManager {
         'Content-Type': 'application/json',
       };
 
-      // Add API key if available for admin operations
-      const apiKey = this.getApiKey();
-      if (apiKey) {
-        headers['x-api-key'] = apiKey;
+      // SECURITY FIX: Use session token instead of API key
+      const sessionToken = this.getSessionToken();
+      if (sessionToken) {
+        headers['x-session-token'] = sessionToken;
       }
 
       const response = await fetch(`${this.apiUrl}/data`, {
@@ -536,7 +555,83 @@ class DataManager {
     return results.filter((booking) => booking !== null);
   }
 
-  // Blocked dates management
+  // Blockage management - NEW STRUCTURE
+  async createBlockageInstance(startDate, endDate, rooms = [], reason = '') {
+    const blockageId = this.generateBlockageId();
+    const blockageData = {
+      blockageId,
+      startDate: this.formatDate(startDate),
+      endDate: this.formatDate(endDate),
+      rooms, // Empty array = all rooms blocked
+      reason,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Send to server if available
+    try {
+      const response = await fetch(`${this.serverUrl}/api/blockage`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': this.getApiKey(),
+        },
+        body: JSON.stringify(blockageData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Server request failed');
+      }
+    } catch (error) {
+      console.warn('Server unavailable, using localStorage:', error);
+      // Fallback to localStorage
+      const data = await this.getData();
+      if (!data.blockageInstances) {
+        data.blockageInstances = [];
+      }
+      data.blockageInstances.push(blockageData);
+      await this.saveData(data);
+    }
+
+    await this.syncWithServer();
+    return blockageId;
+  }
+
+  async deleteBlockageInstance(blockageId) {
+    // Delete from server
+    try {
+      const response = await fetch(`${this.serverUrl}/api/blockage/${blockageId}`, {
+        method: 'DELETE',
+        headers: {
+          'X-API-Key': this.getApiKey(),
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Server request failed');
+      }
+    } catch (error) {
+      console.warn('Server unavailable, using localStorage:', error);
+      // Fallback to localStorage
+      const data = await this.getData();
+      if (data.blockageInstances) {
+        data.blockageInstances = data.blockageInstances.filter((b) => b.blockageId !== blockageId);
+      }
+      await this.saveData(data);
+    }
+
+    await this.syncWithServer();
+  }
+
+  async getAllBlockageInstances() {
+    const data = await this.getData();
+    return data.blockageInstances || [];
+  }
+
+  generateBlockageId() {
+    return `BLK${Date.now()}${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+  }
+
+  // Legacy methods for backward compatibility
   async blockDate(date, roomId = null, reason = '', blockageId = null) {
     const data = await this.getData();
     const blockedDate = {
@@ -555,10 +650,6 @@ class DataManager {
     await this.saveData(data);
     await this.syncWithServer();
     return blockedDate.blockageId;
-  }
-
-  generateBlockageId() {
-    return `BLK${Date.now()}${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
   }
 
   async unblockDate(date, roomId = null) {
@@ -638,7 +729,12 @@ class DataManager {
 
   // Get API key from session
   getApiKey() {
+    // DEPRECATED: Use getSessionToken() instead
     return sessionStorage.getItem('apiKey');
+  }
+
+  getSessionToken() {
+    return sessionStorage.getItem('adminSessionToken');
   }
 
   // Utility functions
@@ -663,6 +759,11 @@ class DataManager {
   }
 
   formatDate(date) {
+    // Delegate to DateUtils for SSOT (if available in browser context)
+    if (typeof DateUtils !== 'undefined') {
+      return DateUtils.formatDate(date);
+    }
+    // Fallback for environments where DateUtils is not loaded
     const d = new Date(date);
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -742,8 +843,8 @@ class DataManager {
   async calculatePriceFromOptions({ guestType, adults, children, nights, roomsCount = 1 }) {
     const settings = await this.getSettings();
     const prices = settings.prices || {
-      utia: { base: 300, adult: 50, child: 25 },
-      external: { base: 500, adult: 100, child: 50 },
+      utia: { base: 298, adult: 49, child: 24 },
+      external: { base: 499, adult: 99, child: 49 },
     };
 
     let pricePerNight = 0;

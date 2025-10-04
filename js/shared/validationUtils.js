@@ -27,6 +27,24 @@ class ValidationUtils {
     return withoutPlus.length >= 7 && withoutPlus.length <= 15 && /^\d+$/u.test(withoutPlus);
   }
 
+  /**
+   * Validate phone number without country code (for forms with separate country code selector)
+   * @param {string} phoneNumber - Phone number without country code
+   * @param {string} countryCode - Country code (e.g., '+420', '+421')
+   * @returns {boolean} - True if valid
+   */
+  static validatePhoneNumber(phoneNumber, countryCode = '+420') {
+    const cleanNumber = phoneNumber.replace(/\s/gu, '');
+
+    // For Czech (+420) and Slovak (+421) - expect exactly 9 digits
+    if (countryCode === '+420' || countryCode === '+421') {
+      return cleanNumber.length === 9 && /^\d+$/u.test(cleanNumber);
+    }
+
+    // For other country codes, accept 7-13 digits
+    return cleanNumber.length >= 7 && cleanNumber.length <= 13 && /^\d+$/u.test(cleanNumber);
+  }
+
   static validateZIP(zip) {
     const cleanZip = zip.replace(/\s/gu, '');
     return cleanZip.length === 5 && /^\d+$/u.test(cleanZip);
@@ -101,11 +119,12 @@ class ValidationUtils {
     return zip;
   }
 
-  static getValidationError(field, value, lang = 'cs') {
+  static getValidationError(field, value, lang = 'cs', countryCode = '+420') {
     const errors = {
       cs: {
         email: 'Neplatný formát emailu',
         phone: 'Telefon musí být ve formátu +420 nebo +421 následovaný 9 číslicemi',
+        phoneNumber: 'Telefonní číslo musí obsahovat 9 číslic',
         zip: 'PSČ musí obsahovat přesně 5 číslic',
         ico: 'IČO musí obsahovat přesně 8 číslic',
         dic: 'DIČ musí být ve formátu CZ následované 8-10 číslicemi',
@@ -114,6 +133,7 @@ class ValidationUtils {
       en: {
         email: 'Invalid email format',
         phone: 'Phone must be in format +420 or +421 followed by 9 digits',
+        phoneNumber: 'Phone number must contain 9 digits',
         zip: 'ZIP code must contain exactly 5 digits',
         ico: 'Company ID must contain exactly 8 digits',
         dic: 'VAT ID must be in format CZ followed by 8-10 digits',
@@ -126,6 +146,8 @@ class ValidationUtils {
         return this.validateEmail(value) ? null : errors[lang].email;
       case 'phone':
         return this.validatePhone(value) ? null : errors[lang].phone;
+      case 'phoneNumber':
+        return this.validatePhoneNumber(value, countryCode) ? null : errors[lang].phoneNumber;
       case 'zip':
         return this.validateZIP(value) ? null : errors[lang].zip;
       case 'ico':

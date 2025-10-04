@@ -209,6 +209,7 @@ class BookingFormModule {
             adults: tempReservation.guests.adults,
             children: tempReservation.guests.children,
             toddlers: tempReservation.guests.toddlers,
+            totalPrice: tempReservation.totalPrice,
             notes: notes || 'Hromadná rezervace celé chaty',
             payFromBenefit,
             isBulkBooking: true,
@@ -241,6 +242,7 @@ class BookingFormModule {
             adults: tempReservation.guests.adults,
             children: tempReservation.guests.children,
             toddlers: tempReservation.guests.toddlers,
+            totalPrice: tempReservation.totalPrice,
             notes,
             payFromBenefit,
             roomGuests: { [tempReservation.roomId]: tempReservation.guests },
@@ -257,6 +259,25 @@ class BookingFormModule {
         }
       }
 
+      // Delete proposed bookings from database
+      const deletePromises = this.app.tempReservations
+        .filter((tempReservation) => tempReservation.proposalId)
+        .map(async (tempReservation) => {
+          try {
+            await dataManager.deleteProposedBooking(tempReservation.proposalId);
+          } catch (error) {
+            console.error('Failed to delete proposed booking:', error);
+          }
+        });
+      await Promise.all(deletePromises);
+
+      // Clear all session proposed bookings (in case any were missed)
+      try {
+        await dataManager.clearSessionProposedBookings();
+      } catch (error) {
+        console.error('Failed to clear session proposed bookings:', error);
+      }
+
       // Clear temporary reservations
       this.app.tempReservations = [];
       this.app.isFinalizingReservations = false;
@@ -268,6 +289,10 @@ class BookingFormModule {
       }
 
       // Hide temp reservations container and finalize button
+      const tempSection = document.getElementById('tempReservationsSection');
+      if (tempSection) {
+        tempSection.style.display = 'none';
+      }
       const tempContainer = document.getElementById('tempReservationsContainer');
       if (tempContainer) {
         tempContainer.style.display = 'none';
@@ -301,8 +326,11 @@ class BookingFormModule {
         );
       }
 
+      // Update temp reservations display (will hide the section since array is empty)
+      this.app.displayTempReservations();
+
       // Reload the calendar to show new bookings
-      await this.app.calendar.render();
+      await this.app.renderCalendar();
       return;
     }
 
@@ -490,14 +518,28 @@ class BookingFormModule {
       return;
     }
 
-    // Validate phone format using ValidationUtils
-    if (ValidationUtils.validatePhone(value)) {
+    // Get country code from the select element (look for sibling or nearby select)
+    let countryCode = '+420'; // default
+    const countryCodeSelect = input.parentElement?.querySelector('select') ||
+                              document.getElementById('finalBookingCountryCode') ||
+                              document.getElementById('bulkCountryCode') ||
+                              document.getElementById('bookingCountryCode');
+
+    if (countryCodeSelect) {
+      countryCode = countryCodeSelect.value;
+    }
+
+    // Validate phone number without country code using ValidationUtils
+    if (ValidationUtils.validatePhoneNumber(value, countryCode)) {
       inputElement.setCustomValidity('');
       inputElement.classList.remove('error');
-      // Format for display
-      inputElement.value = ValidationUtils.formatPhone(value);
+      // Format for display (spaces every 3 digits)
+      const cleanNumber = value.replace(/\s/gu, '');
+      if (cleanNumber.length === 9) {
+        inputElement.value = `${cleanNumber.slice(0, 3)} ${cleanNumber.slice(3, 6)} ${cleanNumber.slice(6)}`;
+      }
     } else {
-      const errorMsg = ValidationUtils.getValidationError('phone', value, this.app.currentLanguage);
+      const errorMsg = ValidationUtils.getValidationError('phoneNumber', value, this.app.currentLanguage, countryCode);
       inputElement.setCustomValidity(errorMsg);
       inputElement.classList.add('error');
     }

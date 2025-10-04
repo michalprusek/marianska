@@ -106,7 +106,6 @@ class SingleRoomBookingModule {
         app: this.app,
         containerId: 'miniCalendar',
         roomId,
-        enableDrag: true,
         allowPast: false,
         enforceContiguous: true,
         minNights: 2,
@@ -183,6 +182,23 @@ class SingleRoomBookingModule {
         'error'
       );
       return;
+    }
+
+    // Validate no blocked dates in selection
+    const sortedDatesArray = Array.from(this.app.selectedDates).sort();
+    for (const dateStr of sortedDatesArray) {
+      const date = new Date(dateStr + 'T12:00:00');
+      const availability = await dataManager.getRoomAvailability(date, this.app.currentBookingRoom);
+
+      if (availability.status === 'blocked') {
+        this.app.showNotification(
+          this.app.currentLanguage === 'cs'
+            ? 'Vybraný termín obsahuje blokované dny. Vyberte jiný termín.'
+            : 'Selected dates include blocked days. Please choose different dates.',
+          'error'
+        );
+        return;
+      }
     }
 
     // Get guest configuration

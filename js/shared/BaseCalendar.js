@@ -32,7 +32,6 @@ class BaseCalendar {
    * @param {Array<string>} [config.roomIds] - Room IDs (for bulk mode)
    * @param {Function} [config.onDateSelect] - Date selection callback
    * @param {Function} [config.onDateDeselect] - Date deselection callback
-   * @param {boolean} [config.enableDrag] - Enable drag selection
    * @param {boolean} [config.allowPast] - Allow selecting past dates
    * @param {boolean} [config.enforceContiguous] - Enforce contiguous date ranges (bulk)
    * @param {number} [config.minNights] - Minimum nights for selection
@@ -47,7 +46,6 @@ class BaseCalendar {
       roomIds: config.roomIds || [],
       onDateSelect: config.onDateSelect || null,
       onDateDeselect: config.onDateDeselect || null,
-      enableDrag: config.enableDrag === undefined ? true : config.enableDrag,
       allowPast: config.allowPast || false,
       enforceContiguous: config.enforceContiguous || false,
       minNights: config.minNights || 1,
@@ -56,21 +54,47 @@ class BaseCalendar {
 
     // Internal state
     this.selectedDates = new Set();
-    this.dragState = {
-      active: false,
-      startDate: null,
-      endDate: null,
-      clickStart: null,
+    this.intervalState = {
+      firstClick: null,  // První hranice intervalu
+      secondClick: null, // Druhá hranice intervalu
+      hoverDate: null,   // Datum pod kurzorem (pro preview)
     };
+
+    // Event listener tracking for cleanup (fixes memory leak)
+    this.boundHandlers = new Map();
+    this.cellElements = new Map(); // Cache DOM references for performance
+    this.currentPreviewRange = null; // Track current preview range
+    this.renderPromise = null;
+    this.cancelRender = false;
   }
 
   /**
    * Render calendar for current month
    */
   async render() {
+    // Cancel any pending render
+    if (this.renderPromise) {
+      this.cancelRender = true;
+    }
+
+    this.renderPromise = this._doRender();
+    await this.renderPromise;
+    this.renderPromise = null;
+  }
+
+  /**
+   * Internal render implementation with cancellation support
+   */
+  async _doRender() {
     const container = document.getElementById(this.config.containerId);
     if (!container) {
       console.error(`Calendar container #${this.config.containerId} not found`);
+      return;
+    }
+
+    // Check for cancellation
+    if (this.cancelRender) {
+      this.cancelRender = false;
       return;
     }
 
@@ -78,18 +102,21 @@ class BaseCalendar {
     const currentMonth = app.currentMonth || new Date();
 
     // Get calendar metadata
-    const calendarData = CalendarUtils.getCalendarDays(
-      currentMonth.getFullYear(),
-      currentMonth.getMonth()
-    );
+    const calendarData = CalendarUtils.getCalendarDays(currentMonth);
 
     // Build calendar HTML
     let html = this.buildCalendarHeader(calendarData);
     html += await this.buildCalendarGrid(calendarData);
 
+    // Check again before DOM mutation
+    if (this.cancelRender) {
+      this.cancelRender = false;
+      return;
+    }
+
     container.innerHTML = html;
 
-    // Attach event listeners
+    // Attach event listeners (cleanup happens first)
     this.attachEventListeners();
   }
 
@@ -97,25 +124,26 @@ class BaseCalendar {
    * Build calendar header (month/year navigation)
    */
   buildCalendarHeader(calendarData) {
-    const monthName = CalendarUtils.getMonthName(
-      calendarData.year,
-      calendarData.month,
-      this.config.app.currentLanguage
-    );
+    const language = this.config.app?.currentLanguage || 'cs';
+    const monthName = CalendarUtils.getMonthName(calendarData.month, language);
 
     return `
-      <div class="calendar-header">
-        <button class="calendar-nav-btn" data-direction="-1">
-          <span>&larr;</span>
+      <div class="calendar-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <button class="nav-btn calendar-nav-btn" data-direction="-1" style="padding: 0.5rem; background: white; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer;">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
         </button>
-        <h3 class="calendar-title">${monthName} ${calendarData.year}</h3>
-        <button class="calendar-nav-btn" data-direction="1">
-          <span>&rarr;</span>
+        <h3 class="calendar-title" style="margin: 0; font-weight: 600;">${monthName} ${calendarData.year}</h3>
+        <button class="nav-btn calendar-nav-btn" data-direction="1" style="padding: 0.5rem; background: white; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer;">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M7.5 15L12.5 10L7.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
         </button>
       </div>
-      <div class="calendar-weekdays">
-        ${CalendarUtils.getWeekdayHeaders(this.config.app.currentLanguage)
-          .map((day) => `<div class="weekday-header">${day}</div>`)
+      <div class="calendar-weekdays" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.25rem; margin-bottom: 0.5rem;">
+        ${CalendarUtils.getWeekdayHeaders(language)
+          .map((day) => `<div class="weekday-header" style="text-align: center; font-weight: 600; color: #666; font-size: 0.875rem; padding: 0.5rem 0;">${day}</div>`)
           .join('')}
       </div>
     `;
@@ -125,7 +153,10 @@ class BaseCalendar {
    * Build calendar grid (days)
    */
   async buildCalendarGrid(calendarData) {
-    let html = '<div class="calendar-grid">';
+    const gridStyle = this.config.mode === BaseCalendar.MODES.GRID
+      ? ''
+      : 'style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.25rem;"';
+    let html = `<div class="calendar-grid" ${gridStyle}>`;
 
     // Render based on mode
     switch (this.config.mode) {
@@ -219,17 +250,20 @@ class BaseCalendar {
    * Build bulk mode calendar (entire chalet)
    */
   async buildBulkMode(calendarData) {
-    const availabilityPromises = calendarData.days.map(async (day) => {
+    const dayCellPromises = calendarData.days.map(async (day) => {
       const date = new Date(day.dateStr);
       const isFullyAvailable = await this.isDateFullyAvailable(date);
-      return { day, isFullyAvailable };
+
+      // Create availability object compatible with createDayCell
+      const availability = {
+        status: isFullyAvailable ? 'available' : 'booked',
+        email: null
+      };
+
+      return this.createDayCell(day, 'bulk', availability);
     });
 
-    const availabilityResults = await Promise.all(availabilityPromises);
-    const dayCells = availabilityResults.map(({ day, isFullyAvailable }) =>
-      this.createBulkDayCell(day, isFullyAvailable)
-    );
-
+    const dayCells = await Promise.all(dayCellPromises);
     return dayCells.join('');
   }
 
@@ -258,51 +292,58 @@ class BaseCalendar {
     // Other month styling
     if (day.isOtherMonth) {
       classes.push('other-month');
+      styles.push('opacity: 0.4; background: #e5e7eb; color: #6b7280;');
+      clickable = false;
     }
 
-    // Past date check
-    if (!this.config.allowPast && date < app.today) {
+    // Past date check (TIMEZONE FIX: use string comparison)
+    const todayStr = DateUtils.formatDate(app.today);
+    if (!this.config.allowPast && dateStr < todayStr) {
       classes.push('past-date');
+      styles.push('opacity: 0.5; background: #f3f4f6; color: #9ca3af;');
       clickable = false;
     }
 
     // Christmas period check
     if (await dataManager.isChristmasPeriod(date)) {
       classes.push('christmas-period');
+      styles.push('box-shadow: 0 0 0 2px gold inset;');
     }
 
-    // Availability-based styling
-    if (availability.status === 'blocked') {
-      classes.push('blocked');
-      styles.push('background: #6b7280; color: white;');
-      clickable = false;
-    } else if (availability.status === 'booked') {
-      classes.push('booked');
-      const color = dataManager.getColorForEmail(availability.email);
-      styles.push(`background: ${color}; color: white;`);
-      clickable = false;
-    } else if (availability.status === 'proposed') {
-      classes.push('proposed');
-      styles.push('background: #fef3c7; border: 2px dashed #f59e0b;');
-      clickable = false;
-    } else {
-      classes.push('available');
-      styles.push('background: #10b981; color: white;');
+    // Availability-based styling (only if not other month or past)
+    if (!day.isOtherMonth && (this.config.allowPast || date >= app.today)) {
+      if (availability.status === 'blocked') {
+        classes.push('blocked');
+        styles.push('background: #6b7280; color: white;');
+        clickable = false;
+      } else if (availability.status === 'booked') {
+        classes.push('booked');
+        const color = dataManager.getColorForEmail(availability.email);
+        styles.push(`background: ${color}; color: white;`);
+        clickable = false;
+      } else if (availability.status === 'proposed') {
+        classes.push('proposed');
+        styles.push('background: #fef3c7; border: 2px dashed #f59e0b; color: #92400e;');
+        clickable = false;
+      } else {
+        classes.push('available');
+        styles.push('background: #10b981; color: white;');
+      }
     }
 
-    // Selection state
+    // Selection state - override background
     if (this.selectedDates.has(dateStr)) {
       classes.push('selected');
-    }
-
-    // Drag preview
-    if (this.isDragPreview(dateStr)) {
-      classes.push('drag-preview');
+      styles.push('background: #2563eb !important; color: white !important; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.3);');
     }
 
     const classStr = classes.join(' ');
     const styleStr = styles.join(' ');
     const cursor = clickable ? 'pointer' : 'not-allowed';
+    const baseStyle = 'padding: 0.75rem; text-align: center; border-radius: 4px; font-weight: 500; user-select: none;';
+
+    // Store original background for preview restoration
+    const originalBg = styles.find(s => s.includes('background:')) || '';
 
     return `
       <div
@@ -310,41 +351,14 @@ class BaseCalendar {
         data-date="${dateStr}"
         data-room="${roomId}"
         data-clickable="${clickable}"
-        style="${styleStr} cursor: ${cursor};"
+        data-original-bg="${originalBg}"
+        style="${baseStyle} ${styleStr} cursor: ${cursor};"
       >
         ${content}
       </div>
     `;
   }
 
-  /**
-   * Create bulk day cell
-   */
-  createBulkDayCell(day, isAvailable) {
-    // Similar to createDayCell but checks full chalet availability
-    const classes = ['calendar-day-cell'];
-    const { dateStr } = day;
-
-    if (day.isOtherMonth) {
-      classes.push('other-month');
-    }
-
-    if (isAvailable) {
-      classes.push('available');
-    } else {
-      classes.push('unavailable');
-    }
-
-    if (this.selectedDates.has(dateStr)) {
-      classes.push('selected');
-    }
-
-    return `
-      <div class="${classes.join(' ')}" data-date="${dateStr}">
-        ${day.dayOfMonth}
-      </div>
-    `;
-  }
 
   /**
    * Check if date is fully available (all rooms)
@@ -361,24 +375,10 @@ class BaseCalendar {
     return availabilities.every((availability) => availability.status === 'available');
   }
 
-  /**
-   * Check if date is in drag preview range
-   */
-  isDragPreview(dateStr) {
-    if (!this.dragState.active) {
-      return false;
-    }
-
-    const { startDate, endDate } = this.dragState;
-    if (!startDate || !endDate) {
-      return false;
-    }
-
-    return BookingLogic.isDateOccupied(dateStr, startDate, endDate);
-  }
 
   /**
    * Attach event listeners for interaction
+   * CRITICAL FIX: Cleanup old listeners first to prevent memory leaks
    */
   attachEventListeners() {
     const container = document.getElementById(this.config.containerId);
@@ -386,50 +386,173 @@ class BaseCalendar {
       return;
     }
 
+    // CRITICAL: Remove old listeners first
+    this.removeEventListeners();
+
+    // Clear cell cache
+    this.cellElements.clear();
+
     // Navigation buttons
     container.querySelectorAll('.calendar-nav-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      const clickHandler = () => {
         const direction = parseInt(btn.dataset.direction, 10);
         this.navigateMonth(direction);
-      });
+      };
+
+      this.boundHandlers.set(btn, { click: clickHandler });
+      btn.addEventListener('click', clickHandler);
     });
 
-    // Day cells
+    // Day cells - click and hover handlers
     container.querySelectorAll('.calendar-day-cell').forEach((cell) => {
       const dateStr = cell.dataset.date;
       const clickable = cell.dataset.clickable === 'true';
+
+      // Cache cell reference for performance
+      this.cellElements.set(dateStr, cell);
 
       if (!clickable) {
         return;
       }
 
-      // Click event
-      cell.addEventListener('click', () => this.handleDateClick(dateStr));
+      // Create bound handlers
+      const clickHandler = () => this.handleDateClick(dateStr);
+      const enterHandler = () => {
+        if (this.intervalState.firstClick && !this.intervalState.secondClick) {
+          this.updatePreview(dateStr);
+        }
+      };
+      const leaveHandler = () => {
+        if (this.intervalState.firstClick && !this.intervalState.secondClick) {
+          this.clearPreview();
+        }
+      };
 
-      // Drag events (if enabled)
-      if (this.config.enableDrag) {
-        cell.addEventListener('mousedown', (e) => this.handleDragStart(dateStr, e));
-        cell.addEventListener('mouseenter', () => this.handleDragMove(dateStr));
-        cell.addEventListener('mouseup', () => this.handleDragEnd());
-      }
+      // Store handlers for cleanup
+      this.boundHandlers.set(cell, {
+        click: clickHandler,
+        mouseenter: enterHandler,
+        mouseleave: leaveHandler
+      });
+
+      // Attach listeners
+      cell.addEventListener('click', clickHandler);
+      cell.addEventListener('mouseenter', enterHandler);
+      cell.addEventListener('mouseleave', leaveHandler);
     });
   }
 
   /**
-   * Handle date click
+   * Remove all event listeners (cleanup)
+   * CRITICAL FIX: Prevents memory leaks
+   */
+  removeEventListeners() {
+    // Remove all stored handlers
+    this.boundHandlers.forEach((handlers, element) => {
+      if (handlers.click) {
+        element.removeEventListener('click', handlers.click);
+      }
+      if (handlers.mouseenter) {
+        element.removeEventListener('mouseenter', handlers.mouseenter);
+      }
+      if (handlers.mouseleave) {
+        element.removeEventListener('mouseleave', handlers.mouseleave);
+      }
+    });
+
+    this.boundHandlers.clear();
+  }
+
+  /**
+   * Destroy calendar instance (cleanup)
+   */
+  destroy() {
+    this.removeEventListeners();
+    this.boundHandlers = null;
+    this.cellElements = null;
+    this.selectedDates = null;
+  }
+
+  /**
+   * Handle date click - Two-click interval selection
    */
   async handleDateClick(dateStr) {
-    if (this.selectedDates.has(dateStr)) {
-      // Deselect
-      this.selectedDates.delete(dateStr);
-      if (this.config.onDateDeselect) {
-        this.config.onDateDeselect(dateStr);
+    // Pokud je interval kompletní, smaž ho a začni nový
+    if (this.intervalState.firstClick && this.intervalState.secondClick) {
+      this.selectedDates.clear();
+      this.intervalState.firstClick = null;
+      this.intervalState.secondClick = null;
+      this.intervalState.hoverDate = null;
+
+      // Sync s app.selectedDates
+      if (this.config.app) {
+        this.config.app.selectedDates = this.selectedDates;
       }
-    } else if (this.validateSelection(dateStr)) {
-      // Select
+    }
+
+    // První klik - nastav první hranici
+    if (!this.intervalState.firstClick) {
+      this.intervalState.firstClick = dateStr;
+      this.selectedDates.clear();
       this.selectedDates.add(dateStr);
+
+      // Sync s app.selectedDates
+      if (this.config.app) {
+        this.config.app.selectedDates = this.selectedDates;
+      }
+
       if (this.config.onDateSelect) {
-        this.config.onDateSelect(dateStr);
+        await this.config.onDateSelect(dateStr);
+      }
+    }
+    // Druhý klik - nastav druhou hranici a vyplň interval
+    else if (!this.intervalState.secondClick) {
+      // Vytvoř interval mezi oběma hranicemi pro validaci
+      const range = this.getDateRangeBetween(this.intervalState.firstClick, dateStr);
+
+      // Validace: zkontroluj, zda interval neobsahuje nedostupné termíny
+      const hasUnavailableDates = await this.validateIntervalAvailability(range);
+
+      if (hasUnavailableDates) {
+        // Zobraz notifikaci uživateli
+        if (this.config.app && this.config.app.utils) {
+          this.config.app.utils.showNotification(
+            'Vybraný interval obsahuje nedostupné termíny (již rezervované nebo blokované). Prosím vyberte jiný termín.',
+            'error',
+            6000
+          );
+        }
+
+        // Reset selection - začni znovu
+        this.selectedDates.clear();
+        this.intervalState.firstClick = null;
+        this.intervalState.secondClick = null;
+        this.intervalState.hoverDate = null;
+
+        if (this.config.app) {
+          this.config.app.selectedDates = this.selectedDates;
+        }
+
+        await this.render();
+        return;
+      }
+
+      // Interval je validní - pokračuj
+      this.intervalState.secondClick = dateStr;
+      this.intervalState.hoverDate = null; // Clear hover
+
+      // Přidej všechny datumy v rozsahu
+      range.forEach((date) => {
+        this.selectedDates.add(date);
+      });
+
+      // DŮLEŽITÉ: Sync s app.selectedDates PŘED zavoláním callbacku
+      if (this.config.app) {
+        this.config.app.selectedDates = this.selectedDates;
+      }
+
+      if (this.config.onDateSelect) {
+        await this.config.onDateSelect(dateStr);
       }
     }
 
@@ -468,56 +591,77 @@ class BaseCalendar {
     return true;
   }
 
+
   /**
-   * Handle drag start
+   * Get array of date strings between two dates (inclusive)
    */
-  handleDragStart(dateStr, event) {
-    event.preventDefault();
-    this.dragState.active = true;
-    this.dragState.startDate = dateStr;
-    this.dragState.clickStart = dateStr;
+  getDateRangeBetween(startDateStr, endDateStr) {
+    const dates = [];
+    const start = new Date(startDateStr);
+    const end = new Date(endDateStr);
+
+    // Ensure start <= end
+    const [firstDate, lastDate] = start <= end ? [start, end] : [end, start];
+
+    const current = new Date(firstDate);
+    while (current <= lastDate) {
+      dates.push(DateUtils.formatDate(current));
+      current.setDate(current.getDate() + 1);
+    }
+
+    return dates;
   }
 
   /**
-   * Handle drag move
+   * Update preview styling without re-render
+   * PERFORMANCE FIX: Use cached elements, only update changed cells
    */
-  handleDragMove(dateStr) {
-    if (!this.dragState.active) {
-      return;
-    }
+  updatePreview(hoverDateStr) {
+    if (!this.intervalState.firstClick) return;
 
-    this.dragState.endDate = dateStr;
-    this.render(); // Re-render to show preview
+    // Clear previous preview
+    this.clearPreview();
+
+    // Calculate preview range
+    const previewRange = this.getDateRangeBetween(this.intervalState.firstClick, hoverDateStr);
+
+    // Only update cells in range (not ALL cells)
+    previewRange.forEach(dateStr => {
+      const cell = this.cellElements.get(dateStr);
+      if (cell && !this.selectedDates.has(dateStr)) {
+        cell.classList.add('preview-interval');
+        cell.style.background = 'rgba(37, 99, 235, 0.3)';
+        cell.style.border = '2px dashed #2563eb';
+      }
+    });
+
+    this.currentPreviewRange = previewRange; // Store for cleanup
   }
 
   /**
-   * Handle drag end
+   * Clear preview styling
+   * PERFORMANCE FIX: Only clear cells that were previewed
    */
-  handleDragEnd() {
-    if (!this.dragState.active) {
-      return;
-    }
+  clearPreview() {
+    if (!this.currentPreviewRange) return;
 
-    // Select all dates in range
-    const { startDate, endDate } = this.dragState;
-    if (startDate && endDate) {
-      const range = BookingLogic.getDateRange(startDate, endDate);
-      range.forEach((date) => {
-        if (this.validateSelection(date)) {
-          this.selectedDates.add(date);
+    // Only clear cells that were previewed
+    this.currentPreviewRange.forEach(dateStr => {
+      const cell = this.cellElements.get(dateStr);
+      if (cell) {
+        cell.classList.remove('preview-interval');
+        const originalBg = cell.getAttribute('data-original-bg');
+        if (originalBg) {
+          cell.style.cssText = cell.style.cssText.replace(
+            /background:[^;]*;?/,
+            originalBg
+          );
         }
-      });
-    }
+        cell.style.border = '';
+      }
+    });
 
-    // Reset drag state
-    this.dragState = {
-      active: false,
-      startDate: null,
-      endDate: null,
-      clickStart: null,
-    };
-
-    this.render();
+    this.currentPreviewRange = null;
   }
 
   /**
@@ -544,6 +688,40 @@ class BaseCalendar {
   clearSelection() {
     this.selectedDates.clear();
     this.render();
+  }
+
+  /**
+   * Validate interval availability - check if all dates in range are available
+   * @param {Array<string>} dateRange - Array of date strings to check
+   * @returns {Promise<boolean>} - True if any date is unavailable (booked/blocked/proposed)
+   */
+  async validateIntervalAvailability(dateRange) {
+    // For each date in the range, check availability
+    for (const dateStr of dateRange) {
+      const date = new Date(dateStr);
+
+      // Get availability based on mode
+      let isUnavailable = false;
+
+      if (this.config.mode === BaseCalendar.MODES.BULK) {
+        // For bulk mode, check if all rooms are available
+        const isFullyAvailable = await this.isDateFullyAvailable(date);
+        isUnavailable = !isFullyAvailable;
+      } else {
+        // For single room or edit mode, check specific room availability
+        const roomId = this.config.roomId;
+        if (roomId) {
+          const availability = await dataManager.getRoomAvailability(date, roomId);
+          isUnavailable = availability.status !== 'available';
+        }
+      }
+
+      if (isUnavailable) {
+        return true; // Found an unavailable date
+      }
+    }
+
+    return false; // All dates are available
   }
 
   /**
