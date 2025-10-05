@@ -239,6 +239,9 @@ new BaseCalendar({
 - Vizuální indikace vánočního období
 - Blokování minulých dat (configurable)
 - Contiguous date enforcement pro bulk bookings
+- **Year range configuration**:
+  - GRID mode (main calendar): minulý rok + současný rok + příští rok
+  - SINGLE_ROOM/BULK/EDIT modes: současný rok + příští rok
 
 **Barvy a stavy:**
 
@@ -429,11 +432,31 @@ Externí hosté:
 
 ### Vánoční období
 
+**⚠️ KRITICKÁ LOGIKA - Datum-závislá pravidla přístupových kódů:**
+
+#### Základní nastavení:
 - Defaultně: 23.12. - 2.1.
-- Admin může nastavit vlastní rozsah
-- Rezervace pouze s přístupovým kódem
-- Bez kódů = kompletní blokace rezervací
-- Maximálně 1-2 pokoje pro ÚTIA zaměstnance do 30.9.
+- Admin může nastavit vlastní rozsah v admin panelu
+
+#### Pravidla přístupového kódu (AKTUALIZOVÁNO 2025-10):
+
+**Před 1. říjnem** (≤ 30.9. roku prvního dne vánočního období):
+- ✅ **Single room rezervace**: Vyžaduje přístupový kód
+- ✅ **Bulk rezervace (celá chata)**: Vyžaduje přístupový kód
+- **Příklad**: Vánoční období 12.12.2025-3.1.2026, dnes 4.4.2025 → kód VYŽADOVÁN
+- **Příklad**: Vánoční období 4.1.2026-3.3.2026, dnes 15.9.2025 → kód VYŽADOVÁN
+
+**Po 1. říjnu** (> 30.9. roku prvního dne vánočního období):
+- ✅ **Single room rezervace**: Přístupový kód NENÍ vyžadován
+- ❌ **Bulk rezervace (celá chata)**: KOMPLETNĚ BLOKOVÁNO
+- **Příklad**: Vánoční období 12.12.2025-3.1.2026, dnes 5.10.2025 → single OK bez kódu, bulk BLOKOVÁN
+- **Chybová hláška**: "Hromadné rezervace celé chaty nejsou po 1. říjnu povoleny pro vánoční období. Rezervujte jednotlivé pokoje."
+
+#### Implementační detaily:
+- **Server-side**: `checkChristmasAccessRequirement()` v `server.js:253`
+- **Client-side**: `checkChristmasAccessRequirement()` v `data.js:665`
+- **Bulk booking validation**: `confirmBulkDates()` v `bulk-booking.js:358`
+- **Form UI**: Dynamické zobrazení pole pro kód v `booking-form.js:38`
 
 ### Kapacita pokojů
 

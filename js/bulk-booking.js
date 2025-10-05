@@ -376,8 +376,39 @@ class BulkBookingModule {
       return;
     }
 
-    // Validate no blocked dates in selection for any room
+    // Check Christmas period restrictions for bulk bookings
     const sortedDatesArray = Array.from(this.bulkSelectedDates).sort();
+    let isChristmasPeriod = false;
+    let christmasPeriodStart = null;
+
+    for (const dateStr of sortedDatesArray) {
+      // eslint-disable-next-line no-await-in-loop
+      if (await dataManager.isChristmasPeriod(new Date(dateStr))) {
+        isChristmasPeriod = true;
+        const settings = await dataManager.getSettings();
+        christmasPeriodStart = settings.christmasPeriod?.start;
+        break;
+      }
+    }
+
+    if (isChristmasPeriod && christmasPeriodStart) {
+      const { bulkBlocked } = dataManager.checkChristmasAccessRequirement(
+        christmasPeriodStart,
+        true // isBulkBooking
+      );
+
+      if (bulkBlocked) {
+        this.app.showNotification(
+          this.app.currentLanguage === 'cs'
+            ? 'Hromadné rezervace celé chaty nejsou po 1. říjnu povoleny pro vánoční období. Rezervujte jednotlivé pokoje.'
+            : 'Bulk bookings are not allowed after October 1st for Christmas period. Please book individual rooms.',
+          'error'
+        );
+        return;
+      }
+    }
+
+    // Validate no blocked dates in selection for any room
     const rooms = await dataManager.getRooms();
 
     for (const dateStr of sortedDatesArray) {

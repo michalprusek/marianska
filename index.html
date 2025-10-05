@@ -610,6 +610,21 @@
               ></textarea>
             </div>
 
+            <!-- Christmas Access Code (conditionally shown) -->
+            <div class="input-group" id="finalChristmasCodeGroup" style="display: none;">
+              <label for="finalChristmasCode" data-translate="christmasCodeLabel">Vánoční přístupový kód</label>
+              <input
+                type="text"
+                id="finalChristmasCode"
+                name="finalChristmasCode"
+                placeholder=""
+                data-translate-placeholder="christmasCodePlaceholder"
+              />
+              <small style="color: var(--warning-color); display: block; margin-top: 0.25rem;" data-translate="christmasCodeRequired">
+                Pro rezervace ve vánočním období je vyžadován přístupový kód
+              </small>
+            </div>
+
             <div
               class="input-group"
               style="margin-top: 1rem"
@@ -709,7 +724,7 @@
         class="modal"
       >
         <div class="modal-content">
-          <button class="modal-close">&times;</button>
+          <button class="modal-close" onclick="app.bookingForm.hideBookingFormModal()">&times;</button>
           <h2 data-translate="completeBooking">Dokončení rezervace</h2>
 
           <!-- Booking Summary -->
@@ -890,6 +905,21 @@
               ></textarea>
             </div>
 
+            <!-- Christmas Access Code (conditionally shown) -->
+            <div class="input-group full-width" id="christmasCodeGroup" style="display: none;">
+              <label for="christmasCode" data-translate="christmasCodeLabel">Vánoční přístupový kód</label>
+              <input
+                type="text"
+                id="christmasCode"
+                name="christmasCode"
+                placeholder=""
+                data-translate-placeholder="christmasCodePlaceholder"
+              />
+              <small style="color: var(--warning-color); display: block; margin-top: 0.25rem;" data-translate="christmasCodeRequired">
+                Pro rezervace ve vánočním období je vyžadován přístupový kód
+              </small>
+            </div>
+
             <div class="input-group full-width">
               <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
                 <input
@@ -941,7 +971,7 @@
 
           <!-- Room Header -->
           <div class="booking-modal-header">
-            <h2 id="roomBookingTitle">Rezervace pokoje</h2>
+            <h2 id="roomBookingTitle" data-translate="roomReservation">Rezervace pokoje</h2>
             <div id="roomBookingBadge"></div>
           </div>
 
@@ -1154,7 +1184,7 @@
                     <label
                       class="counter-label"
                       style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
-                      >Batolata (0-3)</label
+                      data-translate="toddlersCount">Batolata (0-3)</label
                     >
                     <div
                       class="counter-controls"
@@ -1224,7 +1254,7 @@
                   class="price-summary"
                   style="border-top: 2px solid #e2e8f0; padding-top: 1rem; margin-top: 1rem"
                 >
-                  <h4 style="margin-bottom: 0.75rem; color: #333">Souhrn ceny</h4>
+                  <h4 style="margin-bottom: 0.75rem; color: #333" data-translate="priceSummary">Souhrn ceny</h4>
                   <div
                     id="priceBreakdown"
                     style="
@@ -1243,7 +1273,7 @@
                         font-size: 0.9rem;
                       "
                     >
-                      <span>Základní cena za pokoj:</span>
+                      <span data-translate="basePricePerRoom">Základní cena za pokoj:</span>
                       <span id="basePrice">0 Kč</span>
                     </div>
                     <div
@@ -1257,7 +1287,7 @@
                         color: #666;
                       "
                     >
-                      <span>Počet osob:</span>
+                      <span data-translate="guestsCount">Počet osob:</span>
                       <span id="guestCountsSummary">-</span>
                     </div>
                     <div
@@ -1270,7 +1300,7 @@
                         font-size: 0.9rem;
                       "
                     >
-                      <span>Příplatek za dospělé:</span>
+                      <span data-translate="adultsExtra">Příplatek za dospělé:</span>
                       <span id="adultsSurcharge">0 Kč</span>
                     </div>
                     <div
@@ -1283,7 +1313,7 @@
                         font-size: 0.9rem;
                       "
                     >
-                      <span>Příplatek za děti:</span>
+                      <span data-translate="childrenExtra">Příplatek za děti:</span>
                       <span id="childrenSurcharge">0 Kč</span>
                     </div>
                     <div
@@ -1297,8 +1327,8 @@
                         color: #666;
                       "
                     >
-                      <span>Batolata (do 3 let):</span>
-                      <span id="toddlersSummary">zdarma</span>
+                      <span data-translate="toddlersFree">Batolata (do 3 let):</span>
+                      <span id="toddlersSummary" data-translate="toddlersFreeLabel">zdarma</span>
                     </div>
                     <div
                       id="nightsPrice"
@@ -1310,7 +1340,7 @@
                         font-size: 0.9rem;
                       "
                     >
-                      <span>Počet nocí:</span>
+                      <span data-translate="nightsCount">Počet nocí:</span>
                       <span>× <span id="nightsMultiplier">0</span></span>
                     </div>
                     <div
@@ -1323,7 +1353,7 @@
                         font-weight: bold;
                       "
                     >
-                      <span>Celkem:</span>
+                      <span data-translate="totalAmount">Celkem:</span>
                       <span
                         id="totalPrice"
                         style="color: #2e7d32"
@@ -1343,6 +1373,7 @@
                 onclick="window.app.singleRoomBooking.hideRoomBookingModal()"
                 class="btn btn-secondary"
                 style="flex: 1"
+                data-translate="cancelButton"
               >
                 Zrušit
               </button>
@@ -1352,6 +1383,7 @@
                 class="btn btn-primary"
                 style="flex: 2"
                 disabled
+                data-translate="addReservationButton"
               >
                 Přidat rezervaci
               </button>

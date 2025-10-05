@@ -24,11 +24,14 @@ const {
   DatabaseError,
 } = require('./js/shared/errors');
 
-// Initialize logger
-const logger = createLogger('Server', process.env.LOG_LEVEL || 'INFO');
+// Initialize logger - DEBUG level in development
+const logger = createLogger('Server', process.env.NODE_ENV === 'development' ? 'DEBUG' : (process.env.LOG_LEVEL || 'INFO'));
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Trust proxy - required when running behind nginx
+app.set('trust proxy', true);
 
 // Session timeout constants
 const SESSION_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
@@ -101,10 +104,22 @@ app.use((req, res, next) => {
 // CORS configuration
 const corsOptions = {
   origin(origin, callback) {
-    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+    const defaultOrigins = [
+      'http://localhost:3000',
+      'https://localhost:3000',
+      'https://chata.utia.cas.cz',
+      'http://chata.utia.cas.cz'
+    ];
+    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || defaultOrigins;
+
+    // In development, allow all origins for easier testing
+    if (process.env.NODE_ENV === 'development') {
+      logger.debug('CORS: Allowing origin in development mode', { origin });
+      callback(null, true);
+    } else if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
+      logger.warn('CORS: Origin not allowed', { origin, allowedOrigins });
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -141,6 +156,18 @@ const adminLoginLimiter = rateLimit({
   skipSuccessfulRequests: true, // Don't count successful logins
   message: 'Příliš mnoho neúspěšných pokusů o přihlášení. Zkuste to za 15 minut.',
 });
+
+// Request logging middleware for debugging
+if (process.env.NODE_ENV === 'development') {
+  app.use((req, res, next) => {
+    logger.debug(`${req.method} ${req.url}`, {
+      body: req.body,
+      query: req.query,
+      headers: req.headers
+    });
+    next();
+  });
+}
 
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(express.static('.'));
@@ -209,6 +236,40 @@ function isChristmasPeriod(date) {
 function validateChristmasCode(code) {
   const settings = db.getSettings();
   return settings.christmasAccessCodes && settings.christmasAccessCodes.includes(code);
+}
+
+/**
+ * Determines if Christmas access code is required based on current date and Christmas period
+ *
+ * Rules:
+ * - Code required if current date <= Sept 30 of the year containing Christmas period start
+ * - After Oct 1: Single room bookings don't need code, bulk bookings are blocked
+ *
+ * @param {Date} currentDate - Current date (usually today)
+ * @param {string} christmasPeriodStart - First day of Christmas period (YYYY-MM-DD)
+ * @param {boolean} isBulkBooking - Whether this is a bulk booking
+ * @returns {Object} { codeRequired: boolean, bulkBlocked: boolean }
+ */
+function checkChristmasAccessRequirement(currentDate, christmasPeriodStart, isBulkBooking = false) {
+  if (!christmasPeriodStart) {
+    return { codeRequired: false, bulkBlocked: false };
+  }
+
+  const christmasStartDate = new Date(christmasPeriodStart);
+  const christmasYear = christmasStartDate.getFullYear();
+
+  // Sept 30 of the year containing Christmas period start
+  const sept30Cutoff = new Date(christmasYear, 8, 30, 23, 59, 59); // Month is 0-indexed (8 = September)
+
+  const isBeforeSept30 = currentDate <= sept30Cutoff;
+
+  if (isBeforeSept30) {
+    // Before Oct 1: Code required for both single and bulk
+    return { codeRequired: true, bulkBlocked: false };
+  } else {
+    // After Oct 1: Single rooms don't need code, bulk is blocked
+    return { codeRequired: false, bulkBlocked: isBulkBooking };
+  }
 }
 
 // Session validation middleware
@@ -335,38 +396,38 @@ app.post('/api/data', writeLimiter, requireApiKeyOrSession, (req, res) => {
   try {
     const dataToSave = req.body;
 
-    // Clear existing data and replace with new data
-    const transaction = db.db.transaction(() => {
-      // Clear existing data
-      db.db.exec('DELETE FROM bookings');
-      db.db.exec('DELETE FROM booking_rooms');
-      db.db.exec('DELETE FROM blocked_dates');
+    // CRITICAL FIX: Remove nested transactions - each method has its own transaction
+    // Just call methods sequentially instead of wrapping in outer transaction
 
-      // Insert bookings
-      if (dataToSave.bookings && dataToSave.bookings.length > 0) {
-        for (const booking of dataToSave.bookings) {
-          db.createBooking(booking);
-        }
+    // Clear existing data
+    db.db.exec('DELETE FROM bookings');
+    db.db.exec('DELETE FROM booking_rooms');
+    db.db.exec('DELETE FROM blockage_instances');
+    db.db.exec('DELETE FROM blockage_rooms');
+
+    // Insert bookings
+    if (dataToSave.bookings && dataToSave.bookings.length > 0) {
+      for (const booking of dataToSave.bookings) {
+        db.createBooking(booking);
       }
+    }
 
-      // Insert blocked dates
-      if (dataToSave.blockedDates && dataToSave.blockedDates.length > 0) {
-        for (const blocked of dataToSave.blockedDates) {
-          db.createBlockedDate(blocked);
-        }
+    // Insert blocked dates (legacy compatibility)
+    if (dataToSave.blockedDates && dataToSave.blockedDates.length > 0) {
+      for (const blocked of dataToSave.blockedDates) {
+        db.createBlockedDate(blocked);
       }
+    }
 
-      // Update settings
-      if (dataToSave.settings) {
-        db.updateSettings(dataToSave.settings);
-      }
-    });
-
-    transaction();
+    // Update settings (this method has its own transaction)
+    if (dataToSave.settings) {
+      db.updateSettings(dataToSave.settings);
+    }
 
     return res.json({ success: true });
   } catch (error) {
     logger.error('saving data:', error);
+    logger.error('Error stack:', error.stack);
     return res.status(500).json({ error: 'Nepodařilo se uložit data' });
   }
 });
@@ -429,9 +490,32 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
         .json({ error: ValidationUtils.getValidationError('dic', bookingData.dic, 'cs') });
     }
 
-    // Check Christmas period access
-    if (isChristmasPeriod(bookingData.startDate) || isChristmasPeriod(bookingData.endDate)) {
-      if (!bookingData.christmasCode || !validateChristmasCode(bookingData.christmasCode)) {
+    // Check Christmas period access with date-based rules
+    const isChristmas =
+      isChristmasPeriod(bookingData.startDate) || isChristmasPeriod(bookingData.endDate);
+
+    if (isChristmas) {
+      const settings = db.getSettings();
+      const christmasPeriodStart = settings.christmasPeriod?.start;
+      const isBulkBooking = bookingData.isBulkBooking || false;
+      const today = new Date();
+
+      const { codeRequired, bulkBlocked } = checkChristmasAccessRequirement(
+        today,
+        christmasPeriodStart,
+        isBulkBooking
+      );
+
+      // Block bulk bookings after Oct 1
+      if (bulkBlocked) {
+        return res.status(403).json({
+          error:
+            'Hromadné rezervace celé chaty nejsou po 1. říjnu povoleny pro vánoční období. Rezervujte jednotlivé pokoje.',
+        });
+      }
+
+      // Require code if before Oct 1
+      if (codeRequired && (!bookingData.christmasCode || !validateChristmasCode(bookingData.christmasCode))) {
         return res
           .status(403)
           .json({ error: 'Rezervace v období vánočních prázdnin vyžaduje přístupový kód' });
@@ -620,9 +704,32 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
       return res.status(400).json({ error: 'Datum odjezdu musí být po datu příjezdu' });
     }
 
-    // Check Christmas period access
-    if (isChristmasPeriod(bookingData.startDate) || isChristmasPeriod(bookingData.endDate)) {
-      if (!bookingData.christmasCode || !validateChristmasCode(bookingData.christmasCode)) {
+    // Check Christmas period access with date-based rules
+    const isChristmas =
+      isChristmasPeriod(bookingData.startDate) || isChristmasPeriod(bookingData.endDate);
+
+    if (isChristmas) {
+      const settings = db.getSettings();
+      const christmasPeriodStart = settings.christmasPeriod?.start;
+      const isBulkBooking = bookingData.isBulkBooking || false;
+      const today = new Date();
+
+      const { codeRequired, bulkBlocked } = checkChristmasAccessRequirement(
+        today,
+        christmasPeriodStart,
+        isBulkBooking
+      );
+
+      // Block bulk bookings after Oct 1
+      if (bulkBlocked) {
+        return res.status(403).json({
+          error:
+            'Hromadné rezervace celé chaty nejsou po 1. říjnu povoleny pro vánoční období. Rezervujte jednotlivé pokoje.',
+        });
+      }
+
+      // Require code if before Oct 1
+      if (codeRequired && (!bookingData.christmasCode || !validateChristmasCode(bookingData.christmasCode))) {
         return res
           .status(403)
           .json({ error: 'Rezervace v období vánočních prázdnin vyžaduje přístupový kód' });

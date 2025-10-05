@@ -35,6 +35,56 @@ class BookingFormModule {
     step1.style.display = 'block';
   }
 
+  async checkAndShowChristmasCodeField(dates, isBulkBooking = false) {
+    const christmasCodeGroup = document.getElementById('christmasCodeGroup');
+    const finalChristmasCodeGroup = document.getElementById('finalChristmasCodeGroup');
+
+    if (!dates || dates.length === 0) {
+      return { showCodeField: false, blockBulk: false };
+    }
+
+    // Check if any date is in Christmas period
+    let isChristmasPeriod = false;
+    let christmasPeriodStart = null;
+
+    for (const dateStr of dates) {
+      // eslint-disable-next-line no-await-in-loop
+      if (await dataManager.isChristmasPeriod(new Date(dateStr))) {
+        isChristmasPeriod = true;
+        const settings = await dataManager.getSettings();
+        christmasPeriodStart = settings.christmasPeriod?.start;
+        break;
+      }
+    }
+
+    if (isChristmasPeriod && christmasPeriodStart) {
+      const { codeRequired, bulkBlocked } = dataManager.checkChristmasAccessRequirement(
+        christmasPeriodStart,
+        isBulkBooking
+      );
+
+      // Show/hide the Christmas code field in both forms
+      if (christmasCodeGroup) {
+        christmasCodeGroup.style.display = codeRequired ? 'block' : 'none';
+      }
+      if (finalChristmasCodeGroup) {
+        finalChristmasCodeGroup.style.display = codeRequired ? 'block' : 'none';
+      }
+
+      return { showCodeField: codeRequired, blockBulk: bulkBlocked };
+    }
+
+    // Not Christmas period - hide code fields
+    if (christmasCodeGroup) {
+      christmasCodeGroup.style.display = 'none';
+    }
+    if (finalChristmasCodeGroup) {
+      finalChristmasCodeGroup.style.display = 'none';
+    }
+
+    return { showCodeField: false, blockBulk: false };
+  }
+
   async updatePriceSummary() {
     const summaryDiv = document.getElementById('bookingSummary');
     if (!summaryDiv) {
@@ -43,10 +93,16 @@ class BookingFormModule {
 
     const sortedDates = Array.from(this.app.selectedDates).sort();
 
-    // Get guest type based on which booking mode is active
-    let guestType = 'utia'; // default
+    // Detect booking mode
     const singleRoomModal = document.getElementById('singleRoomBookingModal');
     const bulkModal = document.getElementById('bulkBookingModal');
+    const isBulkBooking = bulkModal && bulkModal.classList.contains('active');
+
+    // Check if any selected date is in Christmas period and if code is required
+    await this.checkAndShowChristmasCodeField(sortedDates, isBulkBooking);
+
+    // Get guest type based on which booking mode is active
+    let guestType = 'utia'; // default
 
     if (singleRoomModal && singleRoomModal.classList.contains('active')) {
       // Single room booking mode
@@ -54,7 +110,7 @@ class BookingFormModule {
         'input[name="singleRoomGuestType"]:checked'
       );
       guestType = singleGuestTypeInput ? singleGuestTypeInput.value : 'utia';
-    } else if (bulkModal && bulkModal.classList.contains('active')) {
+    } else if (isBulkBooking) {
       // Bulk booking mode
       const bulkGuestTypeInput = document.querySelector('input[name="bulkGuestType"]:checked');
       guestType = bulkGuestTypeInput ? bulkGuestTypeInput.value : 'utia';
@@ -155,6 +211,11 @@ class BookingFormModule {
     const ico = document.getElementById('ico')?.value.trim() || '';
     const dic = document.getElementById('dic')?.value.trim() || '';
     const notes = document.getElementById('notes').value.trim();
+    // Check both possible Christmas code inputs (main form and final booking form)
+    const christmasCode =
+      document.getElementById('christmasCode')?.value.trim() ||
+      document.getElementById('finalChristmasCode')?.value.trim() ||
+      '';
     // Check both possible checkbox IDs (main form and final booking form)
     const payFromBenefit =
       document.getElementById('payFromBenefit')?.checked ||
@@ -221,6 +282,7 @@ class BookingFormModule {
             totalPrice: tempReservation.totalPrice,
             notes: notes || 'Hromadná rezervace celé chaty',
             payFromBenefit,
+            christmasCode, // Include Christmas access code
             isBulkBooking: true,
             sessionId: this.app.sessionId, // Include sessionId to exclude user's own proposals
           };
@@ -255,6 +317,7 @@ class BookingFormModule {
             totalPrice: tempReservation.totalPrice,
             notes,
             payFromBenefit,
+            christmasCode, // Include Christmas access code
             roomGuests: { [tempReservation.roomId]: tempReservation.guests },
             sessionId: this.app.sessionId, // Include sessionId to exclude user's own proposals
           };
@@ -554,6 +617,25 @@ class BookingFormModule {
     this.app.selectedRooms.clear();
     this.app.roomGuests.clear();
     this.app.roomGuestTypes.clear();
+  }
+
+  hideBookingFormModal() {
+    const modal = document.getElementById('bookingFormModal');
+    if (modal) {
+      modal.classList.remove('active');
+    }
+
+    // Clear form
+    const form = document.getElementById('bookingForm');
+    if (form) {
+      form.reset();
+    }
+
+    // Clear summary
+    const summaryEl = document.getElementById('bookingSummary');
+    if (summaryEl) {
+      summaryEl.innerHTML = '';
+    }
   }
 
   validatePhoneNumber(input) {

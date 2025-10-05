@@ -8,9 +8,13 @@ services:
       - '3000'
     volumes:
       - ./data:/app/data
+      - .:/app
+      - /app/node_modules
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - PORT=3000
+      - DEBUG=*
+    command: npm run dev
     restart: unless-stopped
     networks:
       - marianska-net

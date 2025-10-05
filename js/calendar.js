@@ -8,17 +8,10 @@ class CalendarModule {
     const newMonth = new Date(this.app.currentMonth);
     newMonth.setMonth(newMonth.getMonth() + direction);
 
-    // Check if we're within allowed range
+    // Check if we're within allowed range (GRID mode boundaries)
     const newYear = newMonth.getFullYear();
-    const newMonthNum = newMonth.getMonth();
 
-    if (newYear < this.app.minYear) {
-      return;
-    }
-    if (
-      newYear > this.app.maxYear ||
-      (newYear === this.app.maxYear && newMonthNum > this.app.maxMonth)
-    ) {
+    if (newYear < this.app.gridMinYear || newYear > this.app.gridMaxYear) {
       return;
     }
 
@@ -66,11 +59,11 @@ class CalendarModule {
           ];
     monthTitle.textContent = `${monthNames[month]} ${year}`;
 
-    // Update navigation buttons
+    // Update navigation buttons (GRID mode boundaries)
     const prevBtn = document.getElementById('prevMonth');
     const nextBtn = document.getElementById('nextMonth');
 
-    if (year <= this.app.minYear && month <= 0) {
+    if (year <= this.app.gridMinYear && month <= 0) {
       prevBtn.style.opacity = '0.3';
       prevBtn.style.cursor = 'not-allowed';
     } else {
@@ -78,7 +71,7 @@ class CalendarModule {
       prevBtn.style.cursor = 'pointer';
     }
 
-    if (year === this.app.maxYear && month >= this.app.maxMonth) {
+    if (year >= this.app.gridMaxYear && month >= 11) {
       nextBtn.style.opacity = '0.3';
       nextBtn.style.cursor = 'not-allowed';
     } else {

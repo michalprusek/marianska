@@ -672,14 +672,38 @@ class BaseCalendar {
     const newMonth = new Date(app.currentMonth);
     newMonth.setMonth(newMonth.getMonth() + direction);
 
-    // Check boundaries
+    // Check boundaries based on calendar mode
     const newYear = newMonth.getFullYear();
-    if (newYear < app.minYear || newYear > app.maxYear) {
+    const { minYear, maxYear } = this.getYearBoundaries();
+
+    if (newYear < minYear || newYear > maxYear) {
       return;
     }
 
     app.currentMonth = newMonth;
     this.render();
+  }
+
+  /**
+   * Get year boundaries based on calendar mode
+   * @returns {Object} { minYear, maxYear }
+   */
+  getYearBoundaries() {
+    const { app, mode } = this.config;
+
+    // GRID mode (main calendar): previous + current + next year
+    if (mode === BaseCalendar.MODES.GRID) {
+      return {
+        minYear: app.gridMinYear,
+        maxYear: app.gridMaxYear,
+      };
+    }
+
+    // Other modes (SINGLE_ROOM, BULK, EDIT): current + next year only
+    return {
+      minYear: app.otherMinYear,
+      maxYear: app.otherMaxYear,
+    };
   }
 
   /**

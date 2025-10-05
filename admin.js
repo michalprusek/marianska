@@ -310,7 +310,10 @@ class AdminPanel {
       return false;
     }
 
-    const expiryTime = parseInt(sessionExpiry, 10);
+    // Convert ISO string to timestamp, or use as-is if already a number
+    const expiryTime = typeof sessionExpiry === 'string' && sessionExpiry.includes('T')
+      ? new Date(sessionExpiry).getTime()
+      : parseInt(sessionExpiry, 10);
     const now = Date.now();
 
     // Session expired
