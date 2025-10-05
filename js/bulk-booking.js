@@ -438,7 +438,7 @@ class BulkBookingModule {
     const guestTypeInput = document.querySelector('input[name="bulkGuestType"]:checked');
     const guestType = guestTypeInput ? guestTypeInput.value : 'external';
 
-    // Get dates
+    // Get dates - use exactly what user selected
     const sortedDates = Array.from(this.bulkSelectedDates).sort();
     const startDate = sortedDates[0];
     const endDate = sortedDates[sortedDates.length - 1];
@@ -566,26 +566,8 @@ class BulkBookingModule {
     const startDate = sortedDates[0];
     const endDate = sortedDates[sortedDates.length - 1];
 
-    // Check if trying to book Christmas period after October 1st
-    const today = new Date();
-    const oct1 = new Date(today.getFullYear(), 9, 1);
-    const isAfterOct1 = today >= oct1;
-
-    if (isAfterOct1) {
-      // Check if any of the selected dates are in the Christmas period
-      const christmasChecks = await Promise.all(
-        sortedDates.map((dateStr) => dataManager.isChristmasPeriod(new Date(dateStr)))
-      );
-      if (christmasChecks.some((isChristmas) => isChristmas)) {
-        this.app.showNotification(
-          this.app.currentLanguage === 'cs'
-            ? 'Hromadné rezervace v období vánočních prázdnin nejsou po 1.10. povoleny'
-            : 'Bulk bookings during Christmas period are not allowed after October 1st',
-          'error'
-        );
-        return;
-      }
-    }
+    // Christmas validation already performed in confirmBulkDates() - no need to duplicate
+    // (uses ChristmasUtils.checkChristmasAccessRequirement for consistent logic)
 
     // Create booking
     const booking = {

@@ -1,14 +1,16 @@
 // Admin panel logic
 class AdminPanel {
   // Session timeout constants
-  static SESSION_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours
-  static SESSION_WARNING_TIME = 10 * 60 * 1000; // 10 minutes before expiry
+  // FIX: Extended from 2 hours to 7 days for better persistence
+  static SESSION_TIMEOUT = 7 * 24 * 60 * 60 * 1000; // 7 days
+  static SESSION_WARNING_TIME = 60 * 60 * 1000; // 1 hour before expiry
   static ACTIVITY_DEBOUNCE_TIME = 1000; // 1 second
-  static SESSION_REFRESH_INTERVAL = 5 * 60 * 1000; // Refresh every 5 minutes on activity
+  static SESSION_REFRESH_INTERVAL = 60 * 60 * 1000; // Refresh every 1 hour on activity
 
   constructor() {
     this.isAuthenticated = false;
     this.refreshInterval = null;
+    this.today = new Date(); // Required by BaseCalendar
     this.editSelectedDates = new Set();
     this.editSelectedRooms = new Set();
     this.editStartDate = null;
@@ -25,11 +27,11 @@ class AdminPanel {
       return '';
     }
     return String(unsafe)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+      .replace(/&/gu, '&amp;')
+      .replace(/</gu, '&lt;')
+      .replace(/>/gu, '&gt;')
+      .replace(/"/gu, '&quot;')
+      .replace(/'/gu, '&#039;');
   }
 
   // Helper function to create styled room badges
@@ -66,7 +68,7 @@ class AdminPanel {
     // Login
     document.getElementById('loginForm').addEventListener('submit', (e) => this.handleLogin(e));
 
-    // Navigation
+    // Navigation - Redirect to main calendar page
     document.getElementById('backBtn').addEventListener('click', () => {
       window.location.href = 'index.html';
     });
@@ -119,12 +121,16 @@ class AdminPanel {
   }
 
   async checkAuthentication() {
-    // SECURITY FIX: Check session token with expiry
-    const sessionToken = sessionStorage.getItem('adminSessionToken');
-    const sessionExpiry = sessionStorage.getItem('adminSessionExpiry');
+    // SECURITY FIX: Check session token with expiry (using localStorage for persistence)
+    const sessionToken = localStorage.getItem('adminSessionToken');
+    const sessionExpiry = localStorage.getItem('adminSessionExpiry');
 
     if (sessionToken && sessionExpiry) {
-      if (new Date().getTime() < parseInt(sessionExpiry)) {
+      // FIX: Parse ISO timestamp correctly (not parseInt!)
+      const expiryTime = new Date(sessionExpiry).getTime();
+      const now = Date.now();
+
+      if (now < expiryTime) {
         await this.showAdminPanel();
         this.setupSessionRefresh(); // Auto-refresh on activity
       } else {
@@ -140,9 +146,9 @@ class AdminPanel {
 
     const loginResult = await dataManager.authenticateAdmin(password);
     if (loginResult && loginResult.success) {
-      // SECURITY FIX: Store session token and expiry
-      sessionStorage.setItem('adminSessionToken', loginResult.sessionToken);
-      sessionStorage.setItem('adminSessionExpiry', loginResult.expiresAt);
+      // SECURITY FIX: Store session token and expiry in localStorage for persistence
+      localStorage.setItem('adminSessionToken', loginResult.sessionToken);
+      localStorage.setItem('adminSessionExpiry', loginResult.expiresAt);
       await this.showAdminPanel();
       this.setupSessionRefresh();
     } else {
@@ -171,10 +177,10 @@ class AdminPanel {
       this.showErrorMessage('Session vypršela z důvodu nečinnosti');
     }, AdminPanel.SESSION_TIMEOUT);
 
-    // Warning timer (10 min before expiry)
+    // Warning timer (1 hour before expiry)
     this.sessionWarning = setTimeout(() => {
       this.showWarningMessage(
-        'Session vyprší za 10 minut. Obnovte ji aktivitou nebo se znovu přihlaste.'
+        'Session vyprší za 1 hodinu. Obnovte ji aktivitou nebo se znovu přihlaste.'
       );
     }, AdminPanel.SESSION_TIMEOUT - AdminPanel.SESSION_WARNING_TIME);
 
@@ -183,7 +189,7 @@ class AdminPanel {
       const now = Date.now();
       const timeSinceLastRefresh = now - this.lastRefreshTime;
 
-      // Only refresh if 5 minutes have passed since last refresh
+      // Only refresh if 1 hour has passed since last refresh
       if (timeSinceLastRefresh < AdminPanel.SESSION_REFRESH_INTERVAL) {
         return;
       }
@@ -202,12 +208,12 @@ class AdminPanel {
 
       this.sessionWarning = setTimeout(() => {
         this.showWarningMessage(
-          'Session vyprší za 10 minut. Obnovte ji aktivitou nebo se znovu přihlaste.'
+          'Session vyprší za 1 hodinu. Obnovte ji aktivitou nebo se znovu přihlaste.'
         );
       }, AdminPanel.SESSION_TIMEOUT - AdminPanel.SESSION_WARNING_TIME);
 
       // Call refresh endpoint to extend server-side session
-      const sessionToken = sessionStorage.getItem('adminSessionToken');
+      const sessionToken = localStorage.getItem('adminSessionToken');
       if (!sessionToken) {
         return;
       }
@@ -233,7 +239,7 @@ class AdminPanel {
         })
         .then((data) => {
           if (data && data.success) {
-            sessionStorage.setItem('adminSessionExpiry', data.expiresAt);
+            localStorage.setItem('adminSessionExpiry', data.expiresAt);
           }
         })
         .catch((err) => {
@@ -276,7 +282,7 @@ class AdminPanel {
     }
 
     // Call logout endpoint
-    const sessionToken = sessionStorage.getItem('adminSessionToken');
+    const sessionToken = localStorage.getItem('adminSessionToken');
     if (sessionToken) {
       fetch('/api/admin/logout', {
         method: 'POST',
@@ -286,15 +292,16 @@ class AdminPanel {
       }).catch((err) => console.error('Logout error:', err));
     }
 
-    // Clear session storage
-    sessionStorage.removeItem('adminSessionToken');
-    sessionStorage.removeItem('adminSessionExpiry');
-    sessionStorage.removeItem('adminAuth'); // Old auth token
+    // Clear localStorage (changed from sessionStorage for persistence)
+    localStorage.removeItem('adminSessionToken');
+    localStorage.removeItem('adminSessionExpiry');
+    sessionStorage.removeItem('adminAuth'); // Old auth token (legacy cleanup)
 
     // Update UI
     document.getElementById('loginContainer').style.display = 'block';
     document.getElementById('adminContent').style.display = 'none';
     document.getElementById('logoutBtn').style.display = 'none';
+    document.getElementById('backBtn').style.display = 'none';
     document.getElementById('password').value = '';
   }
 
@@ -303,8 +310,8 @@ class AdminPanel {
    * @returns {boolean} True if session is valid
    */
   isSessionValid() {
-    const sessionToken = sessionStorage.getItem('adminSessionToken');
-    const sessionExpiry = sessionStorage.getItem('adminSessionExpiry');
+    const sessionToken = localStorage.getItem('adminSessionToken');
+    const sessionExpiry = localStorage.getItem('adminSessionExpiry');
 
     if (!sessionToken || !sessionExpiry) {
       return false;
@@ -328,7 +335,7 @@ class AdminPanel {
    * If session invalid, logout and show error
    * @returns {boolean} True if session is valid
    */
-  async validateSession() {
+  validateSession() {
     if (!this.isSessionValid()) {
       this.showToast('Vaše session vypršela. Přihlaste se prosím znovu.', 'error');
       this.logout();
@@ -340,7 +347,8 @@ class AdminPanel {
   async showAdminPanel() {
     document.getElementById('loginContainer').style.display = 'none';
     document.getElementById('adminContent').style.display = 'block';
-    document.getElementById('logoutBtn').style.display = 'block';
+    document.getElementById('logoutBtn').style.display = 'flex';
+    document.getElementById('backBtn').style.display = 'flex';
 
     // Load data for the active tab (default is bookings)
     await this.loadTabData('bookings');
@@ -621,17 +629,25 @@ class AdminPanel {
     this.currentEditBooking = booking;
 
     // Initialize edit state
-    this.editSelectedDates = new Set();
     this.editSelectedRooms = new Set(booking.rooms || []);
     this.editStartDate = booking.startDate;
     this.editEndDate = booking.endDate;
 
-    // Set dates
+    // Set dates for BaseCalendar
+    this.editSelectedDates = new Set();
     const start = new Date(booking.startDate);
     const end = new Date(booking.endDate);
     const endTime = end.getTime();
     for (let d = new Date(start); d.getTime() < endTime; d.setDate(d.getDate() + 1)) {
       this.editSelectedDates.add(this.formatDate(new Date(d)));
+    }
+
+    // If BaseCalendar exists, update its selectedDates
+    if (this.editCalendar) {
+      this.editCalendar.selectedDates = new Set(this.editSelectedDates);
+      this.editCalendar.intervalState.firstClick = booking.startDate;
+      const lastDate = this.formatDate(new Date(end.getTime() - 24 * 60 * 60 * 1000));
+      this.editCalendar.intervalState.secondClick = lastDate;
     }
 
     // Set form values
@@ -666,6 +682,10 @@ class AdminPanel {
     await this.updateEditPrice();
     await this.loadExistingBookingsForEdit();
 
+    // Set modal title and button text for edit mode
+    document.getElementById('editModalTitle').textContent = 'Upravit rezervaci';
+    document.getElementById('editSubmitButton').textContent = 'Uložit změny';
+
     // Show modal
     document.getElementById('editBookingModal').classList.add('active');
   }
@@ -674,16 +694,48 @@ class AdminPanel {
     e.preventDefault();
 
     // FIX: Validate session before admin operation
-    if (!(await this.validateSession())) {
+    if (!this.validateSession()) {
       return;
     }
 
     try {
       const bookingId = document.getElementById('editBookingId').value;
 
+      // Validate all required billing fields first
+      const name = document.getElementById('editName').value.trim();
+      const email = document.getElementById('editEmail').value.trim();
+      const phone = document.getElementById('editPhone').value.trim();
+      const address = document.getElementById('editAddress').value.trim();
+      const city = document.getElementById('editCity').value.trim();
+      const zip = document.getElementById('editZip').value.trim();
+
+      if (!name || !email || !phone || !address || !city || !zip) {
+        this.showErrorMessage('Vyplňte prosím všechny povinné údaje v sekci "Fakturační údaje"');
+        // Switch to billing tab to show the missing fields
+        this.switchEditTab('billing');
+        return;
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
+      if (!emailRegex.test(email)) {
+        this.showErrorMessage('Zadejte platnou emailovou adresu');
+        this.switchEditTab('billing');
+        return;
+      }
+
+      // Validate ZIP format (5 digits)
+      const zipRegex = /^[0-9]{5}$/u;
+      if (!zipRegex.test(zip)) {
+        this.showErrorMessage('PSČ musí obsahovat přesně 5 číslic');
+        this.switchEditTab('billing');
+        return;
+      }
+
       // Validate date selection exists
       if (!this.editStartDate || !this.editEndDate) {
         this.showErrorMessage('Vyberte prosím termín rezervace');
+        this.switchEditTab('dates');
         return;
       }
 
@@ -708,6 +760,7 @@ class AdminPanel {
       const currentDate = new Date(this.editStartDate);
       const endDate = new Date(this.editEndDate);
 
+      // eslint-disable-next-line no-unmodified-loop-condition
       while (currentDate <= endDate) {
         dateArray.push(new Date(currentDate));
         currentDate.setDate(currentDate.getDate() + 1);
@@ -718,7 +771,7 @@ class AdminPanel {
           const availability = await dataManager.getRoomAvailability(date, roomId);
 
           if (availability.status === 'blocked') {
-            const dateStr = date.toISOString().split('T')[0];
+            const dateStr = DateUtils.formatDate(date);
             this.showErrorMessage(
               `Pokoj ${roomId} je blokován dne ${dateStr}. Upravte termín nebo vyberte jiný pokoj.`
             );
@@ -756,10 +809,31 @@ class AdminPanel {
         payFromBenefit: document.getElementById('editPayFromBenefit').checked,
       };
 
-      await dataManager.updateBooking(bookingId, updates);
+      // Check if we're creating new booking or updating existing
+      if (bookingId) {
+        // Update existing booking
+        await dataManager.updateBooking(bookingId, updates);
+        this.showSuccessMessage('Rezervace byla úspěšně upravena');
+      } else {
+        // Create new booking - use admin-specific creation
+        const newBooking = {
+          ...updates,
+          id: dataManager.generateBookingId(),
+          editToken: dataManager.generateEditToken(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        // Save directly to data since we're admin
+        const data = await dataManager.getData();
+        data.bookings.push(newBooking);
+        await dataManager.saveData(data);
+
+        this.showSuccessMessage('Rezervace byla úspěšně vytvořena');
+      }
+
       document.getElementById('editBookingModal').classList.remove('active');
       await this.loadBookings();
-      this.showSuccessMessage('Rezervace byla úspěšně upravena');
     } catch (error) {
       console.error('Chyba při ukládání rezervace:', error);
       this.showToast(`Chyba: ${error.message}`, 'error');
@@ -767,133 +841,49 @@ class AdminPanel {
   }
 
   // Helper functions for comprehensive edit modal
-  initEditCalendar() {
+  async initEditCalendar() {
     const container = document.getElementById('editCalendarContainer');
     if (!container) {
       return;
     }
 
-    const cal = this.renderEditCalendar();
-    container.innerHTML = cal;
+    // Use BaseCalendar for admin edit (same as single room, but allows past dates and ignores blocks)
+    if (!this.editCalendar) {
+      this.editCalendar = new BaseCalendar({
+        mode: BaseCalendar.MODES.EDIT,
+        app: this,
+        containerId: 'editCalendarContainer',
+        roomId: null, // Admin can select any room
+        allowPast: true, // Admin can select past dates
+        enforceContiguous: true,
+        minNights: 1,
+        onDateSelect: async (dateStr) => {
+          await this.handleEditDateSelect(dateStr);
+        },
+      });
+    }
+
+    await this.editCalendar.render();
   }
 
-  renderEditCalendar() {
-    const year = this.editCurrentYear;
-    const month = this.editCurrentMonth;
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
+  async handleEditDateSelect() {
+    // BaseCalendar updates this.selectedDates automatically
+    this.editSelectedDates = this.editCalendar.selectedDates;
 
-    const monthNames = [
-      'Leden',
-      'Únor',
-      'Březen',
-      'Duben',
-      'Květen',
-      'Červen',
-      'Červenec',
-      'Srpen',
-      'Září',
-      'Říjen',
-      'Listopad',
-      'Prosinec',
-    ];
-
-    let html = `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <button onclick="adminPanel.changeEditMonth(-1)" style="padding: 0.5rem 1rem; background: #e5e7eb; border: none; border-radius: 4px; cursor: pointer;">←</button>
-        <h4>${monthNames[month]} ${year}</h4>
-        <button onclick="adminPanel.changeEditMonth(1)" style="padding: 0.5rem 1rem; background: #e5e7eb; border: none; border-radius: 4px; cursor: pointer;">→</button>
-      </div>
-      <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center;">
-        <div style="font-weight: bold; padding: 0.5rem;">Po</div>
-        <div style="font-weight: bold; padding: 0.5rem;">Út</div>
-        <div style="font-weight: bold; padding: 0.5rem;">St</div>
-        <div style="font-weight: bold; padding: 0.5rem;">Čt</div>
-        <div style="font-weight: bold; padding: 0.5rem;">Pá</div>
-        <div style="font-weight: bold; padding: 0.5rem;">So</div>
-        <div style="font-weight: bold; padding: 0.5rem;">Ne</div>
-    `;
-
-    // Add empty cells for days before month starts
-    const adjustedStart = startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1;
-    for (let i = 0; i < adjustedStart; i++) {
-      html += '<div></div>';
-    }
-
-    // Add days
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = this.formatDate(new Date(year, month, day));
-      const isSelected = this.editSelectedDates.has(date);
-      const isPast = new Date(year, month, day) < new Date(new Date().setHours(0, 0, 0, 0));
-
-      let bgColor = '#ffffff';
-      let textColor = '#000000';
-      const cursor = 'pointer';
-
-      // FIX: Admin can select past dates - just show them in lighter color
-      if (isPast) {
-        bgColor = '#f9fafb';
-        textColor = '#6b7280';
-      }
-
-      if (isSelected) {
-        bgColor = '#10b981';
-        textColor = '#ffffff';
-      }
-
-      html += `
-        <div
-          data-date="${date}"
-          onclick="adminPanel.toggleEditDate('${date}')"
-          style="padding: 0.5rem; background: ${bgColor}; color: ${textColor}; cursor: ${cursor}; border-radius: 4px; transition: all 0.2s;"
-          onmouseover="this.style.opacity='0.8'"
-          onmouseout="this.style.opacity='1'"
-        >${day}</div>
-      `;
-    }
-
-    html += '</div>';
-    return html;
-  }
-
-  changeEditMonth(delta) {
-    this.editCurrentMonth += delta;
-    if (this.editCurrentMonth < 0) {
-      this.editCurrentMonth = 11;
-      this.editCurrentYear -= 1;
-    } else if (this.editCurrentMonth > 11) {
-      this.editCurrentMonth = 0;
-      this.editCurrentYear += 1;
-    }
-    this.initEditCalendar();
-  }
-
-  async toggleEditDate(date) {
-    if (this.editSelectedDates.has(date)) {
-      this.editSelectedDates.delete(date);
-    } else {
-      this.editSelectedDates.add(date);
-    }
-
-    // Update date range
+    // Calculate start and end dates
     if (this.editSelectedDates.size > 0) {
       const dates = Array.from(this.editSelectedDates).sort();
       this.editStartDate = dates[0];
-      this.editEndDate = this.formatDate(
-        new Date(new Date(dates[dates.length - 1]).getTime() + 24 * 60 * 60 * 1000)
-      );
+      // endDate = day AFTER last selected date (checkout day)
+      const lastSelectedDate = dates[dates.length - 1];
+      const checkoutDate = new Date(lastSelectedDate);
+      checkoutDate.setDate(checkoutDate.getDate() + 1);
+      this.editEndDate = this.formatDate(checkoutDate);
 
       document.getElementById('editSelectedDates').textContent =
-        `${new Date(this.editStartDate).toLocaleDateString('cs-CZ')} - ${new Date(this.editEndDate).toLocaleDateString('cs-CZ')}`;
-    } else {
-      this.editStartDate = null;
-      this.editEndDate = null;
-      document.getElementById('editSelectedDates').textContent = 'Zatím nevybráno';
+        `${new Date(this.editStartDate).toLocaleDateString('cs-CZ')} - ${new Date(lastSelectedDate).toLocaleDateString('cs-CZ')}`;
     }
 
-    await this.initEditCalendar();
     await this.updateEditPrice();
     await this.loadExistingBookingsForEdit();
   }
@@ -944,6 +934,8 @@ class AdminPanel {
       return 0;
     }
 
+    // Calculate nights: number of selected days = number of nights
+    // E.g., selecting day 5 = 1 night, selecting days 5 and 6 = 2 nights
     const nights = this.editSelectedDates.size;
     const roomCount = this.editSelectedRooms.size;
 
@@ -1068,11 +1060,63 @@ class AdminPanel {
     document.getElementById('editBookingModal').classList.remove('active');
   }
 
+  async openCreateBookingModal() {
+    // Set modal to create mode
+    this.currentEditBooking = null;
+
+    // Initialize edit state (empty for new booking)
+    this.editSelectedDates = new Set();
+    this.editSelectedRooms = new Set();
+    this.editStartDate = null;
+    this.editEndDate = null;
+
+    // Clear BaseCalendar if exists
+    if (this.editCalendar) {
+      this.editCalendar.selectedDates.clear();
+      this.editCalendar.intervalState.firstClick = null;
+      this.editCalendar.intervalState.secondClick = null;
+      this.editCalendar.intervalState.hoverDate = null;
+    }
+
+    // Clear form values
+    document.getElementById('editBookingId').value = '';
+    document.getElementById('editName').value = '';
+    document.getElementById('editEmail').value = '';
+    document.getElementById('editPhone').value = '';
+    document.getElementById('editCompany').value = '';
+    document.getElementById('editAddress').value = '';
+    document.getElementById('editCity').value = '';
+    document.getElementById('editZip').value = '';
+    document.getElementById('editIco').value = '';
+    document.getElementById('editDic').value = '';
+    document.getElementById('editNotes').value = '';
+    document.getElementById('editPayFromBenefit').checked = false;
+
+    // Set default guest counts and type
+    document.getElementById('editAdults').value = 1;
+    document.getElementById('editChildren').value = 0;
+    document.getElementById('editToddlers').value = 0;
+    document.getElementById('editGuestTypeUtia').checked = true;
+
+    // Change modal title and button text
+    document.getElementById('editModalTitle').textContent = 'Přidat rezervaci';
+    document.getElementById('editSubmitButton').textContent = 'Vytvořit rezervaci';
+
+    // Initialize calendar and rooms
+    await this.initEditCalendar();
+    await this.loadEditRooms();
+    await this.updateEditPrice();
+    document.getElementById('editExistingBookings').innerHTML =
+      '<p>Zatím nebyly vybrány žádné termíny</p>';
+
+    // Show modal (ensure we're on dates tab)
+    this.switchEditTab('dates');
+    document.getElementById('editBookingModal').classList.add('active');
+  }
+
   formatDate(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    // Use DateUtils for SSOT compliance
+    return DateUtils.formatDate(date);
   }
 
   deleteBooking(bookingId) {
@@ -1201,7 +1245,7 @@ class AdminPanel {
     e.preventDefault();
 
     // FIX: Validate session before admin operation
-    if (!(await this.validateSession())) {
+    if (!this.validateSession()) {
       return;
     }
 
@@ -1295,7 +1339,7 @@ class AdminPanel {
     e.preventDefault();
 
     // FIX: Validate session before admin operation
-    if (!(await this.validateSession())) {
+    if (!this.validateSession()) {
       return;
     }
 
@@ -1336,7 +1380,7 @@ class AdminPanel {
 
   async removeCode(code) {
     // FIX: Validate session before admin operation
-    if (!(await this.validateSession())) {
+    if (!this.validateSession()) {
       return;
     }
 
@@ -1434,7 +1478,7 @@ class AdminPanel {
     e.preventDefault();
 
     // FIX: Validate session before admin operation
-    if (!(await this.validateSession())) {
+    if (!this.validateSession()) {
       return;
     }
 
@@ -1495,7 +1539,7 @@ class AdminPanel {
 
   async removeChristmasPeriod(periodId, index) {
     // FIX: Validate session before admin operation
-    if (!(await this.validateSession())) {
+    if (!this.validateSession()) {
       return;
     }
 
@@ -1610,7 +1654,7 @@ class AdminPanel {
     e.preventDefault();
 
     // FIX: Validate session before admin operation
-    if (!(await this.validateSession())) {
+    if (!this.validateSession()) {
       return;
     }
 
@@ -1719,7 +1763,7 @@ class AdminPanel {
     e.preventDefault();
 
     // FIX: Validate session before admin operation
-    if (!(await this.validateSession())) {
+    if (!this.validateSession()) {
       return;
     }
 
@@ -1792,7 +1836,7 @@ class AdminPanel {
     e.preventDefault();
 
     // FIX: Validate session before admin operation
-    if (!(await this.validateSession())) {
+    if (!this.validateSession()) {
       return;
     }
 
@@ -1826,7 +1870,7 @@ class AdminPanel {
     e.preventDefault();
 
     // FIX: Validate session before admin operation
-    if (!(await this.validateSession())) {
+    if (!this.validateSession()) {
       return;
     }
 
@@ -1851,14 +1895,14 @@ class AdminPanel {
       return;
     }
 
-    // Use the new API endpoint to update password
+    // Use the API endpoint to update password
     try {
-      const apiKey = dataManager.getApiKey();
+      const sessionToken = dataManager.getSessionToken();
       const response = await fetch('/api/admin/update-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': apiKey,
+          'x-session-token': sessionToken,
         },
         body: JSON.stringify({ newPassword }),
       });
@@ -1959,7 +2003,7 @@ class AdminPanel {
     e.preventDefault();
 
     // FIX: Validate session before admin operation
-    if (!(await this.validateSession())) {
+    if (!this.validateSession()) {
       return;
     }
 

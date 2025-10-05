@@ -7,6 +7,7 @@
       content="width=device-width, initial-scale=1.0"
     />
     <title>Admin Panel - Chata Mariánská</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link
       rel="stylesheet"
       href="css/styles-unified.css"
@@ -476,7 +477,7 @@
               id="backBtn"
               class="btn btn-secondary"
               style="
-                display: flex;
+                display: none;
                 align-items: center;
                 gap: 0.5rem;
                 padding: 0.75rem 1.5rem;
@@ -492,7 +493,7 @@
               >
                 <path d="M19 12H5M5 12l7 7m-7-7l7-7" />
               </svg>
-              Zpět na rezervace
+              Zpět na kalendář
             </button>
             <button
               id="logoutBtn"
@@ -635,7 +636,7 @@
           class="tab-content active"
         >
           <h2>Správa rezervací</h2>
-          <div style="margin-bottom: 1rem">
+          <div style="margin-bottom: 1rem; display: flex; gap: 1rem; align-items: center;">
             <input
               type="text"
               id="searchBookings"
@@ -647,6 +648,13 @@
                 width: 300px;
               "
             />
+            <button
+              class="btn btn-primary"
+              onclick="adminPanel.openCreateBookingModal()"
+              style="white-space: nowrap;"
+            >
+              ➕ Přidat rezervaci
+            </button>
           </div>
           <table class="bookings-table">
             <thead>
@@ -1166,10 +1174,20 @@
               <div style="display: grid; gap: 1.5rem">
                 <!-- UTIA Employees Prices -->
                 <div>
-                  <h4 style="color: var(--primary-color); margin-bottom: 1rem">Zaměstnanci ÚTIA</h4>
+                  <h4
+                    style="color: var(--primary-color); margin-bottom: 1rem"
+                    data-translate="utiaEmployees"
+                  >
+                    Zaměstnanci ÚTIA
+                  </h4>
                   <div style="display: grid; gap: 0.5rem">
                     <div style="display: flex; align-items: center; gap: 0.5rem">
-                      <label style="min-width: 200px">Základní cena (1 pokoj, 1 osoba):</label>
+                      <label
+                        style="min-width: 200px"
+                        data-translate="basePriceOneRoom"
+                      >
+                        Základní cena (1 pokoj, 1 osoba):
+                      </label>
                       <input
                         type="number"
                         id="utia_base"
@@ -1177,10 +1195,15 @@
                         min="0"
                         style="width: 80px"
                       />
-                      Kč/noc
+                      <span>Kč<span data-translate="perNight">/noc</span></span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 0.5rem">
-                      <label style="min-width: 200px">Další dospělý:</label>
+                      <label
+                        style="min-width: 200px"
+                        data-translate="additionalAdultPrice"
+                      >
+                        Další dospělý:
+                      </label>
                       <input
                         type="number"
                         id="utia_adult"
@@ -1188,10 +1211,15 @@
                         min="0"
                         style="width: 80px"
                       />
-                      Kč/osoba
+                      <span>Kč<span data-translate="perPerson">/osoba</span></span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 0.5rem">
-                      <label style="min-width: 200px">Dítě 3-18 let:</label>
+                      <label
+                        style="min-width: 200px"
+                        data-translate="childPriceRange"
+                      >
+                        Dítě 3-18 let:
+                      </label>
                       <input
                         type="number"
                         id="utia_child"
@@ -1199,17 +1227,27 @@
                         min="0"
                         style="width: 80px"
                       />
-                      Kč/osoba
+                      <span>Kč<span data-translate="perPerson">/osoba</span></span>
                     </div>
                   </div>
                 </div>
 
                 <!-- External Guests Prices -->
                 <div>
-                  <h4 style="color: var(--primary-color); margin-bottom: 1rem">Externí hosté</h4>
+                  <h4
+                    style="color: var(--primary-color); margin-bottom: 1rem"
+                    data-translate="externalGuests"
+                  >
+                    Externí hosté
+                  </h4>
                   <div style="display: grid; gap: 0.5rem">
                     <div style="display: flex; align-items: center; gap: 0.5rem">
-                      <label style="min-width: 200px">Základní cena (1 pokoj, 1 osoba):</label>
+                      <label
+                        style="min-width: 200px"
+                        data-translate="basePriceOneRoom"
+                      >
+                        Základní cena (1 pokoj, 1 osoba):
+                      </label>
                       <input
                         type="number"
                         id="external_base"
@@ -1217,10 +1255,15 @@
                         min="0"
                         style="width: 80px"
                       />
-                      Kč/noc
+                      <span>Kč<span data-translate="perNight">/noc</span></span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 0.5rem">
-                      <label style="min-width: 200px">Další dospělý:</label>
+                      <label
+                        style="min-width: 200px"
+                        data-translate="additionalAdultPrice"
+                      >
+                        Další dospělý:
+                      </label>
                       <input
                         type="number"
                         id="external_adult"
@@ -1228,10 +1271,15 @@
                         min="0"
                         style="width: 80px"
                       />
-                      Kč/osoba
+                      <span>Kč<span data-translate="perPerson">/osoba</span></span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 0.5rem">
-                      <label style="min-width: 200px">Dítě 3-18 let:</label>
+                      <label
+                        style="min-width: 200px"
+                        data-translate="childPriceRange"
+                      >
+                        Dítě 3-18 let:
+                      </label>
                       <input
                         type="number"
                         id="external_child"
@@ -1239,7 +1287,7 @@
                         min="0"
                         style="width: 80px"
                       />
-                      Kč/osoba
+                      <span>Kč<span data-translate="perPerson">/osoba</span></span>
                     </div>
                   </div>
                 </div>
@@ -1370,10 +1418,10 @@
                       border-left: 4px solid #22c55e;
                     "
                   >
-                    <p style="font-size: 0.9rem; color: #15803d; margin: 0">
-                      <strong>Poznámka:</strong> Děti do 3 let jsou vždy zdarma a nezapočítávají se
-                      do kapacity pokojů.
-                    </p>
+                    <p
+                      style="font-size: 0.9rem; color: #15803d; margin: 0"
+                      data-translate="childrenUnder3Free"
+                    ></p>
                   </div>
                 </div>
               </div>
@@ -1624,7 +1672,7 @@ Tým Chata Mariánská</textarea
           style="max-width: 1400px; width: 90%; max-height: 90vh; overflow-y: auto;"
         >
           <button class="modal-close" onclick="adminPanel.closeEditModal()">&times;</button>
-          <h2>Upravit rezervaci</h2>
+          <h2 id="editModalTitle">Upravit rezervaci</h2>
 
           <!-- Tab navigation -->
           <div class="edit-tabs" style="display: flex; gap: 1rem; margin-bottom: 1.5rem; border-bottom: 2px solid #e5e7eb;">
@@ -1653,6 +1701,14 @@ Tým Chata Mariánská</textarea
                     <strong>Vybraný termín:</strong>
                     <span id="editSelectedDates">Zatím nevybráno</span>
                   </div>
+
+                  <!-- Existing bookings for selected dates/rooms - MOVED HERE directly under calendar -->
+                  <div style="margin-top: 1.5rem; padding: 1rem; background: #f9fafb; border-radius: 8px;">
+                    <h3 style="margin-top: 0;">Existující rezervace v tomto termínu</h3>
+                    <div id="editExistingBookings">
+                      <!-- Will be populated with existing bookings -->
+                    </div>
+                  </div>
                 </div>
 
                 <div>
@@ -1680,9 +1736,9 @@ Tým Chata Mariánská</textarea
                   </div>
 
                   <div style="margin-top: 1rem; padding: 1rem; background: #ecfdf5; border-radius: 8px;">
-                    <h4>Typ hosta</h4>
+                    <h4>Typ hosta *</h4>
                     <label>
-                      <input type="radio" name="editGuestType" value="utia" id="editGuestTypeUtia">
+                      <input type="radio" name="editGuestType" value="utia" id="editGuestTypeUtia" required>
                       Zaměstnanec ÚTIA
                     </label>
                     <br>
@@ -1693,17 +1749,14 @@ Tým Chata Mariánská</textarea
                   </div>
 
                   <div style="margin-top: 1rem; padding: 1rem; background: #fef3c7; border-radius: 8px;">
-                    <strong>Celková cena:</strong>
-                    <div id="editTotalPrice" style="font-size: 1.5rem; color: #d97706;">0 Kč</div>
+                    <strong data-translate="totalPrice">Celková cena:</strong>
+                    <div
+                      id="editTotalPrice"
+                      style="font-size: 1.5rem; color: #d97706"
+                    >
+                      0 Kč
+                    </div>
                   </div>
-                </div>
-              </div>
-
-              <!-- Existing bookings for selected dates/rooms -->
-              <div style="margin-top: 2rem; padding: 1rem; background: #f9fafb; border-radius: 8px;">
-                <h3>Existující rezervace v tomto termínu</h3>
-                <div id="editExistingBookings">
-                  <!-- Will be populated with existing bookings -->
                 </div>
               </div>
             </div>
@@ -1716,7 +1769,6 @@ Tým Chata Mariánská</textarea
                   <input
                     type="text"
                     id="editName"
-                    required
                   />
                 </div>
                 <div class="input-group">
@@ -1724,7 +1776,6 @@ Tým Chata Mariánská</textarea
                   <input
                     type="email"
                     id="editEmail"
-                    required
                   />
                 </div>
                 <div class="input-group">
@@ -1732,7 +1783,6 @@ Tým Chata Mariánská</textarea
                   <input
                     type="tel"
                     id="editPhone"
-                    required
                   />
                 </div>
                 <div class="input-group">
@@ -1747,7 +1797,6 @@ Tým Chata Mariánská</textarea
                   <input
                     type="text"
                     id="editAddress"
-                  required
                 />
               </div>
               <div class="input-group">
@@ -1755,7 +1804,6 @@ Tým Chata Mariánská</textarea
                 <input
                   type="text"
                   id="editCity"
-                  required
                 />
               </div>
               <div class="input-group">
@@ -1763,7 +1811,6 @@ Tým Chata Mariánská</textarea
                 <input
                   type="text"
                   id="editZip"
-                  required
                   pattern="[0-9]{5}"
                 />
               </div>
@@ -1800,14 +1847,15 @@ Tým Chata Mariánská</textarea
           <div class="modal-actions">
               <button
                 type="button"
-                class="btn-secondary"
+                class="btn btn-secondary"
                 onclick="document.getElementById('editBookingModal').classList.remove('active')"
               >
                 Zrušit
               </button>
               <button
                 type="submit"
-                class="btn-primary"
+                class="btn btn-primary"
+                id="editSubmitButton"
               >
                 Uložit změny
               </button>
@@ -1824,8 +1872,14 @@ Tým Chata Mariánská</textarea
     </div>
 
     <script src="data.js"></script>
+    <script src="translations.js"></script>
+    <!-- Shared utilities -->
+    <script src="js/shared/idGenerator.js"></script>
     <script src="js/shared/dateUtils.js"></script>
+    <script src="js/shared/priceCalculator.js"></script>
+    <script src="js/shared/christmasUtils.js"></script>
     <script src="js/shared/bookingLogic.js"></script>
+    <script src="js/shared/BaseCalendar.js"></script>
     <script src="js/calendar-utils.js"></script>
     <script src="admin.js"></script>
   </body>

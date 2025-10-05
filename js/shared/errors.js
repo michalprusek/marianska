@@ -3,6 +3,7 @@
  * Provides structured error handling with HTTP status codes
  */
 
+/* eslint-disable max-classes-per-file -- Error classes are tightly related and belong together */
 class BookingError extends Error {
   constructor(message, statusCode = 500) {
     super(message);
@@ -103,3 +104,4 @@ if (typeof window !== 'undefined') {
     DatabaseError,
   };
 }
+/* eslint-enable max-classes-per-file */

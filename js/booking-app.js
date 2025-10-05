@@ -1,3 +1,5 @@
+/* global langManager */
+
 // Main BookingApp class - orchestrates all modules
 class BookingApp {
   constructor() {
@@ -7,7 +9,10 @@ class BookingApp {
     this.selectedRooms = new Set();
     this.roomGuests = new Map();
     this.roomGuestTypes = new Map();
-    this.currentLanguage = localStorage.getItem('language') || 'cs';
+    // Sync with LanguageManager - ensure consistency
+    this.currentLanguage = langManager
+      ? langManager.currentLang
+      : localStorage.getItem('language') || 'cs';
     this.recentlyBookedRooms = [];
     this.tempReservations = [];
 
@@ -98,9 +103,6 @@ class BookingApp {
         for (const proposed of proposedBookings) {
           // Rooms is already an array from database.js
           const rooms = Array.isArray(proposed.rooms) ? proposed.rooms : [];
-          const roomDetails = rooms
-            .map((roomId) => allRooms.find((r) => r.id === roomId))
-            .filter((r) => r);
 
           // Check if this is a bulk booking (all rooms)
           const isBulkBooking = rooms.length === allRooms.length;
@@ -126,8 +128,10 @@ class BookingApp {
             });
           } else {
             // Single room booking format
+            // eslint-disable-next-line max-depth -- Deep nesting required for nested booking data structure
             for (const roomId of rooms) {
               const room = allRooms.find((r) => r.id === roomId);
+              // eslint-disable-next-line max-depth -- Deep nesting required for nested booking data structure
               if (room) {
                 this.tempReservations.push({
                   id: `${proposed.proposal_id}-${roomId}`,
@@ -229,7 +233,12 @@ class BookingApp {
     if (languageSwitch) {
       languageSwitch.addEventListener('change', (e) => {
         const lang = e.target.checked ? 'en' : 'cs';
-        this.utils.changeLanguage(lang);
+        // Update language using the LanguageManager
+        langManager.switchLanguage(lang);
+        // Update app's current language
+        this.currentLanguage = lang;
+        // Refresh dynamic content (room info, calendar)
+        this.refreshDynamicContent();
       });
       // Set initial state
       languageSwitch.checked = this.currentLanguage === 'en';
@@ -954,6 +963,7 @@ class BookingApp {
       const start = new Date(reservation.startDate);
       const end = new Date(reservation.endDate);
       const current = new Date(start);
+      // eslint-disable-next-line no-unmodified-loop-condition -- Loop condition correctly uses current date, which is modified inside loop
       while (current <= end) {
         allDates.push(dataManager.formatDate(current));
         current.setDate(current.getDate() + 1);
@@ -1033,25 +1043,26 @@ class BookingApp {
     // Update price list
     const priceListContent = document.getElementById('priceListContent');
     if (priceListContent) {
+      const t = (key) => langManager.t(key);
       priceListContent.innerHTML = `
                 <div style="display: grid; gap: 1rem;">
                     <div style="background: var(--info-50); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--info-200);">
-                        <h4 style="color: var(--info-800); margin-bottom: 0.5rem;">${this.currentLanguage === 'cs' ? 'Zaměstnanci ÚTIA' : 'ÚTIA Employees'}</h4>
+                        <h4 style="color: var(--info-800); margin-bottom: 0.5rem;">${t('utiaEmployees')}</h4>
                         <ul style="list-style: none; padding: 0; margin: 0;">
-                            <li style="padding: 0.25rem 0;">Základní cena: <strong>${prices.utia.base} Kč/noc</strong></li>
-                            <li style="padding: 0.25rem 0;">Příplatek za dospělého: <strong>${prices.utia.adult} Kč</strong></li>
-                            <li style="padding: 0.25rem 0;">Příplatek za dítě: <strong>${prices.utia.child} Kč</strong></li>
-                            <li style="padding: 0.25rem 0; color: var(--success-600);"><strong>Děti do 3 let zdarma</strong></li>
+                            <li style="padding: 0.25rem 0;">${t('regularPriceBasePrice')}: <strong>${prices.utia.base} Kč${t('perNight')}</strong></li>
+                            <li style="padding: 0.25rem 0;">${t('regularPriceAdultSurcharge')}: <strong>${prices.utia.adult} Kč</strong></li>
+                            <li style="padding: 0.25rem 0;">${t('regularPriceChildSurcharge')}: <strong>${prices.utia.child} Kč</strong></li>
+                            <li style="padding: 0.25rem 0; color: var(--success-600);"><strong>${t('regularPriceToddlersFree')}</strong></li>
                         </ul>
                     </div>
 
                     <div style="background: var(--warning-50); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--warning-200);">
-                        <h4 style="color: var(--warning-800); margin-bottom: 0.5rem;">${this.currentLanguage === 'cs' ? 'Externí hosté' : 'External Guests'}</h4>
+                        <h4 style="color: var(--warning-800); margin-bottom: 0.5rem;">${t('externalGuests')}</h4>
                         <ul style="list-style: none; padding: 0; margin: 0;">
-                            <li style="padding: 0.25rem 0;">Základní cena: <strong>${prices.external.base} Kč/noc</strong></li>
-                            <li style="padding: 0.25rem 0;">Příplatek za dospělého: <strong>${prices.external.adult} Kč</strong></li>
-                            <li style="padding: 0.25rem 0;">Příplatek za dítě: <strong>${prices.external.child} Kč</strong></li>
-                            <li style="padding: 0.25rem 0; color: var(--success-600);"><strong>Děti do 3 let zdarma</strong></li>
+                            <li style="padding: 0.25rem 0;">${t('regularPriceBasePrice')}: <strong>${prices.external.base} Kč${t('perNight')}</strong></li>
+                            <li style="padding: 0.25rem 0;">${t('regularPriceAdultSurcharge')}: <strong>${prices.external.adult} Kč</strong></li>
+                            <li style="padding: 0.25rem 0;">${t('regularPriceChildSurcharge')}: <strong>${prices.external.child} Kč</strong></li>
+                            <li style="padding: 0.25rem 0; color: var(--success-600);"><strong>${t('regularPriceToddlersFree')}</strong></li>
                         </ul>
                     </div>
                 </div>
@@ -1070,36 +1081,46 @@ class BookingApp {
         externalChild: 50,
       };
 
+      const t = (key) => langManager.t(key);
       bulkPriceListContent.innerHTML = `
                 <div style="display: grid; gap: 1rem;">
                     <div style="background: rgba(59, 130, 246, 0.1); padding: 1rem; border-radius: var(--radius-md); border: 1px solid rgba(59, 130, 246, 0.3);">
                         <h4 style="color: #1e40af; margin-bottom: 0.5rem; display: flex; align-items: center;">
                             <span style="margin-right: 0.5rem;">🏢</span>
-                            ${this.currentLanguage === 'cs' ? 'Zaměstnanci ÚTIA' : 'ÚTIA Employees'}
+                            ${t('utiaEmployees')}
                         </h4>
                         <ul style="list-style: none; padding: 0; margin: 0;">
-                            <li style="padding: 0.25rem 0;">Základní cena za celou chatu: <strong>${bulkPricesSettings.basePrice.toLocaleString('cs-CZ')} Kč/noc</strong></li>
-                            <li style="padding: 0.25rem 0;">Příplatek za dospělého: <strong>${bulkPricesSettings.utiaAdult} Kč</strong></li>
-                            <li style="padding: 0.25rem 0;">Příplatek za dítě (3-18 let): <strong>${bulkPricesSettings.utiaChild} Kč</strong></li>
-                            <li style="padding: 0.25rem 0; color: var(--success-600);"><strong>Děti do 3 let zdarma</strong></li>
+                            <li style="padding: 0.25rem 0;">${t('bulkPriceBasePriceCottage')}: <strong>${bulkPricesSettings.basePrice.toLocaleString('cs-CZ')} Kč${t('perNight')}</strong></li>
+                            <li style="padding: 0.25rem 0;">${t('bulkPriceAdultSurcharge')}: <strong>${bulkPricesSettings.utiaAdult} Kč</strong></li>
+                            <li style="padding: 0.25rem 0;">${t('bulkPriceChildSurcharge')}: <strong>${bulkPricesSettings.utiaChild} Kč</strong></li>
+                            <li style="padding: 0.25rem 0; color: var(--success-600);"><strong>${t('bulkPriceToddlersFree')}</strong></li>
                         </ul>
                     </div>
 
                     <div style="background: rgba(245, 158, 11, 0.1); padding: 1rem; border-radius: var(--radius-md); border: 1px solid rgba(245, 158, 11, 0.3);">
                         <h4 style="color: #b45309; margin-bottom: 0.5rem; display: flex; align-items: center;">
                             <span style="margin-right: 0.5rem;">👥</span>
-                            ${this.currentLanguage === 'cs' ? 'Externí hosté' : 'External Guests'}
+                            ${t('externalGuests')}
                         </h4>
                         <ul style="list-style: none; padding: 0; margin: 0;">
-                            <li style="padding: 0.25rem 0;">Základní cena za celou chatu: <strong>${bulkPricesSettings.basePrice.toLocaleString('cs-CZ')} Kč/noc</strong></li>
-                            <li style="padding: 0.25rem 0;">Příplatek za dospělého: <strong>${bulkPricesSettings.externalAdult} Kč</strong></li>
-                            <li style="padding: 0.25rem 0;">Příplatek za dítě (3-18 let): <strong>${bulkPricesSettings.externalChild} Kč</strong></li>
-                            <li style="padding: 0.25rem 0; color: var(--success-600);"><strong>Děti do 3 let zdarma</strong></li>
+                            <li style="padding: 0.25rem 0;">${t('bulkPriceBasePriceCottage')}: <strong>${bulkPricesSettings.basePrice.toLocaleString('cs-CZ')} Kč${t('perNight')}</strong></li>
+                            <li style="padding: 0.25rem 0;">${t('bulkPriceAdultSurcharge')}: <strong>${bulkPricesSettings.externalAdult} Kč</strong></li>
+                            <li style="padding: 0.25rem 0;">${t('bulkPriceChildSurcharge')}: <strong>${bulkPricesSettings.externalChild} Kč</strong></li>
+                            <li style="padding: 0.25rem 0; color: var(--success-600);"><strong>${t('bulkPriceToddlersFree')}</strong></li>
                         </ul>
                     </div>
                 </div>
             `;
     }
+  }
+
+  // Refresh dynamic content when language changes
+  refreshDynamicContent() {
+    // Reload room info modal content (price lists)
+    this.loadRoomInfo();
+
+    // Re-render calendar with new language
+    this.renderCalendar();
   }
 
   // Finalize all temporary reservations (duplicate method - keeping for compatibility)

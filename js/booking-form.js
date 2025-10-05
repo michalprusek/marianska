@@ -259,6 +259,7 @@ class BookingFormModule {
         const start = new Date(reservation.startDate);
         const end = new Date(reservation.endDate);
         const current = new Date(start);
+        // eslint-disable-next-line no-unmodified-loop-condition -- Loop condition correctly uses current date, which is modified inside loop
         while (current <= end) {
           allDates.push(dataManager.formatDate(current));
           current.setDate(current.getDate() + 1);
@@ -459,7 +460,7 @@ class BookingFormModule {
       guestType = bulkGuestTypeInput ? bulkGuestTypeInput.value : 'utia';
     }
 
-    // Get dates
+    // Get dates - use exactly what user selected
     const sortedDates = Array.from(this.app.selectedDates).sort();
     const startDate = sortedDates[0];
     const endDate = sortedDates[sortedDates.length - 1];

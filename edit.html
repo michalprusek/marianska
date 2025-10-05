@@ -7,6 +7,7 @@
       content="width=device-width, initial-scale=1.0"
     />
     <title>Upravit rezervaci - Chata Mariánská</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link
       rel="stylesheet"
       href="css/styles-unified.css"
@@ -776,7 +777,12 @@
             </div>
 
             <div class="price-summary">
-              <div class="price-label">💰 Celková cena</div>
+              <div
+                class="price-label"
+                data-translate="priceSummaryLabel"
+              >
+                💰 Celková cena
+              </div>
               <div
                 class="price-amount"
                 id="totalPrice"
@@ -1002,7 +1008,12 @@
     </div>
 
     <script src="data.js"></script>
+    <script src="translations.js"></script>
+    <!-- Shared utilities -->
+    <script src="js/shared/idGenerator.js"></script>
     <script src="js/shared/dateUtils.js"></script>
+    <script src="js/shared/priceCalculator.js"></script>
+    <script src="js/shared/christmasUtils.js"></script>
     <script>
             // Global variables
             let editToken = null;

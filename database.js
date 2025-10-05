@@ -1,6 +1,8 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
+const IdGenerator = require('./js/shared/idGenerator');
+const DateUtils = require('./js/shared/dateUtils');
 
 class DatabaseManager {
   constructor() {
@@ -155,11 +157,13 @@ class DatabaseManager {
     // Add new columns if they don't exist (for existing databases)
     const addColumnIfNotExists = (table, column, type, defaultVal = null) => {
       try {
-        const defaultClause = defaultVal !== null ? ` DEFAULT ${defaultVal}` : '';
+        const defaultClause = defaultVal === null ? '' : ` DEFAULT ${defaultVal}`;
         this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}${defaultClause}`);
       } catch (err) {
         // Column already exists, ignore error
-        if (!err.message.includes('duplicate column name')) {
+        if (err.message.includes('duplicate column name')) {
+          // Ignore - column already exists
+        } else {
           throw err;
         }
       }
@@ -661,8 +665,13 @@ class DatabaseManager {
       const start = new Date(inst.startDate);
       const end = new Date(inst.endDate);
 
+      // eslint-disable-next-line no-unmodified-loop-condition
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        const dateStr = d.toISOString().split('T')[0];
+        // Use local date components instead of UTC to avoid timezone issues
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
 
         if (inst.rooms.length === 0) {
           // All rooms blocked
@@ -774,7 +783,11 @@ class DatabaseManager {
         // ✅ FIX: Check if periods were intentionally deleted by checking for explicit empty flag
         const periodsDeleted = this.getSetting('christmasPeriodsDeleted');
 
-        if (!periodsDeleted) {
+        if (periodsDeleted) {
+          // User intentionally deleted all periods - return empty arrays
+          settings.christmasPeriod = null;
+          settings.christmasPeriods = [];
+        } else {
           // Only create defaults on first initialization (not when user deleted all periods)
           const defaultStart = '2024-12-23';
           const defaultEnd = '2025-01-02';
@@ -787,10 +800,6 @@ class DatabaseManager {
             endDate: defaultEnd,
             year: 2024,
           });
-        } else {
-          // User intentionally deleted all periods - return empty arrays
-          settings.christmasPeriod = null;
-          settings.christmasPeriods = [];
         }
       }
     }
@@ -939,7 +948,13 @@ class DatabaseManager {
     };
   }
 
-  // Check room availability
+  // Check room availability using night-based logic
+  // NIGHT-BASED MODEL:
+  // - available: No nights around the day are occupied
+  // - edge: Exactly ONE night around the day is occupied
+  // - occupied: BOTH nights around the day are occupied
+  // - blocked: Day is administratively blocked
+  // - proposed: Day has a pending booking proposal
   getRoomAvailability(roomId, date, excludeSessionId = null) {
     // Check for blocked dates using new blockage_instances structure
     const blocked = this.db
@@ -948,40 +963,67 @@ class DatabaseManager {
             SELECT bi.*
             FROM blockage_instances bi
             LEFT JOIN blockage_rooms br ON bi.blockage_id = br.blockage_id
-            WHERE bi.start_date <= ? AND bi.end_date > ?
+            WHERE bi.start_date <= ? AND bi.end_date >= ?
               AND (br.room_id = ? OR br.room_id IS NULL)
         `
       )
       .get(date, date, roomId);
 
     if (blocked) {
-      return { available: false, reason: 'blocked' };
+      return { available: false, status: 'blocked', reason: 'blocked' };
     }
 
-    // Check for bookings
-    const bookings = this.db
+    // Get all bookings for this room
+    const allBookings = this.db
       .prepare(
         `
-            SELECT b.* FROM bookings b
+            SELECT b.start_date as startDate, b.end_date as endDate, b.email
+            FROM bookings b
             JOIN booking_rooms br ON b.id = br.booking_id
             WHERE br.room_id = ?
-            AND ? >= b.start_date AND ? < b.end_date
         `
       )
-      .all(roomId, date, date);
+      .all(roomId);
 
-    if (bookings.length > 0) {
-      return { available: false, reason: 'booked', booking: bookings[0] };
+    // Calculate nights around the given day using DateUtils
+    // nightBefore: from (date-1) to date
+    // nightAfter: from date to (date+1)
+    const dateObj = DateUtils.parseDate(date);
+
+    const prevDateObj = new Date(dateObj);
+    prevDateObj.setDate(prevDateObj.getDate() - 1);
+    const nightBefore = DateUtils.formatDate(prevDateObj);
+
+    const nightAfter = date;
+
+    let nightBeforeOccupied = false;
+    let nightAfterOccupied = false;
+    let bookingEmail = null;
+
+    // Check if each night is occupied by any booking using DateUtils (INCLUSIVE end date model)
+    for (const booking of allBookings) {
+      // Use DateUtils.isNightOccupied for consistent inclusive end date logic
+      if (DateUtils.isNightOccupied(nightBefore, booking.startDate, booking.endDate)) {
+        nightBeforeOccupied = true;
+        bookingEmail = booking.email;
+      }
+      if (DateUtils.isNightOccupied(nightAfter, booking.startDate, booking.endDate)) {
+        nightAfterOccupied = true;
+        bookingEmail = booking.email;
+      }
     }
 
+    const occupiedCount = (nightBeforeOccupied ? 1 : 0) + (nightAfterOccupied ? 1 : 0);
+
     // Check for proposed bookings (excluding current session if provided)
+    // INCLUSIVE end date - proposed booking blocks checkout day too
     const now = new Date().toISOString();
     const proposedQuery = excludeSessionId
       ? `
             SELECT pb.* FROM proposed_bookings pb
             JOIN proposed_booking_rooms pbr ON pb.proposal_id = pbr.proposal_id
             WHERE pbr.room_id = ?
-            AND ? >= pb.start_date AND ? < pb.end_date
+            AND ? >= pb.start_date AND ? <= pb.end_date
             AND pb.expires_at > ?
             AND pb.session_id != ?
         `
@@ -989,7 +1031,7 @@ class DatabaseManager {
             SELECT pb.* FROM proposed_bookings pb
             JOIN proposed_booking_rooms pbr ON pb.proposal_id = pbr.proposal_id
             WHERE pbr.room_id = ?
-            AND ? >= pb.start_date AND ? < pb.end_date
+            AND ? >= pb.start_date AND ? <= pb.end_date
             AND pb.expires_at > ?
         `;
 
@@ -1000,10 +1042,34 @@ class DatabaseManager {
     const proposedBookings = this.db.prepare(proposedQuery).all(...proposedParams);
 
     if (proposedBookings.length > 0) {
-      return { available: false, reason: 'proposed', proposal: proposedBookings[0] };
+      return {
+        available: false,
+        status: 'proposed',
+        reason: 'proposed',
+        proposal: proposedBookings[0],
+      };
     }
 
-    return { available: true };
+    // Determine status based on occupied night count
+    if (occupiedCount === 0) {
+      return { available: true, status: 'available', email: null };
+    } else if (occupiedCount === 1) {
+      return {
+        available: true, // Edge days are available for new bookings
+        status: 'edge',
+        reason: 'edge',
+        email: bookingEmail,
+        nightBefore: nightBeforeOccupied,
+        nightAfter: nightAfterOccupied,
+      };
+    }
+    // Both nights occupied = fully occupied
+    return {
+      available: false,
+      status: 'occupied',
+      reason: 'booked',
+      email: bookingEmail,
+    };
   }
 
   // Migrate data from JSON file
@@ -1052,25 +1118,21 @@ class DatabaseManager {
     return true;
   }
 
+  // Delegate to IdGenerator for SSOT compliance
   generateToken() {
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    let token = '';
-    for (let i = 0; i < 12; i++) {
-      token += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return token;
+    return IdGenerator.generateToken(12);
   }
 
   generateBlockageId() {
-    return `BLK${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    return IdGenerator.generateBlockageId();
   }
 
   generateChristmasPeriodId() {
-    return `XMAS${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    return IdGenerator.generateChristmasPeriodId();
   }
 
   generateProposalId() {
-    return `PROP${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    return IdGenerator.generateProposalId();
   }
 
   // Christmas period operations

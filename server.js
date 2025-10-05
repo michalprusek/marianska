@@ -14,14 +14,18 @@ const crypto = require('crypto');
 const DatabaseManager = require('./database');
 const ValidationUtils = require('./js/shared/validationUtils');
 const BookingLogic = require('./js/shared/bookingLogic');
+const DateUtils = require('./js/shared/dateUtils');
+const IdGenerator = require('./js/shared/idGenerator');
+const PriceCalculator = require('./js/shared/priceCalculator');
+const ChristmasUtils = require('./js/shared/christmasUtils');
 const { createLogger } = require('./js/shared/logger');
 const {
-  ValidationError,
-  AuthenticationError,
-  NotFoundError,
-  ConflictError,
-  SessionExpiredError,
-  DatabaseError,
+  ValidationError: _ValidationError,
+  AuthenticationError: _AuthenticationError,
+  NotFoundError: _NotFoundError,
+  ConflictError: _ConflictError,
+  SessionExpiredError: _SessionExpiredError,
+  DatabaseError: _DatabaseError,
 } = require('./js/shared/errors');
 
 // Initialize logger - DEBUG level in development
@@ -37,7 +41,22 @@ const PORT = process.env.PORT || 3000;
 app.set('trust proxy', true);
 
 // Session timeout constants
-const SESSION_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+// FIX: Extended from 2 hours to 7 days for better admin experience
+const SESSION_TIMEOUT = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+
+// Max length validation
+const MAX_LENGTHS = {
+  name: 100,
+  email: 254,
+  phone: 20,
+  company: 100,
+  address: 200,
+  city: 100,
+  zip: 10,
+  ico: 10,
+  dic: 12,
+  notes: 1000,
+};
 
 // Initialize SQLite database
 const db = new DatabaseManager();
@@ -143,11 +162,19 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Rate limiting - Separate limits for different endpoint types
+// SECURITY: Disable trust proxy validation since we're behind nginx reverse proxy
+// The 'trust proxy' setting is required for proper IP detection but triggers a warning
+// We explicitly disable the validation since we control the proxy configuration
+const rateLimitConfig = {
+  validate: { trustProxy: false }, // Disable validation - we trust our nginx proxy
+};
+
 // Read-only endpoints (GET) - more lenient limit
 const readLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 300, // Increased from 100 to accommodate calendar rendering
   message: 'Příliš mnoho požadavků z této IP adresy, zkuste to prosím později.',
+  ...rateLimitConfig,
 });
 
 // Write endpoints (POST/PUT/DELETE) - stricter limit
@@ -155,6 +182,7 @@ const writeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100,
   message: 'Příliš mnoho požadavků z této IP adresy, zkuste to prosím později.',
+  ...rateLimitConfig,
 });
 
 // Stricter rate limit for booking creation
@@ -162,6 +190,7 @@ const bookingLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 10, // max 10 bookings per hour
   message: 'Překročen limit pro vytváření rezervací. Zkuste to prosím za hodinu.',
+  ...rateLimitConfig,
 });
 
 // Strict rate limit for admin login (defense against brute-force)
@@ -170,6 +199,7 @@ const adminLoginLimiter = rateLimit({
   max: 5, // max 5 login attempts per 15 minutes
   skipSuccessfulRequests: true, // Don't count successful logins
   message: 'Příliš mnoho neúspěšných pokusů o přihlášení. Zkuste to za 15 minut.',
+  ...rateLimitConfig,
 });
 
 // Rate limiting for Christmas code validation attempts (defense against brute-force)
@@ -241,7 +271,7 @@ app.use(bodyParser.json({ limit: '10mb' }));
 app.use(express.static('.'));
 
 // API Key authentication middleware
-const requireApiKey = (req, res, next) => {
+const _requireApiKey = (req, res, next) => {
   const apiKey = req.headers['x-api-key'];
   if (!apiKey || apiKey !== process.env.API_KEY) {
     res.status(401).json({ error: 'Neautorizovaný přístup' });
@@ -256,88 +286,12 @@ function generateSecureToken() {
 }
 
 // Helper functions for DataManager compatibility
-function generateId() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let id = 'BK';
-  for (let i = 0; i < 13; i++) {
-    id += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return id;
-}
-
-function generateEditToken() {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  let token = '';
-  for (let i = 0; i < 12; i++) {
-    token += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return token;
-}
-
-function formatDate(date) {
-  if (!date) {
-    return null;
-  }
-  if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/u)) {
-    return date;
-  }
-  const d = new Date(date);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function isChristmasPeriod(date) {
-  const settings = db.getSettings();
-  if (!settings.christmasPeriod) {
-    return false;
-  }
-
-  const checkDate = new Date(date);
-  const start = new Date(settings.christmasPeriod.start);
-  const end = new Date(settings.christmasPeriod.end);
-
-  return checkDate >= start && checkDate <= end;
-}
-
-function validateChristmasCode(code) {
-  const settings = db.getSettings();
-  return settings.christmasAccessCodes && settings.christmasAccessCodes.includes(code);
-}
-
-/**
- * Determines if Christmas access code is required based on current date and Christmas period
- *
- * Rules:
- * - Code required if current date <= Sept 30 of the year containing Christmas period start
- * - After Oct 1: Single room bookings don't need code, bulk bookings are blocked
- *
- * @param {Date} currentDate - Current date (usually today)
- * @param {string} christmasPeriodStart - First day of Christmas period (YYYY-MM-DD)
- * @param {boolean} isBulkBooking - Whether this is a bulk booking
- * @returns {Object} { codeRequired: boolean, bulkBlocked: boolean }
- */
-function checkChristmasAccessRequirement(currentDate, christmasPeriodStart, isBulkBooking = false) {
-  if (!christmasPeriodStart) {
-    return { codeRequired: false, bulkBlocked: false };
-  }
-
-  const christmasStartDate = new Date(christmasPeriodStart);
-  const christmasYear = christmasStartDate.getFullYear();
-
-  // Sept 30 of the year containing Christmas period start
-  const sept30Cutoff = new Date(christmasYear, 8, 30, 23, 59, 59); // Month is 0-indexed (8 = September)
-
-  const isBeforeSept30 = currentDate <= sept30Cutoff;
-
-  if (isBeforeSept30) {
-    // Before Oct 1: Code required for both single and bulk
-    return { codeRequired: true, bulkBlocked: false };
-  }
-  // After Oct 1: Single rooms don't need code, bulk is blocked
-  return { codeRequired: false, bulkBlocked: isBulkBooking };
-}
+// All ID generation, date formatting, Christmas logic, and price calculation
+// have been moved to shared utilities:
+// - IdGenerator (js/shared/idGenerator.js)
+// - DateUtils (js/shared/dateUtils.js)
+// - ChristmasUtils (js/shared/christmasUtils.js)
+// - PriceCalculator (js/shared/priceCalculator.js)
 
 // Session validation middleware
 function requireSession(req, res, next) {
@@ -364,7 +318,7 @@ function requireSession(req, res, next) {
   req.session = session;
   req.sessionToken = sessionToken;
 
-  next();
+  return next();
 }
 
 // Middleware that accepts either API key or session token
@@ -398,36 +352,10 @@ function requireApiKeyOrSession(req, res, next) {
   // Session is valid
   req.session = session;
   req.sessionToken = sessionToken;
-  next();
+  return next();
 }
 
-function calculatePrice(rooms, guestType, adults, children, nights) {
-  const settings = db.getSettings();
-  const { prices } = settings;
-
-  if (!prices || !prices[guestType]) {
-    return 0;
-  }
-
-  // Use flat pricing structure (no small/large distinction)
-  const priceConfig = prices[guestType];
-
-  if (!priceConfig) {
-    return 0;
-  }
-
-  // Base price per room * number of rooms * nights
-  let totalPrice = priceConfig.base * rooms.length * nights;
-
-  // Additional adults (assuming one adult per room is included in base)
-  const additionalAdults = Math.max(0, adults - rooms.length);
-  totalPrice += additionalAdults * priceConfig.adult * nights;
-
-  // Children
-  totalPrice += (children || 0) * priceConfig.child * nights;
-
-  return totalPrice;
-}
+// Removed: calculatePrice() - now using PriceCalculator.calculatePriceFromRooms()
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -557,17 +485,18 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
         .json({ error: ValidationUtils.getValidationError('dic', bookingData.dic, 'cs') });
     }
 
-    // Check Christmas period access with date-based rules
+    // Check Christmas period access with date-based rules using shared ChristmasUtils
+    const settings = db.getSettings();
     const isChristmas =
-      isChristmasPeriod(bookingData.startDate) || isChristmasPeriod(bookingData.endDate);
+      ChristmasUtils.isChristmasPeriod(bookingData.startDate, settings) ||
+      ChristmasUtils.isChristmasPeriod(bookingData.endDate, settings);
 
     if (isChristmas) {
-      const settings = db.getSettings();
       const christmasPeriodStart = settings.christmasPeriod?.start;
       const isBulkBooking = bookingData.isBulkBooking || false;
       const today = new Date();
 
-      const { codeRequired, bulkBlocked } = checkChristmasAccessRequirement(
+      const { codeRequired, bulkBlocked } = ChristmasUtils.checkChristmasAccessRequirement(
         today,
         christmasPeriodStart,
         isBulkBooking
@@ -586,18 +515,21 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
         const clientIp = req.ip || req.connection.remoteAddress;
 
         // Check rate limit for Christmas code validation
-        const rateLimit = checkChristmasCodeRateLimit(clientIp);
-        if (!rateLimit.allowed) {
+        const codeLimitCheck = checkChristmasCodeRateLimit(clientIp);
+        if (!codeLimitCheck.allowed) {
           logger.warn('Christmas code rate limit exceeded', { ip: clientIp });
           return res.status(429).json({
-            error: `Příliš mnoho neplatných pokusů o vánoční kód. Zkuste to za ${rateLimit.minutesLeft} minut.`,
+            error: `Příliš mnoho neplatných pokusů o vánoční kód. Zkuste to za ${codeLimitCheck.minutesLeft} minut.`,
           });
         }
 
-        if (!bookingData.christmasCode || !validateChristmasCode(bookingData.christmasCode)) {
+        if (
+          !bookingData.christmasCode ||
+          !ChristmasUtils.validateChristmasCode(bookingData.christmasCode, settings)
+        ) {
           logger.warn('Invalid Christmas code attempt', {
             ip: clientIp,
-            remaining: rateLimit.remaining,
+            remaining: codeLimitCheck.remaining,
           });
           return res
             .status(403)
@@ -636,11 +568,12 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
     // This prevents race conditions where two users book the same room simultaneously
     const transaction = db.db.transaction(() => {
       // Check availability for each room INSIDE transaction
+      // INCLUSIVE: Check all dates including the end date
       for (const roomId of bookingData.rooms) {
         const checkStart = new Date(bookingData.startDate);
         const current = new Date(checkStart);
-        while (current.getTime() < endDate.getTime()) {
-          const dateStr = formatDate(current);
+        while (current.getTime() <= endDate.getTime()) {
+          const dateStr = DateUtils.formatDate(current);
           const sessionId = bookingData.sessionId || null;
           const availability = db.getRoomAvailability(roomId, dateStr, sessionId);
           if (!availability.available) {
@@ -659,19 +592,21 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
         }
       }
 
-      // Calculate price
-      const nights = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-      bookingData.totalPrice = calculatePrice(
-        bookingData.rooms,
-        bookingData.guestType,
-        bookingData.adults,
-        bookingData.children || 0,
-        nights
-      );
+      // Calculate price using shared PriceCalculator
+      const nights = DateUtils.getDaysBetween(bookingData.startDate, bookingData.endDate);
+      // settings already defined earlier in the function (line 489)
+      bookingData.totalPrice = PriceCalculator.calculatePriceFromRooms({
+        rooms: bookingData.rooms,
+        guestType: bookingData.guestType,
+        adults: bookingData.adults,
+        children: bookingData.children || 0,
+        nights,
+        settings,
+      });
 
       // Generate secure IDs
-      bookingData.id = generateId();
-      bookingData.editToken = generateEditToken();
+      bookingData.id = IdGenerator.generateBookingId();
+      bookingData.editToken = IdGenerator.generateEditToken();
       bookingData.createdAt = new Date().toISOString();
       bookingData.updatedAt = new Date().toISOString();
 
@@ -690,7 +625,12 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
       editToken: booking.editToken,
     });
   } catch (error) {
-    logger.error('creating booking:', error);
+    // P1 FIX: Properly log error with stack trace for debugging
+    logger.error('creating booking:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
 
     // More specific error messages
     const errorMessage = error.message.includes('není dostupný')
@@ -791,17 +731,18 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
       return res.status(400).json({ error: 'Datum odjezdu musí být po datu příjezdu' });
     }
 
-    // Check Christmas period access with date-based rules
+    // Check Christmas period access with date-based rules using shared ChristmasUtils
+    const settings = db.getSettings();
     const isChristmas =
-      isChristmasPeriod(bookingData.startDate) || isChristmasPeriod(bookingData.endDate);
+      ChristmasUtils.isChristmasPeriod(bookingData.startDate, settings) ||
+      ChristmasUtils.isChristmasPeriod(bookingData.endDate, settings);
 
     if (isChristmas) {
-      const settings = db.getSettings();
       const christmasPeriodStart = settings.christmasPeriod?.start;
       const isBulkBooking = bookingData.isBulkBooking || false;
       const today = new Date();
 
-      const { codeRequired, bulkBlocked } = checkChristmasAccessRequirement(
+      const { codeRequired, bulkBlocked } = ChristmasUtils.checkChristmasAccessRequirement(
         today,
         christmasPeriodStart,
         isBulkBooking
@@ -820,18 +761,21 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
         const clientIp = req.ip || req.connection.remoteAddress;
 
         // Check rate limit for Christmas code validation
-        const rateLimit = checkChristmasCodeRateLimit(clientIp);
-        if (!rateLimit.allowed) {
+        const codeLimitCheck = checkChristmasCodeRateLimit(clientIp);
+        if (!codeLimitCheck.allowed) {
           logger.warn('Christmas code rate limit exceeded', { ip: clientIp });
           return res.status(429).json({
-            error: `Příliš mnoho neplatných pokusů o vánoční kód. Zkuste to za ${rateLimit.minutesLeft} minut.`,
+            error: `Příliš mnoho neplatných pokusů o vánoční kód. Zkuste to za ${codeLimitCheck.minutesLeft} minut.`,
           });
         }
 
-        if (!bookingData.christmasCode || !validateChristmasCode(bookingData.christmasCode)) {
+        if (
+          !bookingData.christmasCode ||
+          !ChristmasUtils.validateChristmasCode(bookingData.christmasCode, settings)
+        ) {
           logger.warn('Invalid Christmas code attempt', {
             ip: clientIp,
-            remaining: rateLimit.remaining,
+            remaining: codeLimitCheck.remaining,
           });
           return res
             .status(403)
@@ -861,15 +805,17 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
       });
     }
 
-    // Recalculate price
-    const nights = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-    bookingData.totalPrice = calculatePrice(
-      bookingData.rooms,
-      bookingData.guestType,
-      bookingData.adults,
-      bookingData.children || 0,
-      nights
-    );
+    // Recalculate price using shared PriceCalculator
+    const nights = DateUtils.getDaysBetween(bookingData.startDate, bookingData.endDate);
+    // settings already declared above for Christmas check
+    bookingData.totalPrice = PriceCalculator.calculatePriceFromRooms({
+      rooms: bookingData.rooms,
+      guestType: bookingData.guestType,
+      adults: bookingData.adults,
+      children: bookingData.children || 0,
+      nights,
+      settings,
+    });
 
     // Update the booking
     db.updateBooking(bookingId, bookingData);
@@ -898,9 +844,13 @@ app.delete('/api/booking/:id', writeLimiter, (req, res) => {
       return res.status(404).json({ error: 'Rezervace nenalezena' });
     }
 
-    // Verify edit token
-    if (!editToken || editToken !== existingBooking.editToken) {
-      // Check if API key is provided for admin access
+    // FIXED: Check for admin session first (admins can delete any booking)
+    const sessionToken = req.headers['x-session-token'];
+    const isAdmin = sessionToken && db.getAdminSession(sessionToken) !== undefined;
+
+    // Verify edit token or admin session
+    if (!isAdmin && (!editToken || editToken !== existingBooking.editToken)) {
+      // Fallback: Check if API key is provided for admin access
       const apiKey = req.headers['x-api-key'];
       if (!apiKey || apiKey !== process.env.API_KEY) {
         return res.status(403).json({ error: 'Neplatný editační token' });
@@ -1043,41 +993,17 @@ function sanitizeInput(str, maxLength = 255) {
     return str;
   }
   return String(str)
-    .replace(/&/g, '&amp;') // Must be first - escape ampersands
-    .replace(/</g, '&lt;') // Escape less-than
-    .replace(/>/g, '&gt;') // Escape greater-than
-    .replace(/"/g, '&quot;') // Escape double quotes
-    .replace(/'/g, '&#x27;') // Escape single quotes
-    .replace(/\//g, '&#x2F;') // Escape forward slash
+    .replace(/&/gu, '&amp;') // Must be first - escape ampersands
+    .replace(/</gu, '&lt;') // Escape less-than
+    .replace(/>/gu, '&gt;') // Escape greater-than
+    .replace(/"/gu, '&quot;') // Escape double quotes
+    .replace(/'/gu, '&#x27;') // Escape single quotes
+    .replace(/\//gu, '&#x2F;') // Escape forward slash
     .slice(0, maxLength);
 }
 
 // Helper to escape HTML for safe innerHTML usage
-function escapeHtml(unsafe) {
-  if (!unsafe) {
-    return '';
-  }
-  return String(unsafe)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
-// Max length validation
-const MAX_LENGTHS = {
-  name: 100,
-  email: 254,
-  phone: 20,
-  company: 100,
-  address: 200,
-  city: 100,
-  zip: 10,
-  ico: 10,
-  dic: 12,
-  notes: 1000,
-};
+// Removed: escapeHtml() - function was never used (sanitizeInput already handles escaping)
 
 function validateFieldLengths(data) {
   for (const [field, maxLen] of Object.entries(MAX_LENGTHS)) {

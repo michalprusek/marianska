@@ -9,8 +9,16 @@ class DateUtils {
    * @returns {string} Formatted date string
    */
   static formatDate(date) {
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return d.toISOString().split('T')[0];
+    // If string in YYYY-MM-DD format, parse as local date not UTC
+    if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/u)) {
+      return date; // Already in correct format
+    }
+    const d = typeof date === 'string' ? new Date(`${date}T12:00:00`) : date;
+    // Use local date components instead of UTC to avoid timezone issues
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   /**
@@ -118,4 +126,100 @@ class DateUtils {
   static getToday() {
     return this.formatDate(new Date());
   }
+
+  /**
+   * Get the previous day
+   * @param {Date|string} date - Date
+   * @returns {string} Previous day in YYYY-MM-DD format
+   */
+  static getPreviousDay(date) {
+    return this.formatDate(this.addDays(date, -1));
+  }
+
+  /**
+   * Get the next day
+   * @param {Date|string} date - Date
+   * @returns {string} Next day in YYYY-MM-DD format
+   */
+  static getNextDay(date) {
+    return this.formatDate(this.addDays(date, 1));
+  }
+
+  /**
+   * Check if a night is occupied by a booking
+   * A night is the period from date to date+1
+   * Example: Night of 2025-10-05 = period from 2025-10-05 to 2025-10-06
+   *
+   * @param {string} nightDate - The date of the night (YYYY-MM-DD)
+   * @param {string} bookingStart - Booking start date (YYYY-MM-DD)
+   * @param {string} bookingEnd - Booking end date (YYYY-MM-DD)
+   * @returns {boolean} True if the night is occupied
+   */
+  static isNightOccupied(nightDate, bookingStart, bookingEnd) {
+    // A night is occupied if it falls within the booking range
+    // Booking from 2025-10-05 to 2025-10-07 occupies nights:
+    // - Night of 2025-10-05 (05->06) ✓
+    // - Night of 2025-10-06 (06->07) ✓
+    // - Night of 2025-10-07 (07->08) ✗ (checkout day, night not occupied)
+    return nightDate >= bookingStart && nightDate < bookingEnd;
+  }
+
+  /**
+   * Count occupied nights around a specific day
+   * "Night before" = night from (day-1) to day
+   * "Night after" = night from day to (day+1)
+   *
+   * @param {string} day - The day to check (YYYY-MM-DD)
+   * @param {Array<{startDate: string, endDate: string}>} bookings - Array of bookings
+   * @returns {{nightBefore: boolean, nightAfter: boolean, count: number}}
+   */
+  static getOccupiedNightsAroundDay(day, bookings) {
+    const nightBefore = this.getPreviousDay(day); // night from (day-1) to day
+    const nightAfter = day; // night from day to (day+1)
+
+    let nightBeforeOccupied = false;
+    let nightAfterOccupied = false;
+
+    for (const booking of bookings) {
+      if (this.isNightOccupied(nightBefore, booking.startDate, booking.endDate)) {
+        nightBeforeOccupied = true;
+      }
+      if (this.isNightOccupied(nightAfter, booking.startDate, booking.endDate)) {
+        nightAfterOccupied = true;
+      }
+      if (nightBeforeOccupied && nightAfterOccupied) {
+        break; // Both nights occupied, no need to check more
+      }
+    }
+
+    const count = (nightBeforeOccupied ? 1 : 0) + (nightAfterOccupied ? 1 : 0);
+
+    return {
+      nightBefore: nightBeforeOccupied,
+      nightAfter: nightAfterOccupied,
+      count,
+    };
+  }
+
+  /**
+   * Determine day status based on occupied nights around it
+   * @param {string} day - The day to check (YYYY-MM-DD)
+   * @param {Array<{startDate: string, endDate: string}>} bookings - Array of bookings
+   * @returns {'available'|'edge'|'occupied'} Day status
+   */
+  static getDayStatus(day, bookings) {
+    const { count } = this.getOccupiedNightsAroundDay(day, bookings);
+
+    if (count === 0) {
+      return 'available'; // No nights occupied
+    } else if (count === 1) {
+      return 'edge'; // Exactly one night occupied
+    }
+    return 'occupied'; // Both nights occupied
+  }
+}
+
+// Export for Node.js (server-side)
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = DateUtils;
 }

@@ -795,10 +795,23 @@ input:checked + .slider:before {
   transform: scale(1.1);
 }
 
-.room-indicator.booked {
-  background: #ff8c00 !important;
+.room-indicator.occupied {
+  background: #ef4444 !important;
   color: white !important;
-  border-color: #ff6600 !important;
+  border-color: #dc2626 !important;
+}
+
+/* Legacy support - redirect old 'booked' class to 'occupied' */
+.room-indicator.booked {
+  background: #ef4444 !important;
+  color: white !important;
+  border-color: #dc2626 !important;
+}
+
+.room-indicator.edge-day {
+  /* Half green/half red gradient - direction set via inline styles */
+  color: white !important;
+  cursor: pointer !important;
 }
 
 .room-indicator.blocked {
@@ -1825,10 +1838,23 @@ input:checked + .slider:before {
   box-shadow: 0 0 0 1px #ef4444;
 }
 
-.mini-calendar-day.booked {
-  background: #dc2626;
+.mini-calendar-day.occupied {
+  background: #ef4444;
   color: white;
   cursor: not-allowed;
+}
+
+/* Legacy support */
+.mini-calendar-day.booked {
+  background: #ef4444;
+  color: white;
+  cursor: not-allowed;
+}
+
+.mini-calendar-day.edge-day {
+  /* Half green/half red gradient - direction set via inline styles */
+  color: white;
+  cursor: pointer;
 }
 
 .mini-calendar-day.blocked {
@@ -1969,8 +1995,8 @@ input:checked + .slider:before {
 #notificationContainer,
 .toast-container {
   position: fixed;
-  top: 20px;
-  right: 20px;
+  bottom: 20px;
+  left: 20px;
   z-index: 10000;
   display: flex;
   flex-direction: column;
@@ -2145,7 +2171,7 @@ input:checked + .slider:before {
 @keyframes toast-exit {
   to {
     opacity: 0;
-    transform: translateX(calc(100% + 20px));
+    transform: translateX(calc(-100% - 20px));
   }
 }
 
@@ -2235,7 +2261,7 @@ input:checked + .slider:before {
 /* Toast animations */
 .toast-enter {
   opacity: 0;
-  transform: translateX(100%);
+  transform: translateX(-100%);
 }
 
 .toast-show {
@@ -2245,7 +2271,7 @@ input:checked + .slider:before {
 
 .toast-exit {
   opacity: 0;
-  transform: translateX(100%);
+  transform: translateX(-100%);
 }
 
 /* ===== LEGEND SYSTEM ===== */
@@ -2398,6 +2424,32 @@ input:checked + .slider:before {
   gap: var(--space-1);
 }
 
+.legend-text strong {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--neutral-80);
+  margin-bottom: 0.25rem;
+}
+
+.legend-text p {
+  font-size: var(--text-xs);
+  color: var(--neutral-60);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.legend-color {
+  width: 32px;
+  height: 24px;
+  border-radius: var(--radius-xs);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
+.legend-gradient-edge {
+  background: linear-gradient(90deg, #10b981 0%, #10b981 50%, #ef4444 50%, #ef4444 100%);
+}
+
 .legend-label {
   font-size: var(--text-sm);
   font-weight: 600;
@@ -2430,10 +2482,17 @@ input:checked + .slider:before {
   border-color: var(--success-600);
 }
 
-.legend-booked {
-  background: #ff8c00;
+.legend-occupied {
+  background: #ef4444;
   color: white;
-  border-color: #ff6600;
+  border-color: #dc2626;
+}
+
+/* Legacy support */
+.legend-booked {
+  background: #ef4444;
+  color: white;
+  border-color: #dc2626;
 }
 
 .legend-new-booking {
@@ -2903,8 +2962,7 @@ input:checked + .slider:before {
   /* Toast mobile */
   #notificationContainer,
   .toast-container {
-    top: 10px;
-    right: 10px;
+    bottom: 10px;
     left: 10px;
   }
 
