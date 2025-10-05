@@ -16,6 +16,12 @@ npm start           # Start production server on port 3000
 npm run dev         # Start development server with auto-reload
 ```
 
+**⚠️ KRITICKÉ: Server běží lokálně v terminálu uživatele - NIKDY do něj nezasahuj!**
+- ❌ NIKDY: Nespouštěj `npm start`, `npm run dev` ani jiné serverové příkazy
+- ❌ NIKDY: Nepoužívej `run_in_background: true` pro dlouhotrvající procesy
+- ✅ VŽDY: Server ovládá uživatel ve svém terminálu
+- ✅ VŽDY: Pouze upravuj kód, nikdy nerestartuj server
+
 ### Production (Docker)
 
 ```bash
@@ -28,6 +34,80 @@ docker-compose down && docker-compose up --build -d
 ```
 
 ## Architektura
+
+### 🎯 SSOT (Single Source of Truth) - KRITICKÉ PRINCIPY
+
+**⚠️ DŮLEŽITÉ**: Tento projekt důsledně dodržuje SSOT principy. **NIKDY** neimplementujte funkcionalitu dvakrát!
+
+#### Znovupoužitelné komponenty (VŽDY použijte):
+
+**1. BaseCalendar** (`js/shared/BaseCalendar.js`) - Unified kalendář pro VŠECHNY use-case:
+
+- ✅ `SINGLE_ROOM` - Rezervace jednoho pokoje
+- ✅ `BULK` - Hromadná rezervace celé chaty
+- ✅ `EDIT` - Editace existující rezervace (admin)
+- ✅ `GRID` - Přehled všech pokojů (hlavní stránka)
+
+**2. ValidationUtils** (`js/shared/validationUtils.js`) - Centralizované validace:
+
+- Email, telefon, PSČ, IČO, DIČ validace
+- Automatické formátování (phone, ZIP)
+- Unified error messages
+
+**3. DateUtils** (`js/shared/dateUtils.js`) - Práce s daty:
+
+- Formátování dat (YYYY-MM-DD, lokalizované zobrazení)
+- Převody date ranges na intervaly
+- Výpočty dnů mezi daty
+- Utility funkce pro práci s daty
+
+**4. BookingLogic** (`js/shared/bookingLogic.js`) - Business logika:
+
+- Detekce konfliktů rezervací
+- Kontrola překrývání termínů
+- Validace date ranges
+- @deprecated metody delegují na DateUtils
+
+#### ❌ NIKDY NEDĚLEJTE:
+
+```javascript
+// ❌ Vytváření vlastního kalendáře
+class MyCustomCalendar { ... }
+
+// ❌ Kopírování validace
+function myValidateEmail(email) { ... }
+
+// ❌ Vlastní date formátování
+function formatMyDate(date) { ... }
+
+// ❌ Vlastní konfliktní detekce
+function checkRoomAvailability() { ... }
+```
+
+#### ✅ VŽDY TAKTO:
+
+```javascript
+// ✅ Použijte BaseCalendar s režimem
+new BaseCalendar({ mode: BaseCalendar.MODES.EDIT })
+
+// ✅ Použijte ValidationUtils
+ValidationUtils.validateEmail(email)
+
+// ✅ Použijte DateUtils pro práci s daty
+DateUtils.formatDate(date)
+DateUtils.formatDateDisplay(date, 'cs')
+DateUtils.getDaysBetween(start, end)
+
+// ✅ Použijte BookingLogic pro konfliktní detekci
+BookingLogic.checkBookingConflict(booking, existingBookings, roomId)
+```
+
+**Pravidlo**: Pokud se kód opakuje 2x+ → Přesuňte do `js/shared/`
+
+**Přínosy refactoringu na SSOT**:
+- Před: ~800 řádků duplikovaného kódu
+- Po: 565 řádků v BaseCalendar, použito 4x
+- Eliminováno: 656 řádků (-45% duplikátů)
 
 ### Backend API (server.js)
 
@@ -108,14 +188,15 @@ Centrální komponenta pro správu dat a business logiku.
       { id: "12", name: "Pokoj 12", type: "small", beds: 2 }
     ],
     prices: {
-      utia: {
-        small: { base: 300, adult: 50, child: 25 },
-        large: { base: 400, adult: 50, child: 25 }
-      },
-      external: {
-        small: { base: 500, adult: 100, child: 50 },
-        large: { base: 600, adult: 100, child: 50 }
-      }
+      utia: { base: 298, adult: 49, child: 24 },
+      external: { base: 499, adult: 99, child: 49 }
+    },
+    bulkPrices: {
+      basePrice: 2000,
+      utiaAdult: 100,
+      utiaChild: 0,
+      externalAdult: 250,
+      externalChild: 50
     }
   }
 }
@@ -247,9 +328,10 @@ Kompletní správa systému rozdělená do tabů.
 
 **Shared Components (js/shared/):**
 
-- `BaseCalendar.js` - **NOVÝ**: Unified calendar component (565 lines)
+- `BaseCalendar.js` - Unified calendar component (565 lines, 4 modes)
+- `dateUtils.js` - **NOVÝ 2025-10**: Centralized date formatting & manipulation
 - `validationUtils.js` - Centralizované validační funkce
-- `bookingLogic.js` - Unified booking conflict detection a date range utils
+- `bookingLogic.js` - Unified booking conflict detection (deleguje date ops na DateUtils)
 
 **Code Reduction:**
 
@@ -257,21 +339,93 @@ Kompletní správa systému rozdělená do tabů.
 - single-room-booking.js: 586 → 284 řádků (-52%)
 - bulk-booking.js: 937 → 583 řádků (-38%)
 
+**Praktické příklady použití shared komponentů:**
+
+```javascript
+// 1. DATE UTILS - Formátování a práce s daty
+const dateStr = DateUtils.formatDate(new Date()); // "2025-10-03"
+const display = DateUtils.formatDateDisplay(new Date(), 'cs'); // "Pá 3. říj"
+const nights = DateUtils.getDaysBetween(checkIn, checkOut); // 5
+const ranges = DateUtils.getDateRanges(['2025-10-03', '2025-10-04', '2025-10-05']);
+// [{start: '2025-10-03', end: '2025-10-05'}]
+
+// 2. VALIDACE - Real-time form validation
+const emailError = ValidationUtils.getValidationError('email', emailValue);
+if (emailError) {
+  showError(emailError);
+}
+
+// 3. BOOKING LOGIC - Conflict detection
+const conflict = BookingLogic.checkBookingConflict(
+  newBooking,
+  existingBookings,
+  roomId
+);
+if (conflict) {
+  alert('Pokoj je již obsazen v tomto termínu');
+}
+
+// 4. KALENDÁŘ - Single room booking
+const calendar = new BaseCalendar({
+  mode: BaseCalendar.MODES.SINGLE_ROOM,
+  containerId: 'miniCalendar',
+  roomId: '12',
+  enableDrag: true,
+  minNights: 2,
+  onDateSelect: async (dateStr) => {
+    await this.handleDateSelection(dateStr);
+  }
+});
+```
+
+**Jak používat BaseCalendar pro různé režimy:**
+
+| Režim | Použití | Soubor | Konfigurace |
+|-------|---------|--------|-------------|
+| `SINGLE_ROOM` | Rezervace 1 pokoje | `single-room-booking.js` | `enableDrag: true, minNights: 2` |
+| `BULK` | Celá chata najednou | `bulk-booking.js` | `enforceContiguous: true` |
+| `EDIT` | Admin editace | `admin.js` | `allowPast: true` |
+| `GRID` | Přehled všech pokojů | `calendar.js` | Multi-room view |
+
 ## Business pravidla
 
 ### Cenová politika
 
+**⚠️ DŮLEŽITÉ**: Všechny ceny jsou **dynamicky konfigurovatelné** z admin panelu v sekci "Nastavení pokojů a cen".
+
+#### Individuální rezervace pokojů (výchozí hodnoty):
+
 ```
 ÚTIA zaměstnanci:
-- Malý pokoj: 300 Kč/noc základní cena + 50 Kč/další dospělý + 25 Kč/dítě
-- Velký pokoj: 400 Kč/noc základní cena + 50 Kč/další dospělý + 25 Kč/dítě
+- Základní cena: 298 Kč/noc za pokoj
+- Příplatek za dospělého: 49 Kč
+- Příplatek za dítě (3-18 let): 24 Kč
+- Děti do 3 let: zdarma
 
 Externí hosté:
-- Malý pokoj: 500 Kč/noc základní cena + 100 Kč/další dospělý + 50 Kč/dítě
-- Velký pokoj: 600 Kč/noc základní cena + 100 Kč/další dospělý + 50 Kč/dítě
-
-Děti do 3 let: zdarma
+- Základní cena: 499 Kč/noc za pokoj
+- Příplatek za dospělého: 99 Kč
+- Příplatek za dítě (3-18 let): 49 Kč
+- Děti do 3 let: zdarma
 ```
+
+#### Hromadná rezervace celé chaty (výchozí hodnoty):
+
+```
+🏢 Zaměstnanci ÚTIA:
+- Základní cena za celou chatu: 2 000 Kč/noc
+- Příplatek za dospělého: 100 Kč
+- Příplatek za dítě (3-18 let): 0 Kč
+- Děti do 3 let: zdarma
+
+👥 Externí hosté:
+- Základní cena za celou chatu: 2 000 Kč/noc
+- Příplatek za dospělého: 250 Kč
+- Příplatek za dítě (3-18 let): 50 Kč
+- Děti do 3 let: zdarma
+```
+
+**Poznámka**: Admin může kdykoliv změnit ceny v admin panelu → sekce "Nastavení pokojů a cen".
 
 ### Vánoční období
 
@@ -299,6 +453,58 @@ Celkem: 26 lůžek
 5. **Vánoční kódy** - Omezení přístupu během špičky
 
 ## Důležité implementační detaily
+
+### 🔧 Jak rozšířit shared komponenty (POVINNÝ POSTUP)
+
+**Pokud potřebujete novou funkcionalitu:**
+
+1. **NEJDŘÍV ZKONTROLUJTE**, zda už neexistuje v `js/shared/`
+2. **ROZŠIŘTE existující** shared komponent, NEtvořte nový soubor
+3. **PŘIDEJTE TESTY** do příslušného test souboru
+4. **DOKUMENTUJTE** v CLAUDE.md
+
+**Příklad - Přidání nové validace:**
+
+```javascript
+// ✅ SPRÁVNĚ - Přidat do js/shared/validationUtils.js
+class ValidationUtils {
+  // ... existující metody
+
+  static validateBirthNumber(birthNumber) {
+    // Validace rodného čísla pro ČR
+    if (!birthNumber) return false;
+    return /^\d{6}\/\d{4}$/.test(birthNumber);
+  }
+}
+
+// Pak použít všude stejně:
+const isValid = ValidationUtils.validateBirthNumber(rc);
+```
+
+**Příklad - Rozšíření BaseCalendar:**
+
+```javascript
+// ✅ SPRÁVNĚ - Přidat nový režim do js/shared/BaseCalendar.js
+static MODES = {
+  GRID: 'grid',
+  SINGLE_ROOM: 'single_room',
+  BULK: 'bulk',
+  EDIT: 'edit',
+  WEEKLY: 'weekly'  // Nový režim pro týdenní pohled
+};
+```
+
+**❌ NIKDY:**
+
+```javascript
+// ❌ Vytváření nového souboru s duplicitní funkcionalitou
+// js/myValidations.js
+function validateMyEmail(email) { ... }  // JIŽ EXISTUJE v ValidationUtils!
+
+// ❌ Kopírování kódu z BaseCalendar
+// js/weekly-calendar.js
+class WeeklyCalendar { ... }  // POUŽIJTE BaseCalendar s novým režimem!
+```
 
 ### Dual Storage Mode
 
@@ -369,20 +575,42 @@ Každá rezervace má unikátní `editToken`. Přístup k editaci: `edit.html?to
 - Jednotné chování client-side i server-side
 - Reusable validační funkce
 
+### Unified Date Utilities (2025-10-03)
+
+- **Nový modul** `js/shared/dateUtils.js`
+- Eliminuje duplikaci date formátování napříč:
+  - `data.js` (DataManager)
+  - `js/utils.js` (UtilsModule)
+  - `js/shared/bookingLogic.js` (BookingLogic)
+- Unified API pro:
+  - Date formátování (ISO, lokalizované)
+  - Date ranges a intervaly
+  - Date arithmetic (addDays, getDaysBetween)
+  - Date validace (isPast)
+- Zpětná kompatibilita přes @deprecated metody
+
 ### Unified Booking Logic
 
 - `js/shared/bookingLogic.js`
 - Centralizovaná detekce konfliktů
-- Sdílené date range utility
+- Deleguje date operace na DateUtils (SSOT)
 - Konzistentní business rules
 
-### Code Quality
+### Code Quality & SSOT Enforcement
 
-- ESLint konfigurace
-- Pre-commit hooks
-- Prettier formátování
-- Duplicate code detection
-- Comprehensive test suite
+- **ESLint konfigurace** - Automatická kontrola kvality kódu
+- **Pre-commit hooks** - Zabraňuje commitu špatného kódu
+- **Prettier formátování** - Konzistentní code style
+- **Duplicate code detection (jscpd)** - **KRITICKÉ**: Max 5% duplikátů povoleno
+- **Comprehensive test suite** - Pokrytí 70-80%
+
+**DŮLEŽITÉ**: Před každým commitem spusťte:
+
+```bash
+npm run pre-commit  # Kontroluje linting, formatting, duplikáty
+```
+
+Pokud jscpd hlásí duplikáty → **REFAKTORUJTE** do `js/shared/` před commitem!
 
 ## Bezpečnost a Data Management
 

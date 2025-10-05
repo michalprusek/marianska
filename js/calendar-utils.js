@@ -19,6 +19,43 @@ class CalendarUtils {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const daysInPrevMonth = new Date(year, month, 0).getDate();
 
+    // Generate days array for calendar rendering
+    const days = [];
+
+    // Previous month days
+    for (let i = startDay - 1; i >= 0; i--) {
+      const dayOfMonth = daysInPrevMonth - i;
+      const dayDate = new Date(year, month - 1, dayOfMonth);
+      days.push({
+        dayOfMonth,
+        dateStr: DateUtils.formatDate(dayDate),
+        isOtherMonth: true,
+      });
+    }
+
+    // Current month days
+    for (let i = 1; i <= daysInMonth; i++) {
+      const dayDate = new Date(year, month, i);
+      days.push({
+        dayOfMonth: i,
+        dateStr: DateUtils.formatDate(dayDate),
+        isOtherMonth: false,
+      });
+    }
+
+    // Next month days to fill the grid
+    const remainingDays = 7 - (days.length % 7);
+    if (remainingDays < 7) {
+      for (let i = 1; i <= remainingDays; i++) {
+        const dayDate = new Date(year, month + 1, i);
+        days.push({
+          dayOfMonth: i,
+          dateStr: DateUtils.formatDate(dayDate),
+          isOtherMonth: true,
+        });
+      }
+    }
+
     return {
       year,
       month,
@@ -26,6 +63,7 @@ class CalendarUtils {
       startDay,
       daysInMonth,
       daysInPrevMonth,
+      days,
     };
   }
 

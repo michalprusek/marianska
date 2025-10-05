@@ -248,26 +248,17 @@ class CalendarModule {
     const roomEl = document.createElement('div');
     roomEl.className = 'room-indicator';
 
-    const availabilityInfo = await dataManager.getRoomAvailability(date, room.id);
+    // Pass empty string to show ALL proposed bookings (including current user's)
+    const availabilityInfo = await dataManager.getRoomAvailability(date, room.id, '');
     const availability = availabilityInfo.status;
     const dateStr = dataManager.formatDate(date);
     roomEl.classList.add(availability);
 
-    // Check if this room and date is in temp reservations (proposed)
-    let isProposed = false;
-    if (this.app.tempReservations && this.app.tempReservations.length > 0) {
-      isProposed = this.app.tempReservations.some((reservation) => {
-        const startDate = new Date(reservation.startDate);
-        const endDate = new Date(reservation.endDate);
-        const currentDate = new Date(dateStr);
-        return reservation.roomId === room.id && currentDate >= startDate && currentDate <= endDate;
-      });
-    }
-
     // Apply color for booked, available, proposed and blocked rooms
-    if (isProposed || availability === 'proposed') {
-      roomEl.style.background = '#ff4444';
-      roomEl.style.color = 'white';
+    // Note: proposed status is now handled entirely by getRoomAvailability() from database
+    if (availability === 'proposed') {
+      roomEl.style.background = '#ffc107'; // Yellow for proposed bookings
+      roomEl.style.color = '#000';
       roomEl.classList.add('proposed');
       roomEl.title = 'Navrhovaná rezervace - dočasně blokováno';
     } else if (availability === 'booked') {
@@ -328,6 +319,9 @@ class CalendarModule {
   }
 
   async highlightNewBooking(booking) {
+    // CRITICAL FIX: Force refresh data from server before rendering
+    await dataManager.getData(true); // Force refresh
+
     // Animate newly booked rooms
     this.app.recentlyBookedRooms = [];
 

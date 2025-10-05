@@ -9,6 +9,14 @@ class BookingApp {
     this.roomGuestTypes = new Map();
     this.currentLanguage = localStorage.getItem('language') || 'cs';
     this.recentlyBookedRooms = [];
+    this.tempReservations = [];
+
+    // Generate or retrieve session ID for proposed bookings
+    this.sessionId = sessionStorage.getItem('bookingSessionId');
+    if (!this.sessionId) {
+      this.sessionId = this.generateSessionId();
+      sessionStorage.setItem('bookingSessionId', this.sessionId);
+    }
 
     // Calendar boundaries
     this.today = new Date();
@@ -33,9 +41,16 @@ class BookingApp {
     this.utils = new UtilsModule(this);
   }
 
+  generateSessionId() {
+    return `SESSION-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
   async init() {
     // Initialize data storage
     await dataManager.initData();
+
+    // Load proposed bookings from database for this session
+    await this.loadSessionProposedBookings();
 
     // Setup event listeners
     this.setupEventListeners();
@@ -43,6 +58,9 @@ class BookingApp {
     // Initial render
     await this.renderCalendar();
     this.updateTranslations();
+
+    // Display loaded proposed bookings
+    await this.displayTempReservations();
 
     // Setup global mouse up handler for drag selection
     document.addEventListener('mouseup', () => {
@@ -52,6 +70,86 @@ class BookingApp {
         this.dragEndDate = null;
       }
     });
+  }
+
+  async loadSessionProposedBookings() {
+    try {
+      const response = await fetch(
+        `${dataManager.apiUrl}/proposed-bookings/session/${this.sessionId}`
+      );
+      if (response.ok) {
+        const proposedBookings = await response.json();
+
+        // Get all rooms once for efficiency
+        const allRooms = await dataManager.getRooms();
+
+        // Convert proposed bookings to tempReservations format
+        for (const proposed of proposedBookings) {
+          // Rooms is already an array from database.js
+          const rooms = Array.isArray(proposed.rooms) ? proposed.rooms : [];
+          const roomDetails = rooms
+            .map((roomId) => allRooms.find((r) => r.id === roomId))
+            .filter((r) => r);
+
+          // Check if this is a bulk booking (all rooms)
+          const isBulkBooking = rooms.length === allRooms.length;
+
+          if (isBulkBooking) {
+            // Bulk booking format
+            this.tempReservations.push({
+              id: proposed.proposal_id,
+              isBulkBooking: true,
+              roomIds: rooms,
+              roomNames: allRooms.map((r) => r.name).join(', '),
+              startDate: proposed.start_date,
+              endDate: proposed.end_date,
+              nights: this.calculateNights(proposed.start_date, proposed.end_date),
+              proposalId: proposed.proposal_id,
+              guests: {
+                adults: proposed.adults || 0,
+                children: proposed.children || 0,
+                toddlers: proposed.toddlers || 0,
+              },
+              guestType: proposed.guest_type || 'external',
+              totalPrice: proposed.total_price || 0,
+            });
+          } else {
+            // Single room booking format
+            for (const roomId of rooms) {
+              const room = allRooms.find((r) => r.id === roomId);
+              if (room) {
+                this.tempReservations.push({
+                  id: `${proposed.proposal_id}-${roomId}`,
+                  roomId,
+                  roomName: room.name,
+                  startDate: proposed.start_date,
+                  endDate: proposed.end_date,
+                  nights: this.calculateNights(proposed.start_date, proposed.end_date),
+                  proposalId: proposed.proposal_id,
+                  guests: {
+                    adults: proposed.adults || 0,
+                    children: proposed.children || 0,
+                    toddlers: proposed.toddlers || 0,
+                  },
+                  guestType: proposed.guest_type || 'external',
+                  totalPrice: proposed.total_price || 0,
+                });
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load session proposed bookings:', error);
+    }
+  }
+
+  calculateNights(startDate, endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end - start);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return Math.max(1, diffDays);
   }
 
   setupEventListeners() {
@@ -453,7 +551,7 @@ class BookingApp {
     this.singleRoomBooking.showRoomBookingModal(roomId);
   }
 
-  displayTempReservations() {
+  async displayTempReservations() {
     const sectionDiv = document.getElementById('tempReservationsSection');
     const containerDiv = document.getElementById('tempReservationsContainer');
     const listDiv = document.getElementById('tempReservationsList');
@@ -478,7 +576,7 @@ class BookingApp {
       }
       // Update calendar to clear any red highlighting when no temp reservations
       if (this.calendar) {
-        this.calendar.renderCalendar();
+        await this.calendar.renderCalendar();
       }
       return;
     }
@@ -632,8 +730,14 @@ class BookingApp {
       totalPriceSpan.textContent = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
     }
 
+    // Show finalize button when there are reservations
+    const finalizeDiv = document.getElementById('finalizeReservationsDiv');
+    if (finalizeDiv) {
+      finalizeDiv.style.display = this.tempReservations.length > 0 ? 'block' : 'none';
+    }
+
     // Update calendar to show proposed reservations in red
-    this.calendar.renderCalendar();
+    await this.calendar.renderCalendar();
   }
 
   async removeTempReservation(bookingId) {
@@ -657,7 +761,7 @@ class BookingApp {
     this.tempReservations = this.tempReservations.filter((b) => b.id !== bookingId);
 
     // Update the display
-    this.displayTempReservations();
+    await this.displayTempReservations();
 
     // Hide finalize button and entire section if no reservations left
     if (this.tempReservations.length === 0) {
@@ -817,6 +921,12 @@ class BookingApp {
     const form = document.getElementById('bookingForm');
     if (form) {
       form.reset();
+
+      // Setup submit handler for the form
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        await this.bookingForm.submitBooking();
+      };
     }
 
     // Show the modal
@@ -831,8 +941,8 @@ class BookingApp {
     const rooms = await dataManager.getRooms();
     const settings = await dataManager.getSettings();
     const prices = settings.prices || {
-      utia: { base: 300, adult: 50, child: 25 },
-      external: { base: 500, adult: 100, child: 50 },
+      utia: { base: 298, adult: 49, child: 24 },
+      external: { base: 499, adult: 99, child: 49 },
     };
 
     // Update room capacity grid
@@ -1109,6 +1219,7 @@ class BookingApp {
         children: tempReservation.guests.children,
         toddlers: tempReservation.guests.toddlers,
         totalPrice: tempReservation.totalPrice,
+        sessionId: this.sessionId, // Include sessionId to exclude user's own proposals
       };
 
       // Create the booking
@@ -1156,7 +1267,7 @@ class BookingApp {
 
     // Clear temporary reservations
     this.tempReservations = [];
-    this.displayTempReservations();
+    await this.displayTempReservations();
 
     // Hide finalize button
     const finalizeDiv = document.getElementById('finalizeReservationsDiv');

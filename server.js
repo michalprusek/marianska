@@ -10,13 +10,28 @@ const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 
-// Import SQLite Database Manager, Validation Utils, and Booking Logic
+// Import SQLite Database Manager, Validation Utils, Booking Logic, Logger, and Error Classes
 const DatabaseManager = require('./database');
 const ValidationUtils = require('./js/shared/validationUtils');
 const BookingLogic = require('./js/shared/bookingLogic');
+const { createLogger } = require('./js/shared/logger');
+const {
+  ValidationError,
+  AuthenticationError,
+  NotFoundError,
+  ConflictError,
+  SessionExpiredError,
+  DatabaseError,
+} = require('./js/shared/errors');
+
+// Initialize logger
+const logger = createLogger('Server', process.env.LOG_LEVEL || 'INFO');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Session timeout constants
+const SESSION_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
 
 // Initialize SQLite database
 const db = new DatabaseManager();
@@ -25,7 +40,7 @@ const db = new DatabaseManager();
 const DATA_FILE = path.join(__dirname, 'data', 'bookings.json');
 fs.access(DATA_FILE)
   .then(() => {
-    console.info('Migrating existing JSON data to SQLite...');
+    logger.info('Migrating existing JSON data to SQLite...');
     return db.migrateFromJSON(DATA_FILE);
   })
   .then(() => {
@@ -34,15 +49,15 @@ fs.access(DATA_FILE)
     return fs.rename(DATA_FILE, backupFile);
   })
   .then(() => {
-    console.info('Migration complete. JSON backup saved.');
+    logger.info('Migration complete. JSON backup saved.');
   })
   .catch((err) => {
     if (err.code !== 'ENOENT') {
-      console.error('Migration error:', err);
+      logger.error('Migration error', { error: err.message, stack: err.stack });
     }
   });
 
-// Security middleware
+// Security middleware - Defense-in-depth headers
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -54,10 +69,34 @@ app.use(
         imgSrc: ["'self'", 'data:', 'https:'],
         fontSrc: ["'self'"],
         connectSrc: ["'self'"], // For AJAX requests
+        objectSrc: ["'none'"], // Prevent Flash/Java applets
+        baseUri: ["'self'"], // Prevent base tag hijacking
+        formAction: ["'self'"], // Restrict form submissions
+        frameAncestors: ["'none'"], // Prevent clickjacking
       },
     },
+    // Additional security headers
+    hsts: {
+      maxAge: 31536000, // 1 year
+      includeSubDomains: true,
+      preload: true,
+    },
+    noSniff: true, // X-Content-Type-Options: nosniff
+    frameguard: { action: 'deny' }, // X-Frame-Options: DENY
+    xssFilter: true, // X-XSS-Protection: 1; mode=block
   })
 );
+
+// Additional security headers
+app.use((req, res, next) => {
+  // Prevent MIME type sniffing
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  // Referrer policy
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // Permissions policy (formerly Feature-Policy)
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  next();
+});
 
 // CORS configuration
 const corsOptions = {
@@ -73,19 +112,34 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 100,
+// Rate limiting - Separate limits for different endpoint types
+// Read-only endpoints (GET) - more lenient limit
+const readLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300, // Increased from 100 to accommodate calendar rendering
   message: 'Příliš mnoho požadavků z této IP adresy, zkuste to prosím později.',
 });
-app.use('/api/', limiter);
+
+// Write endpoints (POST/PUT/DELETE) - stricter limit
+const writeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,
+  message: 'Příliš mnoho požadavků z této IP adresy, zkuste to prosím později.',
+});
 
 // Stricter rate limit for booking creation
 const bookingLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 10, // max 10 bookings per hour
   message: 'Překročen limit pro vytváření rezervací. Zkuste to prosím za hodinu.',
+});
+
+// Strict rate limit for admin login (defense against brute-force)
+const adminLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // max 5 login attempts per 15 minutes
+  skipSuccessfulRequests: true, // Don't count successful logins
+  message: 'Příliš mnoho neúspěšných pokusů o přihlášení. Zkuste to za 15 minut.',
 });
 
 app.use(bodyParser.json({ limit: '10mb' }));
@@ -157,6 +211,68 @@ function validateChristmasCode(code) {
   return settings.christmasAccessCodes && settings.christmasAccessCodes.includes(code);
 }
 
+// Session validation middleware
+function requireSession(req, res, next) {
+  const sessionToken = req.headers['x-session-token'];
+
+  if (!sessionToken) {
+    return res.status(401).json({ error: 'Neautorizovaný přístup - chybí session token' });
+  }
+
+  const session = db.getAdminSession(sessionToken);
+
+  if (!session) {
+    return res.status(401).json({ error: 'Neplatný session token' });
+  }
+
+  // Check if session expired (convert ISO string to timestamp)
+  const expiresAt = new Date(session.expires_at).getTime();
+  if (expiresAt < Date.now()) {
+    db.deleteAdminSession(sessionToken);
+    return res.status(401).json({ error: 'Session vypršela - přihlaste se znovu' });
+  }
+
+  // Session is valid - attach to request
+  req.session = session;
+  req.sessionToken = sessionToken;
+
+  next();
+}
+
+// Middleware that accepts either API key or session token
+function requireApiKeyOrSession(req, res, next) {
+  // Check for API key first
+  const apiKey = req.headers['x-api-key'];
+  if (apiKey && apiKey === process.env.API_KEY) {
+    return next();
+  }
+
+  // Check for session token
+  const sessionToken = req.headers['x-session-token'];
+  if (!sessionToken) {
+    return res
+      .status(401)
+      .json({ error: 'Neautorizovaný přístup - chybí API klíč nebo session token' });
+  }
+
+  const session = db.getAdminSession(sessionToken);
+  if (!session) {
+    return res.status(401).json({ error: 'Neplatný session token' });
+  }
+
+  // Check if session expired (convert ISO string to timestamp)
+  const expiresAt = new Date(session.expires_at).getTime();
+  if (expiresAt < Date.now()) {
+    db.deleteAdminSession(sessionToken);
+    return res.status(401).json({ error: 'Session vypršela - přihlaste se znovu' });
+  }
+
+  // Session is valid
+  req.session = session;
+  req.sessionToken = sessionToken;
+  next();
+}
+
 function calculatePrice(rooms, guestType, adults, children, nights) {
   const settings = db.getSettings();
   const { prices } = settings;
@@ -165,28 +281,22 @@ function calculatePrice(rooms, guestType, adults, children, nights) {
     return 0;
   }
 
-  let totalPrice = 0;
-  const roomsData = settings.rooms || [];
+  // Use flat pricing structure (no small/large distinction)
+  const priceConfig = prices[guestType];
 
-  for (const roomId of rooms) {
-    const room = roomsData.find((r) => r.id === roomId);
-    if (room) {
-      const roomType = room.type;
-      const priceConfig = prices[guestType][roomType];
-
-      if (priceConfig) {
-        // Base price for the room
-        totalPrice += priceConfig.base * nights;
-
-        // Additional adults (assuming first adult is included in base price)
-        const additionalAdults = Math.max(0, adults - rooms.length);
-        totalPrice += additionalAdults * priceConfig.adult * nights;
-
-        // Children
-        totalPrice += (children || 0) * priceConfig.child * nights;
-      }
-    }
+  if (!priceConfig) {
+    return 0;
   }
+
+  // Base price per room * number of rooms * nights
+  let totalPrice = priceConfig.base * rooms.length * nights;
+
+  // Additional adults (assuming one adult per room is included in base)
+  const additionalAdults = Math.max(0, adults - rooms.length);
+  totalPrice += additionalAdults * priceConfig.adult * nights;
+
+  // Children
+  totalPrice += (children || 0) * priceConfig.child * nights;
 
   return totalPrice;
 }
@@ -201,8 +311,8 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Public endpoint - read all data from SQLite
-app.get('/api/data', (req, res) => {
+// Public endpoint - read all data from SQLite (use lenient read limiter)
+app.get('/api/data', readLimiter, (req, res) => {
   try {
     const data = db.getAllData();
 
@@ -215,13 +325,13 @@ app.get('/api/data', (req, res) => {
 
     return res.json(data);
   } catch (error) {
-    console.error('Error reading data:', error);
+    logger.error('reading data:', error);
     return res.status(500).json({ error: 'Nepodařilo se načíst data' });
   }
 });
 
 // Admin endpoint - save all data (for bulk operations)
-app.post('/api/data', requireApiKey, (req, res) => {
+app.post('/api/data', writeLimiter, requireApiKeyOrSession, (req, res) => {
   try {
     const dataToSave = req.body;
 
@@ -256,7 +366,7 @@ app.post('/api/data', requireApiKey, (req, res) => {
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error saving data:', error);
+    logger.error('saving data:', error);
     return res.status(500).json({ error: 'Nepodařilo se uložit data' });
   }
 });
@@ -270,6 +380,19 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
     if (!bookingData.name || !bookingData.email || !bookingData.startDate || !bookingData.endDate) {
       return res.status(400).json({ error: 'Chybí povinné údaje' });
     }
+
+    // SECURITY FIX: Validate field lengths
+    const lengthCheck = validateFieldLengths(bookingData);
+    if (!lengthCheck.valid) {
+      return res.status(400).json({ error: lengthCheck.error });
+    }
+
+    // SECURITY FIX: Sanitize text inputs
+    bookingData.name = sanitizeInput(bookingData.name, MAX_LENGTHS.name);
+    bookingData.company = sanitizeInput(bookingData.company, MAX_LENGTHS.company);
+    bookingData.address = sanitizeInput(bookingData.address, MAX_LENGTHS.address);
+    bookingData.city = sanitizeInput(bookingData.city, MAX_LENGTHS.city);
+    bookingData.notes = sanitizeInput(bookingData.notes, MAX_LENGTHS.notes);
 
     // Validate email format using ValidationUtils
     if (!ValidationUtils.validateEmail(bookingData.email)) {
@@ -323,54 +446,95 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
       return res.status(400).json({ error: 'Datum odjezdu musí být po datu příjezdu' });
     }
 
-    // Check availability for each room
-    for (const roomId of bookingData.rooms) {
-      const checkStart = new Date(bookingData.startDate);
-      const current = new Date(checkStart);
-      while (current.getTime() < endDate.getTime()) {
-        const dateStr = formatDate(current);
-        const availability = db.getRoomAvailability(roomId, dateStr);
-        if (!availability.available) {
-          return res.status(400).json({
-            error: `Pokoj ${roomId} není dostupný dne ${dateStr}`,
-          });
-        }
-        current.setDate(current.getDate() + 1);
-      }
+    // P0 FIX: Validate guest counts
+    const totalGuests = (bookingData.adults || 0) + (bookingData.children || 0);
+
+    if (bookingData.adults < 1) {
+      return res.status(400).json({ error: 'Rezervace musí obsahovat alespoň 1 dospělého' });
     }
 
-    // Calculate price
-    const nights = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-    bookingData.totalPrice = calculatePrice(
-      bookingData.rooms,
-      bookingData.guestType,
-      bookingData.adults,
-      bookingData.children || 0,
-      nights
-    );
+    if (bookingData.adults < 0 || bookingData.children < 0 || bookingData.toddlers < 0) {
+      return res.status(400).json({ error: 'Počet hostů nemůže být záporný' });
+    }
 
-    // Generate secure IDs
-    bookingData.id = generateId();
-    bookingData.editToken = generateEditToken();
-    bookingData.createdAt = new Date().toISOString();
-    bookingData.updatedAt = new Date().toISOString();
+    if (totalGuests === 0) {
+      return res.status(400).json({ error: 'Rezervace musí obsahovat alespoň 1 hosta' });
+    }
 
-    // Create the booking
-    db.createBooking(bookingData);
+    // CRITICAL FIX: Wrap availability check + booking creation in transaction
+    // This prevents race conditions where two users book the same room simultaneously
+    const transaction = db.db.transaction(() => {
+      // Check availability for each room INSIDE transaction
+      for (const roomId of bookingData.rooms) {
+        const checkStart = new Date(bookingData.startDate);
+        const current = new Date(checkStart);
+        while (current.getTime() < endDate.getTime()) {
+          const dateStr = formatDate(current);
+          const sessionId = bookingData.sessionId || null;
+          const availability = db.getRoomAvailability(roomId, dateStr, sessionId);
+          if (!availability.available) {
+            console.error('[BOOKING] Availability check failed:', {
+              roomId,
+              date: dateStr,
+              reason: availability.reason,
+              sessionId: sessionId || 'none',
+              existingBooking: availability.booking?.id || 'none',
+              proposalId: availability.proposal?.proposal_id || 'none',
+              timestamp: new Date().toISOString(),
+            });
+            throw new Error(`Pokoj ${roomId} není dostupný dne ${dateStr}`);
+          }
+          current.setDate(current.getDate() + 1);
+        }
+      }
+
+      // Calculate price
+      const nights = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+      bookingData.totalPrice = calculatePrice(
+        bookingData.rooms,
+        bookingData.guestType,
+        bookingData.adults,
+        bookingData.children || 0,
+        nights
+      );
+
+      // Generate secure IDs
+      bookingData.id = generateId();
+      bookingData.editToken = generateEditToken();
+      bookingData.createdAt = new Date().toISOString();
+      bookingData.updatedAt = new Date().toISOString();
+
+      // Create the booking (still locked)
+      db.createBooking(bookingData);
+
+      return bookingData;
+    });
+
+    // Execute transaction atomically
+    const booking = transaction();
 
     return res.json({
       success: true,
-      booking: bookingData,
-      editToken: bookingData.editToken,
+      booking,
+      editToken: booking.editToken,
     });
   } catch (error) {
-    console.error('Error creating booking:', error);
-    return res.status(500).json({ error: 'Nepodařilo se vytvořit rezervaci' });
+    logger.error('creating booking:', error);
+
+    // More specific error messages
+    const errorMessage = error.message.includes('není dostupný')
+      ? error.message
+      : 'Nepodařilo se vytvořit rezervaci';
+
+    // Use 409 Conflict for availability issues, 500 for other errors
+    return res
+      .status(error.message.includes('není dostupný') ? 409 : 500)
+      .json({ error: errorMessage });
   }
 });
 
 // Update booking - requires edit token or API key
-app.put('/api/booking/:id', (req, res) => {
+app.put('/api/booking/:id', writeLimiter, (req, res) => {
   try {
     const bookingId = req.params.id;
     const bookingData = req.body;
@@ -383,13 +547,69 @@ app.put('/api/booking/:id', (req, res) => {
       return res.status(404).json({ error: 'Rezervace nenalezena' });
     }
 
-    // Verify edit token
+    // Verify edit token or session
+    const sessionToken = req.headers['x-session-token'];
+    const isAdmin = sessionToken && db.getAdminSession(sessionToken) !== undefined;
+
     if (!editToken || editToken !== existingBooking.editToken) {
-      // Check if API key is provided for admin access
-      const apiKey = req.headers['x-api-key'];
-      if (!apiKey || apiKey !== process.env.API_KEY) {
+      // Check if user is admin
+      if (!isAdmin) {
         return res.status(403).json({ error: 'Neplatný editační token' });
       }
+    }
+
+    // P1 FIX: Add validation for all fields (same as POST)
+    if (bookingData.email && !ValidationUtils.validateEmail(bookingData.email)) {
+      return res.status(400).json({
+        error: ValidationUtils.getValidationError('email', bookingData.email, 'cs'),
+      });
+    }
+
+    if (bookingData.phone && !ValidationUtils.validatePhone(bookingData.phone)) {
+      return res.status(400).json({
+        error: ValidationUtils.getValidationError('phone', bookingData.phone, 'cs'),
+      });
+    }
+
+    if (bookingData.zip && !ValidationUtils.validateZIP(bookingData.zip)) {
+      return res.status(400).json({
+        error: ValidationUtils.getValidationError('zip', bookingData.zip, 'cs'),
+      });
+    }
+
+    if (bookingData.ico && !ValidationUtils.validateICO(bookingData.ico)) {
+      return res.status(400).json({
+        error: ValidationUtils.getValidationError('ico', bookingData.ico, 'cs'),
+      });
+    }
+
+    if (bookingData.dic && !ValidationUtils.validateDIC(bookingData.dic)) {
+      return res.status(400).json({
+        error: ValidationUtils.getValidationError('dic', bookingData.dic, 'cs'),
+      });
+    }
+
+    // Validate field lengths
+    const lengthCheck = validateFieldLengths(bookingData);
+    if (!lengthCheck.valid) {
+      return res.status(400).json({ error: lengthCheck.error });
+    }
+
+    // Sanitize text inputs
+    if (bookingData.name) {
+      bookingData.name = sanitizeInput(bookingData.name, MAX_LENGTHS.name);
+    }
+    if (bookingData.company) {
+      bookingData.company = sanitizeInput(bookingData.company, MAX_LENGTHS.company);
+    }
+    if (bookingData.address) {
+      bookingData.address = sanitizeInput(bookingData.address, MAX_LENGTHS.address);
+    }
+    if (bookingData.city) {
+      bookingData.city = sanitizeInput(bookingData.city, MAX_LENGTHS.city);
+    }
+    if (bookingData.notes) {
+      bookingData.notes = sanitizeInput(bookingData.notes, MAX_LENGTHS.notes);
     }
 
     // Validate dates
@@ -422,7 +642,7 @@ app.put('/api/booking/:id', (req, res) => {
     );
 
     if (conflictCheck.hasConflict) {
-      return res.status(400).json({
+      return res.status(409).json({
         error: `Pokoj ${conflictCheck.roomId} je již rezervován v tomto termínu`,
       });
     }
@@ -446,13 +666,13 @@ app.put('/api/booking/:id', (req, res) => {
       booking: updatedBooking,
     });
   } catch (error) {
-    console.error('Error updating booking:', error);
+    logger.error('updating booking:', error);
     return res.status(500).json({ error: 'Nepodařilo se aktualizovat rezervaci' });
   }
 });
 
 // Delete booking - requires API key or edit token
-app.delete('/api/booking/:id', (req, res) => {
+app.delete('/api/booking/:id', writeLimiter, (req, res) => {
   try {
     const bookingId = req.params.id;
     const editToken = req.headers['x-edit-token'];
@@ -477,13 +697,26 @@ app.delete('/api/booking/:id', (req, res) => {
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting booking:', error);
+    logger.error('deleting booking:', error);
     return res.status(500).json({ error: 'Nepodařilo se smazat rezervaci' });
   }
 });
 
+// SECURITY FIX: Use database-backed session storage instead of in-memory Map
+// This ensures sessions persist across server restarts
+// Cleanup expired sessions every 5 minutes
+setInterval(
+  () => {
+    const deletedCount = db.deleteExpiredAdminSessions();
+    if (deletedCount > 0) {
+      logger.info(`🗑️  Cleaned up ${deletedCount} expired admin session(s)`);
+    }
+  },
+  5 * 60 * 1000
+);
+
 // Admin login endpoint
-app.post('/api/admin/login', async (req, res) => {
+app.post('/api/admin/login', adminLoginLimiter, async (req, res) => {
   try {
     const { password } = req.body;
 
@@ -494,35 +727,84 @@ app.post('/api/admin/login', async (req, res) => {
     const settings = db.getSettings();
     const adminPassword = settings.adminPassword || process.env.ADMIN_PASSWORD || 'admin123';
 
-    // For backward compatibility, check both plain and hashed passwords
+    // SECURITY FIX: Force bcrypt-only authentication
     let isValid = false;
 
-    if (adminPassword === password) {
-      // Plain password match (for backward compatibility)
-      isValid = true;
-    } else if (adminPassword.startsWith('$2')) {
-      // Looks like a bcrypt hash
+    if (adminPassword.startsWith('$2')) {
+      // Bcrypt hash
       isValid = await bcrypt.compare(password, adminPassword);
+    } else {
+      // Plaintext password detected - migrate to bcrypt
+      logger.warn('⚠️  Plaintext admin password detected - migrating to bcrypt');
+      if (adminPassword === password) {
+        isValid = true;
+        // Auto-migrate to bcrypt hash
+        const hashedPassword = await bcrypt.hash(adminPassword, 10);
+        db.setSetting('adminPassword', hashedPassword);
+        logger.info('✅ Admin password migrated to bcrypt hash');
+      }
     }
 
     if (isValid) {
-      // Generate session token
+      // SECURITY FIX: Generate session token instead of exposing API key
       const sessionToken = generateSecureToken();
+      const expiresAt = new Date(Date.now() + SESSION_TIMEOUT).toISOString();
+      const userAgent = req.get('user-agent');
+      const ipAddress = req.ip || req.connection.remoteAddress;
+
+      // Store session in database for persistence
+      db.createAdminSession(sessionToken, expiresAt, userAgent, ipAddress);
+
       return res.json({
         success: true,
         sessionToken,
-        apiKey: process.env.API_KEY, // Send API key for admin operations
+        expiresAt,
+        // SECURITY FIX: DO NOT send API key to client!
       });
     }
     return res.status(401).json({ error: 'Nesprávné heslo' });
   } catch (error) {
-    console.error('Error during admin login:', error);
+    logger.error('during admin login:', error);
     return res.status(500).json({ error: 'Chyba při přihlašování' });
   }
 });
 
-// Update admin password - requires API key
-app.post('/api/admin/update-password', requireApiKey, async (req, res) => {
+// Session refresh endpoint - extend session expiry
+app.post('/api/admin/refresh-session', requireSession, (req, res) => {
+  try {
+    const session = db.getAdminSession(req.sessionToken);
+
+    if (session) {
+      // Extend expiration
+      const newExpiresAt = new Date(Date.now() + SESSION_TIMEOUT).toISOString();
+      db.updateAdminSessionActivity(req.sessionToken, newExpiresAt);
+
+      return res.json({
+        success: true,
+        expiresAt: newExpiresAt,
+      });
+    }
+
+    return res.status(401).json({ error: 'Session not found' });
+  } catch (error) {
+    logger.error('refreshing session:', error);
+    return res.status(500).json({ error: 'Chyba při obnovení session' });
+  }
+});
+
+// Admin logout endpoint
+app.post('/api/admin/logout', requireSession, (req, res) => {
+  try {
+    db.deleteAdminSession(req.sessionToken);
+    return res.json({ success: true });
+  } catch (error) {
+    logger.error('during logout:', error);
+    return res.status(500).json({ error: 'Chyba při odhlašování' });
+  }
+});
+
+// Update admin password - requires session
+app.post('/api/admin/update-password', requireSession, async (req, res) => {
   try {
     const { newPassword } = req.body;
 
@@ -536,13 +818,67 @@ app.post('/api/admin/update-password', requireApiKey, async (req, res) => {
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error updating password:', error);
+    logger.error('updating password:', error);
     return res.status(500).json({ error: 'Nepodařilo se aktualizovat heslo' });
   }
 });
 
+// Input sanitization function - Defense-in-depth HTML escaping
+function sanitizeInput(str, maxLength = 255) {
+  if (!str) {
+    return str;
+  }
+  return String(str)
+    .replace(/&/g, '&amp;') // Must be first - escape ampersands
+    .replace(/</g, '&lt;') // Escape less-than
+    .replace(/>/g, '&gt;') // Escape greater-than
+    .replace(/"/g, '&quot;') // Escape double quotes
+    .replace(/'/g, '&#x27;') // Escape single quotes
+    .replace(/\//g, '&#x2F;') // Escape forward slash
+    .slice(0, maxLength);
+}
+
+// Helper to escape HTML for safe innerHTML usage
+function escapeHtml(unsafe) {
+  if (!unsafe) {
+    return '';
+  }
+  return String(unsafe)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// Max length validation
+const MAX_LENGTHS = {
+  name: 100,
+  email: 254,
+  phone: 20,
+  company: 100,
+  address: 200,
+  city: 100,
+  zip: 10,
+  ico: 10,
+  dic: 12,
+  notes: 1000,
+};
+
+function validateFieldLengths(data) {
+  for (const [field, maxLen] of Object.entries(MAX_LENGTHS)) {
+    if (data[field] && data[field].length > maxLen) {
+      return {
+        valid: false,
+        error: `Pole ${field} je příliš dlouhé (max ${maxLen} znaků)`,
+      };
+    }
+  }
+  return { valid: true };
+}
+
 // Protected admin endpoint - update settings
-app.post('/api/admin/settings', requireApiKey, async (req, res) => {
+app.post('/api/admin/settings', requireSession, async (req, res) => {
   try {
     const settings = req.body;
 
@@ -556,13 +892,81 @@ app.post('/api/admin/settings', requireApiKey, async (req, res) => {
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error updating settings:', error);
+    logger.error('updating settings:', error);
     return res.status(500).json({ error: 'Chyba při ukládání nastavení' });
   }
 });
 
-// Protected admin endpoint - block dates
-app.post('/api/admin/block-dates', requireApiKey, (req, res) => {
+// New blockage instance API endpoints
+app.post('/api/blockage', requireApiKeyOrSession, (req, res) => {
+  try {
+    const { blockageId, startDate, endDate, rooms, reason, createdAt } = req.body;
+
+    if (!blockageId || !startDate || !endDate) {
+      return res
+        .status(400)
+        .json({ error: 'Chybí povinné údaje (blockageId, startDate, endDate)' });
+    }
+
+    // FIX: Admin can create blockages in the past
+    // Check if request has valid session (admin) or API key
+    const isAdmin = !!(req.session || req.sessionToken);
+
+    // Validate date format (skip past date check for admin)
+    const dateValidation = BookingLogic.validateDateRange(startDate, endDate, isAdmin);
+    if (!dateValidation.valid) {
+      return res.status(400).json({
+        error: dateValidation.error || 'Neplatný formát data nebo konec je před začátkem',
+      });
+    }
+
+    const blockageData = {
+      blockageId,
+      startDate,
+      endDate,
+      rooms: rooms || [], // Empty = all rooms
+      reason: reason || '',
+      createdAt: createdAt || new Date().toISOString(),
+    };
+
+    db.createBlockageInstance(blockageData);
+
+    return res.json({ success: true, blockageId });
+  } catch (error) {
+    logger.error('creating blockage:', error);
+    return res.status(500).json({ error: 'Chyba při vytváření blokace' });
+  }
+});
+
+app.delete('/api/blockage/:blockageId', requireApiKeyOrSession, (req, res) => {
+  try {
+    const { blockageId } = req.params;
+
+    if (!blockageId) {
+      return res.status(400).json({ error: 'Chybí blockageId' });
+    }
+
+    db.deleteBlockageInstance(blockageId);
+
+    return res.json({ success: true });
+  } catch (error) {
+    logger.error('deleting blockage:', error);
+    return res.status(500).json({ error: 'Chyba při mazání blokace' });
+  }
+});
+
+app.get('/api/blockages', readLimiter, (req, res) => {
+  try {
+    const blockages = db.getAllBlockageInstances();
+    return res.json(blockages);
+  } catch (error) {
+    logger.error('fetching blockages:', error);
+    return res.status(500).json({ error: 'Chyba při načítání blokací' });
+  }
+});
+
+// Legacy admin endpoints for backward compatibility
+app.post('/api/admin/block-dates', requireApiKeyOrSession, (req, res) => {
   try {
     const { startDate, endDate, rooms, reason } = req.body;
 
@@ -570,61 +974,50 @@ app.post('/api/admin/block-dates', requireApiKey, (req, res) => {
       return res.status(400).json({ error: 'Chybí povinné údaje' });
     }
 
-    const blocked = [];
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const current = new Date(start);
+    const blockageId = `BLK${Math.random().toString(36).slice(2, 11).toUpperCase()}`;
+    const blockageData = {
+      blockageId,
+      startDate,
+      endDate,
+      rooms,
+      reason: reason || '',
+      createdAt: new Date().toISOString(),
+    };
 
-    while (current.getTime() <= end.getTime()) {
-      const dateStr = formatDate(current);
-      for (const roomId of rooms) {
-        const blockageId = `BLK${Math.random().toString(36).slice(2, 11).toUpperCase()}`;
-        const blockedDate = {
-          blockageId,
-          date: dateStr,
-          roomId,
-          reason: reason || null,
-          blockedAt: new Date().toISOString(),
-        };
-        db.createBlockedDate(blockedDate);
-        blocked.push(blockedDate);
-      }
-      current.setDate(current.getDate() + 1);
-    }
+    db.createBlockageInstance(blockageData);
 
-    return res.json({ success: true, blocked });
+    return res.json({ success: true, blockageId });
   } catch (error) {
-    console.error('Error blocking dates:', error);
+    logger.error('blocking dates:', error);
     return res.status(500).json({ error: 'Chyba při blokování dat' });
   }
 });
 
-// Protected admin endpoint - unblock dates
-app.delete('/api/admin/block-dates/:blockageId', requireApiKey, (req, res) => {
+app.delete('/api/admin/block-dates/:blockageId', requireApiKeyOrSession, (req, res) => {
   try {
     const { blockageId } = req.params;
 
-    db.deleteBlockedDate(blockageId);
+    db.deleteBlockageInstance(blockageId);
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error unblocking dates:', error);
+    logger.error('unblocking dates:', error);
     return res.status(500).json({ error: 'Chyba při odblokování dat' });
   }
 });
 
 // Christmas periods API endpoints
-app.get('/api/admin/christmas-periods', (req, res) => {
+app.get('/api/admin/christmas-periods', readLimiter, (req, res) => {
   try {
     const periods = db.getAllChristmasPeriods();
     return res.json({ success: true, periods });
   } catch (error) {
-    console.error('Error fetching Christmas periods:', error);
+    logger.error('fetching Christmas periods:', error);
     return res.status(500).json({ error: 'Chyba při načítání vánočních období' });
   }
 });
 
-app.post('/api/admin/christmas-periods', requireApiKey, (req, res) => {
+app.post('/api/admin/christmas-periods', requireApiKeyOrSession, (req, res) => {
   try {
     const { name, startDate, endDate } = req.body;
 
@@ -642,12 +1035,12 @@ app.post('/api/admin/christmas-periods', requireApiKey, (req, res) => {
     db.createChristmasPeriod(periodData);
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error creating Christmas period:', error);
+    logger.error('creating Christmas period:', error);
     return res.status(500).json({ error: 'Chyba při vytváření vánočního období' });
   }
 });
 
-app.put('/api/admin/christmas-periods/:periodId', requireApiKey, (req, res) => {
+app.put('/api/admin/christmas-periods/:periodId', requireApiKeyOrSession, (req, res) => {
   try {
     const { periodId } = req.params;
     const { name, startDate, endDate } = req.body;
@@ -662,12 +1055,12 @@ app.put('/api/admin/christmas-periods/:periodId', requireApiKey, (req, res) => {
     db.updateChristmasPeriod(periodId, periodData);
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error updating Christmas period:', error);
+    logger.error('updating Christmas period:', error);
     return res.status(500).json({ error: 'Chyba při aktualizaci vánočního období' });
   }
 });
 
-app.delete('/api/admin/christmas-periods/:periodId', requireApiKey, (req, res) => {
+app.delete('/api/admin/christmas-periods/:periodId', requireApiKeyOrSession, (req, res) => {
   try {
     const { periodId } = req.params;
 
@@ -675,7 +1068,7 @@ app.delete('/api/admin/christmas-periods/:periodId', requireApiKey, (req, res) =
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting Christmas period:', error);
+    logger.error('deleting Christmas period:', error);
     return res.status(500).json({ error: 'Chyba při mazání vánočního období' });
   }
 });
@@ -697,38 +1090,57 @@ app.post('/api/proposed-booking', (req, res) => {
 
     return res.json({ success: true, proposalId });
   } catch (error) {
-    console.error('Error creating proposed booking:', error);
+    logger.error('creating proposed booking:', error);
     return res.status(500).json({ error: 'Chyba při vytváření navrhované rezervace' });
   }
 });
 
-app.get('/api/proposed-bookings', (req, res) => {
+app.get('/api/proposed-bookings', readLimiter, (req, res) => {
   try {
     const proposedBookings = db.getActiveProposedBookings();
     return res.json(proposedBookings);
   } catch (error) {
-    console.error('Error getting proposed bookings:', error);
+    logger.error('getting proposed bookings:', error);
     return res.status(500).json({ error: 'Chyba při načítání navrhovaných rezervací' });
   }
 });
 
-app.post('/api/proposed-bookings', (req, res) => {
+app.get('/api/proposed-bookings/session/:sessionId', readLimiter, (req, res) => {
   try {
-    const { sessionId, startDate, endDate, rooms } = req.body;
+    const { sessionId } = req.params;
+    const proposedBookings = db.getProposedBookingsBySession(sessionId);
+    return res.json(proposedBookings);
+  } catch (error) {
+    logger.error('getting proposed bookings by session:', error);
+    return res.status(500).json({ error: 'Chyba při načítání navrhovaných rezervací' });
+  }
+});
+
+app.post('/api/proposed-bookings', writeLimiter, (req, res) => {
+  try {
+    const { sessionId, startDate, endDate, rooms, guests, guestType, totalPrice } = req.body;
 
     if (!sessionId || !startDate || !endDate || !rooms) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const proposalId = db.createProposedBooking(sessionId, startDate, endDate, rooms);
+    const proposalId = db.createProposedBooking(
+      sessionId,
+      startDate,
+      endDate,
+      rooms,
+      guests || {},
+      guestType || 'external',
+      totalPrice || 0
+    );
     return res.json({ success: true, proposalId });
   } catch (error) {
-    console.error('Error creating proposed booking:', error);
+    logger.error('creating proposed booking:', error);
     return res.status(500).json({ error: 'Chyba při vytváření navrhované rezervace' });
   }
 });
 
-app.delete('/api/proposed-booking/:proposalId', (req, res) => {
+app.delete('/api/proposed-booking/:proposalId', writeLimiter, (req, res) => {
   try {
     const { proposalId } = req.params;
 
@@ -736,12 +1148,12 @@ app.delete('/api/proposed-booking/:proposalId', (req, res) => {
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting proposed booking:', error);
+    logger.error('deleting proposed booking:', error);
     return res.status(500).json({ error: 'Chyba při mazání navrhované rezervace' });
   }
 });
 
-app.delete('/api/proposed-bookings/session/:sessionId', (req, res) => {
+app.delete('/api/proposed-bookings/session/:sessionId', writeLimiter, (req, res) => {
   try {
     const { sessionId } = req.params;
 
@@ -749,7 +1161,7 @@ app.delete('/api/proposed-bookings/session/:sessionId', (req, res) => {
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting proposed bookings by session:', error);
+    logger.error('deleting proposed bookings by session:', error);
     return res.status(500).json({ error: 'Chyba při mazání navrhovaných rezervací' });
   }
 });
@@ -759,17 +1171,17 @@ setInterval(() => {
   try {
     const result = db.deleteExpiredProposedBookings();
     if (result.changes > 0) {
-      console.info(`Cleaned up ${result.changes} expired proposed bookings`);
+      logger.info(`Cleaned up ${result.changes} expired proposed bookings`);
     }
   } catch (error) {
-    console.error('Error cleaning up expired proposed bookings:', error);
+    logger.error('cleaning up expired proposed bookings:', error);
   }
 }, 60000); // Run every minute
 
 // Error handling middleware
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  logger.logError(err, { url: req.url, method: req.method });
   res.status(500).json({
     error: 'Něco se pokazilo!',
     message: process.env.NODE_ENV === 'development' ? err.message : undefined,
@@ -778,11 +1190,11 @@ app.use((err, req, res, next) => {
 
 // Start server
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.info(`Server běží na http://localhost:${PORT}`);
-  console.info(`Prostředí: ${process.env.NODE_ENV || 'development'}`);
-  console.info('Database: SQLite (bookings.db)');
+  logger.info(`Server běží na http://localhost:${PORT}`);
+  logger.info(`Prostředí: ${process.env.NODE_ENV || 'development'}`);
+  logger.info('Database: SQLite (bookings.db)');
   if (process.env.NODE_ENV !== 'production') {
-    console.warn(
+    logger.warn(
       '⚠️  VAROVÁNÍ: Server běží v development módu. Pro produkci nastavte NODE_ENV=production'
     );
   }
@@ -790,9 +1202,9 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.info('SIGTERM signal received: closing HTTP server');
+  logger.info('SIGTERM signal received: closing HTTP server');
   server.close(() => {
-    console.info('HTTP server closed');
+    logger.info('HTTP server closed');
     db.close();
     process.exit(0);
   });

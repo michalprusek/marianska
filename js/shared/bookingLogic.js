@@ -59,27 +59,37 @@ class BookingLogic {
 
   /**
    * Format date to YYYY-MM-DD string
-   *
+   * @deprecated Use DateUtils.formatDate() instead
    * @param {Date|string} date - Date to format
    * @returns {string} - Formatted date string
    */
   static formatDate(date) {
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return d.toISOString().split('T')[0];
+    // Delegate to DateUtils for SSOT
+    if (typeof DateUtils === 'undefined') {
+      return new Date(typeof date === 'string' ? date : date).toISOString().split('T')[0];
+    }
+    return DateUtils.formatDate(date);
   }
 
   /**
    * Calculate number of nights between two dates
-   *
+   * @deprecated Use DateUtils.getDaysBetween() instead
    * @param {string|Date} startDate - Check-in date
    * @param {string|Date} endDate - Check-out date
    * @returns {number} - Number of nights
    */
   static calculateNights(startDate, endDate) {
-    const start = typeof startDate === 'string' ? new Date(startDate) : startDate;
-    const end = typeof endDate === 'string' ? new Date(endDate) : endDate;
-    const diffTime = Math.abs(end - start);
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    // Delegate to DateUtils for SSOT
+    if (typeof DateUtils === 'undefined') {
+      return Math.ceil(
+        Math.abs(
+          (typeof endDate === 'string' ? new Date(endDate) : endDate) -
+            (typeof startDate === 'string' ? new Date(startDate) : startDate)
+        ) /
+          (1000 * 60 * 60 * 24)
+      );
+    }
+    return DateUtils.getDaysBetween(startDate, endDate);
   }
 
   /**
@@ -87,11 +97,39 @@ class BookingLogic {
    *
    * @param {string|Date} startDate - Check-in date
    * @param {string|Date} endDate - Check-out date
+   * @param {boolean} [isAdmin=false] - Skip past date validation for admin
    * @returns {{valid: boolean, error: string|null}} - Validation result
    */
-  static validateDateRange(startDate, endDate) {
+  static validateDateRange(startDate, endDate, isAdmin = false) {
     const start = typeof startDate === 'string' ? new Date(startDate) : startDate;
     const end = typeof endDate === 'string' ? new Date(endDate) : endDate;
+
+    // P1 FIX: Validate dates are not invalid
+    if (isNaN(start.getTime())) {
+      return {
+        valid: false,
+        error: 'Neplatný formát data příjezdu',
+      };
+    }
+
+    if (isNaN(end.getTime())) {
+      return {
+        valid: false,
+        error: 'Neplatný formát data odjezdu',
+      };
+    }
+
+    // P1 FIX: Check for past dates (skip for admin)
+    if (!isAdmin) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (start < today) {
+        return {
+          valid: false,
+          error: 'Nelze rezervovat v minulosti',
+        };
+      }
+    }
 
     if (start >= end) {
       return {

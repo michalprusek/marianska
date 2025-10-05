@@ -1,5 +1,11 @@
 // Admin panel logic
 class AdminPanel {
+  // Session timeout constants
+  static SESSION_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours
+  static SESSION_WARNING_TIME = 10 * 60 * 1000; // 10 minutes before expiry
+  static ACTIVITY_DEBOUNCE_TIME = 1000; // 1 second
+  static SESSION_REFRESH_INTERVAL = 5 * 60 * 1000; // Refresh every 5 minutes on activity
+
   constructor() {
     this.isAuthenticated = false;
     this.refreshInterval = null;
@@ -11,6 +17,19 @@ class AdminPanel {
     this.editCurrentYear = new Date().getFullYear();
     this.currentEditBooking = null;
     this.init();
+  }
+
+  // Defense-in-depth: HTML escaping helper
+  escapeHtml(unsafe) {
+    if (!unsafe) {
+      return '';
+    }
+    return String(unsafe)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   // Helper function to create styled room badges
@@ -100,9 +119,18 @@ class AdminPanel {
   }
 
   async checkAuthentication() {
-    const authToken = sessionStorage.getItem('adminAuth');
-    if (authToken === 'authenticated') {
-      await this.showAdminPanel();
+    // SECURITY FIX: Check session token with expiry
+    const sessionToken = sessionStorage.getItem('adminSessionToken');
+    const sessionExpiry = sessionStorage.getItem('adminSessionExpiry');
+
+    if (sessionToken && sessionExpiry) {
+      if (new Date().getTime() < parseInt(sessionExpiry)) {
+        await this.showAdminPanel();
+        this.setupSessionRefresh(); // Auto-refresh on activity
+      } else {
+        this.logout(); // Auto-logout on expiry
+        this.showErrorMessage('Session vypršela - přihlaste se znovu');
+      }
     }
   }
 
@@ -110,20 +138,202 @@ class AdminPanel {
     e.preventDefault();
     const password = document.getElementById('password').value;
 
-    if (await dataManager.authenticateAdmin(password)) {
-      sessionStorage.setItem('adminAuth', 'authenticated');
+    const loginResult = await dataManager.authenticateAdmin(password);
+    if (loginResult && loginResult.success) {
+      // SECURITY FIX: Store session token and expiry
+      sessionStorage.setItem('adminSessionToken', loginResult.sessionToken);
+      sessionStorage.setItem('adminSessionExpiry', loginResult.expiresAt);
       await this.showAdminPanel();
+      this.setupSessionRefresh();
     } else {
       this.showErrorMessage('Nesprávné heslo');
     }
   }
 
+  setupSessionRefresh() {
+    // Clear existing timers
+    if (this.sessionTimeout) {
+      clearTimeout(this.sessionTimeout);
+    }
+    if (this.sessionWarning) {
+      clearTimeout(this.sessionWarning);
+    }
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+    }
+
+    // Track last refresh time to prevent excessive API calls
+    this.lastRefreshTime = Date.now();
+
+    // Auto-logout timer
+    this.sessionTimeout = setTimeout(() => {
+      this.logout();
+      this.showErrorMessage('Session vypršela z důvodu nečinnosti');
+    }, AdminPanel.SESSION_TIMEOUT);
+
+    // Warning timer (10 min before expiry)
+    this.sessionWarning = setTimeout(() => {
+      this.showWarningMessage(
+        'Session vyprší za 10 minut. Obnovte ji aktivitou nebo se znovu přihlaste.'
+      );
+    }, AdminPanel.SESSION_TIMEOUT - AdminPanel.SESSION_WARNING_TIME);
+
+    // Refresh session on user activity (throttled to prevent excessive API calls)
+    const activityHandler = () => {
+      const now = Date.now();
+      const timeSinceLastRefresh = now - this.lastRefreshTime;
+
+      // Only refresh if 5 minutes have passed since last refresh
+      if (timeSinceLastRefresh < AdminPanel.SESSION_REFRESH_INTERVAL) {
+        return;
+      }
+
+      this.lastRefreshTime = now;
+
+      // Reset client-side timers
+      clearTimeout(this.sessionTimeout);
+      clearTimeout(this.sessionWarning);
+
+      // Restart timers
+      this.sessionTimeout = setTimeout(() => {
+        this.logout();
+        this.showErrorMessage('Session vypršela z důvodu nečinnosti');
+      }, AdminPanel.SESSION_TIMEOUT);
+
+      this.sessionWarning = setTimeout(() => {
+        this.showWarningMessage(
+          'Session vyprší za 10 minut. Obnovte ji aktivitou nebo se znovu přihlaste.'
+        );
+      }, AdminPanel.SESSION_TIMEOUT - AdminPanel.SESSION_WARNING_TIME);
+
+      // Call refresh endpoint to extend server-side session
+      const sessionToken = sessionStorage.getItem('adminSessionToken');
+      if (!sessionToken) {
+        return;
+      }
+
+      fetch('/api/admin/refresh-session', {
+        method: 'POST',
+        headers: {
+          'x-session-token': sessionToken,
+        },
+      })
+        .then((res) => {
+          if (res.status === 401) {
+            // Session expired on server - trigger logout
+            this.logout();
+            this.showErrorMessage('Session vypršela - přihlaste se prosím znovu');
+            return null;
+          }
+          if (!res.ok) {
+            console.error('Session refresh failed:', res.status);
+            return null;
+          }
+          return res.json();
+        })
+        .then((data) => {
+          if (data && data.success) {
+            sessionStorage.setItem('adminSessionExpiry', data.expiresAt);
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to refresh session:', err);
+        });
+    };
+
+    // Reset timer on user activity (debounced)
+    let activityDebounce;
+    const debouncedActivity = () => {
+      clearTimeout(activityDebounce);
+      activityDebounce = setTimeout(activityHandler, AdminPanel.ACTIVITY_DEBOUNCE_TIME);
+    };
+
+    // Listen to user activity events
+    ['click', 'keypress', 'mousemove', 'scroll'].forEach((event) => {
+      document.addEventListener(event, debouncedActivity);
+    });
+
+    // Store cleanup function
+    this.cleanupSessionListeners = () => {
+      ['click', 'keypress', 'mousemove', 'scroll'].forEach((event) => {
+        document.removeEventListener(event, debouncedActivity);
+      });
+    };
+  }
+
   logout() {
-    sessionStorage.removeItem('adminAuth');
+    // Cleanup session refresh listeners
+    if (this.cleanupSessionListeners) {
+      this.cleanupSessionListeners();
+    }
+
+    // Clear timers
+    if (this.sessionTimeout) {
+      clearTimeout(this.sessionTimeout);
+    }
+    if (this.sessionWarning) {
+      clearTimeout(this.sessionWarning);
+    }
+
+    // Call logout endpoint
+    const sessionToken = sessionStorage.getItem('adminSessionToken');
+    if (sessionToken) {
+      fetch('/api/admin/logout', {
+        method: 'POST',
+        headers: {
+          'x-session-token': sessionToken,
+        },
+      }).catch((err) => console.error('Logout error:', err));
+    }
+
+    // Clear session storage
+    sessionStorage.removeItem('adminSessionToken');
+    sessionStorage.removeItem('adminSessionExpiry');
+    sessionStorage.removeItem('adminAuth'); // Old auth token
+
+    // Update UI
     document.getElementById('loginContainer').style.display = 'block';
     document.getElementById('adminContent').style.display = 'none';
     document.getElementById('logoutBtn').style.display = 'none';
     document.getElementById('password').value = '';
+  }
+
+  /**
+   * Check if admin session is still valid
+   * @returns {boolean} True if session is valid
+   */
+  isSessionValid() {
+    const sessionToken = sessionStorage.getItem('adminSessionToken');
+    const sessionExpiry = sessionStorage.getItem('adminSessionExpiry');
+
+    if (!sessionToken || !sessionExpiry) {
+      return false;
+    }
+
+    const expiryTime = parseInt(sessionExpiry, 10);
+    const now = Date.now();
+
+    // Session expired
+    if (expiryTime < now) {
+      console.warn('[AdminPanel] Session expired at', new Date(expiryTime));
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Validate session before admin operation
+   * If session invalid, logout and show error
+   * @returns {boolean} True if session is valid
+   */
+  async validateSession() {
+    if (!this.isSessionValid()) {
+      this.showToast('Vaše session vypršela. Přihlaste se prosím znovu.', 'error');
+      this.logout();
+      return false;
+    }
+    return true;
   }
 
   async showAdminPanel() {
@@ -208,10 +418,10 @@ class AdminPanel {
     bookings.forEach((booking) => {
       const row = document.createElement('tr');
       row.innerHTML = `
-                <td>${booking.id}</td>
-                <td>${booking.name}</td>
-                <td>${booking.email}</td>
-                <td>${booking.phone}</td>
+                <td>${this.escapeHtml(booking.id)}</td>
+                <td>${this.escapeHtml(booking.name)}</td>
+                <td>${this.escapeHtml(booking.email)}</td>
+                <td>${this.escapeHtml(booking.phone)}</td>
                 <td>${new Date(booking.startDate).toLocaleDateString('cs-CZ')} -
                     ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}</td>
                 <td>${booking.rooms.map((roomId) => this.createRoomBadge(roomId, true)).join('')}</td>
@@ -278,33 +488,33 @@ class AdminPanel {
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
                         <div>
                             <strong style="color: var(--gray-600); font-size: 0.9rem;">Jméno a příjmení:</strong>
-                            <div style="margin-top: 0.25rem;">${booking.name}</div>
+                            <div style="margin-top: 0.25rem;">${this.escapeHtml(booking.name)}</div>
                         </div>
                         <div>
                             <strong style="color: var(--gray-600); font-size: 0.9rem;">Email:</strong>
-                            <div style="margin-top: 0.25rem;">${booking.email}</div>
+                            <div style="margin-top: 0.25rem;">${this.escapeHtml(booking.email)}</div>
                         </div>
                         <div>
                             <strong style="color: var(--gray-600); font-size: 0.9rem;">Telefon:</strong>
-                            <div style="margin-top: 0.25rem;">${booking.phone}</div>
+                            <div style="margin-top: 0.25rem;">${this.escapeHtml(booking.phone)}</div>
                         </div>
                         <div>
                             <strong style="color: var(--gray-600); font-size: 0.9rem;">Firma:</strong>
-                            <div style="margin-top: 0.25rem;">${booking.company || '-'}</div>
+                            <div style="margin-top: 0.25rem;">${this.escapeHtml(booking.company) || '-'}</div>
                         </div>
                         <div>
                             <strong style="color: var(--gray-600); font-size: 0.9rem;">IČO:</strong>
-                            <div style="margin-top: 0.25rem;">${booking.ico || '-'}</div>
+                            <div style="margin-top: 0.25rem;">${this.escapeHtml(booking.ico) || '-'}</div>
                         </div>
                         <div>
                             <strong style="color: var(--gray-600); font-size: 0.9rem;">DIČ:</strong>
-                            <div style="margin-top: 0.25rem;">${booking.dic || '-'}</div>
+                            <div style="margin-top: 0.25rem;">${this.escapeHtml(booking.dic) || '-'}</div>
                         </div>
                     </div>
 
                     <div>
                         <strong style="color: var(--gray-600); font-size: 0.9rem;">Adresa:</strong>
-                        <div style="margin-top: 0.25rem;">${booking.address}, ${booking.city} ${booking.zip}</div>
+                        <div style="margin-top: 0.25rem;">${this.escapeHtml(booking.address)}, ${this.escapeHtml(booking.city)} ${this.escapeHtml(booking.zip)}</div>
                     </div>
 
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
@@ -365,8 +575,8 @@ class AdminPanel {
                         ? `
                         <div>
                             <strong style="color: var(--gray-600); font-size: 0.9rem;">Poznámky:</strong>
-                            <div style="margin-top: 0.25rem; padding: 0.75rem; background: var(--gray-50); border-radius: var(--radius-sm);">
-                                ${booking.notes}
+                            <div style="margin-top: 0.25rem; padding: 0.75rem; background: var(--gray-50); border-radius: var(--radius-sm); white-space: pre-wrap;">
+                                ${this.escapeHtml(booking.notes)}
                             </div>
                         </div>
                     `
@@ -462,41 +672,97 @@ class AdminPanel {
   async handleEditBooking(e) {
     e.preventDefault();
 
-    const bookingId = document.getElementById('editBookingId').value;
+    // FIX: Validate session before admin operation
+    if (!(await this.validateSession())) {
+      return;
+    }
 
-    // Get selected guest type
-    const guestType =
-      document.querySelector('input[name="editGuestType"]:checked')?.value || 'external';
+    try {
+      const bookingId = document.getElementById('editBookingId').value;
 
-    // Calculate price based on new selections
-    const totalPrice = await this.calculateEditPrice();
+      // Validate date selection exists
+      if (!this.editStartDate || !this.editEndDate) {
+        this.showErrorMessage('Vyberte prosím termín rezervace');
+        return;
+      }
 
-    const updates = {
-      name: document.getElementById('editName').value,
-      email: document.getElementById('editEmail').value,
-      phone: document.getElementById('editPhone').value,
-      company: document.getElementById('editCompany').value,
-      startDate: this.editStartDate,
-      endDate: this.editEndDate,
-      rooms: Array.from(this.editSelectedRooms),
-      adults: parseInt(document.getElementById('editAdults').value, 10),
-      children: parseInt(document.getElementById('editChildren').value, 10),
-      toddlers: parseInt(document.getElementById('editToddlers').value, 10),
-      guestType,
-      totalPrice,
-      address: document.getElementById('editAddress').value,
-      city: document.getElementById('editCity').value,
-      zip: document.getElementById('editZip').value,
-      ico: document.getElementById('editIco').value,
-      dic: document.getElementById('editDic').value,
-      notes: document.getElementById('editNotes').value,
-      payFromBenefit: document.getElementById('editPayFromBenefit').checked,
-    };
+      // Validate minimum 2 days (1 night)
+      const startDateObj = new Date(this.editStartDate);
+      const endDateObj = new Date(this.editEndDate);
+      const daysDiff = Math.ceil((endDateObj - startDateObj) / (1000 * 60 * 60 * 24));
 
-    await dataManager.updateBooking(bookingId, updates);
-    document.getElementById('editBookingModal').classList.remove('active');
-    await this.loadBookings();
-    this.showSuccessMessage('Rezervace byla úspěšně upravena');
+      if (daysDiff < 1) {
+        this.showErrorMessage('Minimální rezervace je na 1 noc (2 dny)');
+        return;
+      }
+
+      // Validate at least one room is selected
+      if (!this.editSelectedRooms || this.editSelectedRooms.size === 0) {
+        this.showErrorMessage('Vyberte prosím alespoň jeden pokoj');
+        return;
+      }
+
+      // Validate no blocked dates in selection
+      const dateArray = [];
+      const currentDate = new Date(this.editStartDate);
+      const endDate = new Date(this.editEndDate);
+
+      while (currentDate <= endDate) {
+        dateArray.push(new Date(currentDate));
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      for (const date of dateArray) {
+        for (const roomId of this.editSelectedRooms) {
+          const availability = await dataManager.getRoomAvailability(date, roomId);
+
+          if (availability.status === 'blocked') {
+            const dateStr = date.toISOString().split('T')[0];
+            this.showErrorMessage(
+              `Pokoj ${roomId} je blokován dne ${dateStr}. Upravte termín nebo vyberte jiný pokoj.`
+            );
+            return;
+          }
+        }
+      }
+
+      // Get selected guest type
+      const guestType =
+        document.querySelector('input[name="editGuestType"]:checked')?.value || 'external';
+
+      // Calculate price based on new selections
+      const totalPrice = await this.calculateEditPrice();
+
+      const updates = {
+        name: document.getElementById('editName').value,
+        email: document.getElementById('editEmail').value,
+        phone: document.getElementById('editPhone').value,
+        company: document.getElementById('editCompany').value,
+        startDate: this.editStartDate,
+        endDate: this.editEndDate,
+        rooms: Array.from(this.editSelectedRooms),
+        adults: parseInt(document.getElementById('editAdults').value, 10),
+        children: parseInt(document.getElementById('editChildren').value, 10),
+        toddlers: parseInt(document.getElementById('editToddlers').value, 10),
+        guestType,
+        totalPrice,
+        address: document.getElementById('editAddress').value,
+        city: document.getElementById('editCity').value,
+        zip: document.getElementById('editZip').value,
+        ico: document.getElementById('editIco').value,
+        dic: document.getElementById('editDic').value,
+        notes: document.getElementById('editNotes').value,
+        payFromBenefit: document.getElementById('editPayFromBenefit').checked,
+      };
+
+      await dataManager.updateBooking(bookingId, updates);
+      document.getElementById('editBookingModal').classList.remove('active');
+      await this.loadBookings();
+      this.showSuccessMessage('Rezervace byla úspěšně upravena');
+    } catch (error) {
+      console.error('Chyba při ukládání rezervace:', error);
+      this.showToast(`Chyba: ${error.message}`, 'error');
+    }
   }
 
   // Helper functions for comprehensive edit modal
@@ -565,11 +831,13 @@ class AdminPanel {
       let textColor = '#000000';
       let cursor = 'pointer';
 
+      // FIX: Admin can select past dates - just show them in lighter color
       if (isPast) {
-        bgColor = '#f3f4f6';
-        textColor = '#9ca3af';
-        cursor = 'not-allowed';
-      } else if (isSelected) {
+        bgColor = '#f9fafb';
+        textColor = '#6b7280';
+      }
+
+      if (isSelected) {
         bgColor = '#10b981';
         textColor = '#ffffff';
       }
@@ -577,9 +845,9 @@ class AdminPanel {
       html += `
         <div
           data-date="${date}"
-          onclick="${isPast ? '' : `adminPanel.toggleEditDate('${date}')`}"
+          onclick="adminPanel.toggleEditDate('${date}')"
           style="padding: 0.5rem; background: ${bgColor}; color: ${textColor}; cursor: ${cursor}; border-radius: 4px; transition: all 0.2s;"
-          onmouseover="${isPast ? '' : "this.style.opacity='0.8'"}"
+          onmouseover="this.style.opacity='0.8'"
           onmouseout="this.style.opacity='1'"
         >${day}</div>
       `;
@@ -664,7 +932,7 @@ class AdminPanel {
     await this.loadExistingBookingsForEdit();
   }
 
-  updateEditPrice() {
+  async updateEditPrice() {
     const guestType =
       document.querySelector('input[name="editGuestType"]:checked')?.value || 'external';
     const adults = parseInt(document.getElementById('editAdults').value, 10) || 0;
@@ -678,18 +946,45 @@ class AdminPanel {
     const nights = this.editSelectedDates.size;
     const roomCount = this.editSelectedRooms.size;
 
-    // Simple price calculation (you can enhance this based on your pricing logic)
-    const basePrice = guestType === 'utia' ? 350 : 550;
-    const adultPrice = guestType === 'utia' ? 50 : 100;
-    const childPrice = guestType === 'utia' ? 25 : 50;
+    try {
+      // P1 FIX: Use actual price settings instead of hardcoded values
+      const settings = await dataManager.getSettings();
+      const prices = settings.prices || {
+        utia: { base: 298, adult: 49, child: 24 },
+        external: { base: 499, adult: 99, child: 49 },
+      };
 
-    const totalPrice =
-      nights * roomCount * basePrice +
-      nights * (adults - roomCount) * adultPrice +
-      nights * children * childPrice;
+      const priceConfig = prices[guestType] || prices.utia;
+      const basePrice = priceConfig.base;
+      const adultPrice = priceConfig.adult;
+      const childPrice = priceConfig.child;
 
-    document.getElementById('editTotalPrice').textContent = `${totalPrice} Kč`;
-    return totalPrice;
+      const totalPrice =
+        nights * roomCount * basePrice +
+        nights * (adults - roomCount) * adultPrice +
+        nights * children * childPrice;
+
+      document.getElementById('editTotalPrice').textContent =
+        `${totalPrice.toLocaleString('cs-CZ')} Kč`;
+      return totalPrice;
+    } catch (error) {
+      console.error('Failed to load price settings:', error);
+      // Fallback to default prices if settings load fails
+      const defaultPrices = {
+        utia: { base: 298, adult: 49, child: 24 },
+        external: { base: 499, adult: 99, child: 49 },
+      };
+      const priceConfig = defaultPrices[guestType] || defaultPrices.utia;
+      const totalPrice =
+        nights * roomCount * priceConfig.base +
+        nights * (adults - roomCount) * priceConfig.adult +
+        nights * children * priceConfig.child;
+
+      document.getElementById('editTotalPrice').textContent =
+        `${totalPrice.toLocaleString('cs-CZ')} Kč`;
+      this.showWarningMessage('Použity výchozí ceny - nastavení se nepodařilo načíst');
+      return totalPrice;
+    }
   }
 
   calculateEditPrice() {
@@ -780,15 +1075,25 @@ class AdminPanel {
   }
 
   deleteBooking(bookingId) {
-    this.showConfirm('Opravdu chcete smazat tuto rezervaci?', () => {
-      dataManager.deleteBooking(bookingId);
-      this.loadBookings();
-      this.showSuccessMessage('Rezervace byla smazána');
+    this.showConfirm('Opravdu chcete smazat tuto rezervaci?', async () => {
+      // FIX: Validate session before admin operation
+      if (!(await this.validateSession())) {
+        return;
+      }
+
+      try {
+        await dataManager.deleteBooking(bookingId);
+        await this.loadBookings();
+        this.showSuccessMessage('Rezervace byla smazána');
+      } catch (error) {
+        console.error('Chyba při mazání rezervace:', error);
+        this.showToast(`Chyba: ${error.message}`, 'error');
+      }
     });
   }
 
   async loadBlockedDates() {
-    const blockedDates = await dataManager.getBlockedDates();
+    const blockageInstances = await dataManager.getAllBlockageInstances();
     const container = document.getElementById('blockedDatesList');
 
     if (!container) {
@@ -804,96 +1109,30 @@ class AdminPanel {
             padding: 0.5rem 0;
         `;
 
-    // Show blocked dates from last 30 days and all future dates
+    // Show blockages that haven't ended yet (end date >= 30 days ago)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const thirtyDaysAgo = new Date(today);
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const relevantDates = blockedDates.filter((bd) => {
-      const blockDate = new Date(bd.date);
-      return blockDate >= thirtyDaysAgo; // Show dates from last 30 days onwards
+    const relevantBlockages = blockageInstances.filter((blockage) => {
+      const endDate = new Date(blockage.endDate);
+      return endDate >= thirtyDaysAgo;
     });
 
-    // Group blocked dates by consecutive dates, rooms, and reason
-    const blockageGroups = [];
+    // Sort blockages by start date (newest first)
+    const sortedBlockages = relevantBlockages.sort(
+      (a, b) => new Date(b.startDate) - new Date(a.startDate)
+    );
 
-    // Sort blocked dates by date, then by room
-    const sortedDates = relevantDates.sort((a, b) => {
-      const dateCompare = a.date.localeCompare(b.date);
-      if (dateCompare !== 0) {
-        return dateCompare;
-      }
-      return (a.roomId || '').localeCompare(b.roomId || '');
-    });
-
-    // Group consecutive dates with same rooms and reason
-    sortedDates.forEach((blocked) => {
-      const currentDate = new Date(blocked.date);
-      const roomsKey = blocked.roomId || 'all';
-
-      // Try to find a group to add this date to
-      let foundGroup = false;
-      for (const group of blockageGroups) {
-        // Check if this date is consecutive with the group's last date
-        const lastDate = new Date(group.dates[group.dates.length - 1]);
-        const dayDiff = (currentDate - lastDate) / (1000 * 60 * 60 * 24);
-
-        // Check if rooms and reason match
-        const sameRooms =
-          group.roomsKey === roomsKey ||
-          (group.roomIds.size === 1 && group.roomIds.has(blocked.roomId));
-        const sameReason = group.reason === blocked.reason;
-
-        // If consecutive day (1 day difference) with same rooms and reason, add to group
-        if (dayDiff === 1 && sameRooms && sameReason) {
-          group.dates.push(blocked.date);
-          if (blocked.roomId) {
-            group.roomIds.add(blocked.roomId);
-          }
-          // Keep the first blockageId for the group
-          if (!group.blockageId && blocked.blockageId) {
-            group.blockageId = blocked.blockageId;
-          }
-          foundGroup = true;
-          break;
-        }
-      }
-
-      // If no suitable group found, create a new one
-      if (!foundGroup) {
-        const newGroup = {
-          dates: [blocked.date],
-          roomIds: new Set(blocked.roomId ? [blocked.roomId] : []),
-          reason: blocked.reason,
-          blockageId: blocked.blockageId,
-          roomsKey,
-        };
-        blockageGroups.push(newGroup);
-      }
-    });
-
-    // Convert groups to sorted array with start and end dates
-    const sortedGroups = blockageGroups
-      .map((group) => {
-        group.dates.sort();
-        return {
-          ...group,
-          startDate: group.dates[0],
-          endDate: group.dates[group.dates.length - 1],
-          roomsList: Array.from(group.roomIds).sort(),
-        };
-      })
-      .sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
-
-    if (sortedGroups.length === 0) {
+    if (sortedBlockages.length === 0) {
       container.innerHTML =
         '<p style="text-align: center; color: var(--gray-500);">Žádné blokované termíny</p>';
       return;
     }
 
-    // Display grouped blockages
-    sortedGroups.forEach((group) => {
+    // Display each blockage instance as a card
+    sortedBlockages.forEach((blockage) => {
       const card = document.createElement('div');
       card.className = 'blocked-date-card';
       card.style.cssText = `
@@ -908,13 +1147,13 @@ class AdminPanel {
                 min-height: 150px;
             `;
 
-      const startDate = new Date(group.startDate);
-      const endDate = new Date(group.endDate);
-      const isSingleDay = group.startDate === group.endDate;
+      const startDate = new Date(blockage.startDate);
+      const endDate = new Date(blockage.endDate);
+      const isSingleDay = blockage.startDate === blockage.endDate;
 
       card.innerHTML = `
                 <div style="flex: 1;">
-                    ${group.blockageId ? `<div style="color: var(--gray-400); font-size: 0.65rem; font-family: monospace; margin-bottom: 0.25rem; opacity: 0.7;">${group.blockageId}</div>` : ''}
+                    <div style="color: var(--gray-400); font-size: 0.65rem; font-family: monospace; margin-bottom: 0.25rem; opacity: 0.7;">${blockage.blockageId}</div>
                     <div style="font-weight: 600; color: var(--gray-900); font-size: 0.95rem; margin-bottom: 0.5rem;">
                         ${
                           isSingleDay
@@ -925,19 +1164,19 @@ class AdminPanel {
                     <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.5rem;">
                         <span style="font-size: 0.8rem; color: var(--gray-600);">Pokoje:</span>
                         ${
-                          group.roomsList.length > 0
-                            ? group.roomsList
+                          blockage.rooms.length > 0
+                            ? blockage.rooms
                                 .map((roomId) => this.createRoomBadge(roomId, true))
                                 .join('')
                             : '<span style="color: var(--gray-700); font-size: 0.85rem;">Všechny pokoje</span>'
                         }
                     </div>
                     <div style="font-size: 0.8rem; color: var(--gray-600);">
-                        <strong>Důvod:</strong> <em>${group.reason || 'Bez uvedení důvodu'}</em>
+                        <strong>Důvod:</strong> <em>${blockage.reason || 'Bez uvedení důvodu'}</em>
                     </div>
                 </div>
                 <div style="margin-top: auto; padding-top: 0.5rem;">
-                    <button onclick="adminPanel.unblockRangeByDates('${group.startDate}', '${group.endDate}', '${JSON.stringify(group.roomsList).replace(/'/gu, "\\'")}').catch(console.error)"
+                    <button onclick="adminPanel.unblockRange('${blockage.blockageId}').catch(console.error)"
                             style="width: 100%; padding: 0.5rem; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 0.85rem; transition: background 0.2s;"
                             onmouseover="this.style.background='#b91c1c'"
                             onmouseout="this.style.background='#dc2626'">
@@ -947,10 +1186,6 @@ class AdminPanel {
             `;
       container.appendChild(card);
     });
-
-    if (sortedGroups.length === 0) {
-      container.innerHTML = '<p style="color: var(--gray-500);">Žádné blokované termíny</p>';
-    }
   }
 
   toggleAllRooms(checkbox) {
@@ -963,6 +1198,11 @@ class AdminPanel {
 
   async handleBlockDate(e) {
     e.preventDefault();
+
+    // FIX: Validate session before admin operation
+    if (!(await this.validateSession())) {
+      return;
+    }
 
     const startDate = document.getElementById('blockDateStart').value;
     const endDate = document.getElementById('blockDateEnd').value;
@@ -981,130 +1221,49 @@ class AdminPanel {
       return;
     }
 
-    // Block each date in the range for each selected room
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    // Create ONE blockage instance with date range and rooms
+    try {
+      await dataManager.createBlockageInstance(
+        new Date(startDate),
+        new Date(endDate),
+        selectedRooms, // Empty array = all rooms
+        reason
+      );
 
-    // Generate a unique blockage ID for this range
-    const blockageId = dataManager.generateBlockageId();
+      e.target.reset();
+      document.getElementById('blockAll').checked = false;
+      await this.loadBlockedDates();
 
-    if (selectedRooms.length === 0) {
-      // Block all rooms for this date range with same blockage ID
-      const endTime = end.getTime();
-      const blockPromises = [];
-      for (let d = new Date(start); d.getTime() <= endTime; d.setDate(d.getDate() + 1)) {
-        blockPromises.push(dataManager.blockDate(new Date(d), null, reason, blockageId));
-      }
-      await Promise.all(blockPromises);
-    } else {
-      // Block specific rooms for this date range
-      const endTime = end.getTime();
-      const blockPromises = [];
-      for (const roomId of selectedRooms) {
-        for (let d = new Date(start); d.getTime() <= endTime; d.setDate(d.getDate() + 1)) {
-          blockPromises.push(dataManager.blockDate(new Date(d), roomId, reason, blockageId));
-        }
-      }
-      await Promise.all(blockPromises);
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const daysCount = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+      const roomsText =
+        selectedRooms.length > 0 ? `pokoje ${selectedRooms.join(', ')}` : 'všechny pokoje';
+      this.showSuccessMessage(`Vytvořena blokace: ${daysCount} dní pro ${roomsText}`);
+    } catch (error) {
+      console.error('Error creating blockage:', error);
+      this.showErrorMessage(`Chyba při vytváření blokace: ${error.message}`);
     }
-
-    e.target.reset();
-    document.getElementById('blockAll').checked = false;
-    await this.loadBlockedDates();
-
-    const daysCount = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-    const roomsText =
-      selectedRooms.length > 0 ? `${selectedRooms.length} pokojů` : 'všechny pokoje';
-    this.showSuccessMessage(`Blokováno ${daysCount} dní pro ${roomsText}`);
   }
 
   async unblockDate(date, roomId) {
-    await dataManager.unblockDate(new Date(date), roomId || null);
-    await this.loadBlockedDates();
-    this.showSuccessMessage('Termín byl odblokován');
+    try {
+      await dataManager.unblockDate(new Date(date), roomId || null);
+      await this.loadBlockedDates();
+      this.showSuccessMessage('Termín byl odblokován');
+    } catch (error) {
+      console.error('Chyba při odblokování termínu:', error);
+      this.showToast(`Chyba: ${error.message}`, 'error');
+    }
   }
 
   async unblockRange(blockageId) {
     try {
-      const apiKey = sessionStorage.getItem('apiKey') || sessionStorage.getItem('adminApiKey');
-      if (!apiKey) {
-        this.showErrorMessage('Chyba autentizace');
-        return;
-      }
-
-      const response = await fetch(`/api/admin/block-dates/${blockageId}`, {
-        method: 'DELETE',
-        headers: {
-          'X-API-Key': apiKey,
-        },
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Chyba při odblokování');
-      }
-
+      await dataManager.deleteBlockageInstance(blockageId);
       await this.loadBlockedDates();
       this.showSuccessMessage('Blokace byla odstraněna');
     } catch (error) {
       console.error('Error unblocking range:', error);
-      this.showErrorMessage(`Chyba při odblokování: ${error.message}`);
-    }
-  }
-
-  async unblockRangeByDates(startDate, endDate, roomsListStr) {
-    try {
-      // Parse rooms list if it's a string
-      const roomsList = typeof roomsListStr === 'string' ? JSON.parse(roomsListStr) : roomsListStr;
-
-      // Get all blocked dates from dataManager
-      const blockedDates = await dataManager.getBlockedDates();
-
-      // Find all blockageIds for the date range and rooms
-      const blockageIds = new Set();
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-
-      blockedDates.forEach((blocked) => {
-        const blockDate = new Date(blocked.date);
-
-        // Check if date is in range
-        if (blockDate >= start && blockDate <= end) {
-          // Check if rooms match (empty roomsList means all rooms)
-          const roomMatches =
-            roomsList.length === 0 || !blocked.roomId || roomsList.includes(blocked.roomId);
-
-          if (roomMatches && blocked.blockageId) {
-            blockageIds.add(blocked.blockageId);
-          }
-        }
-      });
-
-      // Delete all found blockageIds
-      const apiKey = sessionStorage.getItem('apiKey') || sessionStorage.getItem('adminApiKey');
-      if (!apiKey) {
-        this.showErrorMessage('Chyba autentizace');
-        return;
-      }
-
-      const deletePromises = blockageIds.map(async (blockageId) => {
-        const response = await fetch(`/api/admin/block-dates/${blockageId}`, {
-          method: 'DELETE',
-          headers: {
-            'X-API-Key': apiKey,
-          },
-        });
-
-        if (!response.ok) {
-          console.error(`Failed to delete blockageId: ${blockageId}`);
-        }
-      });
-      await Promise.all(deletePromises);
-
-      await this.loadBlockedDates();
-      this.showSuccessMessage('Blokace byla odstraněna');
-    } catch (error) {
-      console.error('Error unblocking date range:', error);
       this.showErrorMessage(`Chyba při odblokování: ${error.message}`);
     }
   }
@@ -1133,6 +1292,11 @@ class AdminPanel {
 
   async handleAddCode(e) {
     e.preventDefault();
+
+    // FIX: Validate session before admin operation
+    if (!(await this.validateSession())) {
+      return;
+    }
 
     try {
       const newCode = document.getElementById('newCode').value.trim();
@@ -1170,6 +1334,11 @@ class AdminPanel {
   }
 
   async removeCode(code) {
+    // FIX: Validate session before admin operation
+    if (!(await this.validateSession())) {
+      return;
+    }
+
     try {
       // Získej aktuální nastavení
       const settings = await dataManager.getSettings();
@@ -1210,7 +1379,13 @@ class AdminPanel {
     if (settings.christmasPeriod && !settings.christmasPeriods) {
       settings.christmasPeriods = [settings.christmasPeriod];
       delete settings.christmasPeriod;
-      await dataManager.updateSettings(settings);
+      try {
+        await dataManager.updateSettings(settings);
+      } catch (error) {
+        // If migration fails (e.g., session expired), continue with local data
+        // Migration will happen again when user successfully saves
+        console.warn('Christmas period migration skipped:', error.message);
+      }
     }
 
     const periods = settings.christmasPeriods || [];
@@ -1256,6 +1431,11 @@ class AdminPanel {
 
   async handleChristmasPeriod(e) {
     e.preventDefault();
+
+    // FIX: Validate session before admin operation
+    if (!(await this.validateSession())) {
+      return;
+    }
 
     try {
       const startDate = document.getElementById('christmasStart').value;
@@ -1313,6 +1493,11 @@ class AdminPanel {
   }
 
   async removeChristmasPeriod(periodId, index) {
+    // FIX: Validate session before admin operation
+    if (!(await this.validateSession())) {
+      return;
+    }
+
     try {
       const settings = await dataManager.getSettings();
 
@@ -1334,43 +1519,37 @@ class AdminPanel {
       const year = period.year || new Date(period.start).getFullYear();
 
       // Use showConfirm instead of confirm
+      const self = this; // Capture 'this' context
       this.showConfirm(
         `Opravdu chcete odstranit vánoční období ${year}?<br>${startDate} - ${endDate}`,
         async () => {
           try {
-            // Use API endpoint to delete from database
+            // ✅ FIX: Use DataManager pattern like Christmas codes (SSOT)
+            // Filter out the period from the array
             if (period.periodId) {
-              const apiKey =
-                sessionStorage.getItem('apiKey') || sessionStorage.getItem('adminApiKey');
-              if (!apiKey) {
-                this.showErrorMessage('Chyba autentizace');
-                return;
-              }
-
-              const response = await fetch(`/api/admin/christmas-periods/${period.periodId}`, {
-                method: 'DELETE',
-                headers: {
-                  'X-API-Key': apiKey,
-                },
-              });
-
-              if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Chyba při mazání vánočního období');
-              }
+              settings.christmasPeriods = settings.christmasPeriods.filter(
+                (p) => p.periodId !== period.periodId
+              );
             } else {
-              // Fallback for periods without periodId - update settings directly
+              // Fallback for periods without periodId
               settings.christmasPeriods.splice(index, 1);
-              await dataManager.updateSettings(settings);
             }
 
-            await dataManager.syncWithServer();
-            await this.loadChristmasPeriods();
+            // Update through DataManager (auto-syncs with server)
+            await dataManager.updateSettings(settings);
 
-            this.showToast(`Vánoční období ${year} bylo odstraněno`, 'success');
+            // Force refresh from server to ensure sync
+            await dataManager.syncWithServer(true);
+
+            // Reload the periods list
+            await self.loadChristmasPeriods();
+
+            self.showToast(`Vánoční období ${year} bylo odstraněno`, 'success');
           } catch (error) {
             console.error('Chyba při odstraňování vánočního období:', error);
-            this.showToast(`Chyba při odstraňování vánočního období: ${error.message}`, 'error');
+            // Reload to show original state on error
+            await self.loadChristmasPeriods();
+            self.showToast(`Chyba při odstraňování vánočního období: ${error.message}`, 'error');
           }
         }
       );
@@ -1384,6 +1563,9 @@ class AdminPanel {
     const settings = await dataManager.getSettings();
     const data = await dataManager.getData();
     const rooms = settings.rooms || data.rooms;
+
+    // Store current room data for preserving type field
+    this.currentRooms = rooms;
 
     // Default room configuration in case data is missing
     const defaultRooms = {
@@ -1426,42 +1608,64 @@ class AdminPanel {
   async handleRoomConfig(e) {
     e.preventDefault();
 
-    const roomIds = ['12', '13', '14', '22', '23', '24', '42', '43', '44'];
-    const newRooms = [];
+    // FIX: Validate session before admin operation
+    if (!(await this.validateSession())) {
+      return;
+    }
 
-    roomIds.forEach((id) => {
-      const beds = parseInt(document.getElementById(`room${id}_beds`).value, 10);
-      newRooms.push({
-        id,
-        name: `Pokoj ${id}`,
-        beds,
+    try {
+      const roomIds = ['12', '13', '14', '22', '23', '24', '42', '43', '44'];
+      const newRooms = roomIds.map((id) => {
+        const beds = parseInt(document.getElementById(`room${id}_beds`).value, 10);
+
+        // Find existing room data to preserve type
+        const existingRoom = this.currentRooms?.find((r) => r.id === id);
+
+        return {
+          id,
+          name: `Pokoj ${id}`,
+          type: existingRoom?.type || 'standard',
+          beds,
+        };
       });
-    });
 
-    // Update settings
-    const settings = await dataManager.getSettings();
-    settings.rooms = newRooms;
-    await dataManager.updateSettings(settings);
+      // Validate
+      if (newRooms.some((r) => isNaN(r.beds) || r.beds < 1)) {
+        this.showToast('Neplatný počet lůžek', 'error');
+        return;
+      }
 
-    // Update data storage
-    const data = await dataManager.getData();
-    data.rooms = newRooms;
-    await dataManager.saveData(data);
+      // Update settings
+      const settings = await dataManager.getSettings();
+      settings.rooms = newRooms;
+      await dataManager.updateSettings(settings);
 
-    this.showSuccessMessage('Konfigurace pokojů byla uložena');
+      // Update data storage (backward compatibility)
+      const data = await dataManager.getData();
+      data.rooms = newRooms;
+      await dataManager.saveData(data);
 
-    // Refresh the main app if it's loaded
-    if (window.bookingApp) {
-      window.bookingApp.renderCalendar();
-      window.bookingApp.updateRoomSelection();
+      // Force sync with server
+      await dataManager.syncWithServer();
+
+      this.showSuccessMessage('Konfigurace pokojů byla uložena');
+
+      // Refresh the main app if it's loaded
+      if (window.bookingApp) {
+        window.bookingApp.renderCalendar();
+        window.bookingApp.updateRoomSelection();
+      }
+    } catch (error) {
+      console.error('Chyba při ukládání konfigurace pokojů:', error);
+      this.showToast(`Chyba: ${error.message}`, 'error');
     }
   }
 
   async loadPriceConfig() {
     const settings = await dataManager.getSettings();
     const defaultPrices = {
-      utia: { base: 300, adult: 50, child: 25 },
-      external: { base: 500, adult: 100, child: 50 },
+      utia: { base: 298, adult: 49, child: 24 },
+      external: { base: 499, adult: 99, child: 49 },
     };
     const prices = settings.prices || defaultPrices;
 
@@ -1513,28 +1717,38 @@ class AdminPanel {
   async handlePriceConfig(e) {
     e.preventDefault();
 
-    const prices = {
-      utia: {
-        base: parseInt(document.getElementById('utia_base').value, 10),
-        adult: parseInt(document.getElementById('utia_adult').value, 10),
-        child: parseInt(document.getElementById('utia_child').value, 10),
-      },
-      external: {
-        base: parseInt(document.getElementById('external_base').value, 10),
-        adult: parseInt(document.getElementById('external_adult').value, 10),
-        child: parseInt(document.getElementById('external_child').value, 10),
-      },
-    };
+    // FIX: Validate session before admin operation
+    if (!(await this.validateSession())) {
+      return;
+    }
 
-    const settings = await dataManager.getSettings();
-    settings.prices = prices;
-    await dataManager.updateSettings(settings);
+    try {
+      const prices = {
+        utia: {
+          base: parseInt(document.getElementById('utia_base').value, 10),
+          adult: parseInt(document.getElementById('utia_adult').value, 10),
+          child: parseInt(document.getElementById('utia_child').value, 10),
+        },
+        external: {
+          base: parseInt(document.getElementById('external_base').value, 10),
+          adult: parseInt(document.getElementById('external_adult').value, 10),
+          child: parseInt(document.getElementById('external_child').value, 10),
+        },
+      };
 
-    this.showSuccessMessage('Ceník byl uložen');
+      const settings = await dataManager.getSettings();
+      settings.prices = prices;
+      await dataManager.updateSettings(settings);
 
-    // Refresh price calculations if booking app is loaded
-    if (window.bookingApp) {
-      window.bookingApp.updatePriceCalculation();
+      this.showSuccessMessage('Ceník byl uložen');
+
+      // Refresh price calculations if booking app is loaded
+      if (window.bookingApp) {
+        window.bookingApp.updatePriceCalculation();
+      }
+    } catch (error) {
+      console.error('Chyba při ukládání ceníku:', error);
+      this.showToast(`Chyba: ${error.message}`, 'error');
     }
   }
 
@@ -1576,19 +1790,30 @@ class AdminPanel {
   async handleBulkPriceConfig(e) {
     e.preventDefault();
 
-    const bulkPrices = {
-      basePrice: parseInt(document.getElementById('bulk_base_price').value, 10),
-      utiaAdult: parseInt(document.getElementById('bulk_utia_adult').value, 10),
-      utiaChild: parseInt(document.getElementById('bulk_utia_child').value, 10),
-      externalAdult: parseInt(document.getElementById('bulk_external_adult').value, 10),
-      externalChild: parseInt(document.getElementById('bulk_external_child').value, 10),
-    };
+    // FIX: Validate session before admin operation
+    if (!(await this.validateSession())) {
+      return;
+    }
 
-    const settings = await dataManager.getSettings();
-    settings.bulkPrices = bulkPrices;
-    await dataManager.updateSettings(settings);
+    try {
+      const bulkPrices = {
+        basePrice: parseInt(document.getElementById('bulk_base_price').value, 10),
+        utiaAdult: parseInt(document.getElementById('bulk_utia_adult').value, 10),
+        utiaChild: parseInt(document.getElementById('bulk_utia_child').value, 10),
+        externalAdult: parseInt(document.getElementById('bulk_external_adult').value, 10),
+        externalChild: parseInt(document.getElementById('bulk_external_child').value, 10),
+      };
 
-    this.showSuccessMessage('Ceník hromadné rezervace byl uložen');
+      const settings = await dataManager.getSettings();
+      settings.bulkPrices = bulkPrices;
+      await dataManager.updateSettings(settings);
+
+      this.showSuccessMessage('Ceník hromadné rezervace byl uložen');
+    } catch (error) {
+      console.error('Chyba při ukládání bulk ceníku:', error);
+      this.showToast(`Chyba: ${error.message}`, 'error');
+      return; // Early return to prevent executing code below
+    }
 
     // Refresh bulk booking price calculations if booking app is loaded
     if (window.bookingApp && window.bookingApp.updateBulkPriceCalculation) {
@@ -1598,6 +1823,11 @@ class AdminPanel {
 
   async handleChangePassword(e) {
     e.preventDefault();
+
+    // FIX: Validate session before admin operation
+    if (!(await this.validateSession())) {
+      return;
+    }
 
     const currentPassword = document.getElementById('currentPassword').value;
     const newPassword = document.getElementById('newPassword').value;
@@ -1681,7 +1911,8 @@ class AdminPanel {
       const end = new Date(booking.endDate);
 
       if (start.getMonth() === thisMonth && start.getFullYear() === thisYear) {
-        const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+        // P1 FIX: Remove +1 (was adding extra day)
+        const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
         bookedRoomDays += days * booking.rooms.length;
       }
     });
@@ -1726,14 +1957,24 @@ class AdminPanel {
   async handleEmailTemplate(e) {
     e.preventDefault();
 
-    const settings = await dataManager.getSettings();
-    settings.emailTemplate = {
-      subject: document.getElementById('emailSubject').value,
-      template: document.getElementById('emailTemplate').value,
-    };
+    // FIX: Validate session before admin operation
+    if (!(await this.validateSession())) {
+      return;
+    }
 
-    await dataManager.updateSettings(settings);
-    this.showSuccessMessage('Šablona emailu byla uložena');
+    try {
+      const settings = await dataManager.getSettings();
+      settings.emailTemplate = {
+        subject: document.getElementById('emailSubject').value,
+        template: document.getElementById('emailTemplate').value,
+      };
+
+      await dataManager.updateSettings(settings);
+      this.showSuccessMessage('Šablona emailu byla uložena');
+    } catch (error) {
+      console.error('Chyba při ukládání email šablony:', error);
+      this.showToast(`Chyba: ${error.message}`, 'error');
+    }
   }
 
   showToast(message, type = 'success') {

@@ -220,8 +220,8 @@
                   <div
                     class="legend-indicator"
                     style="
-                      background: #ff4444;
-                      color: white;
+                      background: #ffc107;
+                      color: #000;
                       font-weight: bold;
                       padding: 4px 8px;
                       border-radius: 4px;
@@ -238,22 +238,7 @@
                     <span
                       class="legend-description"
                       data-translate="legendProposedDesc"
-                      >Rezervace čekající na dokončení (červená barva)</span
-                    >
-                  </div>
-                </div>
-                <div class="legend-item">
-                  <div class="legend-indicator legend-new-booking">14</div>
-                  <div class="legend-text">
-                    <span
-                      class="legend-label"
-                      data-translate="legendNewBooking"
-                      >Nově rezervovaný pokoj</span
-                    >
-                    <span
-                      class="legend-description"
-                      data-translate="legendNewBookingDesc"
-                      >Pokoj právě rezervovaný (oranžová barva)</span
+                      >Rezervace čekající na dokončení (žlutá barva)</span
                     >
                   </div>
                 </div>
@@ -781,7 +766,7 @@
                   name="email"
                   required
                   placeholder="vas@email.cz"
-                  pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$"
+                  pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
                   title="Zadejte platnou emailovou adresu"
                 />
               </div>
@@ -964,76 +949,6 @@
             <!-- Left Column: Calendar -->
             <div class="booking-left-column">
               <h3>Vyberte termín pobytu</h3>
-
-              <!-- Mini Calendar Navigation -->
-              <div
-                class="calendar-navigation"
-                style="
-                  display: flex;
-                  justify-content: space-between;
-                  align-items: center;
-                  margin-bottom: 1rem;
-                "
-              >
-                <button
-                  id="prevMiniMonth"
-                  class="nav-btn"
-                  style="
-                    padding: 0.5rem;
-                    background: white;
-                    border: 1px solid #e2e8f0;
-                    border-radius: 4px;
-                    cursor: pointer;
-                  "
-                >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                  >
-                    <path
-                      d="M12.5 15L7.5 10L12.5 5"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                </button>
-                <h4
-                  id="miniCalendarMonth"
-                  style="margin: 0; font-weight: 600"
-                >
-                  Month Year
-                </h4>
-                <button
-                  id="nextMiniMonth"
-                  class="nav-btn"
-                  style="
-                    padding: 0.5rem;
-                    background: white;
-                    border: 1px solid #e2e8f0;
-                    border-radius: 4px;
-                    cursor: pointer;
-                  "
-                >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                  >
-                    <path
-                      d="M7.5 15L12.5 10L7.5 5"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                </button>
-              </div>
 
               <!-- Interactive Calendar -->
               <div
@@ -1605,86 +1520,10 @@
               <h3>Vyberte termín pobytu</h3>
 
               <!-- Mini Calendar Navigation -->
-              <div
-                class="calendar-navigation"
-                style="
-                  display: flex;
-                  justify-content: space-between;
-                  align-items: center;
-                  margin-bottom: 1rem;
-                "
-              >
-                <button
-                  id="prevBulkMonth"
-                  class="nav-btn"
-                  style="
-                    padding: 0.5rem;
-                    background: white;
-                    border: 1px solid #e2e8f0;
-                    border-radius: 4px;
-                    cursor: pointer;
-                  "
-                  onclick="window.app.bulkBooking.navigateBulkCalendar(-1)"
-                >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                  >
-                    <path
-                      d="M12.5 15L7.5 10L12.5 5"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                </button>
-                <span
-                  id="bulkCalendarMonth"
-                  style="font-weight: 600; color: #333"
-                  >Leden 2024</span
-                >
-                <button
-                  id="nextBulkMonth"
-                  class="nav-btn"
-                  style="
-                    padding: 0.5rem;
-                    background: white;
-                    border: 1px solid #e2e8f0;
-                    border-radius: 4px;
-                    cursor: pointer;
-                  "
-                  onclick="window.app.bulkBooking.navigateBulkCalendar(1)"
-                >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                  >
-                    <path
-                      d="M7.5 15L12.5 10L7.5 5"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                </button>
-              </div>
-
               <!-- Interactive Calendar -->
               <div
-                id="bulkMiniCalendar"
-                class="mini-calendar"
-                style="
-                  background: white;
-                  padding: 1rem;
-                  border-radius: 8px;
-                  border: 1px solid #e2e8f0;
-                "
+                id="bulkCalendar"
+                class="interactive-calendar"
               >
                 <!-- Calendar will be generated here -->
               </div>
@@ -2079,6 +1918,7 @@
     <script src="translations.js"></script>
 
     <!-- Shared utilities -->
+    <script src="js/shared/dateUtils.js"></script>
     <script src="js/shared/validationUtils.js"></script>
     <script src="js/shared/bookingLogic.js"></script>
     <script src="js/calendar-utils.js"></script>

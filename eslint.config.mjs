@@ -359,6 +359,7 @@ export default [
         module: 'readonly',
         ValidationUtils: 'readonly',
         BookingLogic: 'readonly',
+        DateUtils: 'readonly',
       },
     },
     rules: {
@@ -400,6 +401,7 @@ export default [
         BookingLogic: 'readonly',
         ValidationUtils: 'readonly',
         BaseCalendar: 'readonly',
+        DateUtils: 'readonly',
       },
     },
     rules: {
@@ -437,6 +439,14 @@ export default [
     },
   },
   {
+    files: ['js/shared/dateUtils.js'],
+    languageOptions: {
+      globals: {
+        DateUtils: 'off',
+      },
+    },
+  },
+  {
     files: ['js/**/*.js', 'admin.js'],
     ignores: ['js/shared/**/*.js'],
     languageOptions: {
@@ -463,6 +473,7 @@ export default [
         CalendarUtils: 'readonly',
         AirbnbCalendarModule: 'readonly',
         BaseCalendar: 'readonly',
+        DateUtils: 'readonly',
         BookingApp: 'readonly',
         CalendarModule: 'readonly',
         SingleRoomBookingModule: 'readonly',
@@ -526,7 +537,7 @@ export default [
       'no-unused-vars': [
         'error',
         {
-          varsIgnorePattern: '^(BookingLogic|ValidationUtils|BaseCalendar)$',
+          varsIgnorePattern: '^(BookingLogic|ValidationUtils|BaseCalendar|DateUtils)$',
         },
       ],
     },

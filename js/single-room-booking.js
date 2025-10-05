@@ -106,7 +106,6 @@ class SingleRoomBookingModule {
         app: this.app,
         containerId: 'miniCalendar',
         roomId,
-        enableDrag: true,
         allowPast: false,
         enforceContiguous: true,
         minNights: 2,
@@ -185,6 +184,23 @@ class SingleRoomBookingModule {
       return;
     }
 
+    // Validate no blocked dates in selection
+    const sortedDatesArray = Array.from(this.app.selectedDates).sort();
+    for (const dateStr of sortedDatesArray) {
+      const date = new Date(`${dateStr}T12:00:00`);
+      const availability = await dataManager.getRoomAvailability(date, this.app.currentBookingRoom);
+
+      if (availability.status === 'blocked') {
+        this.app.showNotification(
+          this.app.currentLanguage === 'cs'
+            ? 'Vybraný termín obsahuje blokované dny. Vyberte jiný termín.'
+            : 'Selected dates include blocked days. Please choose different dates.',
+          'error'
+        );
+        return;
+      }
+    }
+
     // Get guest configuration
     const guests = this.app.roomGuests.get(this.app.currentBookingRoom) || {
       adults: 1,
@@ -225,9 +241,14 @@ class SingleRoomBookingModule {
 
     // Create proposed booking in database
     try {
-      const proposalId = await dataManager.createProposedBooking(startDate, endDate, [
-        this.app.currentBookingRoom,
-      ]);
+      const proposalId = await dataManager.createProposedBooking(
+        startDate,
+        endDate,
+        [this.app.currentBookingRoom],
+        guests,
+        guestType,
+        price
+      );
 
       // Create temporary booking object with proposal ID
       const tempBooking = {
@@ -252,19 +273,16 @@ class SingleRoomBookingModule {
       // Show success notification
       this.app.showNotification(
         this.app.currentLanguage === 'cs'
-          ? `Pokoj ${room.name} přidán do rezervace`
-          : `Room ${room.name} added to reservation`,
+          ? `${room.name} přidán do rezervace`
+          : `${room.name} added to reservation`,
         'success'
       );
 
       // Close the modal
       this.hideRoomBookingModal();
 
-      // Update the main page to show temporary reservations
-      this.app.displayTempReservations();
-
-      // Refresh calendar to show proposed booking
-      await this.app.calendar.renderCalendar();
+      // Update the main page to show temporary reservations (also refreshes calendar)
+      await this.app.displayTempReservations();
 
       // Show the finalize button
       const finalizeDiv = document.getElementById('finalizeReservationsDiv');
