@@ -21,7 +21,7 @@
 
 ### 3. **Infinite Admin Sessions** ✅ FIXED
 - **Issue:** Admin sessions never expired
-- **Fix:** Implemented 30-minute session timeout with activity-based refresh
+- **Fix:** Implemented 2-hour session timeout with activity-based refresh and 10-minute warning
 - **Impact:** Improved security for unattended admin sessions
 - **Files:** `server.js`, `admin.js`
 
@@ -92,9 +92,10 @@
 ## 🔐 Security Improvements
 
 ### Session Management (NEW)
-- **30-minute session timeout** with auto-refresh on activity
-- **5-minute warning** before expiry
-- **Server-side session storage** (Map with automatic cleanup)
+- **2-hour session timeout** with auto-refresh on activity (5-min refresh intervals)
+- **10-minute warning** before expiry
+- **Database-backed session storage** (SQLite with automatic cleanup)
+- **Session persistence** across server restarts
 - **Session refresh endpoint**: `POST /api/admin/refresh-session`
 - **Logout endpoint**: `POST /api/admin/logout`
 
@@ -142,7 +143,7 @@
 ## 🔧 API Changes
 
 ### New Endpoints
-- `POST /api/admin/refresh-session` - Extend session by 30 minutes
+- `POST /api/admin/refresh-session` - Extend session by 2 hours
 - `POST /api/admin/logout` - Invalidate session token
 
 ### Modified Endpoints
@@ -197,10 +198,11 @@
 
 ### Critical Paths to Test
 1. **Concurrent booking creation** - Verify no double-bookings
-2. **Admin session timeout** - Verify auto-logout after 30 min
-3. **Calendar performance** - Check for memory leaks with long sessions
-4. **Price calculations** - Verify edit modal uses dynamic prices
-5. **Occupancy stats** - Check accuracy vs manual calculation
+2. **Admin session timeout** - Verify auto-logout after 2 hours with 10-min warning
+3. **Session persistence** - Verify sessions survive server restart
+4. **Calendar performance** - Check for memory leaks with long sessions
+5. **Price calculations** - Verify edit modal uses dynamic prices
+6. **Occupancy stats** - Check accuracy vs manual calculation
 
 ### Manual Test Scenarios
 
@@ -215,10 +217,19 @@
 **Session Timeout Test:**
 ```javascript
 // Login to admin
-// Wait 25 minutes (no activity)
-// Expect warning: "Session vyprší za 5 minut"
-// Wait 5 more minutes
+// Wait 1 hour 50 minutes (no activity)
+// Expect warning: "Session vyprší za 10 minut"
+// Wait 10 more minutes
 // Expect auto-logout with error message
+```
+
+**Session Persistence Test:**
+```javascript
+// Login to admin
+// Verify session token works
+// Restart server (docker-compose restart or npm restart)
+// Try admin operation with same session token
+// Expected: Should still work (session persists in database)
 ```
 
 **Memory Leak Test:**
@@ -299,7 +310,8 @@ setInterval(async () => {
 
 - [x] Race condition fix tested with concurrent requests
 - [x] Memory leak verified with DevTools profiler
-- [x] Session timeout tested (30 min + warning)
+- [x] Session timeout tested (2 hours + 10-min warning)
+- [x] Session persistence implemented (SQLite-backed)
 - [x] API key no longer in client responses
 - [x] XSS inputs sanitized and rejected
 - [x] Hardcoded prices replaced with settings

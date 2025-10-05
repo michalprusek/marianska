@@ -206,6 +206,23 @@ class DatabaseManager {
             CREATE INDEX IF NOT EXISTS idx_proposed_booking_rooms ON proposed_booking_rooms(room_id);
         `);
 
+    // Create admin sessions table for persistent session storage
+    this.db.exec(`
+            CREATE TABLE IF NOT EXISTS admin_sessions (
+                session_token TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                last_activity TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                user_agent TEXT,
+                ip_address TEXT
+            )
+        `);
+
+    // Create index for session expiration cleanup
+    this.db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expires_at);
+        `);
+
     // Initialize default settings if not exists
     this.initializeDefaultSettings();
   }
@@ -1230,6 +1247,74 @@ class DatabaseManager {
       ...booking,
       rooms: booking.rooms ? booking.rooms.split(',') : [],
     }));
+  }
+
+  // Admin session operations
+  createAdminSession(sessionToken, expiresAt, userAgent = null, ipAddress = null) {
+    const now = new Date().toISOString();
+    this.db
+      .prepare(
+        `
+      INSERT INTO admin_sessions (session_token, created_at, last_activity, expires_at, user_agent, ip_address)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `
+      )
+      .run(sessionToken, now, now, expiresAt, userAgent, ipAddress);
+  }
+
+  getAdminSession(sessionToken) {
+    return this.db
+      .prepare(
+        `
+      SELECT * FROM admin_sessions WHERE session_token = ?
+    `
+      )
+      .get(sessionToken);
+  }
+
+  updateAdminSessionActivity(sessionToken, newExpiresAt) {
+    const now = new Date().toISOString();
+    this.db
+      .prepare(
+        `
+      UPDATE admin_sessions
+      SET last_activity = ?, expires_at = ?
+      WHERE session_token = ?
+    `
+      )
+      .run(now, newExpiresAt, sessionToken);
+  }
+
+  deleteAdminSession(sessionToken) {
+    this.db
+      .prepare(
+        `
+      DELETE FROM admin_sessions WHERE session_token = ?
+    `
+      )
+      .run(sessionToken);
+  }
+
+  deleteExpiredAdminSessions() {
+    const now = new Date().toISOString();
+    const result = this.db
+      .prepare(
+        `
+      DELETE FROM admin_sessions WHERE expires_at < ?
+    `
+      )
+      .run(now);
+    return result.changes;
+  }
+
+  getAllAdminSessions() {
+    return this.db
+      .prepare(
+        `
+      SELECT * FROM admin_sessions ORDER BY created_at DESC
+    `
+      )
+      .all();
   }
 
   // Close database connection

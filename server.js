@@ -10,10 +10,22 @@ const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 
-// Import SQLite Database Manager, Validation Utils, and Booking Logic
+// Import SQLite Database Manager, Validation Utils, Booking Logic, Logger, and Error Classes
 const DatabaseManager = require('./database');
 const ValidationUtils = require('./js/shared/validationUtils');
 const BookingLogic = require('./js/shared/bookingLogic');
+const { createLogger } = require('./js/shared/logger');
+const {
+  ValidationError,
+  AuthenticationError,
+  NotFoundError,
+  ConflictError,
+  SessionExpiredError,
+  DatabaseError,
+} = require('./js/shared/errors');
+
+// Initialize logger
+const logger = createLogger('Server', process.env.LOG_LEVEL || 'INFO');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,7 +40,7 @@ const db = new DatabaseManager();
 const DATA_FILE = path.join(__dirname, 'data', 'bookings.json');
 fs.access(DATA_FILE)
   .then(() => {
-    console.info('Migrating existing JSON data to SQLite...');
+    logger.info('Migrating existing JSON data to SQLite...');
     return db.migrateFromJSON(DATA_FILE);
   })
   .then(() => {
@@ -37,11 +49,11 @@ fs.access(DATA_FILE)
     return fs.rename(DATA_FILE, backupFile);
   })
   .then(() => {
-    console.info('Migration complete. JSON backup saved.');
+    logger.info('Migration complete. JSON backup saved.');
   })
   .catch((err) => {
     if (err.code !== 'ENOENT') {
-      console.error('Migration error:', err);
+      logger.error('Migration error', { error: err.message, stack: err.stack });
     }
   });
 
@@ -207,14 +219,16 @@ function requireSession(req, res, next) {
     return res.status(401).json({ error: 'Neautorizovaný přístup - chybí session token' });
   }
 
-  const session = adminSessions.get(sessionToken);
+  const session = db.getAdminSession(sessionToken);
 
   if (!session) {
     return res.status(401).json({ error: 'Neplatný session token' });
   }
 
-  if (session.expiresAt < Date.now()) {
-    adminSessions.delete(sessionToken);
+  // Check if session expired (convert ISO string to timestamp)
+  const expiresAt = new Date(session.expires_at).getTime();
+  if (expiresAt < Date.now()) {
+    db.deleteAdminSession(sessionToken);
     return res.status(401).json({ error: 'Session vypršela - přihlaste se znovu' });
   }
 
@@ -241,13 +255,15 @@ function requireApiKeyOrSession(req, res, next) {
       .json({ error: 'Neautorizovaný přístup - chybí API klíč nebo session token' });
   }
 
-  const session = adminSessions.get(sessionToken);
+  const session = db.getAdminSession(sessionToken);
   if (!session) {
     return res.status(401).json({ error: 'Neplatný session token' });
   }
 
-  if (session.expiresAt < Date.now()) {
-    adminSessions.delete(sessionToken);
+  // Check if session expired (convert ISO string to timestamp)
+  const expiresAt = new Date(session.expires_at).getTime();
+  if (expiresAt < Date.now()) {
+    db.deleteAdminSession(sessionToken);
     return res.status(401).json({ error: 'Session vypršela - přihlaste se znovu' });
   }
 
@@ -309,7 +325,7 @@ app.get('/api/data', readLimiter, (req, res) => {
 
     return res.json(data);
   } catch (error) {
-    console.error('Error reading data:', error);
+    logger.error('reading data:', error);
     return res.status(500).json({ error: 'Nepodařilo se načíst data' });
   }
 });
@@ -350,7 +366,7 @@ app.post('/api/data', writeLimiter, requireApiKeyOrSession, (req, res) => {
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error saving data:', error);
+    logger.error('saving data:', error);
     return res.status(500).json({ error: 'Nepodařilo se uložit data' });
   }
 });
@@ -503,7 +519,7 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
       editToken: booking.editToken,
     });
   } catch (error) {
-    console.error('Error creating booking:', error);
+    logger.error('creating booking:', error);
 
     // More specific error messages
     const errorMessage = error.message.includes('není dostupný')
@@ -533,7 +549,7 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
 
     // Verify edit token or session
     const sessionToken = req.headers['x-session-token'];
-    const isAdmin = sessionToken && adminSessions.has(sessionToken);
+    const isAdmin = sessionToken && db.getAdminSession(sessionToken) !== undefined;
 
     if (!editToken || editToken !== existingBooking.editToken) {
       // Check if user is admin
@@ -650,7 +666,7 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
       booking: updatedBooking,
     });
   } catch (error) {
-    console.error('Error updating booking:', error);
+    logger.error('updating booking:', error);
     return res.status(500).json({ error: 'Nepodařilo se aktualizovat rezervaci' });
   }
 });
@@ -681,22 +697,19 @@ app.delete('/api/booking/:id', writeLimiter, (req, res) => {
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting booking:', error);
+    logger.error('deleting booking:', error);
     return res.status(500).json({ error: 'Nepodařilo se smazat rezervaci' });
   }
 });
 
-// Session storage for admin authentication
-const adminSessions = new Map();
-
+// SECURITY FIX: Use database-backed session storage instead of in-memory Map
+// This ensures sessions persist across server restarts
 // Cleanup expired sessions every 5 minutes
 setInterval(
   () => {
-    const now = Date.now();
-    for (const [token, session] of adminSessions.entries()) {
-      if (session.expiresAt < now) {
-        adminSessions.delete(token);
-      }
+    const deletedCount = db.deleteExpiredAdminSessions();
+    if (deletedCount > 0) {
+      logger.info(`🗑️  Cleaned up ${deletedCount} expired admin session(s)`);
     }
   },
   5 * 60 * 1000
@@ -722,26 +735,25 @@ app.post('/api/admin/login', adminLoginLimiter, async (req, res) => {
       isValid = await bcrypt.compare(password, adminPassword);
     } else {
       // Plaintext password detected - migrate to bcrypt
-      console.warn('⚠️  Plaintext admin password detected - migrating to bcrypt');
+      logger.warn('⚠️  Plaintext admin password detected - migrating to bcrypt');
       if (adminPassword === password) {
         isValid = true;
         // Auto-migrate to bcrypt hash
         const hashedPassword = await bcrypt.hash(adminPassword, 10);
         db.setSetting('adminPassword', hashedPassword);
-        console.info('✅ Admin password migrated to bcrypt hash');
+        logger.info('✅ Admin password migrated to bcrypt hash');
       }
     }
 
     if (isValid) {
       // SECURITY FIX: Generate session token instead of exposing API key
       const sessionToken = generateSecureToken();
-      const expiresAt = Date.now() + SESSION_TIMEOUT;
+      const expiresAt = new Date(Date.now() + SESSION_TIMEOUT).toISOString();
+      const userAgent = req.get('user-agent');
+      const ipAddress = req.ip || req.connection.remoteAddress;
 
-      adminSessions.set(sessionToken, {
-        isAdmin: true,
-        createdAt: Date.now(),
-        expiresAt,
-      });
+      // Store session in database for persistence
+      db.createAdminSession(sessionToken, expiresAt, userAgent, ipAddress);
 
       return res.json({
         success: true,
@@ -752,7 +764,7 @@ app.post('/api/admin/login', adminLoginLimiter, async (req, res) => {
     }
     return res.status(401).json({ error: 'Nesprávné heslo' });
   } catch (error) {
-    console.error('Error during admin login:', error);
+    logger.error('during admin login:', error);
     return res.status(500).json({ error: 'Chyba při přihlašování' });
   }
 });
@@ -760,21 +772,22 @@ app.post('/api/admin/login', adminLoginLimiter, async (req, res) => {
 // Session refresh endpoint - extend session expiry
 app.post('/api/admin/refresh-session', requireSession, (req, res) => {
   try {
-    const session = adminSessions.get(req.sessionToken);
+    const session = db.getAdminSession(req.sessionToken);
 
     if (session) {
       // Extend expiration
-      session.expiresAt = Date.now() + SESSION_TIMEOUT;
+      const newExpiresAt = new Date(Date.now() + SESSION_TIMEOUT).toISOString();
+      db.updateAdminSessionActivity(req.sessionToken, newExpiresAt);
 
       return res.json({
         success: true,
-        expiresAt: session.expiresAt,
+        expiresAt: newExpiresAt,
       });
     }
 
     return res.status(401).json({ error: 'Session not found' });
   } catch (error) {
-    console.error('Error refreshing session:', error);
+    logger.error('refreshing session:', error);
     return res.status(500).json({ error: 'Chyba při obnovení session' });
   }
 });
@@ -782,10 +795,10 @@ app.post('/api/admin/refresh-session', requireSession, (req, res) => {
 // Admin logout endpoint
 app.post('/api/admin/logout', requireSession, (req, res) => {
   try {
-    adminSessions.delete(req.sessionToken);
+    db.deleteAdminSession(req.sessionToken);
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error during logout:', error);
+    logger.error('during logout:', error);
     return res.status(500).json({ error: 'Chyba při odhlašování' });
   }
 });
@@ -805,7 +818,7 @@ app.post('/api/admin/update-password', requireSession, async (req, res) => {
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error updating password:', error);
+    logger.error('updating password:', error);
     return res.status(500).json({ error: 'Nepodařilo se aktualizovat heslo' });
   }
 });
@@ -879,7 +892,7 @@ app.post('/api/admin/settings', requireSession, async (req, res) => {
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error updating settings:', error);
+    logger.error('updating settings:', error);
     return res.status(500).json({ error: 'Chyba při ukládání nastavení' });
   }
 });
@@ -920,7 +933,7 @@ app.post('/api/blockage', requireApiKeyOrSession, (req, res) => {
 
     return res.json({ success: true, blockageId });
   } catch (error) {
-    console.error('Error creating blockage:', error);
+    logger.error('creating blockage:', error);
     return res.status(500).json({ error: 'Chyba při vytváření blokace' });
   }
 });
@@ -937,7 +950,7 @@ app.delete('/api/blockage/:blockageId', requireApiKeyOrSession, (req, res) => {
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting blockage:', error);
+    logger.error('deleting blockage:', error);
     return res.status(500).json({ error: 'Chyba při mazání blokace' });
   }
 });
@@ -947,7 +960,7 @@ app.get('/api/blockages', readLimiter, (req, res) => {
     const blockages = db.getAllBlockageInstances();
     return res.json(blockages);
   } catch (error) {
-    console.error('Error fetching blockages:', error);
+    logger.error('fetching blockages:', error);
     return res.status(500).json({ error: 'Chyba při načítání blokací' });
   }
 });
@@ -975,7 +988,7 @@ app.post('/api/admin/block-dates', requireApiKeyOrSession, (req, res) => {
 
     return res.json({ success: true, blockageId });
   } catch (error) {
-    console.error('Error blocking dates:', error);
+    logger.error('blocking dates:', error);
     return res.status(500).json({ error: 'Chyba při blokování dat' });
   }
 });
@@ -988,7 +1001,7 @@ app.delete('/api/admin/block-dates/:blockageId', requireApiKeyOrSession, (req, r
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error unblocking dates:', error);
+    logger.error('unblocking dates:', error);
     return res.status(500).json({ error: 'Chyba při odblokování dat' });
   }
 });
@@ -999,7 +1012,7 @@ app.get('/api/admin/christmas-periods', readLimiter, (req, res) => {
     const periods = db.getAllChristmasPeriods();
     return res.json({ success: true, periods });
   } catch (error) {
-    console.error('Error fetching Christmas periods:', error);
+    logger.error('fetching Christmas periods:', error);
     return res.status(500).json({ error: 'Chyba při načítání vánočních období' });
   }
 });
@@ -1022,7 +1035,7 @@ app.post('/api/admin/christmas-periods', requireApiKeyOrSession, (req, res) => {
     db.createChristmasPeriod(periodData);
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error creating Christmas period:', error);
+    logger.error('creating Christmas period:', error);
     return res.status(500).json({ error: 'Chyba při vytváření vánočního období' });
   }
 });
@@ -1042,7 +1055,7 @@ app.put('/api/admin/christmas-periods/:periodId', requireApiKeyOrSession, (req, 
     db.updateChristmasPeriod(periodId, periodData);
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error updating Christmas period:', error);
+    logger.error('updating Christmas period:', error);
     return res.status(500).json({ error: 'Chyba při aktualizaci vánočního období' });
   }
 });
@@ -1055,7 +1068,7 @@ app.delete('/api/admin/christmas-periods/:periodId', requireApiKeyOrSession, (re
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting Christmas period:', error);
+    logger.error('deleting Christmas period:', error);
     return res.status(500).json({ error: 'Chyba při mazání vánočního období' });
   }
 });
@@ -1077,7 +1090,7 @@ app.post('/api/proposed-booking', (req, res) => {
 
     return res.json({ success: true, proposalId });
   } catch (error) {
-    console.error('Error creating proposed booking:', error);
+    logger.error('creating proposed booking:', error);
     return res.status(500).json({ error: 'Chyba při vytváření navrhované rezervace' });
   }
 });
@@ -1087,7 +1100,7 @@ app.get('/api/proposed-bookings', readLimiter, (req, res) => {
     const proposedBookings = db.getActiveProposedBookings();
     return res.json(proposedBookings);
   } catch (error) {
-    console.error('Error getting proposed bookings:', error);
+    logger.error('getting proposed bookings:', error);
     return res.status(500).json({ error: 'Chyba při načítání navrhovaných rezervací' });
   }
 });
@@ -1098,7 +1111,7 @@ app.get('/api/proposed-bookings/session/:sessionId', readLimiter, (req, res) => 
     const proposedBookings = db.getProposedBookingsBySession(sessionId);
     return res.json(proposedBookings);
   } catch (error) {
-    console.error('Error getting proposed bookings by session:', error);
+    logger.error('getting proposed bookings by session:', error);
     return res.status(500).json({ error: 'Chyba při načítání navrhovaných rezervací' });
   }
 });
@@ -1122,7 +1135,7 @@ app.post('/api/proposed-bookings', writeLimiter, (req, res) => {
     );
     return res.json({ success: true, proposalId });
   } catch (error) {
-    console.error('Error creating proposed booking:', error);
+    logger.error('creating proposed booking:', error);
     return res.status(500).json({ error: 'Chyba při vytváření navrhované rezervace' });
   }
 });
@@ -1135,7 +1148,7 @@ app.delete('/api/proposed-booking/:proposalId', writeLimiter, (req, res) => {
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting proposed booking:', error);
+    logger.error('deleting proposed booking:', error);
     return res.status(500).json({ error: 'Chyba při mazání navrhované rezervace' });
   }
 });
@@ -1148,7 +1161,7 @@ app.delete('/api/proposed-bookings/session/:sessionId', writeLimiter, (req, res)
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting proposed bookings by session:', error);
+    logger.error('deleting proposed bookings by session:', error);
     return res.status(500).json({ error: 'Chyba při mazání navrhovaných rezervací' });
   }
 });
@@ -1158,17 +1171,17 @@ setInterval(() => {
   try {
     const result = db.deleteExpiredProposedBookings();
     if (result.changes > 0) {
-      console.info(`Cleaned up ${result.changes} expired proposed bookings`);
+      logger.info(`Cleaned up ${result.changes} expired proposed bookings`);
     }
   } catch (error) {
-    console.error('Error cleaning up expired proposed bookings:', error);
+    logger.error('cleaning up expired proposed bookings:', error);
   }
 }, 60000); // Run every minute
 
 // Error handling middleware
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  logger.logError(err, { url: req.url, method: req.method });
   res.status(500).json({
     error: 'Něco se pokazilo!',
     message: process.env.NODE_ENV === 'development' ? err.message : undefined,
@@ -1177,11 +1190,11 @@ app.use((err, req, res, next) => {
 
 // Start server
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.info(`Server běží na http://localhost:${PORT}`);
-  console.info(`Prostředí: ${process.env.NODE_ENV || 'development'}`);
-  console.info('Database: SQLite (bookings.db)');
+  logger.info(`Server běží na http://localhost:${PORT}`);
+  logger.info(`Prostředí: ${process.env.NODE_ENV || 'development'}`);
+  logger.info('Database: SQLite (bookings.db)');
   if (process.env.NODE_ENV !== 'production') {
-    console.warn(
+    logger.warn(
       '⚠️  VAROVÁNÍ: Server běží v development módu. Pro produkci nastavte NODE_ENV=production'
     );
   }
@@ -1189,9 +1202,9 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.info('SIGTERM signal received: closing HTTP server');
+  logger.info('SIGTERM signal received: closing HTTP server');
   server.close(() => {
-    console.info('HTTP server closed');
+    logger.info('HTTP server closed');
     db.close();
     process.exit(0);
   });
