@@ -244,21 +244,49 @@ class CalendarModule {
     // Pass empty string to show ALL proposed bookings (including current user's)
     const availabilityInfo = await dataManager.getRoomAvailability(date, room.id, '');
     const availability = availabilityInfo.status;
-    const dateStr = dataManager.formatDate(date);
     roomEl.classList.add(availability);
 
-    // Apply color for booked, available, proposed and blocked rooms
-    // Note: proposed status is now handled entirely by getRoomAvailability() from database
+    // NIGHT-BASED MODEL:
+    // - available: No nights occupied (green)
+    // - edge: Exactly ONE night occupied (orange, clickable)
+    // - occupied: BOTH nights occupied (red, shows details)
+    // - blocked: Administratively blocked (gray)
+    // - proposed: Pending booking (yellow)
     if (availability === 'proposed') {
-      roomEl.style.background = '#ffc107'; // Yellow for proposed bookings
-      roomEl.style.color = '#000';
+      roomEl.style.background = '#f59e0b'; // Yellow for proposed bookings
+      roomEl.style.color = 'white';
       roomEl.classList.add('proposed');
       roomEl.title = 'Navrhovaná rezervace - dočasně blokováno';
-    } else if (availability === 'booked') {
-      roomEl.style.background = '#ff8c00';
+    } else if (availability === 'occupied') {
+      // Occupied = both nights around day are occupied (red)
+      roomEl.style.background = '#ef4444';
       roomEl.style.color = 'white';
+    } else if (availability === 'edge') {
+      // Edge = exactly ONE night occupied - half green/half red gradient
+      roomEl.style.color = 'white';
+
+      // Visual indicator: show which side has the occupied night
+      const nightBefore = availabilityInfo?.nightBefore;
+      const nightAfter = availabilityInfo?.nightAfter;
+
+      if (nightBefore && !nightAfter) {
+        // Night before is occupied -> left half red, right half green
+        roomEl.style.background =
+          'linear-gradient(90deg, #ef4444 0%, #ef4444 50%, #10b981 50%, #10b981 100%)';
+        roomEl.title = 'Krajní den (noc PŘED dnem obsazena) - volný pro novou rezervaci';
+      } else if (!nightBefore && nightAfter) {
+        // Night after is occupied -> left half green, right half red
+        roomEl.style.background =
+          'linear-gradient(90deg, #10b981 0%, #10b981 50%, #ef4444 50%, #ef4444 100%)';
+        roomEl.title = 'Krajní den (noc PO dni obsazena) - volný pro novou rezervaci';
+      } else {
+        // Fallback
+        roomEl.style.background =
+          'linear-gradient(90deg, #10b981 0%, #10b981 50%, #ef4444 50%, #ef4444 100%)';
+        roomEl.title = 'Krajní den rezervace - volný pro novou rezervaci';
+      }
     } else if (availability === 'available') {
-      roomEl.style.background = '#28a745';
+      roomEl.style.background = '#10b981';
       roomEl.style.color = 'white';
     }
     // Don't set inline styles for blocked - let CSS handle it
@@ -269,13 +297,27 @@ class CalendarModule {
         await this.app.toggleRoomSelection(date, room.id, roomEl);
       });
       roomEl.style.cursor = 'pointer';
-    } else if (availability === 'booked') {
+    } else if (availability === 'edge' && !isOtherMonth && !isPast) {
+      // Edge days can be clicked for selection OR to view booking details
+      roomEl.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        // Allow both booking selection and showing details
+        // Check if shift/ctrl key is pressed to show details instead
+        if (e.shiftKey || e.ctrlKey) {
+          await this.app.showBookingDetails(date, room.id);
+        } else {
+          await this.app.toggleRoomSelection(date, room.id, roomEl);
+        }
+      });
+      roomEl.style.cursor = 'pointer';
+      roomEl.title += ' | Shift+klik pro detail';
+    } else if (availability === 'occupied') {
       roomEl.addEventListener('click', async (e) => {
         e.stopPropagation();
         await this.app.showBookingDetails(date, room.id);
       });
       roomEl.style.cursor = 'pointer';
-      roomEl.title = 'Klikněte pro zobrazení detailu rezervace';
+      roomEl.title = 'Obsazeno (obě noci kolem dne) - klikněte pro detail';
     } else if (availability === 'blocked') {
       // Blocked rooms should be clickable even for past dates
       roomEl.addEventListener('click', async (e) => {
@@ -322,6 +364,7 @@ class CalendarModule {
     const checkOut = new Date(booking.endDate);
     const current = new Date(checkIn);
 
+    // Highlight all days from start to end date (inclusive)
     while (current.getTime() <= checkOut.getTime()) {
       const dateStr = dataManager.formatDate(current);
       booking.rooms.forEach((roomId) => {

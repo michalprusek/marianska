@@ -8,8 +8,19 @@
  * - Admin edit reservation
  *
  * Configurable modes with behavior customization via config object.
+ *
+ * DATE MODEL:
+ * The system uses an INCLUSIVE date model:
+ * - startDate: First day of stay
+ * - endDate: Last day of stay
+ * - Example: Booking 2025-01-05 to 2025-01-07 means:
+ *   * Guest occupies room on Jan 5, Jan 6, and Jan 7 (3 days, 2 nights)
+ *   * Number of nights = endDate - startDate
+ * - When selecting dates in calendar: selected dates ARE exactly what gets booked
+ * - When creating booking: dates are used exactly as selected by user
  */
 
+/* eslint-disable no-underscore-dangle -- Private methods use underscore prefix by convention */
 class BaseCalendar {
   /**
    * Calendar modes
@@ -84,6 +95,7 @@ class BaseCalendar {
 
   /**
    * Internal render implementation with cancellation support
+   * @private
    */
   async _doRender() {
     const container = document.getElementById(this.config.containerId);
@@ -258,15 +270,9 @@ class BaseCalendar {
   async buildBulkMode(calendarData) {
     const dayCellPromises = calendarData.days.map(async (day) => {
       const date = new Date(day.dateStr);
-      const isFullyAvailable = await this.isDateFullyAvailable(date);
+      const bulkAvailability = await this.getBulkDateAvailability(date);
 
-      // Create availability object compatible with createDayCell
-      const availability = {
-        status: isFullyAvailable ? 'available' : 'booked',
-        email: null,
-      };
-
-      return this.createDayCell(day, 'bulk', availability);
+      return this.createDayCell(day, 'bulk', bulkAvailability);
     });
 
     const dayCells = await Promise.all(dayCellPromises);
@@ -303,7 +309,7 @@ class BaseCalendar {
     }
 
     // Past date check (TIMEZONE FIX: use string comparison)
-    const todayStr = DateUtils.formatDate(app.today);
+    const todayStr = DateUtils.formatDate(app.today || new Date());
     if (!this.config.allowPast && dateStr < todayStr) {
       classes.push('past-date');
       styles.push('opacity: 0.5; background: #f3f4f6; color: #9ca3af;');
@@ -317,17 +323,61 @@ class BaseCalendar {
     }
 
     // Availability-based styling (only if not other month or past)
-    if (!day.isOtherMonth && (this.config.allowPast || date >= app.today)) {
-      if (
-        availability.status === 'blocked' ||
-        availability.status === 'booked' ||
-        availability.status === 'proposed'
-      ) {
-        // Unified red color for all unavailable dates (blocked, booked, proposed)
-        classes.push('unavailable');
+    // NIGHT-BASED MODEL:
+    // - available: No nights occupied (green)
+    // - edge: Exactly ONE night occupied (orange with indicator)
+    // - occupied: BOTH nights occupied (red, not clickable)
+    // - blocked: Administratively blocked (gray)
+    // - proposed: Pending booking (yellow)
+    if (!day.isOtherMonth && (this.config.allowPast || dateStr >= todayStr)) {
+      // Ensure availability has a status
+      const status = availability?.status || 'available';
+
+      if (status === 'blocked') {
+        // Blocked dates - gray
+        classes.push('blocked');
+        styles.push('background: #9ca3af; color: white;');
+        clickable = false;
+      } else if (status === 'occupied') {
+        // Occupied = BOTH nights around day are occupied - red, NOT clickable
+        classes.push('occupied');
         styles.push('background: #ef4444; color: white;');
         clickable = false;
+      } else if (status === 'edge') {
+        // Edge = exactly ONE night occupied - half green (available) / half red (occupied)
+        // Still clickable for new bookings
+        classes.push('edge-day');
+
+        // Visual indicator: show which side has the occupied night
+        const nightBefore = availability?.nightBefore;
+        const nightAfter = availability?.nightAfter;
+
+        if (nightBefore && !nightAfter) {
+          // Night before is occupied -> left half red, right half green
+          styles.push(
+            'background: linear-gradient(90deg, #ef4444 0%, #ef4444 50%, #10b981 50%, #10b981 100%); color: white;'
+          );
+        } else if (!nightBefore && nightAfter) {
+          // Night after is occupied -> left half green, right half red
+          styles.push(
+            'background: linear-gradient(90deg, #10b981 0%, #10b981 50%, #ef4444 50%, #ef4444 100%); color: white;'
+          );
+        } else {
+          // Fallback (shouldn't happen but just in case)
+          styles.push(
+            'background: linear-gradient(90deg, #10b981 0%, #10b981 50%, #ef4444 50%, #ef4444 100%); color: white;'
+          );
+        }
+
+        // Edge day IS clickable (available for new booking)
+        clickable = true;
+      } else if (status === 'proposed') {
+        // Proposed booking - yellow
+        classes.push('proposed');
+        styles.push('background: #f59e0b; color: white;');
+        clickable = false;
       } else {
+        // Available - green (default fallback)
         classes.push('available');
         styles.push('background: #10b981; color: white;');
       }
@@ -365,9 +415,11 @@ class BaseCalendar {
   }
 
   /**
-   * Check if date is fully available (all rooms)
+   * Get bulk date availability (checks all rooms for detailed status)
+   * Returns the "worst" status across all rooms:
+   * Priority: blocked > occupied > proposed > edge > available
    */
-  async isDateFullyAvailable(date) {
+  async getBulkDateAvailability(date) {
     const data = await dataManager.getData();
     const rooms = data.settings?.rooms || [];
 
@@ -377,7 +429,46 @@ class BaseCalendar {
     );
     const availabilities = await Promise.all(availabilityPromises);
 
-    return availabilities.every((availability) => availability.status === 'available');
+    // Check for blocked rooms (highest priority)
+    if (availabilities.some((a) => a.status === 'blocked')) {
+      return { status: 'blocked', email: null };
+    }
+
+    // Check for occupied rooms (both nights occupied)
+    if (availabilities.some((a) => a.status === 'occupied')) {
+      return {
+        status: 'occupied',
+        email: availabilities.find((a) => a.status === 'occupied')?.email || null,
+      };
+    }
+
+    // Check for proposed bookings
+    if (availabilities.some((a) => a.status === 'proposed')) {
+      return { status: 'proposed', email: null };
+    }
+
+    // Check for edge days (at least one room has edge status)
+    const edgeAvailability = availabilities.find((a) => a.status === 'edge');
+    if (edgeAvailability) {
+      return {
+        status: 'edge',
+        email: edgeAvailability.email || null,
+        nightBefore: edgeAvailability.nightBefore,
+        nightAfter: edgeAvailability.nightAfter,
+      };
+    }
+
+    // All rooms available
+    return { status: 'available', email: null };
+  }
+
+  /**
+   * Check if date is fully available (all rooms) - legacy method
+   */
+  async isDateFullyAvailable(date) {
+    const availability = await this.getBulkDateAvailability(date);
+    // Edge days are also available for new bookings
+    return availability.status === 'available' || availability.status === 'edge';
   }
 
   /**
@@ -508,9 +599,8 @@ class BaseCalendar {
       if (this.config.onDateSelect) {
         await this.config.onDateSelect(dateStr);
       }
-    }
-    // Druhý klik - nastav druhou hranici a vyplň interval
-    else if (!this.intervalState.secondClick) {
+    } else if (!this.intervalState.secondClick) {
+      // Druhý klik - nastav druhou hranici a vyplň interval
       // Vytvoř interval mezi oběma hranicemi pro validaci
       const range = this.getDateRangeBetween(this.intervalState.firstClick, dateStr);
 
@@ -607,6 +697,7 @@ class BaseCalendar {
     const [firstDate, lastDate] = start <= end ? [start, end] : [end, start];
 
     const current = new Date(firstDate);
+    // eslint-disable-next-line no-unmodified-loop-condition -- current is modified via setDate
     while (current <= lastDate) {
       dates.push(DateUtils.formatDate(current));
       current.setDate(current.getDate() + 1);
@@ -659,7 +750,7 @@ class BaseCalendar {
         cell.classList.remove('preview-interval');
         const originalBg = cell.getAttribute('data-original-bg');
         if (originalBg) {
-          cell.style.cssText = cell.style.cssText.replace(/background:[^;]*;?/, originalBg);
+          cell.style.cssText = cell.style.cssText.replace(/background:[^;]*;?/u, originalBg);
         }
         cell.style.border = '';
       }
@@ -741,7 +832,8 @@ class BaseCalendar {
         if (roomId) {
           // Pass '' to show ALL proposed bookings (including others)
           const availability = await dataManager.getRoomAvailability(date, roomId, '');
-          isUnavailable = availability.status !== 'available';
+          // Edge days are available for new bookings
+          isUnavailable = availability.status !== 'available' && availability.status !== 'edge';
         }
       }
 
@@ -774,3 +866,4 @@ class BaseCalendar {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = BaseCalendar;
 }
+/* eslint-enable no-underscore-dangle */

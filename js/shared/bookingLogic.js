@@ -11,22 +11,24 @@
 
 class BookingLogic {
   /**
-   * Check if two date ranges overlap
+   * Check if two date ranges overlap (share any nights)
    *
-   * Standard hotel logic: Checkout day is NOT occupied (allows same-day check-in)
-   * Range 1: [start1, end1)  (exclusive end)
-   * Range 2: [start2, end2)  (exclusive end)
+   * NEW LOGIC: Based on shared nights, not shared days
+   * - Booking uses nights BETWEEN days (exclusive interval logic)
+   * - Jan 1-3 uses nights: Jan 1->2, Jan 2->3 (NOT Jan 3->4)
+   * - Jan 3-5 uses nights: Jan 3->4, Jan 4->5 (NOT Jan 5->6)
+   * - These DON'T overlap because they don't share a night
    *
    * Examples:
-   * - Booking 1: 2024-01-01 to 2024-01-05 occupies: Jan 1,2,3,4 (NOT Jan 5)
-   * - Booking 2: 2024-01-05 to 2024-01-10 occupies: Jan 5,6,7,8,9 (NOT Jan 10)
-   * - Result: NO overlap (guest checks out Jan 5 morning, new guest checks in Jan 5 afternoon)
+   * - Booking 1: Jan 1-3 → occupies Jan 1 and Jan 2 (days), nights Jan 1->2, 2->3
+   * - Booking 2: Jan 3-5 → occupies Jan 3 and Jan 4 (days), nights Jan 3->4, 4->5
+   * - Result: NO overlap (Jan 3 is shared but no shared NIGHT)
    *
    * @param {string|Date} start1 - Start date of first range
-   * @param {string|Date} end1 - End date of first range
+   * @param {string|Date} end1 - End date of first range (exclusive)
    * @param {string|Date} start2 - Start date of second range
-   * @param {string|Date} end2 - End date of second range
-   * @returns {boolean} - True if ranges overlap
+   * @param {string|Date} end2 - End date of second range (exclusive)
+   * @returns {boolean} - True if ranges share a night
    */
   static checkDateOverlap(start1, end1, start2, end2) {
     // Convert to Date objects if strings
@@ -35,26 +37,30 @@ class BookingLogic {
     const s2 = typeof start2 === 'string' ? new Date(start2) : start2;
     const e2 = typeof end2 === 'string' ? new Date(end2) : end2;
 
-    // Standard interval overlap: (start1 < end2) AND (end1 > start2)
-    // This correctly handles checkout day as NOT occupied
-    return s1 < e2 && e1 > s2;
+    // Inclusive interval overlap
+    // They overlap if: start1 <= end2 AND end1 >= start2
+    return s1 <= e2 && e1 >= s2;
   }
 
   /**
    * Check if a specific date falls within a booking range
    *
+   * UPDATED: Using exclusive end logic (standard interval)
+   * - Booking Jan 1-3 occupies Jan 1 and Jan 2 (NOT Jan 3)
+   * - Check uses: date >= start AND date < end
+   *
    * @param {string|Date} checkDate - Date to check
    * @param {string|Date} bookingStart - Booking start date
    * @param {string|Date} bookingEnd - Booking end date (exclusive)
-   * @returns {boolean} - True if date is occupied
+   * @returns {boolean} - True if date is occupied by this booking
    */
   static isDateOccupied(checkDate, bookingStart, bookingEnd) {
     const check = typeof checkDate === 'string' ? new Date(checkDate) : checkDate;
     const start = typeof bookingStart === 'string' ? new Date(bookingStart) : bookingStart;
     const end = typeof bookingEnd === 'string' ? new Date(bookingEnd) : bookingEnd;
 
-    // Check if date is in range [start, end)
-    return check >= start && check < end;
+    // Inclusive end: check >= start AND check <= end
+    return check >= start && check <= end;
   }
 
   /**
@@ -66,7 +72,16 @@ class BookingLogic {
   static formatDate(date) {
     // Delegate to DateUtils for SSOT
     if (typeof DateUtils === 'undefined') {
-      return new Date(typeof date === 'string' ? date : date).toISOString().split('T')[0];
+      // If string in YYYY-MM-DD format, return as is
+      if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/u)) {
+        return date;
+      }
+      const d = typeof date === 'string' ? new Date(`${date}T12:00:00`) : new Date(date);
+      // Use local date components instead of UTC to avoid timezone issues
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
     }
     return DateUtils.formatDate(date);
   }

@@ -3,6 +3,7 @@
  * Provides log levels and structured logging without external dependencies
  */
 
+/* eslint-disable no-underscore-dangle -- Private methods use underscore prefix by convention */
 const LOG_LEVELS = {
   ERROR: 0,
   WARN: 1,
@@ -58,9 +59,11 @@ class Logger {
         console.info(formatted);
         break;
       case 'DEBUG':
+        // eslint-disable-next-line no-console -- Console is intended for logging
         console.debug(formatted);
         break;
       default:
+        // eslint-disable-next-line no-console -- Console is intended for logging
         console.log(formatted);
     }
   }
@@ -105,10 +108,14 @@ class Logger {
   }
 }
 
-// Factory function for creating loggers
-function createLogger(component, level = process.env.LOG_LEVEL || 'INFO') {
-  return new Logger(component, level);
-}
+/**
+ * Factory function for creating loggers
+ * @param {string} component - Component name
+ * @param {string} level - Log level
+ * @returns {Logger} Logger instance
+ */
+const createLogger = (component, level = process.env.LOG_LEVEL || 'INFO') =>
+  new Logger(component, level);
 
 // Export for Node.js (CommonJS)
 if (typeof module !== 'undefined' && module.exports) {
@@ -120,3 +127,4 @@ if (typeof window !== 'undefined') {
   window.Logger = Logger;
   window.createLogger = createLogger;
 }
+/* eslint-enable no-underscore-dangle */

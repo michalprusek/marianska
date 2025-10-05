@@ -1,4 +1,6 @@
 // Data management layer - SERVER-FIRST with real-time sync
+/* global IdGenerator, ChristmasUtils, PriceCalculator, AbortController */
+
 class DataManager {
   constructor() {
     this.apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api';
@@ -12,8 +14,8 @@ class DataManager {
     this.proposedBookingsCacheTime = null; // Timestamp of last cache
     this.proposedBookingsCacheDuration = 30000; // Cache for 30 seconds (matches auto-sync)
     this.proposedBookingsFetchPromise = null; // In-flight request promise
-    this._lastRender = 0; // Track last calendar render for debouncing
-    this._renderPending = false; // Prevent multiple pending renders
+    this.lastRender = 0; // Track last calendar render for debouncing
+    this.renderPending = false; // Prevent multiple pending renders
   }
 
   getOrCreateSessionId() {
@@ -139,24 +141,20 @@ class DataManager {
             // Debounce calendar re-renders to prevent rate limiting
             // Only render if: no render pending AND at least 10 seconds since last render
             const now = Date.now();
-            if (window.app && !this._renderPending && now - this._lastRender > 10000) {
-              this._renderPending = true;
+            // eslint-disable-next-line max-depth -- Complex debouncing logic requires this nesting
+            if (window.app && !this.renderPending && now - this.lastRender > 10000) {
+              this.renderPending = true;
               // Delay render by 1 second to batch multiple sync events
               setTimeout(async () => {
-                this._renderPending = false;
-                this._lastRender = Date.now();
+                this.renderPending = false;
+                this.lastRender = Date.now();
                 await window.app.renderCalendar();
                 await window.app.updatePriceCalculation();
               }, 1000);
             }
 
             // Update admin panel if active
-            if (
-              window.adminPanel &&
-              document.querySelector('#bookingsTab')?.classList.contains('active')
-            ) {
-              await window.adminPanel.loadBookings();
-            }
+            this.updateAdminPanelIfActive();
           } else if (localTimestamp > serverTimestamp) {
             // Local has newer data - push to server
             await this.pushToServer();
@@ -167,6 +165,12 @@ class DataManager {
       }
     } catch {
       // Silently fail sync - will retry on next operation
+    }
+  }
+
+  async updateAdminPanelIfActive() {
+    if (window.adminPanel && document.querySelector('#bookingsTab')?.classList.contains('active')) {
+      await window.adminPanel.loadBookings();
     }
   }
 
@@ -540,23 +544,13 @@ class DataManager {
       return { status: 'blocked', email: null };
     }
 
-    // Check if room is booked using unified BookingLogic
+    // NIGHT-BASED LOGIC:
+    // Edge day = exactly ONE night around the day is occupied
+    // Occupied day = BOTH nights around the day are occupied
+    // Available day = NO nights around the day are occupied
     const checkDateStr = this.formatDate(date);
-    const bookings = data.bookings.filter(
-      (booking) =>
-        booking.rooms.includes(roomId) &&
-        BookingLogic.isDateOccupied(checkDateStr, booking.startDate, booking.endDate)
-    );
 
-    if (bookings.length > 0) {
-      return { status: 'booked', email: bookings[0].email };
-    }
-
-    // Check for proposed bookings from the database (with caching to avoid rate limits)
-    // excludeSessionId behavior:
-    // - undefined (not passed): exclude current session (for booking creation)
-    // - empty string '': show ALL proposals (for calendar display)
-    // - specific sessionId: exclude that specific session
+    // HIGHEST PRIORITY: Check for proposed bookings first
     try {
       const proposedBookings = await this.getProposedBookings();
       const shouldExcludeSession = excludeSessionId === undefined;
@@ -565,9 +559,9 @@ class DataManager {
       const hasProposedBooking = proposedBookings.some(
         (pb) =>
           pb.rooms.includes(roomId) &&
-          dateStr >= pb.start_date &&
-          dateStr < pb.end_date &&
-          (sessionToExclude === '' || pb.session_id !== sessionToExclude) // Empty string = show all
+          checkDateStr >= pb.start_date &&
+          checkDateStr <= pb.end_date && // INCLUSIVE end date - proposed booking blocks checkout day
+          (sessionToExclude === '' || pb.session_id !== sessionToExclude)
       );
 
       if (hasProposedBooking) {
@@ -577,7 +571,50 @@ class DataManager {
       console.error('Failed to check proposed bookings:', error);
     }
 
-    return { status: 'available', email: null };
+    // Get all bookings for this room
+    const roomBookings = data.bookings
+      .filter((booking) => booking.rooms.includes(roomId))
+      .map((b) => ({ startDate: b.startDate, endDate: b.endDate, email: b.email }));
+
+    // Calculate nights around the given day using DateUtils
+    const nightBefore = DateUtils.getPreviousDay(checkDateStr); // night from (day-1) to day
+    const nightAfter = checkDateStr; // night from day to (day+1)
+
+    let nightBeforeOccupied = false;
+    let nightAfterOccupied = false;
+    let bookingEmail = null;
+
+    // Check if each night is occupied by any booking
+    for (const booking of roomBookings) {
+      // Night is occupied if nightDate >= bookingStart AND nightDate < bookingEnd
+      if (DateUtils.isNightOccupied(nightBefore, booking.startDate, booking.endDate)) {
+        nightBeforeOccupied = true;
+        bookingEmail = booking.email;
+      }
+      if (DateUtils.isNightOccupied(nightAfter, booking.startDate, booking.endDate)) {
+        nightAfterOccupied = true;
+        bookingEmail = booking.email;
+      }
+    }
+
+    const occupiedCount = (nightBeforeOccupied ? 1 : 0) + (nightAfterOccupied ? 1 : 0);
+
+    // Determine status based on occupied night count
+    if (occupiedCount === 0) {
+      return { status: 'available', email: null };
+    } else if (occupiedCount === 1) {
+      return {
+        status: 'edge',
+        email: bookingEmail || null,
+        nightBefore: nightBeforeOccupied,
+        nightAfter: nightAfterOccupied,
+      };
+    }
+    // Both nights occupied = fully occupied
+    return {
+      status: 'occupied',
+      email: bookingEmail || null,
+    };
   }
 
   // Generate color from email for consistent coloring
@@ -615,75 +652,27 @@ class DataManager {
   }
 
   // Christmas period rules
+  // Delegate to ChristmasUtils for SSOT compliance
   async isChristmasPeriod(date) {
     const settings = await this.getSettings();
-    const dateStr = this.formatDate(date);
-
-    // Check new format with multiple periods
-    if (settings.christmasPeriods && Array.isArray(settings.christmasPeriods)) {
-      return settings.christmasPeriods.some(
-        (period) => dateStr >= period.start && dateStr <= period.end
-      );
-    }
-
-    // Check old single period format for backward compatibility
-    if (
-      settings.christmasPeriod &&
-      settings.christmasPeriod.start &&
-      settings.christmasPeriod.end
-    ) {
-      const startDate = settings.christmasPeriod.start;
-      const endDate = settings.christmasPeriod.end;
-      return dateStr >= startDate && dateStr <= endDate;
-    }
-
-    // Fallback to default dates
-    const month = date.getMonth();
-    const day = date.getDate();
-
-    if (month === 11 && day >= 23) {
-      return true;
-    }
-    if (month === 0 && day <= 2) {
-      return true;
-    }
-
-    return false;
+    return ChristmasUtils.isChristmasPeriod(date, settings);
   }
 
   /**
    * Check if Christmas access code is required and if bulk booking is allowed
-   * Rules:
-   * - Code required if current date <= Sept 30 of the year containing Christmas period start
-   * - After Oct 1: Single room bookings don't need code, bulk bookings are blocked
+   * Delegates to ChristmasUtils for SSOT compliance
    *
    * @param {Date|string} christmasPeriodStart - First day of Christmas period
    * @param {boolean} isBulkBooking - Whether this is a bulk booking
    * @returns {Object} { codeRequired: boolean, bulkBlocked: boolean }
    */
   checkChristmasAccessRequirement(christmasPeriodStart, isBulkBooking = false) {
-    if (!christmasPeriodStart) {
-      return { codeRequired: false, bulkBlocked: false };
-    }
-
     const today = new Date();
-    const christmasStartDate =
-      typeof christmasPeriodStart === 'string'
-        ? new Date(christmasPeriodStart)
-        : christmasPeriodStart;
-    const christmasYear = christmasStartDate.getFullYear();
-
-    // Sept 30 of the year containing Christmas period start
-    const sept30Cutoff = new Date(christmasYear, 8, 30, 23, 59, 59); // Month is 0-indexed (8 = September)
-
-    const isBeforeSept30 = today <= sept30Cutoff;
-
-    if (isBeforeSept30) {
-      // Before Oct 1: Code required for both single and bulk
-      return { codeRequired: true, bulkBlocked: false };
-    }
-    // After Oct 1: Single rooms don't need code, bulk is blocked
-    return { codeRequired: false, bulkBlocked: isBulkBooking };
+    return ChristmasUtils.checkChristmasAccessRequirement(
+      today,
+      christmasPeriodStart,
+      isBulkBooking
+    );
   }
 
   requiresChristmasCode(startDate) {
@@ -692,39 +681,17 @@ class DataManager {
     return codeRequired;
   }
 
-  async canBulkBookChristmas() {
-    const data = await this.getData();
-    const today = new Date();
+  /**
+   * @deprecated REMOVED 2025-10-05 - Unused method with inverted logic (off-by-one date error).
+   * Use ChristmasUtils.checkChristmasAccessRequirement() instead.
+   * This method had incorrect logic (Oct 1 vs Sept 30) and was never called in the codebase.
+   */
 
-    // Zkontroluj všechna vánoční období
-    for (const period of data.settings.christmasPeriods || []) {
-      const christmasYear = period.year;
-      const deadline = new Date(christmasYear, 9, 1); // 1.10. roku vánočních prázdnin
-
-      // Pokud je před 1.10. roku vánočních prázdnin, hromadné rezervace nejsou povoleny
-      if (today < deadline) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  async canBookChristmasPeriod(userEmail, accessCode, startDate) {
-    const data = await this.getData();
-
-    // Pokud je po 30.9. roku vánočních prázdnin, rezervace je povolena bez kódu
-    if (!this.requiresChristmasCode(startDate)) {
-      return true;
-    }
-
-    // Před 30.9. se vyžaduje přístupový kód
-    if (accessCode && data.settings.christmasAccessCodes.includes(accessCode)) {
-      return true;
-    }
-
-    return false;
-  }
+  /**
+   * @deprecated REMOVED 2025-10-05 - Redundant validation logic.
+   * Use ChristmasUtils.validateChristmasCode() and ChristmasUtils.checkChristmasAccessRequirement() instead.
+   * This method duplicated validation that is now centralized in ChristmasUtils.
+   */
 
   async getChristmasBookings() {
     const data = await this.getData();
@@ -987,20 +954,17 @@ class DataManager {
   }
 
   // Get API key from session
-  getApiKey() {
-    // DEPRECATED: Use getSessionToken() instead
-    return sessionStorage.getItem('apiKey');
-  }
+  // Removed: getApiKey() - deprecated method, use getSessionToken() instead
 
   getSessionToken() {
-    return sessionStorage.getItem('adminSessionToken');
+    return localStorage.getItem('adminSessionToken');
   }
 
   // Handle 401 errors by triggering admin logout
   handleUnauthorizedError() {
-    // Clear session data
-    sessionStorage.removeItem('adminSessionToken');
-    sessionStorage.removeItem('adminSessionExpiry');
+    // Clear session data (changed to localStorage for persistence)
+    localStorage.removeItem('adminSessionToken');
+    localStorage.removeItem('adminSessionExpiry');
 
     // Trigger admin panel logout if available
     if (window.adminPanel && typeof window.adminPanel.logout === 'function') {
@@ -1014,33 +978,37 @@ class DataManager {
   }
 
   // Utility functions
+  /**
+   * @deprecated Use IdGenerator.generateBookingId() directly instead.
+   * This wrapper adds no value and will be removed in a future version.
+   */
   generateBookingId() {
-    // Generate BK + 13 uppercase alphanumeric characters to match server.js format
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let id = 'BK';
-    for (let i = 0; i < 13; i++) {
-      id += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return id;
+    return IdGenerator.generateBookingId();
   }
 
+  /**
+   * @deprecated Use IdGenerator.generateEditToken() directly instead.
+   * This wrapper adds no value and will be removed in a future version.
+   */
   generateEditToken() {
-    // Generate 30 character token (matches test expectations and provides good security)
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    let token = '';
-    for (let i = 0; i < 30; i++) {
-      token += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return token;
+    return IdGenerator.generateEditToken();
   }
 
+  /**
+   * @deprecated Use DateUtils.formatDate() directly instead.
+   * This wrapper adds unnecessary complexity and will be removed in a future version.
+   */
   formatDate(date) {
     // Delegate to DateUtils for SSOT (if available in browser context)
     if (typeof DateUtils !== 'undefined') {
       return DateUtils.formatDate(date);
     }
     // Fallback for environments where DateUtils is not loaded
-    const d = new Date(date);
+    // If string in YYYY-MM-DD format, return as is
+    if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/u)) {
+      return date;
+    }
+    const d = typeof date === 'string' ? new Date(`${date}T12:00:00`) : new Date(date);
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
@@ -1050,7 +1018,7 @@ class DataManager {
   // Proposed booking methods
 
   // Get proposed bookings with caching to avoid rate limits
-  async getProposedBookings() {
+  getProposedBookings() {
     const now = Date.now();
 
     // Return cached data if still valid
@@ -1194,29 +1162,31 @@ class DataManager {
   }
 
   // Price calculation
+  // Delegate to PriceCalculator for SSOT compliance
   // eslint-disable-next-line max-params -- Legacy method signature maintained for backward compatibility
-  calculatePrice(guestType, adults, children, _toddlers, nights, roomsCount = 1) {
-    // Legacy parameter support - convert to options object internally
-    const options = { guestType, adults, children, nights, roomsCount };
+  calculatePrice(guestType, adults, children, toddlers, nights, roomsCount = 1) {
+    const options = { guestType, adults, children, toddlers, nights, roomsCount };
     return this.calculatePriceFromOptions(options);
   }
 
-  async calculatePriceFromOptions({ guestType, adults, children, nights, roomsCount = 1 }) {
+  async calculatePriceFromOptions({
+    guestType,
+    adults,
+    children,
+    toddlers,
+    nights,
+    roomsCount = 1,
+  }) {
     const settings = await this.getSettings();
-    const prices = settings.prices || {
-      utia: { base: 298, adult: 49, child: 24 },
-      external: { base: 499, adult: 99, child: 49 },
-    };
-
-    let pricePerNight = 0;
-    const guestKey = guestType === 'utia' ? 'utia' : 'external';
-    const priceConfig = prices[guestKey];
-
-    pricePerNight = priceConfig.base * roomsCount;
-    pricePerNight += (adults - roomsCount) * priceConfig.adult;
-    pricePerNight += children * priceConfig.child;
-
-    return pricePerNight * nights;
+    return PriceCalculator.calculatePrice({
+      guestType,
+      adults,
+      children,
+      toddlers,
+      nights,
+      roomsCount,
+      settings,
+    });
   }
 
   // Get room configuration

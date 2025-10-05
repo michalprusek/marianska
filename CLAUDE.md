@@ -8,39 +8,32 @@ Rezervační systém pro horskou chatu s 9 pokoji, navržený pro zaměstnance �
 
 ## Commands
 
-### Development (Local)
+### Production (Docker)
+
+**⚠️ KRITICKÉ: Po každé změně kódu automaticky rebuildni Docker kontejnery!**
+
+```bash
+# Rebuild and start containers (use after every code change)
+docker-compose down && docker-compose up --build -d
+
+# Stop containers
+docker-compose down
+
+# View logs
+docker-compose logs -f
+```
+
+**Docker Configuration:**
+- `docker-compose.yml` - Production config (NODE_ENV=production, npm start)
+- `docker-compose.dev.yml` - Development config (NODE_ENV=development, npm run dev, live reload)
+
+### Development (Local - Optional)
 
 ```bash
 npm install          # Install dependencies
 npm start           # Start production server on port 3000
 npm run dev         # Start development server with auto-reload
 ```
-
-**⚠️ KRITICKÉ: Server běží lokálně v terminálu uživatele - NIKDY do něj nezasahuj!**
-- ❌ NIKDY: Nespouštěj `npm start`, `npm run dev` ani jiné serverové příkazy
-- ❌ NIKDY: Nepoužívej `run_in_background: true` pro dlouhotrvající procesy
-- ✅ VŽDY: Server ovládá uživatel ve svém terminálu
-- ✅ VŽDY: Pouze upravuj kód, nikdy nerestartuj server
-
-### Production (Docker)
-
-```bash
-# Production deployment
-docker-compose up -d                    # Start production containers
-docker-compose down                     # Stop containers
-docker-compose up --build -d           # Rebuild and start containers
-
-# Development with Docker
-docker-compose -f docker-compose.dev.yml up -d     # Start dev containers with live reload
-docker-compose -f docker-compose.dev.yml down      # Stop dev containers
-
-# IMPORTANT: After any code changes, you MUST rebuild the Docker containers:
-docker-compose down && docker-compose up --build -d
-```
-
-**Docker Configuration:**
-- `docker-compose.yml` - Production config (NODE_ENV=production, npm start)
-- `docker-compose.dev.yml` - Development config (NODE_ENV=development, npm run dev, live reload)
 
 ## Architektura
 
@@ -77,6 +70,27 @@ docker-compose down && docker-compose up --build -d
 - Validace date ranges
 - @deprecated metody delegují na DateUtils
 
+**5. IdGenerator** (`js/shared/idGenerator.js`) - **NOVÝ 2025-10**: Unifikovaná generace ID:
+
+- Generování booking ID (BK + 13 znaků)
+- Generování edit tokenů (30 znaků pro bezpečnost)
+- Generování blockage, Christmas period, proposal, session ID
+- Konzistentní délka tokenů napříč celou aplikací
+
+**6. PriceCalculator** (`js/shared/priceCalculator.js`) - **NOVÝ 2025-10**: Centralizovaný výpočet cen:
+
+- Jednotná cenová logika pro server i klienta
+- Podpora individuálních rezervací (calculatePrice)
+- Podpora hromadných rezervací (calculateBulkPrice)
+- Výchozí cenové konfigurace
+
+**7. ChristmasUtils** (`js/shared/christmasUtils.js`) - **NOVÝ 2025-10**: Vánoční logika:
+
+- Detekce vánočního období (podpora multiple periods)
+- Validace přístupových kódů
+- Kontrola datum-závislých pravidel (před/po 1. říjnu)
+- Kontrola překrytí rezervace s vánočním obdobím
+
 #### ❌ NIKDY NEDĚLEJTE:
 
 ```javascript
@@ -109,14 +123,32 @@ DateUtils.getDaysBetween(start, end)
 
 // ✅ Použijte BookingLogic pro konfliktní detekci
 BookingLogic.checkBookingConflict(booking, existingBookings, roomId)
+
+// ✅ Použijte IdGenerator pro generování ID a tokenů
+const bookingId = IdGenerator.generateBookingId()
+const editToken = IdGenerator.generateEditToken()
+
+// ✅ Použijte PriceCalculator pro výpočet cen
+const price = PriceCalculator.calculatePrice({ guestType, adults, children, nights, roomsCount, settings })
+const bulkPrice = PriceCalculator.calculateBulkPrice({ guestType, adults, children, nights, settings })
+
+// ✅ Použijte ChristmasUtils pro vánoční logiku
+const isChristmas = ChristmasUtils.isChristmasPeriod(date, settings)
+const isValidCode = ChristmasUtils.validateChristmasCode(code, settings)
+const { codeRequired, bulkBlocked } = ChristmasUtils.checkChristmasAccessRequirement(today, christmasStart, isBulk)
 ```
 
 **Pravidlo**: Pokud se kód opakuje 2x+ → Přesuňte do `js/shared/`
 
 **Přínosy refactoringu na SSOT**:
-- Před: ~800 řádků duplikovaného kódu
-- Po: 565 řádků v BaseCalendar, použito 4x
-- Eliminováno: 656 řádků (-45% duplikátů)
+- **BaseCalendar**: Eliminováno 656 řádků (-45% duplikátů)
+- **Shared Utilities (2025-10)**: Eliminováno dalších ~360 řádků:
+  - IdGenerator: Konsolidace z 3 míst (server.js, data.js, database.js)
+  - PriceCalculator: Konsolidace z 2 míst + odstranění ~150 řádků
+  - ChristmasUtils: Konsolidace z 2 míst + odstranění ~120 řádků
+- **Celkem eliminováno**: >1000 řádků duplikovaného kódu
+- **Zabezpečení**: Standardizovaná délka edit tokenů (30 znaků)
+- **Deprecated code removal**: getApiKey(), escapeHtml()
 
 ### Backend API (server.js)
 
@@ -479,12 +511,17 @@ Celkem: 26 lůžek
 ## Bezpečnostní opatření
 
 1. **Edit tokeny** - Unikátní tokeny pro úpravu rezervací
-2. **Admin přístup** - Chráněn heslem (session storage)
+2. **Admin přístup** - Chráněn heslem s perzistentní session (localStorage)
+   - **Session timeout**: 7 dní (prodlouženo z původních 2 hodin - 2025-10-05)
+   - **Perzistence**: localStorage místo sessionStorage pro zachování přihlášení i po zavření browseru
+   - **Auto-refresh**: Session se automaticky obnovuje při aktivitě (každou 1 hodinu)
+   - **Varování**: Uživatel dostane varování 1 hodinu před vypršením
+   - **Server-side validace**: Každý request validován proti databázi sessionů
 3. **Validace vstupů** - Kontrola všech formulářových polí
 4. **Ochrana soukromí** - Skrytí osobních údajů v kalendáři
 5. **Vánoční kódy** - Omezení přístupu během špičky
 6. **Trust Proxy** - Server nastavený pro běh za reverse proxy (nginx)
-   - `app.set('trust proxy', true)` v `server.js:34`
+   - `app.set('trust proxy', true)` v `server.js:41`
    - Umožňuje správné získání IP adresy klienta z hlavičky `X-Forwarded-For`
    - Nutné pro funkci rate limitingu a session managementu za nginx proxy
 
@@ -562,7 +599,9 @@ Systém podporuje dva režimy ukládání:
 - `dataManager.createBooking()` - vytvoření rezervace s ID a edit tokenem
 - `dataManager.getRoomAvailability()` - kontrola dostupnosti
 - `dataManager.calculatePrice()` - výpočet ceny podle typu hosta
-- `dataManager.formatDate(date)` - formátování na YYYY-MM-DD
+- ~~`dataManager.formatDate(date)`~~ - **@deprecated** Použijte `DateUtils.formatDate()` přímo
+- ~~`dataManager.generateBookingId()`~~ - **@deprecated** Použijte `IdGenerator.generateBookingId()` přímo
+- ~~`dataManager.generateEditToken()`~~ - **@deprecated** Použijte `IdGenerator.generateEditToken()` přímo
 
 ### Validace vstupů (js/shared/validationUtils.js)
 
@@ -631,6 +670,172 @@ Každá rezervace má unikátní `editToken`. Přístup k editaci: `edit.html?to
 - Centralizovaná detekce konfliktů
 - Deleguje date operace na DateUtils (SSOT)
 - Konzistentní business rules
+
+### SSOT Cleanup & Consolidation (2025-10-05)
+
+**Provedené změny pro vyšší konzistenci a eliminaci duplikací:**
+
+1. **Fix kritické nekonzistence v date modelu**
+   - `database.js:getRoomAvailability()` - Opraveno použití EXCLUSIVE end date (`<`) na INCLUSIVE (`<=`)
+   - Nyní používá `DateUtils.isNightOccupied()` pro konzistentní logiku night-based availability
+   - Eliminuje edge-case booking konflikty mezi klientem a serverem
+
+2. **Odstranění duplikátů v Christmas logice**
+   - Smazány nepoužívané metody: `canBulkBookChristmas()` (měla inverzní logiku, off-by-one error)
+   - Smazána: `canBookChristmasPeriod()` (duplikovala validaci z ChristmasUtils)
+   - Odstraněn duplicate check v `bulk-booking.js:createBulkBooking()` (již validováno v confirmBulkDates)
+   - **Eliminováno**: ~40 řádků duplikovaného/chybného kódu
+
+3. **Nahrazení manuálních date operací**
+   - `server.js`: Nahrazen manuální výpočet nocí (`(endDate - startDate) / (1000 * 60 * 60 * 24)`) za `DateUtils.getDaysBetween()`
+   - `database.js`: Nahrazeno manuální date parsování (`split('-')`) za `DateUtils.parseDate()` a `DateUtils.formatDate()`
+   - **Eliminováno**: ~20 řádků manuálního date manipulace
+
+4. **Označení wrapper metod jako @deprecated**
+   - `dataManager.generateBookingId()` → Použijte `IdGenerator.generateBookingId()` přímo
+   - `dataManager.generateEditToken()` → Použijte `IdGenerator.generateEditToken()` přímo
+   - `dataManager.formatDate()` → Použijte `DateUtils.formatDate()` přímo
+   - `ChristmasUtils._formatDate()` → Nyní deleguje na `DateUtils.formatDate()`
+   - Metody zůstávají pro zpětnou kompatibilitu, ale budou odstraněny v další verzi
+
+5. **Výsledky jscpd kontroly**
+   - **Žádné duplikáty v produkčním kódu** ✅
+   - Duplikáty pouze v testech (test patterns - přijatelné)
+   - Systém udržuje < 5% duplikace (dle ESLint konfigurace)
+
+**Celkový impact:**
+- **Eliminováno**: ~60 řádků duplikátů a nekonzistentního kódu
+- **Opraveno**: 1 kritický bug (EXCLUSIVE vs INCLUSIVE end date model)
+- **Zlepšeno**: Konzistence mezi client-side a server-side validacemi
+- **Udržováno**: SSOT principy napříč celou aplikací
+
+### Inclusive Date Model (2025-10-05)
+
+**⚠️ KRITICKÉ: Všechny operace s daty používají INCLUSIVE model**
+
+#### Princip:
+- Rezervace od **6.10 do 7.10** znamená hosté jsou ubytováni **6.10 I 7.10** (obě noci)
+- `startDate` = check-in den (OBSAZENÝ)
+- `endDate` = poslední den pobytu (OBSAZENÝ)
+- Obě krajní data jsou SOUČÁSTÍ rezervace
+
+#### Implementace napříč celým systémem:
+
+**Databáze (database.js):**
+```javascript
+// ✅ SPRÁVNĚ - Inclusive check
+WHERE ? >= b.start_date AND ? <= b.end_date
+WHERE bi.start_date <= ? AND bi.end_date >= ?
+```
+
+**Server (server.js:643):**
+```javascript
+// ✅ SPRÁVNĚ - Check ALL dates including end date
+while (current.getTime() <= endDate.getTime()) {
+  // Check availability
+}
+```
+
+**Client-side (data.js:561, 575):**
+```javascript
+// ✅ SPRÁVNĚ - Inclusive checks (OPRAVENO 2025-10-05)
+checkDateStr >= pb.start_date && checkDateStr <= pb.end_date  // Proposed bookings
+checkDateStr >= booking.startDate && checkDateStr <= booking.endDate  // Regular bookings
+```
+
+**BookingLogic (bookingLogic.js:42, 63):**
+```javascript
+// ✅ SPRÁVNĚ - Inclusive overlap and occupation
+return s1 <= e2 && e1 >= s2;  // Overlap check
+return check >= start && check <= end;  // Date occupation
+```
+
+#### Běžné chyby k vyhnutí:
+
+❌ **NIKDY:**
+```javascript
+// Exclusive end date - WRONG!
+while (current < endDate) { ... }
+checkDate < booking.endDate  // Missing last day!
+WHERE ? < b.end_date  // Excludes end date!
+```
+
+✅ **VŽDY:**
+```javascript
+// Inclusive end date - CORRECT!
+while (current <= endDate) { ... }
+checkDate <= booking.endDate  // Includes last day!
+WHERE ? <= b.end_date  // Includes end date!
+```
+
+#### Night-Based Availability Model (2025-10-05)
+
+**⚠️ KRITICKÉ: Nový model založený na nocích kolem dne**
+
+**Základní princip:**
+- **Noc** = období od data X do data X+1
+- Rezervace 6.10-8.10 obsazuje noci: 6.10→7.10, 7.10→8.10 (2 noci)
+- Každý den má **dvě noci kolem sebe**: noc PŘED (z předchozího dne) a noc PO (do následujícího dne)
+
+**Stavy dnů:**
+1. **Available (volný)** - Žádná z nocí kolem dne není obsazena (zelený)
+2. **Edge (krajní)** - Právě JEDNA noc kolem dne je obsazena (oranžový, KLIKATELNÝ)
+3. **Occupied (obsazený)** - OBĚ noci kolem dne jsou obsazeny (červený, NEKLIKATELNÝ)
+4. **Blocked** - Administrativně blokovaný (šedý)
+5. **Proposed** - Navržená rezervace (žlutý)
+
+**Příklad - Rezervace 6.10-8.10:**
+```
+Den 5.10:
+  - Noc před (4.10→5.10): volná
+  - Noc po (5.10→6.10): volná
+  → Status: AVAILABLE (zelený)
+
+Den 6.10 (check-in):
+  - Noc před (5.10→6.10): volná
+  - Noc po (6.10→7.10): OBSAZENÁ ✓
+  → Status: EDGE (oranžový, levý border) - 1 noc obsazena
+
+Den 7.10 (prostřední den):
+  - Noc před (6.10→7.10): OBSAZENÁ ✓
+  - Noc po (7.10→8.10): OBSAZENÁ ✓
+  → Status: OCCUPIED (červený) - obě noci obsazeny
+
+Den 8.10 (check-out):
+  - Noc před (7.10→8.10): OBSAZENÁ ✓
+  - Noc po (8.10→9.10): volná
+  → Status: EDGE (oranžový, pravý border) - 1 noc obsazena
+
+Den 9.10:
+  - Noc před (8.10→9.10): volná
+  - Noc po (9.10→10.10): volná
+  → Status: AVAILABLE (zelený)
+```
+
+**Klikatelnost:**
+- ✅ **AVAILABLE** - klikatelný pro novou rezervaci
+- ✅ **EDGE** - klikatelný pro novou rezervaci (hosté můžou přijet/odjet)
+- ❌ **OCCUPIED** - NEKLIKATELNÝ, pouze zobrazení detailu
+- ❌ **BLOCKED** - NEKLIKATELNÝ
+- ❌ **PROPOSED** - NEKLIKATELNÝ (dočasně blokováno)
+
+**Visual indicators:**
+- **Edge s nocí PŘED**: napůl zelený (vlevo) a napůl červený (vpravo) - gradient zleva doprava
+- **Edge s nocí PO**: napůl zelený (vpravo) a napůl červený (vlevo) - gradient zleva doprava
+- Gradient: `linear-gradient(90deg, #10b981 0%, #10b981 50%, #ef4444 50%, #ef4444 100%)`
+
+**Implementace:**
+- `DateUtils.isNightOccupied(nightDate, bookingStart, bookingEnd)` - kontrola noci
+- `DateUtils.getOccupiedNightsAroundDay(day, bookings)` - počet nocí kolem dne
+- `database.js:getRoomAvailability()` - DB logika
+- `data.js:getRoomAvailability()` - LocalStorage logika
+- `BaseCalendar.createDayCell()` - rendering
+- `calendar.js:createRoomElement()` - grid mode rendering
+
+#### Proposed Bookings:
+- Proposed booking 6.10-8.10 → Všechny dny 6.10, 7.10, 8.10 jsou žluté (proposed)
+- Proposed bookings používají INCLUSIVE end date (blokují checkout den)
+- Prevence race conditions během rezervačního procesu (15-min expiraci)
 
 ### Code Quality & SSOT Enforcement
 

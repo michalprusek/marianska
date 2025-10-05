@@ -212,7 +212,7 @@ class SingleRoomBookingModule {
     const guestTypeInput = document.querySelector('input[name="singleRoomGuestType"]:checked');
     const guestType = guestTypeInput ? guestTypeInput.value : 'utia';
 
-    // Get dates
+    // Get dates - use exactly what user selected
     const sortedDates = Array.from(this.app.selectedDates).sort();
     const startDate = sortedDates[0];
     const endDate = sortedDates[sortedDates.length - 1];

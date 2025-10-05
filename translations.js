@@ -164,8 +164,10 @@ const translations = {
     legendTimeIndicators: 'Časové indikátory',
     legendAvailable: 'Volný pokoj',
     legendAvailableDesc: 'Pokoj je k dispozici pro rezervaci',
+    legendOccupied: 'Obsazený pokoj',
+    legendOccupiedDesc: 'Obě noci kolem dne jsou obsazeny - neklikatelný (červený)',
     legendBooked: 'Obsazený pokoj',
-    legendBookedDesc: 'Pokoj je již rezervován (klikněte pro detail)',
+    legendBookedDesc: 'Obě noci kolem dne jsou obsazeny - neklikatelný (červený)',
     legendNewBooking: 'Nově rezervovaný pokoj',
     legendNewBookingDesc: 'Pokoj právě rezervovaný (oranžová barva)',
     newReservations: 'Nové rezervace',
@@ -175,6 +177,9 @@ const translations = {
     addReservation: 'Přidat rezervaci',
     legendBlocked: 'Blokovaný pokoj',
     legendBlockedDesc: 'Pokoj je administrativně blokován ❌',
+    legendEdge: 'Krajní den rezervace',
+    legendEdgeDesc:
+      'Krajní den (jedna noc obsazena) - napůl zelený (volný) a napůl červený (obsazený). Klikatelný pro novou rezervaci.',
     legendChristmas: 'Vánoční období',
     legendChristmasDesc: 'Speciální období s omezeným přístupem',
     legendPastDates: 'Minulé dny',
@@ -183,6 +188,7 @@ const translations = {
     legendClickAvailable: 'Klikněte na zelený pokoj pro výběr',
     legendClickBooked: 'Klikněte na oranžový pokoj pro zobrazení detailu rezervace',
     legendClickBlocked: 'Klikněte na ❌ pro zobrazení důvodu blokace',
+    legendReportBugs: 'Chyby hlaste na: prusek@utia.cas.cz',
     showLegend: 'Zobrazit legendu',
     hideLegend: 'Skrýt legendu',
 
@@ -247,7 +253,7 @@ const translations = {
     systemSettingsTab: 'Nastavení systému',
     bookingsManagement: 'Správa rezervací',
     searchPlaceholder: 'Hledat podle jména, emailu nebo čísla rezervace...',
-    bookingNumber: 'Číslo',
+    bookingNumberShort: 'Číslo',
     actions: 'Akce',
     view: 'Zobrazit',
     edit: 'Upravit',
@@ -290,7 +296,7 @@ const translations = {
     basePriceOneRoom: 'Základní cena (1 pokoj, 1 osoba)',
     additionalAdultPrice: 'Další dospělý',
     childPriceRange: 'Dítě 3-18 let',
-    externalGuests: 'Externí hosté',
+    externalGuestsPrice: 'Externí hosté',
     saveRoomConfig: 'Uložit konfiguraci pokojů',
     savePriceConfig: 'Uložit ceník',
     bulkBookingPriceConfig: 'Ceník hromadné rezervace',
@@ -302,7 +308,8 @@ const translations = {
     externalGuestsShort: 'Externí hosté',
     adultFee: 'Dospělý',
     childFee: 'Dítě (3-18 let)',
-    childrenUnder3Free: 'Děti do 3 let jsou vždy zdarma a nezapočítávají se do kapacity pokojů.',
+    childrenUnder3Free:
+      '<strong>Poznámka:</strong> Děti do 3 let jsou vždy zdarma a nezapočítávají se do kapacity pokojů.',
     saveBulkPriceConfig: 'Uložit ceník hromadné rezervace',
     changeAdminPassword: 'Změna admin hesla',
     currentPassword: 'Současné heslo',
@@ -334,12 +341,12 @@ const translations = {
     selectRoomsAndGuests: '🏠 Vyberte pokoje a nastavte hosty',
     guestsCount: 'Počet hostů',
     guestTypeUtia: '🏢 ÚTIA',
-    guestTypeExternal: '👥 Externí',
+    guestTypeExternalEdit: '👥 Externí',
     priceSummaryLabel: '💰 Celková cena',
     capacityExceeded: '⚠️ Překročena kapacita pokoje!',
     noConflicts: '✅ Žádné konflikty - termíny a pokoje jsou volné',
     conflictingReservations: '⚠️ Konfliktní rezervace',
-    fullName: '👤 Jméno a příjmení',
+    fullNameEdit: '👤 Jméno a příjmení',
     emailAddress: '📧 Email',
     phoneNumber: '📱 Telefon',
     notesField: '📝 Poznámky',
@@ -376,7 +383,7 @@ const translations = {
     bedsLabel: 'lůžka',
     bedsSingular: 'lůžko',
     bedsPlural: 'lůžek',
-    adults: 'dospělí',
+    adultsLowercase: 'dospělí',
     childrenRange: 'děti',
     toddlersRange: 'batolata',
 
@@ -426,6 +433,29 @@ const translations = {
     selectedPeriodLabel: 'Vybraný termín:',
     nightsCountLabel: 'Počet nocí:',
     createReservationButton: 'Vytvořit rezervaci',
+
+    // Room info modal - Price lists
+    regularPriceBasePrice: 'Základní cena',
+    regularPriceAdultSurcharge: 'Příplatek za dospělého',
+    regularPriceChildSurcharge: 'Příplatek za dítě',
+    regularPriceToddlersFree: 'Děti do 3 let zdarma',
+    bulkPriceBasePriceCottage: 'Základní cena za celou chatu',
+    bulkPriceAdultSurcharge: 'Příplatek za dospělého',
+    bulkPriceChildSurcharge: 'Příplatek za dítě (3-18 let)',
+    bulkPriceToddlersFree: 'Děti do 3 let zdarma',
+    pricePerNightTotal: 'Cena za noc celkem',
+    totalPriceForStay: 'Celková cena za pobyt',
+
+    // Bulk booking modal
+    bulkBookingModalTitle: 'Hromadná rezervace celé chaty',
+    bulkBookingAllRooms: 'Rezervace všech 9 pokojů (26 lůžek)',
+    bulkSelectStayPeriod: 'Vyberte termín pobytu',
+    bulkSelectedPeriod: 'Vybraný termín:',
+    bulkNightsCountLabel: 'Počet nocí:',
+    bulkPricePerNight: 'Cena za jednu noc:',
+
+    // Contact
+    contactErrorsWriteTo: 'V případě chyb pište na:',
   },
   en: {
     // Header
@@ -591,8 +621,10 @@ const translations = {
     legendTimeIndicators: 'Time Indicators',
     legendAvailable: 'Available room',
     legendAvailableDesc: 'Room is available for booking',
-    legendBooked: 'Booked room',
-    legendBookedDesc: 'Room is already reserved (click for details)',
+    legendOccupied: 'Occupied room',
+    legendOccupiedDesc: 'Both nights around the day are occupied - not clickable (red)',
+    legendBooked: 'Occupied room',
+    legendBookedDesc: 'Both nights around the day are occupied - not clickable (red)',
     legendNewBooking: 'Newly booked room',
     legendNewBookingDesc: 'Room just booked (orange color)',
     newReservations: 'New Reservations',
@@ -602,6 +634,9 @@ const translations = {
     addReservation: 'Add Reservation',
     legendBlocked: 'Blocked room',
     legendBlockedDesc: 'Room is administratively blocked ❌',
+    legendEdge: 'Edge day (check-in/out)',
+    legendEdgeDesc:
+      'Edge day (one night occupied) - half green (available) and half red (occupied). Clickable for new booking.',
     legendChristmas: 'Christmas period',
     legendChristmasDesc: 'Special period with restricted access',
     legendPastDates: 'Past days',
@@ -610,6 +645,7 @@ const translations = {
     legendClickAvailable: 'Click on green room to select',
     legendClickBooked: 'Click on orange room to view booking details',
     legendClickBlocked: 'Click on ❌ to view blocking reason',
+    legendReportBugs: 'Report bugs to: prusek@utia.cas.cz',
     showLegend: 'Show legend',
     hideLegend: 'Hide legend',
 
@@ -674,7 +710,7 @@ const translations = {
     systemSettingsTab: 'System Settings',
     bookingsManagement: 'Bookings Management',
     searchPlaceholder: 'Search by name, email or booking number...',
-    bookingNumber: 'Number',
+    bookingNumberShort: 'Number',
     actions: 'Actions',
     view: 'View',
     edit: 'Edit',
@@ -717,7 +753,7 @@ const translations = {
     basePriceOneRoom: 'Base price (1 room, 1 person)',
     additionalAdultPrice: 'Additional adult',
     childPriceRange: 'Child 3-18 years',
-    externalGuests: 'External Guests',
+    externalGuestsPrice: 'External Guests',
     saveRoomConfig: 'Save Room Configuration',
     savePriceConfig: 'Save Price List',
     bulkBookingPriceConfig: 'Bulk Booking Price List',
@@ -729,7 +765,8 @@ const translations = {
     externalGuestsShort: 'External Guests',
     adultFee: 'Adult',
     childFee: 'Child (3-18 years)',
-    childrenUnder3Free: 'Children under 3 are always free and do not count towards room capacity.',
+    childrenUnder3Free:
+      '<strong>Note:</strong> Children under 3 are always free and do not count towards room capacity.',
     saveBulkPriceConfig: 'Save Bulk Booking Price List',
     changeAdminPassword: 'Change Admin Password',
     currentPassword: 'Current Password',
@@ -761,12 +798,12 @@ const translations = {
     selectRoomsAndGuests: '🏠 Select rooms and set guests',
     guestsCount: 'Number of guests',
     guestTypeUtia: '🏢 ÚTIA',
-    guestTypeExternal: '👥 External',
+    guestTypeExternalEdit: '👥 External',
     priceSummaryLabel: '💰 Total Price',
     capacityExceeded: '⚠️ Room capacity exceeded!',
     noConflicts: '✅ No conflicts - dates and rooms are available',
     conflictingReservations: '⚠️ Conflicting Reservations',
-    fullName: '👤 Full Name',
+    fullNameEdit: '👤 Full Name',
     emailAddress: '📧 Email',
     phoneNumber: '📱 Phone',
     notesField: '📝 Notes',
@@ -804,7 +841,7 @@ const translations = {
     bedsLabel: 'beds',
     bedsSingular: 'bed',
     bedsPlural: 'beds',
-    adults: 'adults',
+    adultsLowercase: 'adults',
     childrenRange: 'children',
     toddlersRange: 'toddlers',
 
@@ -855,6 +892,29 @@ const translations = {
     selectedPeriodLabel: 'Selected period:',
     nightsCountLabel: 'Number of nights:',
     createReservationButton: 'Create Reservation',
+
+    // Room info modal - Price lists
+    regularPriceBasePrice: 'Base price',
+    regularPriceAdultSurcharge: 'Adult surcharge',
+    regularPriceChildSurcharge: 'Child surcharge',
+    regularPriceToddlersFree: 'Children under 3 free',
+    bulkPriceBasePriceCottage: 'Base price for entire cottage',
+    bulkPriceAdultSurcharge: 'Adult surcharge',
+    bulkPriceChildSurcharge: 'Child surcharge (3-18 years)',
+    bulkPriceToddlersFree: 'Children under 3 free',
+    pricePerNightTotal: 'Total price per night',
+    totalPriceForStay: 'Total price for stay',
+
+    // Bulk booking modal
+    bulkBookingModalTitle: 'Bulk Booking - Entire Cottage',
+    bulkBookingAllRooms: 'Booking all 9 rooms (26 beds)',
+    bulkSelectStayPeriod: 'Select stay period',
+    bulkSelectedPeriod: 'Selected period:',
+    bulkNightsCountLabel: 'Number of nights:',
+    bulkPricePerNight: 'Price per night:',
+
+    // Contact
+    contactErrorsWriteTo: 'In case of errors write to:',
   },
 };
 
@@ -902,7 +962,12 @@ class LanguageManager {
         }
       } else {
         const elem = element;
-        elem.textContent = translation;
+        // Use innerHTML if translation contains HTML tags, otherwise use textContent
+        if (translation.includes('<') && translation.includes('>')) {
+          elem.innerHTML = translation;
+        } else {
+          elem.textContent = translation;
+        }
       }
     });
 
@@ -911,15 +976,6 @@ class LanguageManager {
   }
 
   updateSpecificElements() {
-    // Update room info button
-    const roomInfoBtn = document.getElementById('roomInfoBtn');
-    if (roomInfoBtn) {
-      const btnText = roomInfoBtn.querySelector('.btn-text');
-      if (btnText) {
-        btnText.textContent = this.t('roomInfo');
-      }
-    }
-
     // Update room beds text
     document.querySelectorAll('.room-beds').forEach((element) => {
       const beds = element.getAttribute('data-beds');

@@ -7,6 +7,7 @@
       content="width=device-width, initial-scale=1.0"
     />
     <title>Rezervační systém - Chata Mariánská</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link
       rel="stylesheet"
       href="css/styles-unified.css"
@@ -44,17 +45,13 @@
             <button
               id="roomInfoBtn"
               class="btn btn-secondary"
-              data-cs="Informace o pokojích"
-              data-en="Room Information"
             >
               <span style="font-size: 1.2em; margin-right: 0.5rem">ℹ️</span>
-              <span class="btn-text">Informace o pokojích</span>
+              <span class="btn-text" data-translate="roomInfo">Informace o pokojích</span>
             </button>
             <button
               id="bulkActionBtn"
               class="btn btn-primary"
-              data-cs="Hromadná akce"
-              data-en="Bulk Booking"
             >
               <svg
                 width="20"
@@ -91,11 +88,12 @@
                 />
                 <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01" />
               </svg>
-              <span class="btn-text">Hromadná akce</span>
+              <span class="btn-text" data-translate="bulkBooking">Hromadná akce</span>
             </button>
             <button
               id="adminBtn"
               class="btn btn-secondary"
+              data-translate="admin"
             >
               Admin
             </button>
@@ -170,164 +168,68 @@
             id="calendarLegend"
             class="calendar-legend legend-hidden"
           >
-            <h3
-              class="legend-title"
-              data-translate="legendTitle"
-            >
-              Vysvětlení barev a stavů v kalendáři
-            </h3>
-
-            <!-- Room States Section -->
+            <!-- Room States -->
             <div class="legend-section">
-              <h4
-                class="legend-section-title"
-                data-translate="legendRoomStates"
-              >
-                Stavy pokojů
-              </h4>
+              <h3 class="legend-title" data-translate="legendRoomStates">Stavy pokojů</h3>
               <div class="legend-items">
                 <div class="legend-item">
-                  <div class="legend-indicator legend-available">12</div>
+                  <span class="legend-color" style="background: #10b981"></span>
                   <div class="legend-text">
-                    <span
-                      class="legend-label"
-                      data-translate="legendAvailable"
-                      >Volný pokoj</span
-                    >
-                    <span
-                      class="legend-description"
-                      data-translate="legendAvailableDesc"
-                      >Pokoj je k dispozici pro rezervaci</span
-                    >
+                    <strong data-translate="legendAvailable">Volný pokoj</strong>
+                    <p data-translate="legendAvailableDesc">Pokoj je k dispozici pro rezervaci</p>
                   </div>
                 </div>
                 <div class="legend-item">
-                  <div class="legend-indicator legend-booked">13</div>
+                  <span class="legend-color legend-gradient-edge"></span>
                   <div class="legend-text">
-                    <span
-                      class="legend-label"
-                      data-translate="legendBooked"
-                      >Obsazený pokoj</span
-                    >
-                    <span
-                      class="legend-description"
-                      data-translate="legendBookedDesc"
-                      >Pokoj je již rezervován (klikněte pro detail)</span
-                    >
+                    <strong data-translate="legendEdge">Krajní den rezervace</strong>
+                    <p data-translate="legendEdgeDesc">Jedna noc kolem dne je obsazena - klikatelný pro novou rezervaci (oranžový gradient)</p>
                   </div>
                 </div>
                 <div class="legend-item">
-                  <div
-                    class="legend-indicator"
-                    style="
-                      background: #ffc107;
-                      color: #000;
-                      font-weight: bold;
-                      padding: 4px 8px;
-                      border-radius: 4px;
-                    "
-                  >
-                    22
-                  </div>
+                  <span class="legend-color" style="background: #ef4444"></span>
                   <div class="legend-text">
-                    <span
-                      class="legend-label"
-                      data-translate="legendProposed"
-                      >Navrhovaná rezervace</span
-                    >
-                    <span
-                      class="legend-description"
-                      data-translate="legendProposedDesc"
-                      >Rezervace čekající na dokončení (žlutá barva)</span
-                    >
+                    <strong data-translate="legendBooked">Obsazený pokoj</strong>
+                    <p data-translate="legendBookedDesc">Obě noci kolem dne jsou obsazeny (červený)</p>
                   </div>
                 </div>
                 <div class="legend-item">
-                  <div class="legend-indicator legend-blocked">×</div>
+                  <span class="legend-color" style="background: repeating-linear-gradient(45deg, #ef4444, #ef4444 3px, #dc2626 3px, #dc2626 6px); position: relative;">
+                    <span style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 0.8rem;">❌</span>
+                  </span>
                   <div class="legend-text">
-                    <span
-                      class="legend-label"
-                      data-translate="legendBlocked"
-                      >Blokovaný pokoj</span
-                    >
-                    <span
-                      class="legend-description"
-                      data-translate="legendBlockedDesc"
-                      >Pokoj je administrativně blokován</span
-                    >
+                    <strong data-translate="legendBlocked">Blokovaný pokoj</strong>
+                    <p data-translate="legendBlockedDesc">Pokoj je administrativně blokován ❌</p>
+                  </div>
+                </div>
+                <div class="legend-item">
+                  <span class="legend-color" style="background: #eab308"></span>
+                  <div class="legend-text">
+                    <strong data-translate="legendProposed">Navrhovaná rezervace</strong>
+                    <p data-translate="legendProposedDesc">Rezervace čekající na dokončení (žlutá barva)</p>
+                  </div>
+                </div>
+                <div class="legend-item">
+                  <span class="legend-color" style="border: 2px solid #f59e0b; background: transparent; position: relative;">
+                    <span style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 0.9rem;">🎄</span>
+                  </span>
+                  <div class="legend-text">
+                    <strong data-translate="legendChristmas">Vánoční období</strong>
+                    <p data-translate="legendChristmasDesc">Speciální období s omezeným přístupem</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- Time Indicators Section -->
-            <div class="legend-section">
-              <h4
-                class="legend-section-title"
-                data-translate="legendTimeIndicators"
-              >
-                Časové indikátory
-              </h4>
-              <div class="legend-items">
-                <div class="legend-item">
-                  <div class="legend-indicator legend-christmas">🎄</div>
-                  <div class="legend-text">
-                    <span
-                      class="legend-label"
-                      data-translate="legendChristmas"
-                      >Vánoční období</span
-                    >
-                    <span
-                      class="legend-description"
-                      data-translate="legendChristmasDesc"
-                      >Speciální období s omezeným přístupem</span
-                    >
-                  </div>
-                </div>
-                <div class="legend-item">
-                  <div class="legend-indicator legend-past">22</div>
-                  <div class="legend-text">
-                    <span
-                      class="legend-label"
-                      data-translate="legendPastDates"
-                      >Minulé dny</span
-                    >
-                    <span
-                      class="legend-description"
-                      data-translate="legendPastDatesDesc"
-                      >Dny v minulosti nejsou k dispozici</span
-                    >
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Usage Instructions Section -->
-            <div class="legend-section">
-              <h4
-                class="legend-section-title"
-                data-translate="legendClickInstructions"
-              >
-                Pokyny pro použití
-              </h4>
+            <!-- Report Bugs Section -->
+            <div class="legend-section" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--gray-200);">
               <div class="legend-instructions">
                 <div class="instruction-item">
-                  <span class="instruction-icon">🖱️</span>
-                  <span data-translate="legendClickAvailable"
-                    >Klikněte na zelený pokoj pro výběr</span
-                  >
-                </div>
-                <div class="instruction-item">
-                  <span class="instruction-icon">ℹ️</span>
-                  <span data-translate="legendClickBooked"
-                    >Klikněte na oranžový pokoj pro zobrazení detailu rezervace</span
-                  >
-                </div>
-                <div class="instruction-item">
-                  <span class="instruction-icon">🚫</span>
-                  <span data-translate="legendClickBlocked"
-                    >Klikněte na šedý pokoj pro zobrazení důvodu blokace</span
-                  >
+                  <span class="instruction-icon">📧</span>
+                  <span>
+                    <span data-translate="contactErrorsWriteTo">V případě chyb pište na:</span>
+                    <a href="mailto:prusek@utia.cas.cz" style="color: var(--primary-color); text-decoration: underline; margin-left: 0.25rem;">prusek@utia.cas.cz</a>
+                  </span>
                 </div>
               </div>
             </div>
@@ -1532,7 +1434,12 @@
 
           <!-- Room Header -->
           <div class="booking-modal-header">
-            <h2 id="bulkBookingTitle">Hromadná rezervace celé chaty</h2>
+            <h2
+              id="bulkBookingTitle"
+              data-translate="bulkBookingModalTitle"
+            >
+              Hromadná rezervace celé chaty
+            </h2>
             <div
               id="bulkBookingBadge"
               style="
@@ -1542,14 +1449,14 @@
                 font-size: 1.1rem;
               "
             >
-              <span>Rezervace všech 9 pokojů (26 lůžek)</span>
+              <span data-translate="bulkBookingAllRooms">Rezervace všech 9 pokojů (26 lůžek)</span>
             </div>
           </div>
 
           <div class="booking-modal-content">
             <!-- Left Column: Calendar -->
             <div class="booking-left-column">
-              <h3>Vyberte termín pobytu</h3>
+              <h3 data-translate="bulkSelectStayPeriod">Vyberte termín pobytu</h3>
 
               <!-- Mini Calendar Navigation -->
               <!-- Interactive Calendar -->
@@ -1583,14 +1490,24 @@
                 >
                   <div style="display: flex; justify-content: space-between; align-items: center">
                     <div>
-                      <div style="font-size: 0.9rem; color: #666">Vybraný termín:</div>
+                      <div
+                        style="font-size: 0.9rem; color: #666"
+                        data-translate="bulkSelectedPeriod"
+                      >
+                        Vybraný termín:
+                      </div>
                       <div
                         id="bulkSelectedDateRange"
                         style="font-weight: 600; color: #333"
                       ></div>
                     </div>
                     <div style="text-align: right">
-                      <div style="font-size: 0.9rem; color: #666">Počet nocí:</div>
+                      <div
+                        style="font-size: 0.9rem; color: #666"
+                        data-translate="bulkNightsCountLabel"
+                      >
+                        Počet nocí:
+                      </div>
                       <div
                         id="bulkNightsCount"
                         style="font-weight: 600; color: #2563eb; font-size: 1.2rem"
@@ -1601,7 +1518,7 @@
                   </div>
                 </div>
 
-                <h3>Typ hosta a počet osob</h3>
+                <h3 data-translate="guestTypeAndCount">Typ hosta a počet osob</h3>
 
                 <!-- Guest Type -->
                 <div
@@ -1807,6 +1724,7 @@
                           margin-bottom: 0.5rem;
                           font-weight: 500;
                         "
+                        data-translate="bulkPricePerNight"
                       >
                         Cena za jednu noc:
                       </div>
@@ -1820,7 +1738,7 @@
                           padding-left: 1rem;
                         "
                       >
-                        <span>Základní cena za chatu:</span>
+                        <span data-translate="bulkPriceBasePriceCottage">Základní cena za chatu:</span>
                         <span id="bulkBasePrice">0 Kč/noc</span>
                       </div>
                       <div
@@ -1834,7 +1752,7 @@
                           padding-left: 1rem;
                         "
                       >
-                        <span>Příplatek za dospělé:</span>
+                        <span data-translate="bulkPriceAdultSurcharge">Příplatek za dospělé:</span>
                         <span id="bulkAdultsSurcharge">0 Kč/noc</span>
                       </div>
                       <div
@@ -1848,7 +1766,7 @@
                           padding-left: 1rem;
                         "
                       >
-                        <span>Příplatek za děti:</span>
+                        <span data-translate="bulkPriceChildSurcharge">Příplatek za děti:</span>
                         <span id="bulkChildrenSurcharge">0 Kč/noc</span>
                       </div>
                       <div
@@ -1862,7 +1780,7 @@
                           color: #333;
                         "
                       >
-                        <span>Cena za noc celkem:</span>
+                        <span data-translate="pricePerNightTotal">Cena za noc celkem:</span>
                         <span id="bulkPricePerNightAmount">0 Kč</span>
                       </div>
                     </div>
@@ -1895,7 +1813,7 @@
                         font-size: 1.1rem;
                       "
                     >
-                      <span>Celková cena:</span>
+                      <span data-translate="totalPrice">Celková cena:</span>
                       <span
                         id="bulkTotalPrice"
                         style="color: #2e7d32"
@@ -1950,8 +1868,11 @@
     <script src="translations.js"></script>
 
     <!-- Shared utilities -->
+    <script src="js/shared/idGenerator.js"></script>
     <script src="js/shared/dateUtils.js"></script>
     <script src="js/shared/validationUtils.js"></script>
+    <script src="js/shared/priceCalculator.js"></script>
+    <script src="js/shared/christmasUtils.js"></script>
     <script src="js/shared/bookingLogic.js"></script>
     <script src="js/calendar-utils.js"></script>
     <script src="js/shared/BaseCalendar.js"></script>

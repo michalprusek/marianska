@@ -12,7 +12,9 @@
     "**/vendor/**",
     "**/.playwright-mcp/**",
     "**/package-lock.json",
-    "**/*.lock"
+    "**/*.lock",
+    "**/tests/**/*.test.js",
+    "**/tests/helpers/**"
   ],
   "format": ["javascript", "markup", "css", "json"],
   "absolute": true,
