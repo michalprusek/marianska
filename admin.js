@@ -218,33 +218,50 @@ class AdminPanel {
         return;
       }
 
-      fetch('/api/admin/refresh-session', {
-        method: 'POST',
-        headers: {
-          'x-session-token': sessionToken,
-        },
-      })
-        .then((res) => {
-          if (res.status === 401) {
-            // Session expired on server - trigger logout
-            this.logout();
-            this.showErrorMessage('Session vypršela - přihlaste se prosím znovu');
-            return null;
-          }
-          if (!res.ok) {
-            console.error('Session refresh failed:', res.status);
-            return null;
-          }
-          return res.json();
+      // Refresh with retry logic for network issues
+      const attemptRefresh = (retryCount = 0) => {
+        fetch('/api/admin/refresh-session', {
+          method: 'POST',
+          headers: {
+            'x-session-token': sessionToken,
+          },
         })
-        .then((data) => {
-          if (data && data.success) {
-            localStorage.setItem('adminSessionExpiry', data.expiresAt);
-          }
-        })
-        .catch((err) => {
-          console.error('Failed to refresh session:', err);
-        });
+          .then((res) => {
+            if (res.status === 401) {
+              // Session expired on server - trigger logout
+              this.logout();
+              this.showErrorMessage('Session vypršela - přihlaste se prosím znovu');
+              return null;
+            }
+            if (!res.ok) {
+              console.error('Session refresh failed:', res.status);
+              return null;
+            }
+            return res.json();
+          })
+          .then((data) => {
+            if (data && data.success) {
+              localStorage.setItem('adminSessionExpiry', data.expiresAt);
+            }
+          })
+          .catch((err) => {
+            console.error('Failed to refresh session:', err);
+
+            // Retry once after 5 minutes if this is the first failure
+            if (retryCount === 0) {
+              // Will retry session refresh in 5 minutes...
+              setTimeout(
+                () => {
+                  attemptRefresh(1);
+                },
+                5 * 60 * 1000
+              );
+            }
+            // If retry also fails, session may expire (logged above)
+          });
+      };
+
+      attemptRefresh();
     };
 
     // Reset timer on user activity (debounced)

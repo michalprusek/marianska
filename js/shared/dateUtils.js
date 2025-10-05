@@ -147,20 +147,29 @@ class DateUtils {
 
   /**
    * Check if a night is occupied by a booking
-   * A night is the period from date to date+1
-   * Example: Night of 2025-10-05 = period from 2025-10-05 to 2025-10-06
+   *
+   * IMPORTANT: Uses EXCLUSIVE end date for nights (nightDate < bookingEnd)
+   * - A night is the period from date to date+1
+   * - Example: Night of 2025-10-05 = period from 2025-10-05 to 2025-10-06
+   *
+   * Date Model:
+   * - Days are INCLUSIVE (booking 6.10-8.10 = 3 days: 6.10, 7.10, 8.10)
+   * - Nights are EXCLUSIVE on the end (booking 6.10-8.10 = 2 nights: 6→7, 7→8)
+   * - Checkout day night (8→9) is FREE for next guest
+   *
+   * Example - Booking from 2025-10-06 to 2025-10-08:
+   * - Night 2025-10-06 (06→07): OCCUPIED ✓
+   * - Night 2025-10-07 (07→08): OCCUPIED ✓
+   * - Night 2025-10-08 (08→09): FREE ✗ (checkout day, available for next booking)
    *
    * @param {string} nightDate - The date of the night (YYYY-MM-DD)
-   * @param {string} bookingStart - Booking start date (YYYY-MM-DD)
-   * @param {string} bookingEnd - Booking end date (YYYY-MM-DD)
+   * @param {string} bookingStart - Booking start date (YYYY-MM-DD, INCLUSIVE)
+   * @param {string} bookingEnd - Booking end date (YYYY-MM-DD, EXCLUSIVE for nights)
    * @returns {boolean} True if the night is occupied
    */
   static isNightOccupied(nightDate, bookingStart, bookingEnd) {
-    // A night is occupied if it falls within the booking range
-    // Booking from 2025-10-05 to 2025-10-07 occupies nights:
-    // - Night of 2025-10-05 (05->06) ✓
-    // - Night of 2025-10-06 (06->07) ✓
-    // - Night of 2025-10-07 (07->08) ✗ (checkout day, night not occupied)
+    // EXCLUSIVE end date check: nightDate < bookingEnd
+    // This allows back-to-back bookings (checkout day night is free)
     return nightDate >= bookingStart && nightDate < bookingEnd;
   }
 

@@ -455,8 +455,7 @@ const translations = {
     bulkPricePerNight: 'Cena za jednu noc:',
 
     // Contact
-    contactErrorsWriteTo:
-      'V případě chyb pište na: <a href="mailto:prusek@utia.cas.cz" style="color: var(--primary-color); text-decoration: underline;">prusek@utia.cas.cz</a>',
+    contactErrorsWriteTo: 'V případě chyb pište na:',
   },
   en: {
     // Header
@@ -915,8 +914,7 @@ const translations = {
     bulkPricePerNight: 'Price per night:',
 
     // Contact
-    contactErrorsWriteTo:
-      'In case of errors write to: <a href="mailto:prusek@utia.cas.cz" style="color: var(--primary-color); text-decoration: underline;">prusek@utia.cas.cz</a>',
+    contactErrorsWriteTo: 'In case of errors write to:',
   },
 };
 
