@@ -135,24 +135,6 @@ class DatabaseManager {
             )
         `);
 
-    // Create indexes for performance
-    this.db.exec(`
-            CREATE INDEX IF NOT EXISTS idx_bookings_dates ON bookings(start_date, end_date);
-            CREATE INDEX IF NOT EXISTS idx_bookings_email ON bookings(email);
-            CREATE INDEX IF NOT EXISTS idx_blockage_dates ON blockage_instances(start_date, end_date);
-            CREATE INDEX IF NOT EXISTS idx_blockage_rooms ON blockage_rooms(blockage_id, room_id);
-            CREATE INDEX IF NOT EXISTS idx_booking_rooms ON booking_rooms(room_id);
-            CREATE INDEX IF NOT EXISTS idx_christmas_periods ON christmas_periods(start_date, end_date);
-        `);
-
-    // PERFORMANCE FIX: Add missing indexes for foreign key columns
-    this.db.exec(`
-            CREATE INDEX IF NOT EXISTS idx_booking_rooms_booking_id ON booking_rooms(booking_id);
-            CREATE INDEX IF NOT EXISTS idx_proposed_bookings_session ON proposed_bookings(session_id);
-            CREATE INDEX IF NOT EXISTS idx_proposed_bookings_expires ON proposed_bookings(expires_at);
-            CREATE INDEX IF NOT EXISTS idx_blockage_rooms_room_id ON blockage_rooms(room_id);
-        `);
-
     // Create proposed bookings table for temporary reservations
     this.db.exec(`
             CREATE TABLE IF NOT EXISTS proposed_bookings (
@@ -221,6 +203,19 @@ class DatabaseManager {
     // Create index for session expiration cleanup
     this.db.exec(`
             CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expires_at);
+        `);
+
+    // Create all indexes for performance - AFTER all tables are created
+    this.db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_bookings_dates ON bookings(start_date, end_date);
+            CREATE INDEX IF NOT EXISTS idx_bookings_email ON bookings(email);
+            CREATE INDEX IF NOT EXISTS idx_blockage_dates ON blockage_instances(start_date, end_date);
+            CREATE INDEX IF NOT EXISTS idx_blockage_rooms ON blockage_rooms(blockage_id, room_id);
+            CREATE INDEX IF NOT EXISTS idx_blockage_rooms_room_id ON blockage_rooms(room_id);
+            CREATE INDEX IF NOT EXISTS idx_booking_rooms ON booking_rooms(room_id);
+            CREATE INDEX IF NOT EXISTS idx_booking_rooms_booking_id ON booking_rooms(booking_id);
+            CREATE INDEX IF NOT EXISTS idx_christmas_periods ON christmas_periods(start_date, end_date);
+            CREATE INDEX IF NOT EXISTS idx_proposed_bookings_session ON proposed_bookings(session_id);
         `);
 
     // Initialize default settings if not exists

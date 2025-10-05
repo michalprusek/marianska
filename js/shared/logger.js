@@ -34,11 +34,10 @@ class Logger {
     if (this.isNode) {
       // Server-side: JSON format for log aggregation
       return JSON.stringify(logEntry);
-    } else {
-      // Client-side: Readable format
-      const dataStr = Object.keys(data).length > 0 ? ` | ${JSON.stringify(data)}` : '';
-      return `[${timestamp}] [${level}] [${this.component}] ${message}${dataStr}`;
     }
+    // Client-side: Readable format
+    const dataStr = Object.keys(data).length > 0 ? ` | ${JSON.stringify(data)}` : '';
+    return `[${timestamp}] [${level}] [${this.component}] ${message}${dataStr}`;
   }
 
   _log(level, message, data = {}) {
@@ -92,9 +91,15 @@ class Logger {
     };
 
     // Include custom error properties
-    if (error.field) errorData.field = error.field;
-    if (error.statusCode) errorData.statusCode = error.statusCode;
-    if (error.conflictData) errorData.conflictData = error.conflictData;
+    if (error.field) {
+      errorData.field = error.field;
+    }
+    if (error.statusCode) {
+      errorData.statusCode = error.statusCode;
+    }
+    if (error.conflictData) {
+      errorData.conflictData = error.conflictData;
+    }
 
     this.error(error.message, errorData);
   }

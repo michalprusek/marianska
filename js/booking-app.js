@@ -21,9 +21,20 @@ class BookingApp {
     // Calendar boundaries
     this.today = new Date();
     this.today.setHours(0, 0, 0, 0);
-    this.minYear = this.today.getFullYear();
-    this.maxYear = this.minYear + 1;
-    this.maxMonth = this.today.getMonth();
+
+    // Year range configuration per mode:
+    // - Main calendar (GRID): previous year + current year + next year
+    // - Other modes (SINGLE_ROOM, BULK, EDIT): current year + next year only
+    const currentYear = this.today.getFullYear();
+    this.gridMinYear = currentYear - 1;
+    this.gridMaxYear = currentYear + 1;
+    this.otherMinYear = currentYear;
+    this.otherMaxYear = currentYear + 1;
+
+    // Default to grid mode boundaries (main calendar)
+    this.minYear = this.gridMinYear;
+    this.maxYear = this.gridMaxYear;
+    this.maxMonth = 11; // December
 
     // Single room booking state
     this.currentBookingRoom = null;
@@ -174,6 +185,12 @@ class BookingApp {
     const bookingBtn = document.getElementById('makeBookingBtn');
     if (bookingBtn) {
       bookingBtn.addEventListener('click', () => this.showBookingModal());
+    }
+
+    // Booking form modal close button
+    const bookingFormCloseBtn = document.getElementById('bookingFormModalClose');
+    if (bookingFormCloseBtn) {
+      bookingFormCloseBtn.addEventListener('click', () => this.bookingForm.hideBookingFormModal());
     }
 
     // Bulk booking button (bulkActionBtn is the actual ID)
@@ -928,6 +945,26 @@ class BookingApp {
         await this.bookingForm.submitBooking();
       };
     }
+
+    // Check if any reservation is in Christmas period and show/hide Christmas code field
+    const allDates = [];
+    let hasBulkBooking = false;
+
+    this.tempReservations.forEach((reservation) => {
+      const start = new Date(reservation.startDate);
+      const end = new Date(reservation.endDate);
+      const current = new Date(start);
+      while (current <= end) {
+        allDates.push(dataManager.formatDate(current));
+        current.setDate(current.getDate() + 1);
+      }
+      // Check if any reservation is bulk booking
+      if (reservation.isBulkBooking) {
+        hasBulkBooking = true;
+      }
+    });
+
+    this.bookingForm.checkAndShowChristmasCodeField(allDates, hasBulkBooking);
 
     // Show the modal
     modal.classList.add('active');

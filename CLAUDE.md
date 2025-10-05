@@ -25,13 +25,22 @@ npm run dev         # Start development server with auto-reload
 ### Production (Docker)
 
 ```bash
-docker-compose up -d                    # Start containers
+# Production deployment
+docker-compose up -d                    # Start production containers
 docker-compose down                     # Stop containers
 docker-compose up --build -d           # Rebuild and start containers
+
+# Development with Docker
+docker-compose -f docker-compose.dev.yml up -d     # Start dev containers with live reload
+docker-compose -f docker-compose.dev.yml down      # Stop dev containers
 
 # IMPORTANT: After any code changes, you MUST rebuild the Docker containers:
 docker-compose down && docker-compose up --build -d
 ```
+
+**Docker Configuration:**
+- `docker-compose.yml` - Production config (NODE_ENV=production, npm start)
+- `docker-compose.dev.yml` - Development config (NODE_ENV=development, npm run dev, live reload)
 
 ## Architektura
 
@@ -239,6 +248,9 @@ new BaseCalendar({
 - Vizuální indikace vánočního období
 - Blokování minulých dat (configurable)
 - Contiguous date enforcement pro bulk bookings
+- **Year range configuration**:
+  - GRID mode (main calendar): minulý rok + současný rok + příští rok
+  - SINGLE_ROOM/BULK/EDIT modes: současný rok + příští rok
 
 **Barvy a stavy:**
 
@@ -429,11 +441,31 @@ Externí hosté:
 
 ### Vánoční období
 
+**⚠️ KRITICKÁ LOGIKA - Datum-závislá pravidla přístupových kódů:**
+
+#### Základní nastavení:
 - Defaultně: 23.12. - 2.1.
-- Admin může nastavit vlastní rozsah
-- Rezervace pouze s přístupovým kódem
-- Bez kódů = kompletní blokace rezervací
-- Maximálně 1-2 pokoje pro ÚTIA zaměstnance do 30.9.
+- Admin může nastavit vlastní rozsah v admin panelu
+
+#### Pravidla přístupového kódu (AKTUALIZOVÁNO 2025-10):
+
+**Před 1. říjnem** (≤ 30.9. roku prvního dne vánočního období):
+- ✅ **Single room rezervace**: Vyžaduje přístupový kód
+- ✅ **Bulk rezervace (celá chata)**: Vyžaduje přístupový kód
+- **Příklad**: Vánoční období 12.12.2025-3.1.2026, dnes 4.4.2025 → kód VYŽADOVÁN
+- **Příklad**: Vánoční období 4.1.2026-3.3.2026, dnes 15.9.2025 → kód VYŽADOVÁN
+
+**Po 1. říjnu** (> 30.9. roku prvního dne vánočního období):
+- ✅ **Single room rezervace**: Přístupový kód NENÍ vyžadován
+- ❌ **Bulk rezervace (celá chata)**: KOMPLETNĚ BLOKOVÁNO
+- **Příklad**: Vánoční období 12.12.2025-3.1.2026, dnes 5.10.2025 → single OK bez kódu, bulk BLOKOVÁN
+- **Chybová hláška**: "Hromadné rezervace celé chaty nejsou po 1. říjnu povoleny pro vánoční období. Rezervujte jednotlivé pokoje."
+
+#### Implementační detaily:
+- **Server-side**: `checkChristmasAccessRequirement()` v `server.js:253`
+- **Client-side**: `checkChristmasAccessRequirement()` v `data.js:665`
+- **Bulk booking validation**: `confirmBulkDates()` v `bulk-booking.js:358`
+- **Form UI**: Dynamické zobrazení pole pro kód v `booking-form.js:38`
 
 ### Kapacita pokojů
 
@@ -451,6 +483,10 @@ Celkem: 26 lůžek
 3. **Validace vstupů** - Kontrola všech formulářových polí
 4. **Ochrana soukromí** - Skrytí osobních údajů v kalendáři
 5. **Vánoční kódy** - Omezení přístupu během špičky
+6. **Trust Proxy** - Server nastavený pro běh za reverse proxy (nginx)
+   - `app.set('trust proxy', true)` v `server.js:34`
+   - Umožňuje správné získání IP adresy klienta z hlavičky `X-Forwarded-For`
+   - Nutné pro funkci rate limitingu a session managementu za nginx proxy
 
 ## Důležité implementační detaily
 

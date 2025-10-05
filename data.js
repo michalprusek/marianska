@@ -315,7 +315,6 @@ class DataManager {
   async createBooking(bookingData) {
     // Try to use public /api/booking endpoint (no auth required)
     try {
-
       // P1 FIX: Add timeout to prevent hanging requests
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
@@ -652,15 +651,45 @@ class DataManager {
     return false;
   }
 
-  requiresChristmasCode(startDate) {
+  /**
+   * Check if Christmas access code is required and if bulk booking is allowed
+   * Rules:
+   * - Code required if current date <= Sept 30 of the year containing Christmas period start
+   * - After Oct 1: Single room bookings don't need code, bulk bookings are blocked
+   *
+   * @param {Date|string} christmasPeriodStart - First day of Christmas period
+   * @param {boolean} isBulkBooking - Whether this is a bulk booking
+   * @returns {Object} { codeRequired: boolean, bulkBlocked: boolean }
+   */
+  checkChristmasAccessRequirement(christmasPeriodStart, isBulkBooking = false) {
+    if (!christmasPeriodStart) {
+      return { codeRequired: false, bulkBlocked: false };
+    }
+
     const today = new Date();
-    const christmasYear = startDate.getFullYear();
+    const christmasStartDate =
+      typeof christmasPeriodStart === 'string'
+        ? new Date(christmasPeriodStart)
+        : christmasPeriodStart;
+    const christmasYear = christmasStartDate.getFullYear();
 
-    // Deadline je 30.9. roku, kdy se konají vánoční prázdniny
-    const deadline = new Date(christmasYear, 8, 30); // měsíc 8 = září (0-indexed)
+    // Sept 30 of the year containing Christmas period start
+    const sept30Cutoff = new Date(christmasYear, 8, 30, 23, 59, 59); // Month is 0-indexed (8 = September)
 
-    // Pokud je dnes po 30.9. roku vánočních prázdnin, kód se nevyžaduje
-    return today <= deadline;
+    const isBeforeSept30 = today <= sept30Cutoff;
+
+    if (isBeforeSept30) {
+      // Before Oct 1: Code required for both single and bulk
+      return { codeRequired: true, bulkBlocked: false };
+    }
+    // After Oct 1: Single rooms don't need code, bulk is blocked
+    return { codeRequired: false, bulkBlocked: isBulkBooking };
+  }
+
+  requiresChristmasCode(startDate) {
+    // Deprecated - use checkChristmasAccessRequirement instead
+    const { codeRequired } = this.checkChristmasAccessRequirement(startDate, false);
+    return codeRequired;
   }
 
   async canBulkBookChristmas() {
