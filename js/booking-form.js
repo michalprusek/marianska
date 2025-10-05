@@ -163,6 +163,15 @@ class BookingFormModule {
 
     // Validate required fields (IČO is optional)
     if (!name || !email || !phoneNumber || !company || !address || !city || !zip) {
+      console.warn('[BookingForm] Validation failed - missing required fields:', {
+        name: !!name,
+        email: !!email,
+        phoneNumber: !!phoneNumber,
+        company: !!company,
+        address: !!address,
+        city: !!city,
+        zip: !!zip,
+      });
       this.app.showNotification(
         this.app.currentLanguage === 'cs'
           ? 'Vyplňte prosím všechna povinná pole označená hvězdičkou (*)'
@@ -213,6 +222,7 @@ class BookingFormModule {
             notes: notes || 'Hromadná rezervace celé chaty',
             payFromBenefit,
             isBulkBooking: true,
+            sessionId: this.app.sessionId, // Include sessionId to exclude user's own proposals
           };
 
           try {
@@ -246,6 +256,7 @@ class BookingFormModule {
             notes,
             payFromBenefit,
             roomGuests: { [tempReservation.roomId]: tempReservation.guests },
+            sessionId: this.app.sessionId, // Include sessionId to exclude user's own proposals
           };
 
           try {
@@ -327,7 +338,7 @@ class BookingFormModule {
       }
 
       // Update temp reservations display (will hide the section since array is empty)
-      this.app.displayTempReservations();
+      await this.app.displayTempReservations();
 
       // Reload the calendar to show new bookings
       await this.app.renderCalendar();
@@ -442,7 +453,7 @@ class BookingFormModule {
                 </a>
               </div>
               <button
-                onclick="navigator.clipboard.writeText('${editUrl}'); this.textContent='${this.app.currentLanguage === 'cs' ? '✓ Zkopírováno!' : '✓ Copied!'}'"
+                id="copyEditLinkBtn"
                 style="margin-top: 1rem; padding: 0.5rem 1rem; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;"
               >
                 ${this.app.currentLanguage === 'cs' ? '📋 Kopírovat odkaz' : '📋 Copy Link'}
@@ -461,7 +472,7 @@ class BookingFormModule {
             </div>
 
             <button
-              onclick="this.closest('.modal').remove()"
+              id="closeSuccessModal"
               class="btn-primary"
               style="padding: 0.75rem 2rem; font-size: 1rem; background: linear-gradient(135deg, #0d9488, #059669); border: none; color: white; border-radius: 8px; cursor: pointer; font-weight: 600; margin-top: 1rem;"
             >
@@ -470,6 +481,39 @@ class BookingFormModule {
           </div>
         `;
         document.body.appendChild(modal);
+
+        // Add event listener for copy button
+        const copyBtn = document.getElementById('copyEditLinkBtn');
+        if (copyBtn) {
+          copyBtn.addEventListener('click', async () => {
+            try {
+              await navigator.clipboard.writeText(editUrl);
+              const originalText = copyBtn.textContent;
+              copyBtn.textContent = this.app.currentLanguage === 'cs' ? '✓ Zkopírováno!' : '✓ Copied!';
+              setTimeout(() => {
+                copyBtn.textContent = originalText;
+              }, 2000);
+            } catch (error) {
+              console.error('Failed to copy to clipboard:', error);
+              this.app.showNotification(
+                this.app.currentLanguage === 'cs'
+                  ? 'Chyba při kopírování odkazu'
+                  : 'Failed to copy link',
+                'error'
+              );
+            }
+          });
+        }
+
+        // Add event listener for close button
+        const closeBtn = document.getElementById('closeSuccessModal');
+        if (closeBtn) {
+          closeBtn.addEventListener('click', () => {
+            modal.remove();
+            // Reload calendar to show new booking
+            this.app.renderCalendar();
+          });
+        }
       } else {
         // Fallback to simple notification
         this.app.showNotification(
@@ -483,11 +527,16 @@ class BookingFormModule {
       // Highlight new booking in calendar
       await this.app.calendar.highlightNewBooking(booking);
     } catch (error) {
-      console.error('Booking error:', error);
+      console.error('[BookingForm] Booking creation failed:', error);
+      console.error('[BookingForm] Error details:', {
+        message: error.message,
+        stack: error.stack,
+        response: error.response,
+      });
       this.app.showNotification(
         this.app.currentLanguage === 'cs'
-          ? 'Chyba při vytváření rezervace'
-          : 'Error creating booking',
+          ? `Chyba při vytváření rezervace: ${error.message || 'Neznámá chyba'}`
+          : `Error creating booking: ${error.message || 'Unknown error'}`,
         'error'
       );
     }
@@ -520,10 +569,11 @@ class BookingFormModule {
 
     // Get country code from the select element (look for sibling or nearby select)
     let countryCode = '+420'; // default
-    const countryCodeSelect = input.parentElement?.querySelector('select') ||
-                              document.getElementById('finalBookingCountryCode') ||
-                              document.getElementById('bulkCountryCode') ||
-                              document.getElementById('bookingCountryCode');
+    const countryCodeSelect =
+      input.parentElement?.querySelector('select') ||
+      document.getElementById('finalBookingCountryCode') ||
+      document.getElementById('bulkCountryCode') ||
+      document.getElementById('bookingCountryCode');
 
     if (countryCodeSelect) {
       countryCode = countryCodeSelect.value;
@@ -539,7 +589,12 @@ class BookingFormModule {
         inputElement.value = `${cleanNumber.slice(0, 3)} ${cleanNumber.slice(3, 6)} ${cleanNumber.slice(6)}`;
       }
     } else {
-      const errorMsg = ValidationUtils.getValidationError('phoneNumber', value, this.app.currentLanguage, countryCode);
+      const errorMsg = ValidationUtils.getValidationError(
+        'phoneNumber',
+        value,
+        this.app.currentLanguage,
+        countryCode
+      );
       inputElement.setCustomValidity(errorMsg);
       inputElement.classList.add('error');
     }

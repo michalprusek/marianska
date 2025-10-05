@@ -704,10 +704,7 @@ input:checked + .slider:before {
   pointer-events: none;
 }
 
-.calendar-day.today {
-  background: linear-gradient(135deg, var(--primary-100), var(--primary-200));
-  border-color: var(--primary-500);
-}
+/* Removed .calendar-day.today styling - today is not highlighted */
 
 .calendar-day.selected {
   background: linear-gradient(135deg, var(--primary-500), var(--primary-600));

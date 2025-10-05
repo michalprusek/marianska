@@ -381,7 +381,7 @@ class BulkBookingModule {
     const rooms = await dataManager.getRooms();
 
     for (const dateStr of sortedDatesArray) {
-      const date = new Date(dateStr + 'T12:00:00');
+      const date = new Date(`${dateStr}T12:00:00`);
 
       // Check each room for this date
       for (const room of rooms) {
@@ -436,7 +436,14 @@ class BulkBookingModule {
 
     // Create proposed booking in database for all rooms
     try {
-      const proposalId = await dataManager.createProposedBooking(startDate, endDate, roomIds);
+      const proposalId = await dataManager.createProposedBooking(
+        startDate,
+        endDate,
+        roomIds,
+        { adults, children, toddlers: 0 },
+        guestType,
+        totalPrice
+      );
 
       // Create temporary bulk booking object with proposal ID
       const tempBulkBooking = {
@@ -475,11 +482,8 @@ class BulkBookingModule {
         'success'
       );
 
-      // Update the main page to show temporary reservations
-      this.app.displayTempReservations();
-
-      // Refresh calendar to show proposed booking
-      await this.app.calendar.renderCalendar();
+      // Update the main page to show temporary reservations (also refreshes calendar)
+      await this.app.displayTempReservations();
 
       // Show the finalize button
       const finalizeDiv = document.getElementById('finalizeReservationsDiv');
@@ -567,6 +571,7 @@ class BulkBookingModule {
       notes:
         notes || `${this.app.currentLanguage === 'cs' ? 'Hromadná rezervace' : 'Bulk booking'}`,
       isBulkBooking: true,
+      sessionId: this.app.sessionId, // Include sessionId to exclude user's own proposals
     };
 
     try {

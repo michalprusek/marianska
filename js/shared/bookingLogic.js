@@ -97,11 +97,39 @@ class BookingLogic {
    *
    * @param {string|Date} startDate - Check-in date
    * @param {string|Date} endDate - Check-out date
+   * @param {boolean} [isAdmin=false] - Skip past date validation for admin
    * @returns {{valid: boolean, error: string|null}} - Validation result
    */
-  static validateDateRange(startDate, endDate) {
+  static validateDateRange(startDate, endDate, isAdmin = false) {
     const start = typeof startDate === 'string' ? new Date(startDate) : startDate;
     const end = typeof endDate === 'string' ? new Date(endDate) : endDate;
+
+    // P1 FIX: Validate dates are not invalid
+    if (isNaN(start.getTime())) {
+      return {
+        valid: false,
+        error: 'Neplatný formát data příjezdu',
+      };
+    }
+
+    if (isNaN(end.getTime())) {
+      return {
+        valid: false,
+        error: 'Neplatný formát data odjezdu',
+      };
+    }
+
+    // P1 FIX: Check for past dates (skip for admin)
+    if (!isAdmin) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (start < today) {
+        return {
+          valid: false,
+          error: 'Nelze rezervovat v minulosti',
+        };
+      }
+    }
 
     if (start >= end) {
       return {

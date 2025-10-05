@@ -8,6 +8,12 @@ class DataManager {
     this.lastSync = null;
     this.sessionId = this.getOrCreateSessionId();
     this.proposalId = null;
+    this.proposedBookingsCache = null; // Cache for proposed bookings
+    this.proposedBookingsCacheTime = null; // Timestamp of last cache
+    this.proposedBookingsCacheDuration = 30000; // Cache for 30 seconds (matches auto-sync)
+    this.proposedBookingsFetchPromise = null; // In-flight request promise
+    this._lastRender = 0; // Track last calendar render for debouncing
+    this._renderPending = false; // Prevent multiple pending renders
   }
 
   getOrCreateSessionId() {
@@ -19,6 +25,31 @@ class DataManager {
     return sessionId;
   }
 
+  // P2 FIX: Safe localStorage setter with error handling
+  safeSetLocalStorage(key, data) {
+    try {
+      const jsonString = JSON.stringify(data);
+      localStorage.setItem(key, jsonString);
+      return true;
+    } catch (error) {
+      if (error.name === 'QuotaExceededError') {
+        console.warn('[DataManager] LocalStorage quota exceeded - clearing old data');
+        // Try to clear and retry once
+        try {
+          localStorage.clear();
+          localStorage.setItem(key, JSON.stringify(data));
+          return true;
+        } catch (retryError) {
+          console.error('[DataManager] LocalStorage unavailable:', retryError);
+          return false;
+        }
+      } else {
+        console.error('[DataManager] LocalStorage error:', error);
+        return false;
+      }
+    }
+  }
+
   async initData() {
     // Try to load from server FIRST
     try {
@@ -27,7 +58,7 @@ class DataManager {
         this.cachedData = await response.json();
         this.lastSync = Date.now();
         // Save to localStorage as backup
-        localStorage.setItem(this.storageKey, JSON.stringify(this.cachedData));
+        this.safeSetLocalStorage(this.storageKey, this.cachedData);
 
         // Start auto-sync
         this.startAutoSync();
@@ -59,16 +90,16 @@ class DataManager {
     this.startAutoSync();
   }
 
-  // Start automatic synchronization every 5 seconds
+  // Start automatic synchronization every 30 seconds (reduced from 5s to prevent rate limiting)
   startAutoSync() {
     if (this.syncInterval) {
       clearInterval(this.syncInterval);
     }
 
-    // Sync every 5 seconds
+    // Sync every 30 seconds (reduced from 5s to stay within rate limits)
     this.syncInterval = setInterval(async () => {
       await this.syncWithServer();
-    }, 5000);
+    }, 30000);
 
     // Also sync on visibility change
     document.addEventListener('visibilitychange', async () => {
@@ -105,10 +136,18 @@ class DataManager {
             this.cachedData = serverData;
             localStorage.setItem(this.storageKey, JSON.stringify(this.cachedData));
 
-            // Trigger UI update
-            if (window.app) {
-              await window.app.renderCalendar();
-              await window.app.updatePriceCalculation();
+            // Debounce calendar re-renders to prevent rate limiting
+            // Only render if: no render pending AND at least 10 seconds since last render
+            const now = Date.now();
+            if (window.app && !this._renderPending && now - this._lastRender > 10000) {
+              this._renderPending = true;
+              // Delay render by 1 second to batch multiple sync events
+              setTimeout(async () => {
+                this._renderPending = false;
+                this._lastRender = Date.now();
+                await window.app.renderCalendar();
+                await window.app.updatePriceCalculation();
+              }, 1000);
             }
 
             // Update admin panel if active
@@ -214,8 +253,8 @@ class DataManager {
     };
   }
 
-  async getData() {
-    if (!this.cachedData) {
+  async getData(forceRefresh = false) {
+    if (!this.cachedData || forceRefresh) {
       await this.initData();
     }
     return this.cachedData;
@@ -244,37 +283,107 @@ class DataManager {
         headers,
         body: JSON.stringify(data),
       });
+
       if (response.ok) {
         return true;
       }
-    } catch (error) {
-      console.error('Failed to save to server, data saved locally:', error);
-    }
 
-    return true;
+      // Handle non-OK responses
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage =
+        errorData.error || `Server error: ${response.status} ${response.statusText}`;
+
+      if (response.status === 401) {
+        // Trigger auto-logout on session expiry
+        this.handleUnauthorizedError();
+        throw new Error('Neautorizovaný přístup - session vypršela. Přihlaste se prosím znovu.');
+      } else if (response.status === 403) {
+        throw new Error('Nemáte oprávnění k této operaci.');
+      } else if (response.status >= 500) {
+        throw new Error(`Chyba serveru: ${errorMessage}`);
+      } else {
+        throw new Error(errorMessage);
+      }
+    } catch (error) {
+      console.error('Failed to save to server:', error);
+      // Re-throw the error so calling code knows it failed
+      throw error;
+    }
   }
 
   // Booking management
   async createBooking(bookingData) {
-    const booking = {
-      ...bookingData,
-      id: this.generateBookingId(),
-      editToken: this.generateEditToken(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    // Try to use public /api/booking endpoint (no auth required)
+    try {
 
-    const data = await this.getData();
-    data.bookings.push(booking);
+      // P1 FIX: Add timeout to prevent hanging requests
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
-    const saved = await this.saveData(data);
-    if (saved) {
-      // Force immediate sync
-      await this.syncWithServer();
+      const response = await fetch(`${this.apiUrl}/booking`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(bookingData),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[DataManager] Server returned error:', {
+          error: errorData,
+          bookingData: {
+            rooms: bookingData.rooms,
+            startDate: bookingData.startDate,
+            endDate: bookingData.endDate,
+            sessionId: bookingData.sessionId,
+          },
+          timestamp: new Date().toISOString(),
+        });
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      const { booking } = result;
+
+      // SECURITY FIX: Force refresh from server instead of local update
+      // This avoids triggering pushToServer() with no auth credentials
+      await this.syncWithServer(true); // Force refresh
+
       return booking;
-    }
+    } catch (error) {
+      console.error('Error creating booking via API:', error);
 
-    return null;
+      // P1 FIX: Handle timeout errors
+      if (error.name === 'AbortError') {
+        throw new Error('Požadavek vypršel - zkuste to prosím znovu');
+      }
+
+      // If server is completely unavailable, fall back to local-only mode
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        const booking = {
+          ...bookingData,
+          id: this.generateBookingId(),
+          editToken: this.generateEditToken(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        const data = await this.getData();
+        data.bookings.push(booking);
+        this.cachedData = data;
+        localStorage.setItem(this.storageKey, JSON.stringify(data));
+
+        return booking;
+      }
+
+      // Re-throw other errors (validation, conflicts, etc.)
+      console.error('[DataManager] Re-throwing error:', error);
+      throw error;
+    }
   }
 
   async updateBooking(bookingId, updates) {
@@ -282,7 +391,7 @@ class DataManager {
     const index = data.bookings.findIndex((b) => b.id === bookingId);
 
     if (index === -1) {
-      return null;
+      throw new Error('Rezervace nebyla nalezena');
     }
 
     data.bookings[index] = {
@@ -291,57 +400,72 @@ class DataManager {
       updatedAt: new Date().toISOString(),
     };
 
-    const saved = await this.saveData(data);
-    if (saved) {
-      await this.syncWithServer();
-      return data.bookings[index];
-    }
+    // saveData now throws on error - let it propagate
+    await this.saveData(data);
 
-    return null;
+    // Force immediate sync (silently fails if server unavailable)
+    await this.syncWithServer();
+
+    return data.bookings[index];
   }
 
   async deleteBooking(bookingId) {
-    // Try server API first if available
-    if (this.serverAvailable) {
-      try {
-        const headers = {};
-        const apiKey = this.getApiKey();
-        if (apiKey) {
-          headers['x-api-key'] = apiKey;
-        }
+    // Try server API first
+    try {
+      const headers = {};
+      const sessionToken = this.getSessionToken();
+      if (sessionToken) {
+        headers['x-session-token'] = sessionToken;
+      }
 
-        const response = await fetch(`${this.apiUrl}/booking/${bookingId}`, {
-          method: 'DELETE',
-          headers,
-        });
+      const response = await fetch(`${this.apiUrl}/booking/${bookingId}`, {
+        method: 'DELETE',
+        headers,
+      });
 
-        if (response.ok) {
-          // Update local cache
-          const data = await this.getData();
-          data.bookings = data.bookings.filter((b) => b.id !== bookingId);
+      if (response.ok) {
+        // Force refresh from server
+        await this.syncWithServer(true);
+        return true;
+      }
+
+      // Handle non-OK responses
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage =
+        errorData.error || `Server error: ${response.status} ${response.statusText}`;
+
+      if (response.status === 401) {
+        // Trigger auto-logout on session expiry
+        this.handleUnauthorizedError();
+        throw new Error('Neautorizovaný přístup - session vypršela. Přihlaste se prosím znovu.');
+      } else if (response.status === 404) {
+        throw new Error('Rezervace nebyla nalezena');
+      } else {
+        throw new Error(errorMessage);
+      }
+    } catch (error) {
+      console.error('Error deleting booking via API:', error);
+
+      // If server is completely unavailable, fall back to local deletion
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        console.warn('Server unavailable - deleting booking in offline mode');
+
+        const data = await this.getData();
+        const initialLength = data.bookings.length;
+        data.bookings = data.bookings.filter((b) => b.id !== bookingId);
+
+        if (data.bookings.length < initialLength) {
           this.cachedData = data;
           localStorage.setItem(this.storageKey, JSON.stringify(data));
           return true;
         }
-      } catch (error) {
-        console.error('Error deleting booking via API:', error);
+
+        throw new Error('Rezervace nebyla nalezena');
       }
+
+      // Re-throw other errors
+      throw error;
     }
-
-    // Fallback to local deletion
-    const data = await this.getData();
-    const initialLength = data.bookings.length;
-    data.bookings = data.bookings.filter((b) => b.id !== bookingId);
-
-    if (data.bookings.length < initialLength) {
-      const saved = await this.saveData(data);
-      if (saved) {
-        await this.syncWithServer();
-        return true;
-      }
-    }
-
-    return false;
   }
 
   async getBooking(bookingId) {
@@ -382,11 +506,34 @@ class DataManager {
     });
   }
 
-  async getRoomAvailability(date, roomId) {
+  async getRoomAvailability(date, roomId, excludeSessionId = null) {
     const data = await this.getData();
     const dateStr = this.formatDate(date);
 
-    // Check if date is blocked
+    // Check blockage instances (NEW structure - priority)
+    if (data.blockageInstances && data.blockageInstances.length > 0) {
+      const isBlocked = data.blockageInstances.some((blockage) => {
+        // Check if date is within blockage range
+        const isInRange = dateStr >= blockage.startDate && dateStr <= blockage.endDate;
+        if (!isInRange) {
+          return false;
+        }
+
+        // If no rooms specified, all rooms are blocked
+        if (!blockage.rooms || blockage.rooms.length === 0) {
+          return true;
+        }
+
+        // Check if specific room is blocked
+        return blockage.rooms.includes(roomId);
+      });
+
+      if (isBlocked) {
+        return { status: 'blocked', email: null };
+      }
+    }
+
+    // Check legacy blocked dates (backward compatibility)
     if (
       data.blockedDates &&
       data.blockedDates.some((bd) => bd.date === dateStr && (!bd.roomId || bd.roomId === roomId))
@@ -406,20 +553,26 @@ class DataManager {
       return { status: 'booked', email: bookings[0].email };
     }
 
-    // Check for proposed bookings from the database
+    // Check for proposed bookings from the database (with caching to avoid rate limits)
+    // excludeSessionId behavior:
+    // - undefined (not passed): exclude current session (for booking creation)
+    // - empty string '': show ALL proposals (for calendar display)
+    // - specific sessionId: exclude that specific session
     try {
-      if (this.useServer) {
-        const response = await fetch(`${this.apiUrl}/proposed-bookings`);
-        if (response.ok) {
-          const proposedBookings = await response.json();
-          const hasProposedBooking = proposedBookings.some(
-            (pb) => pb.rooms.includes(roomId) && dateStr >= pb.start_date && dateStr <= pb.end_date
-          );
+      const proposedBookings = await this.getProposedBookings();
+      const shouldExcludeSession = excludeSessionId === undefined;
+      const sessionToExclude = shouldExcludeSession ? this.sessionId : excludeSessionId;
 
-          if (hasProposedBooking) {
-            return { status: 'proposed', email: null };
-          }
-        }
+      const hasProposedBooking = proposedBookings.some(
+        (pb) =>
+          pb.rooms.includes(roomId) &&
+          dateStr >= pb.start_date &&
+          dateStr < pb.end_date &&
+          (sessionToExclude === '' || pb.session_id !== sessionToExclude) // Empty string = show all
+      );
+
+      if (hasProposedBooking) {
+        return { status: 'proposed', email: null };
       }
     } catch (error) {
       console.error('Failed to check proposed bookings:', error);
@@ -567,59 +720,98 @@ class DataManager {
       createdAt: new Date().toISOString(),
     };
 
-    // Send to server if available
+    // Send to server - use session token for auth
     try {
-      const response = await fetch(`${this.serverUrl}/api/blockage`, {
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+
+      const sessionToken = this.getSessionToken();
+      if (sessionToken) {
+        headers['x-session-token'] = sessionToken;
+      }
+
+      const response = await fetch(`${this.apiUrl}/blockage`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': this.getApiKey(),
-        },
+        headers,
         body: JSON.stringify(blockageData),
       });
 
       if (!response.ok) {
-        throw new Error('Server request failed');
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage =
+          errorData.error || `Server error: ${response.status} ${response.statusText}`;
+
+        if (response.status === 401) {
+          this.handleUnauthorizedError();
+          throw new Error('Neautorizovaný přístup - session vypršela. Přihlaste se prosím znovu.');
+        } else if (response.status === 403) {
+          throw new Error('Nemáte oprávnění k této operaci.');
+        } else {
+          throw new Error(errorMessage);
+        }
       }
-    } catch (error) {
-      console.warn('Server unavailable, using localStorage:', error);
-      // Fallback to localStorage
+
+      // Success - update local cache
       const data = await this.getData();
       if (!data.blockageInstances) {
         data.blockageInstances = [];
       }
       data.blockageInstances.push(blockageData);
-      await this.saveData(data);
-    }
+      this.cachedData = data;
+      localStorage.setItem(this.storageKey, JSON.stringify(data));
 
-    await this.syncWithServer();
-    return blockageId;
+      return blockageId;
+    } catch (error) {
+      console.error('Failed to create blockage:', error);
+      // Re-throw the error so admin panel can show proper error message
+      throw error;
+    }
   }
 
   async deleteBlockageInstance(blockageId) {
-    // Delete from server
+    // Delete from server - use session token for auth
     try {
-      const response = await fetch(`${this.serverUrl}/api/blockage/${blockageId}`, {
+      const headers = {};
+      const sessionToken = this.getSessionToken();
+      if (sessionToken) {
+        headers['x-session-token'] = sessionToken;
+      }
+
+      const response = await fetch(`${this.apiUrl}/blockage/${blockageId}`, {
         method: 'DELETE',
-        headers: {
-          'X-API-Key': this.getApiKey(),
-        },
+        headers,
       });
 
       if (!response.ok) {
-        throw new Error('Server request failed');
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage =
+          errorData.error || `Server error: ${response.status} ${response.statusText}`;
+
+        if (response.status === 401) {
+          this.handleUnauthorizedError();
+          throw new Error('Neautorizovaný přístup - session vypršela. Přihlaste se prosím znovu.');
+        } else if (response.status === 404) {
+          throw new Error('Blokace nebyla nalezena');
+        } else {
+          throw new Error(errorMessage);
+        }
       }
-    } catch (error) {
-      console.warn('Server unavailable, using localStorage:', error);
-      // Fallback to localStorage
+
+      // Success - update local cache
       const data = await this.getData();
       if (data.blockageInstances) {
         data.blockageInstances = data.blockageInstances.filter((b) => b.blockageId !== blockageId);
       }
-      await this.saveData(data);
-    }
+      this.cachedData = data;
+      localStorage.setItem(this.storageKey, JSON.stringify(data));
 
-    await this.syncWithServer();
+      return true;
+    } catch (error) {
+      console.error('Failed to delete blockage:', error);
+      // Re-throw the error so admin panel can show proper error message
+      throw error;
+    }
   }
 
   async getAllBlockageInstances() {
@@ -673,13 +865,49 @@ class DataManager {
     const data = await this.getData();
     const dateStr = this.formatDate(date);
 
-    if (!data.blockedDates) {
-      return null;
+    // Check blockage instances first (NEW structure with reasons and date ranges)
+    if (data.blockageInstances && data.blockageInstances.length > 0) {
+      const blockage = data.blockageInstances.find((b) => {
+        // Check if date is within blockage range
+        const isInRange = dateStr >= b.startDate && dateStr <= b.endDate;
+        if (!isInRange) {
+          return false;
+        }
+
+        // If no rooms specified, all rooms are blocked
+        if (!b.rooms || b.rooms.length === 0) {
+          return true;
+        }
+
+        // Check if specific room is blocked
+        return b.rooms.includes(roomId);
+      });
+
+      if (blockage) {
+        return {
+          reason: blockage.reason || 'Administrativně blokováno',
+          blockageId: blockage.blockageId,
+          startDate: blockage.startDate,
+          endDate: blockage.endDate,
+        };
+      }
     }
 
-    return data.blockedDates.find(
-      (blocked) => blocked.date === dateStr && (!blocked.roomId || blocked.roomId === roomId)
-    );
+    // Fallback to legacy blockedDates (backward compatibility)
+    if (data.blockedDates) {
+      const blocked = data.blockedDates.find(
+        (bd) => bd.date === dateStr && (!bd.roomId || bd.roomId === roomId)
+      );
+
+      if (blocked) {
+        return {
+          reason: blocked.reason || 'Administrativně blokováno',
+          date: blocked.date,
+        };
+      }
+    }
+
+    return null;
   }
 
   // Settings management
@@ -708,22 +936,24 @@ class DataManager {
 
       if (response.ok) {
         const data = await response.json();
-        // Store API key for subsequent requests
+        // Store API key for backward compatibility
         if (data.apiKey) {
           sessionStorage.setItem('apiKey', data.apiKey);
         }
-        return data.success;
+        // Return full response object (includes sessionToken, expiresAt, success)
+        return data;
       }
-      return false;
+      return { success: false };
     } catch (error) {
       console.error('Authentication error:', error);
       // Fallback to local check for backward compatibility
       const data = await this.getData();
       // Check if password field exists (old format)
       if (data.settings.adminPassword) {
-        return data.settings.adminPassword === password;
+        const isValid = data.settings.adminPassword === password;
+        return { success: isValid };
       }
-      return false;
+      return { success: false };
     }
   }
 
@@ -735,6 +965,23 @@ class DataManager {
 
   getSessionToken() {
     return sessionStorage.getItem('adminSessionToken');
+  }
+
+  // Handle 401 errors by triggering admin logout
+  handleUnauthorizedError() {
+    // Clear session data
+    sessionStorage.removeItem('adminSessionToken');
+    sessionStorage.removeItem('adminSessionExpiry');
+
+    // Trigger admin panel logout if available
+    if (window.adminPanel && typeof window.adminPanel.logout === 'function') {
+      window.adminPanel.logout();
+    }
+
+    // Show error message
+    if (window.adminPanel && typeof window.adminPanel.showErrorMessage === 'function') {
+      window.adminPanel.showErrorMessage('Session vypršela - přihlaste se prosím znovu');
+    }
   }
 
   // Utility functions
@@ -772,7 +1019,62 @@ class DataManager {
   }
 
   // Proposed booking methods
-  async createProposedBooking(startDate, endDate, rooms) {
+
+  // Get proposed bookings with caching to avoid rate limits
+  async getProposedBookings() {
+    const now = Date.now();
+
+    // Return cached data if still valid
+    if (
+      this.proposedBookingsCache &&
+      this.proposedBookingsCacheTime &&
+      now - this.proposedBookingsCacheTime < this.proposedBookingsCacheDuration
+    ) {
+      return this.proposedBookingsCache;
+    }
+
+    // If a fetch is already in progress, wait for it instead of starting a new one
+    if (this.proposedBookingsFetchPromise) {
+      return this.proposedBookingsFetchPromise;
+    }
+
+    // Fetch fresh data
+    this.proposedBookingsFetchPromise = (async () => {
+      try {
+        const response = await fetch(`${this.apiUrl}/proposed-bookings`);
+        if (response.ok) {
+          this.proposedBookingsCache = await response.json();
+          this.proposedBookingsCacheTime = Date.now();
+          return this.proposedBookingsCache;
+        }
+      } catch (error) {
+        console.error('Error fetching proposed bookings:', error);
+      } finally {
+        // Clear the in-flight promise
+        this.proposedBookingsFetchPromise = null;
+      }
+
+      // Return empty array on error, or use stale cache if available
+      return this.proposedBookingsCache || [];
+    })();
+
+    return this.proposedBookingsFetchPromise;
+  }
+
+  // Invalidate proposed bookings cache
+  invalidateProposedBookingsCache() {
+    this.proposedBookingsCache = null;
+    this.proposedBookingsCacheTime = null;
+  }
+
+  async createProposedBooking(
+    startDate,
+    endDate,
+    rooms,
+    guests = {},
+    guestType = 'external',
+    totalPrice = 0
+  ) {
     try {
       const response = await fetch(`${this.apiUrl}/proposed-bookings`, {
         method: 'POST',
@@ -784,12 +1086,31 @@ class DataManager {
           startDate,
           endDate,
           rooms,
+          guests,
+          guestType,
+          totalPrice,
         }),
       });
 
       if (response.ok) {
         const data = await response.json();
         this.proposalId = data.proposalId;
+
+        // Update cache in-place instead of invalidating (prevents immediate re-fetch)
+        if (this.proposedBookingsCache && Array.isArray(this.proposedBookingsCache)) {
+          // Add new proposal to cache
+          this.proposedBookingsCache.push({
+            proposal_id: data.proposalId,
+            session_id: this.sessionId,
+            start_date: startDate,
+            end_date: endDate,
+            rooms,
+            created_at: new Date().toISOString(),
+          });
+          // Refresh cache timestamp to keep it valid
+          this.proposedBookingsCacheTime = Date.now();
+        }
+
         return data.proposalId;
       }
     } catch (error) {
@@ -808,6 +1129,17 @@ class DataManager {
         if (this.proposalId === proposalId) {
           this.proposalId = null;
         }
+
+        // Update cache in-place instead of invalidating (prevents immediate re-fetch)
+        if (this.proposedBookingsCache && Array.isArray(this.proposedBookingsCache)) {
+          // Remove deleted proposal from cache
+          this.proposedBookingsCache = this.proposedBookingsCache.filter(
+            (pb) => pb.proposal_id !== proposalId
+          );
+          // Refresh cache timestamp to keep it valid
+          this.proposedBookingsCacheTime = Date.now();
+        }
+
         return true;
       }
     } catch (error) {

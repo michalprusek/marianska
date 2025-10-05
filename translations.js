@@ -193,7 +193,7 @@ const translations = {
     pendingReservations: 'Připravené rezervace',
     reservationSummary: 'Souhrn rezervace',
     legendProposed: 'Navrhovaná rezervace',
-    legendProposedDesc: 'Rezervace čekající na dokončení (červená barva)',
+    legendProposedDesc: 'Rezervace čekající na dokončení (žlutá barva)',
 
     // Notification messages
     selectDatesAndRoomsError: 'Vyberte prosím termín a pokoje',
@@ -220,7 +220,7 @@ const translations = {
     minimumOneNightError: 'Minimální rezervace je na 1 noc (2 dny)',
     noRoomSelectedError: 'Chyba: Žádný pokoj není vybrán',
     roomNotFoundError: 'Chyba: Pokoj nebyl nalezen',
-    roomAddedToReservation: 'Pokoj {roomName} přidán do rezervace',
+    roomAddedToReservation: '{roomName} přidán do rezervace',
     bulkBookingChristmasError:
       'Hromadné rezervace v období vánočních prázdnin nejsou po 1.10. povoleny',
     bulkBookingCreatedSuccess: '✓ Hromadná rezervace byla úspěšně vytvořena',

@@ -14,6 +14,12 @@ class DatabaseManager {
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('foreign_keys = ON');
 
+    // CRITICAL FIX: Verify foreign keys are actually enabled
+    const fkEnabled = this.db.pragma('foreign_keys', { simple: true });
+    if (!fkEnabled) {
+      throw new Error('Failed to enable foreign key constraints!');
+    }
+
     this.initializeSchema();
     this.prepareStatements();
   }
@@ -139,6 +145,14 @@ class DatabaseManager {
             CREATE INDEX IF NOT EXISTS idx_christmas_periods ON christmas_periods(start_date, end_date);
         `);
 
+    // PERFORMANCE FIX: Add missing indexes for foreign key columns
+    this.db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_booking_rooms_booking_id ON booking_rooms(booking_id);
+            CREATE INDEX IF NOT EXISTS idx_proposed_bookings_session ON proposed_bookings(session_id);
+            CREATE INDEX IF NOT EXISTS idx_proposed_bookings_expires ON proposed_bookings(expires_at);
+            CREATE INDEX IF NOT EXISTS idx_blockage_rooms_room_id ON blockage_rooms(room_id);
+        `);
+
     // Create proposed bookings table for temporary reservations
     this.db.exec(`
             CREATE TABLE IF NOT EXISTS proposed_bookings (
@@ -147,9 +161,33 @@ class DatabaseManager {
                 start_date TEXT NOT NULL,
                 end_date TEXT NOT NULL,
                 created_at TEXT NOT NULL,
-                expires_at TEXT NOT NULL
+                expires_at TEXT NOT NULL,
+                adults INTEGER DEFAULT 0,
+                children INTEGER DEFAULT 0,
+                toddlers INTEGER DEFAULT 0,
+                guest_type TEXT DEFAULT 'external',
+                total_price INTEGER DEFAULT 0
             )
         `);
+
+    // Add new columns if they don't exist (for existing databases)
+    const addColumnIfNotExists = (table, column, type, defaultVal = null) => {
+      try {
+        const defaultClause = defaultVal !== null ? ` DEFAULT ${defaultVal}` : '';
+        this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}${defaultClause}`);
+      } catch (err) {
+        // Column already exists, ignore error
+        if (!err.message.includes('duplicate column name')) {
+          throw err;
+        }
+      }
+    };
+
+    addColumnIfNotExists('proposed_bookings', 'adults', 'INTEGER', 0);
+    addColumnIfNotExists('proposed_bookings', 'children', 'INTEGER', 0);
+    addColumnIfNotExists('proposed_bookings', 'toddlers', 'INTEGER', 0);
+    addColumnIfNotExists('proposed_bookings', 'guest_type', 'TEXT', "'external'");
+    addColumnIfNotExists('proposed_bookings', 'total_price', 'INTEGER', 0);
 
     // Create proposed booking rooms table
     this.db.exec(`
@@ -347,8 +385,8 @@ class DatabaseManager {
 
       // Proposed bookings
       insertProposedBooking: this.db.prepare(`
-        INSERT INTO proposed_bookings (proposal_id, session_id, start_date, end_date, created_at, expires_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO proposed_bookings (proposal_id, session_id, start_date, end_date, created_at, expires_at, adults, children, toddlers, guest_type, total_price)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `),
 
       insertProposedBookingRoom: this.db.prepare(
@@ -502,9 +540,21 @@ class DatabaseManager {
   }
 
   getAllBookings() {
-    const bookings = this.statements.getAllBookings.all();
+    // PERFORMANCE FIX: Use JOIN with GROUP_CONCAT to eliminate N+1 query
+    const query = `
+      SELECT
+        b.*,
+        GROUP_CONCAT(br.room_id) as room_ids
+      FROM bookings b
+      LEFT JOIN booking_rooms br ON b.id = br.booking_id
+      GROUP BY b.id
+      ORDER BY b.start_date DESC
+    `;
+
+    const bookings = this.db.prepare(query).all();
+
     return bookings.map((booking) => {
-      const rooms = this.statements.getBookingRooms.all(booking.id).map((r) => r.room_id);
+      const rooms = booking.room_ids ? booking.room_ids.split(',') : [];
 
       return {
         id: booking.id,
@@ -627,6 +677,42 @@ class DatabaseManager {
     }
 
     return blockedDates;
+  }
+
+  // Legacy compatibility - create blocked date (converts to new blockage_instances format)
+  createBlockedDate(blockedDateData) {
+    // Old format: { date, roomId, reason, blockageId, blockedAt }
+    // New format: { blockageId, startDate, endDate, reason, createdAt, rooms: [] }
+
+    const blockageId = blockedDateData.blockageId || this.generateBlockageId();
+    const { date } = blockedDateData;
+    const { roomId } = blockedDateData;
+    const reason = blockedDateData.reason || null;
+    const createdAt = blockedDateData.blockedAt || new Date().toISOString();
+
+    // Check if blockage instance already exists
+    const existing = this.getBlockageInstance(blockageId);
+
+    if (existing) {
+      // Add room to existing blockage if not already present
+      if (roomId && !existing.rooms.includes(roomId)) {
+        this.statements.insertBlockageRoom.run(blockageId, roomId);
+      }
+    } else {
+      // Create new blockage instance (single date = start equals end)
+      const blockageData = {
+        blockageId,
+        startDate: date,
+        endDate: date,
+        reason,
+        createdAt,
+        rooms: roomId ? [roomId] : [], // empty array = all rooms blocked
+      };
+
+      this.createBlockageInstance(blockageData);
+    }
+
+    return blockageId;
   }
 
   // Settings operations
@@ -842,7 +928,7 @@ class DatabaseManager {
   }
 
   // Check room availability
-  getRoomAvailability(roomId, date) {
+  getRoomAvailability(roomId, date, excludeSessionId = null) {
     // Check for blocked dates using new blockage_instances structure
     const blocked = this.db
       .prepare(
@@ -850,7 +936,7 @@ class DatabaseManager {
             SELECT bi.*
             FROM blockage_instances bi
             LEFT JOIN blockage_rooms br ON bi.blockage_id = br.blockage_id
-            WHERE bi.start_date <= ? AND bi.end_date >= ?
+            WHERE bi.start_date <= ? AND bi.end_date > ?
               AND (br.room_id = ? OR br.room_id IS NULL)
         `
       )
@@ -867,28 +953,39 @@ class DatabaseManager {
             SELECT b.* FROM bookings b
             JOIN booking_rooms br ON b.id = br.booking_id
             WHERE br.room_id = ?
-            AND ? BETWEEN b.start_date AND b.end_date
+            AND ? >= b.start_date AND ? < b.end_date
         `
       )
-      .all(roomId, date);
+      .all(roomId, date, date);
 
     if (bookings.length > 0) {
       return { available: false, reason: 'booked', booking: bookings[0] };
     }
 
-    // Check for proposed bookings
+    // Check for proposed bookings (excluding current session if provided)
     const now = new Date().toISOString();
-    const proposedBookings = this.db
-      .prepare(
-        `
+    const proposedQuery = excludeSessionId
+      ? `
             SELECT pb.* FROM proposed_bookings pb
             JOIN proposed_booking_rooms pbr ON pb.proposal_id = pbr.proposal_id
             WHERE pbr.room_id = ?
-            AND ? BETWEEN pb.start_date AND pb.end_date
+            AND ? >= pb.start_date AND ? < pb.end_date
             AND pb.expires_at > ?
+            AND pb.session_id != ?
         `
-      )
-      .all(roomId, date, now);
+      : `
+            SELECT pb.* FROM proposed_bookings pb
+            JOIN proposed_booking_rooms pbr ON pb.proposal_id = pbr.proposal_id
+            WHERE pbr.room_id = ?
+            AND ? >= pb.start_date AND ? < pb.end_date
+            AND pb.expires_at > ?
+        `;
+
+    const proposedParams = excludeSessionId
+      ? [roomId, date, date, now, excludeSessionId]
+      : [roomId, date, date, now];
+
+    const proposedBookings = this.db.prepare(proposedQuery).all(...proposedParams);
 
     if (proposedBookings.length > 0) {
       return { available: false, reason: 'proposed', proposal: proposedBookings[0] };
@@ -1038,20 +1135,37 @@ class DatabaseManager {
   }
 
   // Proposed booking operations
-  createProposedBooking(sessionId, startDate, endDate, rooms) {
+  createProposedBooking(
+    sessionId,
+    startDate,
+    endDate,
+    rooms,
+    guests = {},
+    guestType = 'external',
+    totalPrice = 0
+  ) {
     const proposalId = this.generateProposalId();
     const now = new Date().toISOString();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // Expires in 15 minutes
 
+    const adults = guests.adults || 0;
+    const children = guests.children || 0;
+    const toddlers = guests.toddlers || 0;
+
     const transaction = this.db.transaction(() => {
-      // Insert proposed booking
+      // Insert proposed booking with guest and price info
       this.statements.insertProposedBooking.run(
         proposalId,
         sessionId,
         startDate,
         endDate,
         now,
-        expiresAt
+        expiresAt,
+        adults,
+        children,
+        toddlers,
+        guestType,
+        totalPrice
       );
 
       // Insert room associations

@@ -18,6 +18,9 @@ const BookingLogic = require('./js/shared/bookingLogic');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Session timeout constants
+const SESSION_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+
 // Initialize SQLite database
 const db = new DatabaseManager();
 
@@ -42,7 +45,7 @@ fs.access(DATA_FILE)
     }
   });
 
-// Security middleware
+// Security middleware - Defense-in-depth headers
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -54,10 +57,34 @@ app.use(
         imgSrc: ["'self'", 'data:', 'https:'],
         fontSrc: ["'self'"],
         connectSrc: ["'self'"], // For AJAX requests
+        objectSrc: ["'none'"], // Prevent Flash/Java applets
+        baseUri: ["'self'"], // Prevent base tag hijacking
+        formAction: ["'self'"], // Restrict form submissions
+        frameAncestors: ["'none'"], // Prevent clickjacking
       },
     },
+    // Additional security headers
+    hsts: {
+      maxAge: 31536000, // 1 year
+      includeSubDomains: true,
+      preload: true,
+    },
+    noSniff: true, // X-Content-Type-Options: nosniff
+    frameguard: { action: 'deny' }, // X-Frame-Options: DENY
+    xssFilter: true, // X-XSS-Protection: 1; mode=block
   })
 );
+
+// Additional security headers
+app.use((req, res, next) => {
+  // Prevent MIME type sniffing
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  // Referrer policy
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // Permissions policy (formerly Feature-Policy)
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  next();
+});
 
 // CORS configuration
 const corsOptions = {
@@ -73,19 +100,34 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 100,
+// Rate limiting - Separate limits for different endpoint types
+// Read-only endpoints (GET) - more lenient limit
+const readLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300, // Increased from 100 to accommodate calendar rendering
   message: 'Příliš mnoho požadavků z této IP adresy, zkuste to prosím později.',
 });
-app.use('/api/', limiter);
+
+// Write endpoints (POST/PUT/DELETE) - stricter limit
+const writeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,
+  message: 'Příliš mnoho požadavků z této IP adresy, zkuste to prosím později.',
+});
 
 // Stricter rate limit for booking creation
 const bookingLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 10, // max 10 bookings per hour
   message: 'Překročen limit pro vytváření rezervací. Zkuste to prosím za hodinu.',
+});
+
+// Strict rate limit for admin login (defense against brute-force)
+const adminLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // max 5 login attempts per 15 minutes
+  skipSuccessfulRequests: true, // Don't count successful logins
+  message: 'Příliš mnoho neúspěšných pokusů o přihlášení. Zkuste to za 15 minut.',
 });
 
 app.use(bodyParser.json({ limit: '10mb' }));
@@ -183,6 +225,38 @@ function requireSession(req, res, next) {
   next();
 }
 
+// Middleware that accepts either API key or session token
+function requireApiKeyOrSession(req, res, next) {
+  // Check for API key first
+  const apiKey = req.headers['x-api-key'];
+  if (apiKey && apiKey === process.env.API_KEY) {
+    return next();
+  }
+
+  // Check for session token
+  const sessionToken = req.headers['x-session-token'];
+  if (!sessionToken) {
+    return res
+      .status(401)
+      .json({ error: 'Neautorizovaný přístup - chybí API klíč nebo session token' });
+  }
+
+  const session = adminSessions.get(sessionToken);
+  if (!session) {
+    return res.status(401).json({ error: 'Neplatný session token' });
+  }
+
+  if (session.expiresAt < Date.now()) {
+    adminSessions.delete(sessionToken);
+    return res.status(401).json({ error: 'Session vypršela - přihlaste se znovu' });
+  }
+
+  // Session is valid
+  req.session = session;
+  req.sessionToken = sessionToken;
+  next();
+}
+
 function calculatePrice(rooms, guestType, adults, children, nights) {
   const settings = db.getSettings();
   const { prices } = settings;
@@ -221,8 +295,8 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Public endpoint - read all data from SQLite
-app.get('/api/data', (req, res) => {
+// Public endpoint - read all data from SQLite (use lenient read limiter)
+app.get('/api/data', readLimiter, (req, res) => {
   try {
     const data = db.getAllData();
 
@@ -241,7 +315,7 @@ app.get('/api/data', (req, res) => {
 });
 
 // Admin endpoint - save all data (for bulk operations)
-app.post('/api/data', requireApiKey, (req, res) => {
+app.post('/api/data', writeLimiter, requireApiKeyOrSession, (req, res) => {
   try {
     const dataToSave = req.body;
 
@@ -356,6 +430,21 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
       return res.status(400).json({ error: 'Datum odjezdu musí být po datu příjezdu' });
     }
 
+    // P0 FIX: Validate guest counts
+    const totalGuests = (bookingData.adults || 0) + (bookingData.children || 0);
+
+    if (bookingData.adults < 1) {
+      return res.status(400).json({ error: 'Rezervace musí obsahovat alespoň 1 dospělého' });
+    }
+
+    if (bookingData.adults < 0 || bookingData.children < 0 || bookingData.toddlers < 0) {
+      return res.status(400).json({ error: 'Počet hostů nemůže být záporný' });
+    }
+
+    if (totalGuests === 0) {
+      return res.status(400).json({ error: 'Rezervace musí obsahovat alespoň 1 hosta' });
+    }
+
     // CRITICAL FIX: Wrap availability check + booking creation in transaction
     // This prevents race conditions where two users book the same room simultaneously
     const transaction = db.db.transaction(() => {
@@ -365,8 +454,18 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
         const current = new Date(checkStart);
         while (current.getTime() < endDate.getTime()) {
           const dateStr = formatDate(current);
-          const availability = db.getRoomAvailability(roomId, dateStr);
+          const sessionId = bookingData.sessionId || null;
+          const availability = db.getRoomAvailability(roomId, dateStr, sessionId);
           if (!availability.available) {
+            console.error('[BOOKING] Availability check failed:', {
+              roomId,
+              date: dateStr,
+              reason: availability.reason,
+              sessionId: sessionId || 'none',
+              existingBooking: availability.booking?.id || 'none',
+              proposalId: availability.proposal?.proposal_id || 'none',
+              timestamp: new Date().toISOString(),
+            });
             throw new Error(`Pokoj ${roomId} není dostupný dne ${dateStr}`);
           }
           current.setDate(current.getDate() + 1);
@@ -400,7 +499,7 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
 
     return res.json({
       success: true,
-      booking: booking,
+      booking,
       editToken: booking.editToken,
     });
   } catch (error) {
@@ -411,13 +510,15 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
       ? error.message
       : 'Nepodařilo se vytvořit rezervaci';
 
-    return res.status(error.message.includes('není dostupný') ? 400 : 500)
+    // Use 409 Conflict for availability issues, 500 for other errors
+    return res
+      .status(error.message.includes('není dostupný') ? 409 : 500)
       .json({ error: errorMessage });
   }
 });
 
 // Update booking - requires edit token or API key
-app.put('/api/booking/:id', (req, res) => {
+app.put('/api/booking/:id', writeLimiter, (req, res) => {
   try {
     const bookingId = req.params.id;
     const bookingData = req.body;
@@ -444,31 +545,31 @@ app.put('/api/booking/:id', (req, res) => {
     // P1 FIX: Add validation for all fields (same as POST)
     if (bookingData.email && !ValidationUtils.validateEmail(bookingData.email)) {
       return res.status(400).json({
-        error: ValidationUtils.getValidationError('email', bookingData.email, 'cs')
+        error: ValidationUtils.getValidationError('email', bookingData.email, 'cs'),
       });
     }
 
     if (bookingData.phone && !ValidationUtils.validatePhone(bookingData.phone)) {
       return res.status(400).json({
-        error: ValidationUtils.getValidationError('phone', bookingData.phone, 'cs')
+        error: ValidationUtils.getValidationError('phone', bookingData.phone, 'cs'),
       });
     }
 
     if (bookingData.zip && !ValidationUtils.validateZIP(bookingData.zip)) {
       return res.status(400).json({
-        error: ValidationUtils.getValidationError('zip', bookingData.zip, 'cs')
+        error: ValidationUtils.getValidationError('zip', bookingData.zip, 'cs'),
       });
     }
 
     if (bookingData.ico && !ValidationUtils.validateICO(bookingData.ico)) {
       return res.status(400).json({
-        error: ValidationUtils.getValidationError('ico', bookingData.ico, 'cs')
+        error: ValidationUtils.getValidationError('ico', bookingData.ico, 'cs'),
       });
     }
 
     if (bookingData.dic && !ValidationUtils.validateDIC(bookingData.dic)) {
       return res.status(400).json({
-        error: ValidationUtils.getValidationError('dic', bookingData.dic, 'cs')
+        error: ValidationUtils.getValidationError('dic', bookingData.dic, 'cs'),
       });
     }
 
@@ -479,11 +580,21 @@ app.put('/api/booking/:id', (req, res) => {
     }
 
     // Sanitize text inputs
-    if (bookingData.name) bookingData.name = sanitizeInput(bookingData.name, MAX_LENGTHS.name);
-    if (bookingData.company) bookingData.company = sanitizeInput(bookingData.company, MAX_LENGTHS.company);
-    if (bookingData.address) bookingData.address = sanitizeInput(bookingData.address, MAX_LENGTHS.address);
-    if (bookingData.city) bookingData.city = sanitizeInput(bookingData.city, MAX_LENGTHS.city);
-    if (bookingData.notes) bookingData.notes = sanitizeInput(bookingData.notes, MAX_LENGTHS.notes);
+    if (bookingData.name) {
+      bookingData.name = sanitizeInput(bookingData.name, MAX_LENGTHS.name);
+    }
+    if (bookingData.company) {
+      bookingData.company = sanitizeInput(bookingData.company, MAX_LENGTHS.company);
+    }
+    if (bookingData.address) {
+      bookingData.address = sanitizeInput(bookingData.address, MAX_LENGTHS.address);
+    }
+    if (bookingData.city) {
+      bookingData.city = sanitizeInput(bookingData.city, MAX_LENGTHS.city);
+    }
+    if (bookingData.notes) {
+      bookingData.notes = sanitizeInput(bookingData.notes, MAX_LENGTHS.notes);
+    }
 
     // Validate dates
     const startDate = new Date(bookingData.startDate);
@@ -515,7 +626,7 @@ app.put('/api/booking/:id', (req, res) => {
     );
 
     if (conflictCheck.hasConflict) {
-      return res.status(400).json({
+      return res.status(409).json({
         error: `Pokoj ${conflictCheck.roomId} je již rezervován v tomto termínu`,
       });
     }
@@ -545,7 +656,7 @@ app.put('/api/booking/:id', (req, res) => {
 });
 
 // Delete booking - requires API key or edit token
-app.delete('/api/booking/:id', (req, res) => {
+app.delete('/api/booking/:id', writeLimiter, (req, res) => {
   try {
     const bookingId = req.params.id;
     const editToken = req.headers['x-edit-token'];
@@ -579,17 +690,20 @@ app.delete('/api/booking/:id', (req, res) => {
 const adminSessions = new Map();
 
 // Cleanup expired sessions every 5 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [token, session] of adminSessions.entries()) {
-    if (session.expiresAt < now) {
-      adminSessions.delete(token);
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [token, session] of adminSessions.entries()) {
+      if (session.expiresAt < now) {
+        adminSessions.delete(token);
+      }
     }
-  }
-}, 5 * 60 * 1000);
+  },
+  5 * 60 * 1000
+);
 
 // Admin login endpoint
-app.post('/api/admin/login', async (req, res) => {
+app.post('/api/admin/login', adminLoginLimiter, async (req, res) => {
   try {
     const { password } = req.body;
 
@@ -621,18 +735,18 @@ app.post('/api/admin/login', async (req, res) => {
     if (isValid) {
       // SECURITY FIX: Generate session token instead of exposing API key
       const sessionToken = generateSecureToken();
-      const expiresAt = Date.now() + 30 * 60 * 1000; // 30 minutes
+      const expiresAt = Date.now() + SESSION_TIMEOUT;
 
       adminSessions.set(sessionToken, {
         isAdmin: true,
         createdAt: Date.now(),
-        expiresAt: expiresAt,
+        expiresAt,
       });
 
       return res.json({
         success: true,
         sessionToken,
-        expiresAt: expiresAt,
+        expiresAt,
         // SECURITY FIX: DO NOT send API key to client!
       });
     }
@@ -649,12 +763,12 @@ app.post('/api/admin/refresh-session', requireSession, (req, res) => {
     const session = adminSessions.get(req.sessionToken);
 
     if (session) {
-      // Extend expiration by 30 minutes
-      session.expiresAt = Date.now() + 30 * 60 * 1000;
+      // Extend expiration
+      session.expiresAt = Date.now() + SESSION_TIMEOUT;
 
       return res.json({
         success: true,
-        expiresAt: session.expiresAt
+        expiresAt: session.expiresAt,
       });
     }
 
@@ -696,13 +810,32 @@ app.post('/api/admin/update-password', requireSession, async (req, res) => {
   }
 });
 
-// Input sanitization function
+// Input sanitization function - Defense-in-depth HTML escaping
 function sanitizeInput(str, maxLength = 255) {
-  if (!str) return str;
+  if (!str) {
+    return str;
+  }
   return String(str)
-    .replace(/[<>]/g, '') // Remove HTML tags
-    .replace(/&/g, '&amp;')
+    .replace(/&/g, '&amp;') // Must be first - escape ampersands
+    .replace(/</g, '&lt;') // Escape less-than
+    .replace(/>/g, '&gt;') // Escape greater-than
+    .replace(/"/g, '&quot;') // Escape double quotes
+    .replace(/'/g, '&#x27;') // Escape single quotes
+    .replace(/\//g, '&#x2F;') // Escape forward slash
     .slice(0, maxLength);
+}
+
+// Helper to escape HTML for safe innerHTML usage
+function escapeHtml(unsafe) {
+  if (!unsafe) {
+    return '';
+  }
+  return String(unsafe)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 // Max length validation
@@ -716,7 +849,7 @@ const MAX_LENGTHS = {
   zip: 10,
   ico: 10,
   dic: 12,
-  notes: 1000
+  notes: 1000,
 };
 
 function validateFieldLengths(data) {
@@ -724,7 +857,7 @@ function validateFieldLengths(data) {
     if (data[field] && data[field].length > maxLen) {
       return {
         valid: false,
-        error: `Pole ${field} je příliš dlouhé (max ${maxLen} znaků)`
+        error: `Pole ${field} je příliš dlouhé (max ${maxLen} znaků)`,
       };
     }
   }
@@ -752,17 +885,26 @@ app.post('/api/admin/settings', requireSession, async (req, res) => {
 });
 
 // New blockage instance API endpoints
-app.post('/api/blockage', requireApiKey, (req, res) => {
+app.post('/api/blockage', requireApiKeyOrSession, (req, res) => {
   try {
     const { blockageId, startDate, endDate, rooms, reason, createdAt } = req.body;
 
     if (!blockageId || !startDate || !endDate) {
-      return res.status(400).json({ error: 'Chybí povinné údaje (blockageId, startDate, endDate)' });
+      return res
+        .status(400)
+        .json({ error: 'Chybí povinné údaje (blockageId, startDate, endDate)' });
     }
 
-    // Validate date format
-    if (!ValidationUtils.validateDateRange(startDate, endDate)) {
-      return res.status(400).json({ error: 'Neplatný formát data nebo konec je před začátkem' });
+    // FIX: Admin can create blockages in the past
+    // Check if request has valid session (admin) or API key
+    const isAdmin = !!(req.session || req.sessionToken);
+
+    // Validate date format (skip past date check for admin)
+    const dateValidation = BookingLogic.validateDateRange(startDate, endDate, isAdmin);
+    if (!dateValidation.valid) {
+      return res.status(400).json({
+        error: dateValidation.error || 'Neplatný formát data nebo konec je před začátkem',
+      });
     }
 
     const blockageData = {
@@ -783,7 +925,7 @@ app.post('/api/blockage', requireApiKey, (req, res) => {
   }
 });
 
-app.delete('/api/blockage/:blockageId', requireApiKey, (req, res) => {
+app.delete('/api/blockage/:blockageId', requireApiKeyOrSession, (req, res) => {
   try {
     const { blockageId } = req.params;
 
@@ -800,7 +942,7 @@ app.delete('/api/blockage/:blockageId', requireApiKey, (req, res) => {
   }
 });
 
-app.get('/api/blockages', (req, res) => {
+app.get('/api/blockages', readLimiter, (req, res) => {
   try {
     const blockages = db.getAllBlockageInstances();
     return res.json(blockages);
@@ -811,7 +953,7 @@ app.get('/api/blockages', (req, res) => {
 });
 
 // Legacy admin endpoints for backward compatibility
-app.post('/api/admin/block-dates', requireApiKey, (req, res) => {
+app.post('/api/admin/block-dates', requireApiKeyOrSession, (req, res) => {
   try {
     const { startDate, endDate, rooms, reason } = req.body;
 
@@ -838,7 +980,7 @@ app.post('/api/admin/block-dates', requireApiKey, (req, res) => {
   }
 });
 
-app.delete('/api/admin/block-dates/:blockageId', requireApiKey, (req, res) => {
+app.delete('/api/admin/block-dates/:blockageId', requireApiKeyOrSession, (req, res) => {
   try {
     const { blockageId } = req.params;
 
@@ -852,7 +994,7 @@ app.delete('/api/admin/block-dates/:blockageId', requireApiKey, (req, res) => {
 });
 
 // Christmas periods API endpoints
-app.get('/api/admin/christmas-periods', (req, res) => {
+app.get('/api/admin/christmas-periods', readLimiter, (req, res) => {
   try {
     const periods = db.getAllChristmasPeriods();
     return res.json({ success: true, periods });
@@ -862,7 +1004,7 @@ app.get('/api/admin/christmas-periods', (req, res) => {
   }
 });
 
-app.post('/api/admin/christmas-periods', requireApiKey, (req, res) => {
+app.post('/api/admin/christmas-periods', requireApiKeyOrSession, (req, res) => {
   try {
     const { name, startDate, endDate } = req.body;
 
@@ -885,7 +1027,7 @@ app.post('/api/admin/christmas-periods', requireApiKey, (req, res) => {
   }
 });
 
-app.put('/api/admin/christmas-periods/:periodId', requireApiKey, (req, res) => {
+app.put('/api/admin/christmas-periods/:periodId', requireApiKeyOrSession, (req, res) => {
   try {
     const { periodId } = req.params;
     const { name, startDate, endDate } = req.body;
@@ -905,7 +1047,7 @@ app.put('/api/admin/christmas-periods/:periodId', requireApiKey, (req, res) => {
   }
 });
 
-app.delete('/api/admin/christmas-periods/:periodId', requireApiKey, (req, res) => {
+app.delete('/api/admin/christmas-periods/:periodId', requireApiKeyOrSession, (req, res) => {
   try {
     const { periodId } = req.params;
 
@@ -940,7 +1082,7 @@ app.post('/api/proposed-booking', (req, res) => {
   }
 });
 
-app.get('/api/proposed-bookings', (req, res) => {
+app.get('/api/proposed-bookings', readLimiter, (req, res) => {
   try {
     const proposedBookings = db.getActiveProposedBookings();
     return res.json(proposedBookings);
@@ -950,7 +1092,7 @@ app.get('/api/proposed-bookings', (req, res) => {
   }
 });
 
-app.get('/api/proposed-bookings/session/:sessionId', (req, res) => {
+app.get('/api/proposed-bookings/session/:sessionId', readLimiter, (req, res) => {
   try {
     const { sessionId } = req.params;
     const proposedBookings = db.getProposedBookingsBySession(sessionId);
@@ -961,15 +1103,23 @@ app.get('/api/proposed-bookings/session/:sessionId', (req, res) => {
   }
 });
 
-app.post('/api/proposed-bookings', (req, res) => {
+app.post('/api/proposed-bookings', writeLimiter, (req, res) => {
   try {
-    const { sessionId, startDate, endDate, rooms } = req.body;
+    const { sessionId, startDate, endDate, rooms, guests, guestType, totalPrice } = req.body;
 
     if (!sessionId || !startDate || !endDate || !rooms) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const proposalId = db.createProposedBooking(sessionId, startDate, endDate, rooms);
+    const proposalId = db.createProposedBooking(
+      sessionId,
+      startDate,
+      endDate,
+      rooms,
+      guests || {},
+      guestType || 'external',
+      totalPrice || 0
+    );
     return res.json({ success: true, proposalId });
   } catch (error) {
     console.error('Error creating proposed booking:', error);
@@ -977,7 +1127,7 @@ app.post('/api/proposed-bookings', (req, res) => {
   }
 });
 
-app.delete('/api/proposed-booking/:proposalId', (req, res) => {
+app.delete('/api/proposed-booking/:proposalId', writeLimiter, (req, res) => {
   try {
     const { proposalId } = req.params;
 
@@ -990,7 +1140,7 @@ app.delete('/api/proposed-booking/:proposalId', (req, res) => {
   }
 });
 
-app.delete('/api/proposed-bookings/session/:sessionId', (req, res) => {
+app.delete('/api/proposed-bookings/session/:sessionId', writeLimiter, (req, res) => {
   try {
     const { sessionId } = req.params;
 

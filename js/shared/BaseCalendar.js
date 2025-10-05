@@ -55,9 +55,9 @@ class BaseCalendar {
     // Internal state
     this.selectedDates = new Set();
     this.intervalState = {
-      firstClick: null,  // První hranice intervalu
+      firstClick: null, // První hranice intervalu
       secondClick: null, // Druhá hranice intervalu
-      hoverDate: null,   // Datum pod kurzorem (pro preview)
+      hoverDate: null, // Datum pod kurzorem (pro preview)
     };
 
     // Event listener tracking for cleanup (fixes memory leak)
@@ -143,7 +143,10 @@ class BaseCalendar {
       </div>
       <div class="calendar-weekdays" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.25rem; margin-bottom: 0.5rem;">
         ${CalendarUtils.getWeekdayHeaders(language)
-          .map((day) => `<div class="weekday-header" style="text-align: center; font-weight: 600; color: #666; font-size: 0.875rem; padding: 0.5rem 0;">${day}</div>`)
+          .map(
+            (day) =>
+              `<div class="weekday-header" style="text-align: center; font-weight: 600; color: #666; font-size: 0.875rem; padding: 0.5rem 0.75rem;">${day}</div>`
+          )
           .join('')}
       </div>
     `;
@@ -153,9 +156,10 @@ class BaseCalendar {
    * Build calendar grid (days)
    */
   async buildCalendarGrid(calendarData) {
-    const gridStyle = this.config.mode === BaseCalendar.MODES.GRID
-      ? ''
-      : 'style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.25rem;"';
+    const gridStyle =
+      this.config.mode === BaseCalendar.MODES.GRID
+        ? ''
+        : 'style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.25rem;"';
     let html = `<div class="calendar-grid" ${gridStyle}>`;
 
     // Render based on mode
@@ -206,7 +210,8 @@ class BaseCalendar {
       return {
         day,
         cellPromises: rooms.map(async (room) => {
-          const availability = await dataManager.getRoomAvailability(date, room.id);
+          // Pass '' to show ALL proposed bookings in calendar
+          const availability = await dataManager.getRoomAvailability(date, room.id, '');
           return this.createDayCell(day, room.id, availability);
         }),
       };
@@ -238,7 +243,8 @@ class BaseCalendar {
   async buildSingleRoomMode(calendarData) {
     const dayCellPromises = calendarData.days.map(async (day) => {
       const date = new Date(day.dateStr);
-      const availability = await dataManager.getRoomAvailability(date, this.config.roomId);
+      // Pass '' to show ALL proposed bookings in calendar
+      const availability = await dataManager.getRoomAvailability(date, this.config.roomId, '');
       return this.createDayCell(day, this.config.roomId, availability);
     });
 
@@ -257,7 +263,7 @@ class BaseCalendar {
       // Create availability object compatible with createDayCell
       const availability = {
         status: isFullyAvailable ? 'available' : 'booked',
-        email: null
+        email: null,
       };
 
       return this.createDayCell(day, 'bulk', availability);
@@ -312,18 +318,10 @@ class BaseCalendar {
 
     // Availability-based styling (only if not other month or past)
     if (!day.isOtherMonth && (this.config.allowPast || date >= app.today)) {
-      if (availability.status === 'blocked') {
-        classes.push('blocked');
-        styles.push('background: #6b7280; color: white;');
-        clickable = false;
-      } else if (availability.status === 'booked') {
-        classes.push('booked');
-        const color = dataManager.getColorForEmail(availability.email);
-        styles.push(`background: ${color}; color: white;`);
-        clickable = false;
-      } else if (availability.status === 'proposed') {
-        classes.push('proposed');
-        styles.push('background: #fef3c7; border: 2px dashed #f59e0b; color: #92400e;');
+      if (availability.status === 'blocked' || availability.status === 'booked' || availability.status === 'proposed') {
+        // Unified red color for all unavailable dates (blocked, booked, proposed)
+        classes.push('unavailable');
+        styles.push('background: #ef4444; color: white;');
         clickable = false;
       } else {
         classes.push('available');
@@ -334,16 +332,19 @@ class BaseCalendar {
     // Selection state - override background
     if (this.selectedDates.has(dateStr)) {
       classes.push('selected');
-      styles.push('background: #2563eb !important; color: white !important; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.3);');
+      styles.push(
+        'background: #2563eb !important; color: white !important; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.3);'
+      );
     }
 
     const classStr = classes.join(' ');
     const styleStr = styles.join(' ');
     const cursor = clickable ? 'pointer' : 'not-allowed';
-    const baseStyle = 'padding: 0.75rem; text-align: center; border-radius: 4px; font-weight: 500; user-select: none;';
+    const baseStyle =
+      'padding: 0.75rem; text-align: center; border-radius: 4px; font-weight: 500; user-select: none;';
 
     // Store original background for preview restoration
-    const originalBg = styles.find(s => s.includes('background:')) || '';
+    const originalBg = styles.find((s) => s.includes('background:')) || '';
 
     return `
       <div
@@ -359,7 +360,6 @@ class BaseCalendar {
     `;
   }
 
-
   /**
    * Check if date is fully available (all rooms)
    */
@@ -368,13 +368,13 @@ class BaseCalendar {
     const rooms = data.settings?.rooms || [];
 
     const availabilityPromises = rooms.map((room) =>
-      dataManager.getRoomAvailability(date, room.id)
+      // Pass '' to show ALL proposed bookings (including others)
+      dataManager.getRoomAvailability(date, room.id, '')
     );
     const availabilities = await Promise.all(availabilityPromises);
 
     return availabilities.every((availability) => availability.status === 'available');
   }
-
 
   /**
    * Attach event listeners for interaction
@@ -432,7 +432,7 @@ class BaseCalendar {
       this.boundHandlers.set(cell, {
         click: clickHandler,
         mouseenter: enterHandler,
-        mouseleave: leaveHandler
+        mouseleave: leaveHandler,
       });
 
       // Attach listeners
@@ -591,7 +591,6 @@ class BaseCalendar {
     return true;
   }
 
-
   /**
    * Get array of date strings between two dates (inclusive)
    */
@@ -617,7 +616,9 @@ class BaseCalendar {
    * PERFORMANCE FIX: Use cached elements, only update changed cells
    */
   updatePreview(hoverDateStr) {
-    if (!this.intervalState.firstClick) return;
+    if (!this.intervalState.firstClick) {
+      return;
+    }
 
     // Clear previous preview
     this.clearPreview();
@@ -626,7 +627,7 @@ class BaseCalendar {
     const previewRange = this.getDateRangeBetween(this.intervalState.firstClick, hoverDateStr);
 
     // Only update cells in range (not ALL cells)
-    previewRange.forEach(dateStr => {
+    previewRange.forEach((dateStr) => {
       const cell = this.cellElements.get(dateStr);
       if (cell && !this.selectedDates.has(dateStr)) {
         cell.classList.add('preview-interval');
@@ -643,19 +644,18 @@ class BaseCalendar {
    * PERFORMANCE FIX: Only clear cells that were previewed
    */
   clearPreview() {
-    if (!this.currentPreviewRange) return;
+    if (!this.currentPreviewRange) {
+      return;
+    }
 
     // Only clear cells that were previewed
-    this.currentPreviewRange.forEach(dateStr => {
+    this.currentPreviewRange.forEach((dateStr) => {
       const cell = this.cellElements.get(dateStr);
       if (cell) {
         cell.classList.remove('preview-interval');
         const originalBg = cell.getAttribute('data-original-bg');
         if (originalBg) {
-          cell.style.cssText = cell.style.cssText.replace(
-            /background:[^;]*;?/,
-            originalBg
-          );
+          cell.style.cssText = cell.style.cssText.replace(/background:[^;]*;?/, originalBg);
         }
         cell.style.border = '';
       }
@@ -709,9 +709,10 @@ class BaseCalendar {
         isUnavailable = !isFullyAvailable;
       } else {
         // For single room or edit mode, check specific room availability
-        const roomId = this.config.roomId;
+        const { roomId } = this.config;
         if (roomId) {
-          const availability = await dataManager.getRoomAvailability(date, roomId);
+          // Pass '' to show ALL proposed bookings (including others)
+          const availability = await dataManager.getRoomAvailability(date, roomId, '');
           isUnavailable = availability.status !== 'available';
         }
       }

@@ -1,10 +1,16 @@
 class ValidationUtils {
   static validateEmail(email) {
+    if (!email || typeof email !== 'string') {
+      return false;
+    }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
     return emailRegex.test(email);
   }
 
   static validatePhone(phone) {
+    if (!phone || typeof phone !== 'string') {
+      return false;
+    }
     const cleanPhone = phone.replace(/\s/gu, '');
 
     // Check if phone starts with + and some country code (1-4 digits)
@@ -16,8 +22,12 @@ class ValidationUtils {
     // Support various country code lengths (1-4 digits)
     const withoutPlus = cleanPhone.slice(1);
 
-    // For Czech (+420) and Slovak (+421) - 3 digit country code + 9 digit number = 12 total
+    // P2 FIX: For Czech (+420) and Slovak (+421) - EXACTLY 3 digit country code + 9 digit number = 12 total
     if (cleanPhone.startsWith('+420') || cleanPhone.startsWith('+421')) {
+      // Must be EXACTLY 12 characters total (+XXX followed by 9 digits)
+      if (cleanPhone.length !== 13) {
+        return false;
+      }
       const numberPart = cleanPhone.slice(4);
       return numberPart.length === 9 && /^\d+$/u.test(numberPart);
     }
@@ -46,6 +56,9 @@ class ValidationUtils {
   }
 
   static validateZIP(zip) {
+    if (!zip || typeof zip !== 'string') {
+      return false;
+    }
     const cleanZip = zip.replace(/\s/gu, '');
     return cleanZip.length === 5 && /^\d+$/u.test(cleanZip);
   }
