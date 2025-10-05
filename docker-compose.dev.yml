@@ -3,28 +3,29 @@ version: '3.3'
 services:
   web:
     build: .
-    container_name: marianska-chata
+    container_name: marianska-chata-dev
     expose:
       - '3000'
     volumes:
       - ./data:/app/data
+      - .:/app
+      - /app/node_modules
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - PORT=3000
-    command: npm start
+      - DEBUG=*
+    command: npm run dev
     restart: unless-stopped
     networks:
       - marianska-net
 
   nginx:
     image: nginx:alpine
-    container_name: marianska-nginx
+    container_name: marianska-nginx-dev
     ports:
-      - '80:80'
-      - '443:443'
+      - '3000:80'
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf
-      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - web
     restart: unless-stopped

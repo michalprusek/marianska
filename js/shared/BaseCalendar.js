@@ -318,7 +318,11 @@ class BaseCalendar {
 
     // Availability-based styling (only if not other month or past)
     if (!day.isOtherMonth && (this.config.allowPast || date >= app.today)) {
-      if (availability.status === 'blocked' || availability.status === 'booked' || availability.status === 'proposed') {
+      if (
+        availability.status === 'blocked' ||
+        availability.status === 'booked' ||
+        availability.status === 'proposed'
+      ) {
         // Unified red color for all unavailable dates (blocked, booked, proposed)
         classes.push('unavailable');
         styles.push('background: #ef4444; color: white;');

@@ -25,13 +25,22 @@ npm run dev         # Start development server with auto-reload
 ### Production (Docker)
 
 ```bash
-docker-compose up -d                    # Start containers
+# Production deployment
+docker-compose up -d                    # Start production containers
 docker-compose down                     # Stop containers
 docker-compose up --build -d           # Rebuild and start containers
+
+# Development with Docker
+docker-compose -f docker-compose.dev.yml up -d     # Start dev containers with live reload
+docker-compose -f docker-compose.dev.yml down      # Stop dev containers
 
 # IMPORTANT: After any code changes, you MUST rebuild the Docker containers:
 docker-compose down && docker-compose up --build -d
 ```
+
+**Docker Configuration:**
+- `docker-compose.yml` - Production config (NODE_ENV=production, npm start)
+- `docker-compose.dev.yml` - Development config (NODE_ENV=development, npm run dev, live reload)
 
 ## Architektura
 
@@ -474,6 +483,10 @@ Celkem: 26 lůžek
 3. **Validace vstupů** - Kontrola všech formulářových polí
 4. **Ochrana soukromí** - Skrytí osobních údajů v kalendáři
 5. **Vánoční kódy** - Omezení přístupu během špičky
+6. **Trust Proxy** - Server nastavený pro běh za reverse proxy (nginx)
+   - `app.set('trust proxy', true)` v `server.js:34`
+   - Umožňuje správné získání IP adresy klienta z hlavičky `X-Forwarded-For`
+   - Nutné pro funkci rate limitingu a session managementu za nginx proxy
 
 ## Důležité implementační detaily
 

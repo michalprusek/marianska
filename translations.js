@@ -264,18 +264,21 @@ const translations = {
     currentBlockages: 'Aktuální blokace',
     christmasPeriodManagement: 'Vánoční období a přístupové kódy',
     christmasPeriodSettings: 'Správa vánočních období',
-    christmasPeriodDescription: 'Definujte období školních vánočních prázdnin. Tato období budou v kalendáři vizuálně označena.',
+    christmasPeriodDescription:
+      'Definujte období školních vánočních prázdnin. Tato období budou v kalendáři vizuálně označena.',
     periodStart: 'Začátek období',
     periodEnd: 'Konec období',
     addPeriod: 'Přidat období',
     activeChristmasPeriods: 'Aktivní vánoční období',
     christmasRulesTitle: '⚠️ Pravidla pro vánoční období',
     christmasRule1: 'Období: Školní vánoční prázdniny a bezprostředně přilehlé víkendy',
-    christmasRule2: 'Do 30.9.: Zaměstnanci mohou rezervovat 1 pokoj (2 pokoje při plném obsazení rodinou)',
+    christmasRule2:
+      'Do 30.9.: Zaměstnanci mohou rezervovat 1 pokoj (2 pokoje při plném obsazení rodinou)',
     christmasRule3: 'Od 1.10.: Volná kapacita bez omezení dle pořadí',
     christmasRule4: 'Při převisu poptávky: Rozhoduje los (zajistí provozní oddělení)',
     accessCodesForEmployees: 'Přístupové kódy pro zaměstnance',
-    accessCodesDescription: 'Zaměstnanci s těmito kódy mohou rezervovat během vánočního období do 30.9. daného roku.',
+    accessCodesDescription:
+      'Zaměstnanci s těmito kódy mohou rezervovat během vánočního období do 30.9. daného roku.',
     enterAccessCode: 'Zadejte přístupový kód',
     addCode: 'Přidat kód',
     activeCodes: 'Aktivní kódy',
@@ -307,7 +310,8 @@ const translations = {
     confirmNewPassword: 'Potvrzení nového hesla',
     changePassword: 'Změnit heslo',
     emailSettings: 'Email nastavení',
-    emailMockNote: 'Systém momentálně používá mock emaily. Všechny emaily jsou logovány do konzole.',
+    emailMockNote:
+      'Systém momentálně používá mock emaily. Všechny emaily jsou logovány do konzole.',
     emailTemplateSettings: 'Šablona potvrzovacího emailu',
     emailTemplateDescription: 'Nastavte text emailu, který obdrží hosté po úspěšné rezervaci.',
     emailSubject: 'Předmět emailu',
@@ -386,7 +390,8 @@ const translations = {
     roomCapacityExceeded: 'Pokoj {roomId} má překročenou kapacitu!',
     errorSavingChanges: 'Chyba při ukládání změn:',
     confirmCancelBooking: '⚠️ Opravdu chcete zrušit tuto rezervaci?\n\nTato akce je nevratná!',
-    confirmCancelBookingFinal: '🔴 POSLEDNÍ VAROVÁNÍ!\n\nRezerva ace bude trvale smazána. Pokračovat?',
+    confirmCancelBookingFinal:
+      '🔴 POSLEDNÍ VAROVÁNÍ!\n\nRezerva ace bude trvale smazána. Pokračovat?',
     bookingCancelled: '✅ Rezervace byla zrušena',
     errorCancellingBooking: '❌ Chyba při rušení rezervace:',
 
@@ -686,18 +691,21 @@ const translations = {
     currentBlockages: 'Current Blockages',
     christmasPeriodManagement: 'Christmas Period and Access Codes',
     christmasPeriodSettings: 'Christmas Period Management',
-    christmasPeriodDescription: 'Define school Christmas holiday periods. These periods will be visually marked in the calendar.',
+    christmasPeriodDescription:
+      'Define school Christmas holiday periods. These periods will be visually marked in the calendar.',
     periodStart: 'Period Start',
     periodEnd: 'Period End',
     addPeriod: 'Add Period',
     activeChristmasPeriods: 'Active Christmas Periods',
     christmasRulesTitle: '⚠️ Christmas Period Rules',
     christmasRule1: 'Period: School Christmas holidays and immediately adjacent weekends',
-    christmasRule2: 'Until Sept 30: Employees can book 1 room (2 rooms when fully occupied by family)',
+    christmasRule2:
+      'Until Sept 30: Employees can book 1 room (2 rooms when fully occupied by family)',
     christmasRule3: 'From Oct 1: Available capacity without restrictions in order',
     christmasRule4: 'In case of excess demand: Lottery decides (ensured by operations department)',
     accessCodesForEmployees: 'Access Codes for Employees',
-    accessCodesDescription: 'Employees with these codes can book during Christmas period until September 30th of the respective year.',
+    accessCodesDescription:
+      'Employees with these codes can book during Christmas period until September 30th of the respective year.',
     enterAccessCode: 'Enter access code',
     addCode: 'Add Code',
     activeCodes: 'Active Codes',
@@ -731,7 +739,8 @@ const translations = {
     emailSettings: 'Email Settings',
     emailMockNote: 'The system currently uses mock emails. All emails are logged to console.',
     emailTemplateSettings: 'Confirmation Email Template',
-    emailTemplateDescription: 'Set the email text that guests will receive after successful booking.',
+    emailTemplateDescription:
+      'Set the email text that guests will receive after successful booking.',
     emailSubject: 'Email Subject',
     emailBody: 'Email Body',
     saveEmailTemplate: 'Save Email Template',
@@ -772,7 +781,8 @@ const translations = {
     backButton: '← Back',
     saveChanges: '💾 Save Changes',
     dangerZone: '⚠️ Danger Zone',
-    cancelBookingWarning: 'Canceling the reservation is irreversible. This action cannot be undone.',
+    cancelBookingWarning:
+      'Canceling the reservation is irreversible. This action cannot be undone.',
     cancelBookingButton: '🗑️ Cancel Reservation',
     changesSavedTitle: '🎉 Changes Saved Successfully!',
     changesSavedMessage: 'Your reservation has been updated.',
@@ -807,8 +817,10 @@ const translations = {
     selectAtLeastOneRoom: 'Please select at least one room',
     roomCapacityExceeded: 'Room {roomId} has exceeded capacity!',
     errorSavingChanges: 'Error saving changes:',
-    confirmCancelBooking: '⚠️ Are you sure you want to cancel this reservation?\n\nThis action is irreversible!',
-    confirmCancelBookingFinal: '🔴 FINAL WARNING!\n\nReservation will be permanently deleted. Continue?',
+    confirmCancelBooking:
+      '⚠️ Are you sure you want to cancel this reservation?\n\nThis action is irreversible!',
+    confirmCancelBookingFinal:
+      '🔴 FINAL WARNING!\n\nReservation will be permanently deleted. Continue?',
     bookingCancelled: '✅ Reservation has been cancelled',
     errorCancellingBooking: '❌ Error cancelling reservation:',
 

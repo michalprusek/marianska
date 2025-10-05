@@ -310,10 +310,8 @@ class AdminPanel {
       return false;
     }
 
-    // Convert ISO string to timestamp, or use as-is if already a number
-    const expiryTime = typeof sessionExpiry === 'string' && sessionExpiry.includes('T')
-      ? new Date(sessionExpiry).getTime()
-      : parseInt(sessionExpiry, 10);
+    // Session expiry is stored as ISO string (e.g., "2025-10-05T12:00:00.000Z")
+    const expiryTime = new Date(sessionExpiry).getTime();
     const now = Date.now();
 
     // Session expired
@@ -832,7 +830,7 @@ class AdminPanel {
 
       let bgColor = '#ffffff';
       let textColor = '#000000';
-      let cursor = 'pointer';
+      const cursor = 'pointer';
 
       // FIX: Admin can select past dates - just show them in lighter color
       if (isPast) {

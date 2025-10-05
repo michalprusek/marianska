@@ -378,17 +378,17 @@ class BulkBookingModule {
 
     // Check Christmas period restrictions for bulk bookings
     const sortedDatesArray = Array.from(this.bulkSelectedDates).sort();
-    let isChristmasPeriod = false;
-    let christmasPeriodStart = null;
 
-    for (const dateStr of sortedDatesArray) {
-      // eslint-disable-next-line no-await-in-loop
-      if (await dataManager.isChristmasPeriod(new Date(dateStr))) {
-        isChristmasPeriod = true;
-        const settings = await dataManager.getSettings();
-        christmasPeriodStart = settings.christmasPeriod?.start;
-        break;
-      }
+    // Optimize: Check all dates in parallel instead of sequentially
+    const christmasChecks = await Promise.all(
+      sortedDatesArray.map((dateStr) => dataManager.isChristmasPeriod(new Date(dateStr)))
+    );
+    const isChristmasPeriod = christmasChecks.some(Boolean);
+
+    let christmasPeriodStart = null;
+    if (isChristmasPeriod) {
+      const settings = await dataManager.getSettings();
+      christmasPeriodStart = settings.christmasPeriod?.start;
     }
 
     if (isChristmasPeriod && christmasPeriodStart) {

@@ -315,7 +315,6 @@ class DataManager {
   async createBooking(bookingData) {
     // Try to use public /api/booking endpoint (no auth required)
     try {
-
       // P1 FIX: Add timeout to prevent hanging requests
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
@@ -682,10 +681,9 @@ class DataManager {
     if (isBeforeSept30) {
       // Before Oct 1: Code required for both single and bulk
       return { codeRequired: true, bulkBlocked: false };
-    } else {
-      // After Oct 1: Single rooms don't need code, bulk is blocked
-      return { codeRequired: false, bulkBlocked: isBulkBooking };
     }
+    // After Oct 1: Single rooms don't need code, bulk is blocked
+    return { codeRequired: false, bulkBlocked: isBulkBooking };
   }
 
   requiresChristmasCode(startDate) {

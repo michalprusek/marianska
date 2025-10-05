@@ -225,13 +225,13 @@ class BookingFormModule {
     // Validate required fields (IČO is optional)
     if (!name || !email || !phoneNumber || !company || !address || !city || !zip) {
       console.warn('[BookingForm] Validation failed - missing required fields:', {
-        name: !!name,
-        email: !!email,
-        phoneNumber: !!phoneNumber,
-        company: !!company,
-        address: !!address,
-        city: !!city,
-        zip: !!zip,
+        name: Boolean(name),
+        email: Boolean(email),
+        phoneNumber: Boolean(phoneNumber),
+        company: Boolean(company),
+        address: Boolean(address),
+        city: Boolean(city),
+        zip: Boolean(zip),
       });
       this.app.showNotification(
         this.app.currentLanguage === 'cs'
@@ -247,6 +247,39 @@ class BookingFormModule {
       const errorMsg = ValidationUtils.getValidationError('email', email, this.app.currentLanguage);
       this.app.showNotification(errorMsg, 'error');
       return;
+    }
+
+    // Validate Christmas access code if required
+    if (this.app.tempReservations && this.app.tempReservations.length > 0) {
+      // Collect all dates from temporary reservations
+      const allDates = [];
+      let hasBulkBooking = false;
+
+      this.app.tempReservations.forEach((reservation) => {
+        const start = new Date(reservation.startDate);
+        const end = new Date(reservation.endDate);
+        const current = new Date(start);
+        while (current <= end) {
+          allDates.push(dataManager.formatDate(current));
+          current.setDate(current.getDate() + 1);
+        }
+        if (reservation.isBulkBooking) {
+          hasBulkBooking = true;
+        }
+      });
+
+      // Check if Christmas code is required
+      const { showCodeField } = await this.checkAndShowChristmasCodeField(allDates, hasBulkBooking);
+
+      if (showCodeField && !christmasCode) {
+        this.app.showNotification(
+          this.app.currentLanguage === 'cs'
+            ? 'Vánoční přístupový kód je vyžadován pro rezervace ve vánočním období'
+            : 'Christmas access code is required for bookings during Christmas period',
+          'error'
+        );
+        return;
+      }
     }
 
     // Check if we're finalizing temporary reservations
@@ -552,7 +585,8 @@ class BookingFormModule {
             try {
               await navigator.clipboard.writeText(editUrl);
               const originalText = copyBtn.textContent;
-              copyBtn.textContent = this.app.currentLanguage === 'cs' ? '✓ Zkopírováno!' : '✓ Copied!';
+              copyBtn.textContent =
+                this.app.currentLanguage === 'cs' ? '✓ Zkopírováno!' : '✓ Copied!';
               setTimeout(() => {
                 copyBtn.textContent = originalText;
               }, 2000);

@@ -187,6 +187,12 @@ class BookingApp {
       bookingBtn.addEventListener('click', () => this.showBookingModal());
     }
 
+    // Booking form modal close button
+    const bookingFormCloseBtn = document.getElementById('bookingFormModalClose');
+    if (bookingFormCloseBtn) {
+      bookingFormCloseBtn.addEventListener('click', () => this.bookingForm.hideBookingFormModal());
+    }
+
     // Bulk booking button (bulkActionBtn is the actual ID)
     const bulkBtn = document.getElementById('bulkActionBtn');
     if (bulkBtn) {

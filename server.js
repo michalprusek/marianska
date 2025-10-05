@@ -25,7 +25,10 @@ const {
 } = require('./js/shared/errors');
 
 // Initialize logger - DEBUG level in development
-const logger = createLogger('Server', process.env.NODE_ENV === 'development' ? 'DEBUG' : (process.env.LOG_LEVEL || 'INFO'));
+const logger = createLogger(
+  'Server',
+  process.env.NODE_ENV === 'development' ? 'DEBUG' : process.env.LOG_LEVEL || 'INFO'
+);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -108,14 +111,26 @@ const corsOptions = {
       'http://localhost:3000',
       'https://localhost:3000',
       'https://chata.utia.cas.cz',
-      'http://chata.utia.cas.cz'
+      'http://chata.utia.cas.cz',
     ];
     const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || defaultOrigins;
 
-    // In development, allow all origins for easier testing
+    // In development, allow localhost and development origins
     if (process.env.NODE_ENV === 'development') {
-      logger.debug('CORS: Allowing origin in development mode', { origin });
-      callback(null, true);
+      const devAllowedOrigins = [
+        ...defaultOrigins,
+        'http://127.0.0.1:3000',
+        'http://localhost:8080',
+        'http://127.0.0.1:8080',
+      ];
+
+      if (!origin || devAllowedOrigins.some((allowed) => origin.startsWith(allowed))) {
+        logger.debug('CORS: Allowing development origin', { origin });
+        callback(null, true);
+      } else {
+        logger.warn('CORS: Origin not in development whitelist', { origin, devAllowedOrigins });
+        callback(new Error('Not allowed by CORS'));
+      }
     } else if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -157,13 +172,66 @@ const adminLoginLimiter = rateLimit({
   message: 'Příliš mnoho neúspěšných pokusů o přihlášení. Zkuste to za 15 minut.',
 });
 
+// Rate limiting for Christmas code validation attempts (defense against brute-force)
+const christmasCodeAttempts = new Map(); // { ip: { attempts: number, resetAt: timestamp } }
+
+function checkChristmasCodeRateLimit(ip) {
+  const now = Date.now();
+  const record = christmasCodeAttempts.get(ip);
+
+  // Clean up if reset time has passed
+  if (record && now >= record.resetAt) {
+    christmasCodeAttempts.delete(ip);
+    return { allowed: true, remaining: 10 };
+  }
+
+  if (!record) {
+    christmasCodeAttempts.set(ip, {
+      attempts: 1,
+      resetAt: now + 15 * 60 * 1000, // 15 minutes
+    });
+    return { allowed: true, remaining: 9 };
+  }
+
+  // Check if limit exceeded
+  if (record.attempts >= 10) {
+    const minutesLeft = Math.ceil((record.resetAt - now) / 60000);
+    return {
+      allowed: false,
+      remaining: 0,
+      minutesLeft,
+    };
+  }
+
+  // Increment attempts
+  record.attempts += 1;
+  return { allowed: true, remaining: 10 - record.attempts };
+}
+
+function resetChristmasCodeAttempts(ip) {
+  christmasCodeAttempts.delete(ip);
+}
+
+// Cleanup expired entries every 5 minutes
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [ip, record] of christmasCodeAttempts.entries()) {
+      if (now >= record.resetAt) {
+        christmasCodeAttempts.delete(ip);
+      }
+    }
+  },
+  5 * 60 * 1000
+);
+
 // Request logging middleware for debugging
 if (process.env.NODE_ENV === 'development') {
   app.use((req, res, next) => {
     logger.debug(`${req.method} ${req.url}`, {
       body: req.body,
       query: req.query,
-      headers: req.headers
+      headers: req.headers,
     });
     next();
   });
@@ -266,10 +334,9 @@ function checkChristmasAccessRequirement(currentDate, christmasPeriodStart, isBu
   if (isBeforeSept30) {
     // Before Oct 1: Code required for both single and bulk
     return { codeRequired: true, bulkBlocked: false };
-  } else {
-    // After Oct 1: Single rooms don't need code, bulk is blocked
-    return { codeRequired: false, bulkBlocked: isBulkBooking };
   }
+  // After Oct 1: Single rooms don't need code, bulk is blocked
+  return { codeRequired: false, bulkBlocked: isBulkBooking };
 }
 
 // Session validation middleware
@@ -515,10 +582,30 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
       }
 
       // Require code if before Oct 1
-      if (codeRequired && (!bookingData.christmasCode || !validateChristmasCode(bookingData.christmasCode))) {
-        return res
-          .status(403)
-          .json({ error: 'Rezervace v období vánočních prázdnin vyžaduje přístupový kód' });
+      if (codeRequired) {
+        const clientIp = req.ip || req.connection.remoteAddress;
+
+        // Check rate limit for Christmas code validation
+        const rateLimit = checkChristmasCodeRateLimit(clientIp);
+        if (!rateLimit.allowed) {
+          logger.warn('Christmas code rate limit exceeded', { ip: clientIp });
+          return res.status(429).json({
+            error: `Příliš mnoho neplatných pokusů o vánoční kód. Zkuste to za ${rateLimit.minutesLeft} minut.`,
+          });
+        }
+
+        if (!bookingData.christmasCode || !validateChristmasCode(bookingData.christmasCode)) {
+          logger.warn('Invalid Christmas code attempt', {
+            ip: clientIp,
+            remaining: rateLimit.remaining,
+          });
+          return res
+            .status(403)
+            .json({ error: 'Rezervace v období vánočních prázdnin vyžaduje přístupový kód' });
+        }
+
+        // Valid code - reset rate limit for this IP
+        resetChristmasCodeAttempts(clientIp);
       }
     }
 
@@ -729,10 +816,30 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
       }
 
       // Require code if before Oct 1
-      if (codeRequired && (!bookingData.christmasCode || !validateChristmasCode(bookingData.christmasCode))) {
-        return res
-          .status(403)
-          .json({ error: 'Rezervace v období vánočních prázdnin vyžaduje přístupový kód' });
+      if (codeRequired) {
+        const clientIp = req.ip || req.connection.remoteAddress;
+
+        // Check rate limit for Christmas code validation
+        const rateLimit = checkChristmasCodeRateLimit(clientIp);
+        if (!rateLimit.allowed) {
+          logger.warn('Christmas code rate limit exceeded', { ip: clientIp });
+          return res.status(429).json({
+            error: `Příliš mnoho neplatných pokusů o vánoční kód. Zkuste to za ${rateLimit.minutesLeft} minut.`,
+          });
+        }
+
+        if (!bookingData.christmasCode || !validateChristmasCode(bookingData.christmasCode)) {
+          logger.warn('Invalid Christmas code attempt', {
+            ip: clientIp,
+            remaining: rateLimit.remaining,
+          });
+          return res
+            .status(403)
+            .json({ error: 'Rezervace v období vánočních prázdnin vyžaduje přístupový kód' });
+        }
+
+        // Valid code - reset rate limit for this IP
+        resetChristmasCodeAttempts(clientIp);
       }
     }
 
@@ -1017,7 +1124,7 @@ app.post('/api/blockage', requireApiKeyOrSession, (req, res) => {
 
     // FIX: Admin can create blockages in the past
     // Check if request has valid session (admin) or API key
-    const isAdmin = !!(req.session || req.sessionToken);
+    const isAdmin = Boolean(req.session || req.sessionToken);
 
     // Validate date format (skip past date check for admin)
     const dateValidation = BookingLogic.validateDateRange(startDate, endDate, isAdmin);
