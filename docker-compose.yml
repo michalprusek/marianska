@@ -8,6 +8,7 @@ services:
       - '3000'
     volumes:
       - ./data:/app/data
+      - ./logs:/app/logs
     environment:
       - NODE_ENV=production
       - PORT=3000

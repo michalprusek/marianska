@@ -99,6 +99,16 @@ npm run dev         # Start development server with auto-reload
 - Kontrola datum-závislých pravidel (před/po 1. říjnu)
 - Kontrola překrytí rezervace s vánočním obdobím
 
+**8. AccessLogger** (`js/shared/accessLogger.js`) - **NOVÝ 2025-10-06**: Přístupové logování:
+
+- Strukturované JSON logování všech HTTP requestů
+- Automatická detekce IP adres (s podporou reverse proxy)
+- Identifikace typů uživatelů (anonymous/admin/booking_editor)
+- Měření response times pro performance monitoring
+- Denní rotace logů (`access-YYYY-MM-DD.log`)
+- Splňuje standardy IT bezpečnosti pro audit trail
+- Dokumentace: `ACCESS_LOGGING_DOCS.md`, `logs/README.md`
+
 #### ❌ NIKDY NEDĚLEJTE:
 
 ```javascript

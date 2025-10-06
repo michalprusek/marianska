@@ -19,6 +19,7 @@ const IdGenerator = require('./js/shared/idGenerator');
 const PriceCalculator = require('./js/shared/priceCalculator');
 const ChristmasUtils = require('./js/shared/christmasUtils');
 const { createLogger } = require('./js/shared/logger');
+const { createAccessLogger } = require('./js/shared/accessLogger');
 const {
   ValidationError: _ValidationError,
   AuthenticationError: _AuthenticationError,
@@ -33,6 +34,9 @@ const logger = createLogger(
   'Server',
   process.env.NODE_ENV === 'development' ? 'DEBUG' : process.env.LOG_LEVEL || 'INFO'
 );
+
+// Initialize access logger for security audit trail
+const accessLogger = createAccessLogger(path.join(__dirname, 'logs'));
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -270,7 +274,11 @@ if (process.env.NODE_ENV === 'development') {
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(express.static('.'));
 
-// API Key authentication middleware
+// Access logging middleware - log all HTTP requests
+app.use(accessLogger.middleware());
+
+// API Key authentication middleware (deprecated - kept for backward compatibility)
+// eslint-disable-next-line no-underscore-dangle
 const _requireApiKey = (req, res, next) => {
   const apiKey = req.headers['x-api-key'];
   if (!apiKey || apiKey !== process.env.API_KEY) {
