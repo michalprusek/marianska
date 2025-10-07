@@ -1,3 +1,5 @@
+/* global IdGenerator */
+
 // Bulk booking module - handles bulk event reservations
 class BulkBookingModule {
   constructor(app) {
@@ -487,7 +489,8 @@ class BulkBookingModule {
         guests: { adults, children, toddlers: 0 },
         guestType,
         totalPrice,
-        id: `temp-bulk-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        // CRITICAL FIX 2025-10-07: Use IdGenerator (SSOT) for temp IDs
+        id: `temp-bulk-${IdGenerator.generateToken(9)}`,
         proposalId, // Store the proposal ID for cleanup
       };
 

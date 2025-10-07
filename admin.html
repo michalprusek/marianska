@@ -7,7 +7,11 @@
       content="width=device-width, initial-scale=1.0"
     />
     <title>Admin Panel - Chata Mariánská</title>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link
+      rel="icon"
+      type="image/x-icon"
+      href="/favicon.ico"
+    />
     <link
       rel="stylesheet"
       href="css/styles-unified.css"
@@ -386,7 +390,9 @@
         border-radius: 50%;
         background: rgba(255, 255, 255, 0.2);
         transform: translate(-50%, -50%);
-        transition: width 0.5s, height 0.5s;
+        transition:
+          width 0.5s,
+          height 0.5s;
       }
 
       .btn-modern:hover::before {
@@ -636,7 +642,7 @@
           class="tab-content active"
         >
           <h2>Správa rezervací</h2>
-          <div style="margin-bottom: 1rem; display: flex; gap: 1rem; align-items: center;">
+          <div style="margin-bottom: 1rem; display: flex; gap: 1rem; align-items: center">
             <input
               type="text"
               id="searchBookings"
@@ -651,7 +657,7 @@
             <button
               class="btn btn-primary"
               onclick="adminPanel.openCreateBookingModal()"
-              style="white-space: nowrap;"
+              style="white-space: nowrap"
             >
               ➕ Přidat rezervaci
             </button>
@@ -1669,17 +1675,56 @@ Tým Chata Mariánská</textarea
       >
         <div
           class="modal-content"
-          style="max-width: 1400px; width: 90%; max-height: 90vh; overflow-y: auto;"
+          style="max-width: 1400px; width: 90%; max-height: 90vh; overflow-y: auto"
         >
-          <button class="modal-close" onclick="adminPanel.closeEditModal()">&times;</button>
+          <button
+            class="modal-close"
+            onclick="adminPanel.closeEditModal()"
+          >
+            &times;
+          </button>
           <h2 id="editModalTitle">Upravit rezervaci</h2>
 
           <!-- Tab navigation -->
-          <div class="edit-tabs" style="display: flex; gap: 1rem; margin-bottom: 1.5rem; border-bottom: 2px solid #e5e7eb;">
-            <button class="edit-tab-btn active" data-tab="dates" onclick="adminPanel.switchEditTab('dates')" style="padding: 0.75rem 1.5rem; background: none; border: none; border-bottom: 3px solid #0d9488; color: #0d9488; font-weight: 600; cursor: pointer;">
+          <div
+            class="edit-tabs"
+            style="
+              display: flex;
+              gap: 1rem;
+              margin-bottom: 1.5rem;
+              border-bottom: 2px solid #e5e7eb;
+            "
+          >
+            <button
+              class="edit-tab-btn active"
+              data-tab="dates"
+              onclick="adminPanel.switchEditTab('dates')"
+              style="
+                padding: 0.75rem 1.5rem;
+                background: none;
+                border: none;
+                border-bottom: 3px solid #0d9488;
+                color: #0d9488;
+                font-weight: 600;
+                cursor: pointer;
+              "
+            >
               📅 Termín a pokoje
             </button>
-            <button class="edit-tab-btn" data-tab="billing" onclick="adminPanel.switchEditTab('billing')" style="padding: 0.75rem 1.5rem; background: none; border: none; border-bottom: 3px solid transparent; color: #6b7280; font-weight: 600; cursor: pointer;">
+            <button
+              class="edit-tab-btn"
+              data-tab="billing"
+              onclick="adminPanel.switchEditTab('billing')"
+              style="
+                padding: 0.75rem 1.5rem;
+                background: none;
+                border: none;
+                border-bottom: 3px solid transparent;
+                color: #6b7280;
+                font-weight: 600;
+                cursor: pointer;
+              "
+            >
               📋 Fakturační údaje
             </button>
           </div>
@@ -1691,20 +1736,30 @@ Tým Chata Mariánská</textarea
             />
 
             <!-- Dates and Rooms Tab -->
-            <div id="editDatesTab" class="edit-tab-content">
+            <div
+              id="editDatesTab"
+              class="edit-tab-content"
+            >
               <!-- Calendar and room selection -->
-              <div style="display: grid; grid-template-columns: 1fr 300px; gap: 2rem;">
+              <div style="display: grid; grid-template-columns: 1fr 300px; gap: 2rem">
                 <div>
                   <h3>Vyberte nové datum</h3>
                   <div id="editCalendarContainer"></div>
-                  <div style="margin-top: 1rem;">
+                  <div style="margin-top: 1rem">
                     <strong>Vybraný termín:</strong>
                     <span id="editSelectedDates">Zatím nevybráno</span>
                   </div>
 
                   <!-- Existing bookings for selected dates/rooms - MOVED HERE directly under calendar -->
-                  <div style="margin-top: 1.5rem; padding: 1rem; background: #f9fafb; border-radius: 8px;">
-                    <h3 style="margin-top: 0;">Existující rezervace v tomto termínu</h3>
+                  <div
+                    style="
+                      margin-top: 1.5rem;
+                      padding: 1rem;
+                      background: #f9fafb;
+                      border-radius: 8px;
+                    "
+                  >
+                    <h3 style="margin-top: 0">Existující rezervace v tomto termínu</h3>
                     <div id="editExistingBookings">
                       <!-- Will be populated with existing bookings -->
                     </div>
@@ -1713,42 +1768,85 @@ Tým Chata Mariánská</textarea
 
                 <div>
                   <h3>Vyberte pokoje</h3>
-                  <div id="editRoomsList" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                  <div
+                    id="editRoomsList"
+                    style="display: flex; flex-direction: column; gap: 0.5rem"
+                  >
                     <!-- Rooms will be populated here -->
                   </div>
 
-                  <div style="margin-top: 1.5rem; padding: 1rem; background: #f3f4f6; border-radius: 8px;">
+                  <div
+                    style="
+                      margin-top: 1.5rem;
+                      padding: 1rem;
+                      background: #f3f4f6;
+                      border-radius: 8px;
+                    "
+                  >
                     <h4>Počet hostů</h4>
-                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem">
                       <label>
                         Dospělí:
-                        <input type="number" id="editAdults" min="1" value="1" style="width: 60px; margin-left: 0.5rem;">
+                        <input
+                          type="number"
+                          id="editAdults"
+                          min="1"
+                          value="1"
+                          style="width: 60px; margin-left: 0.5rem"
+                        />
                       </label>
                       <label>
                         Děti (3-15):
-                        <input type="number" id="editChildren" min="0" value="0" style="width: 60px; margin-left: 0.5rem;">
+                        <input
+                          type="number"
+                          id="editChildren"
+                          min="0"
+                          value="0"
+                          style="width: 60px; margin-left: 0.5rem"
+                        />
                       </label>
                       <label>
                         Batolata (0-3):
-                        <input type="number" id="editToddlers" min="0" value="0" style="width: 60px; margin-left: 0.5rem;">
+                        <input
+                          type="number"
+                          id="editToddlers"
+                          min="0"
+                          value="0"
+                          style="width: 60px; margin-left: 0.5rem"
+                        />
                       </label>
                     </div>
                   </div>
 
-                  <div style="margin-top: 1rem; padding: 1rem; background: #ecfdf5; border-radius: 8px;">
+                  <div
+                    style="margin-top: 1rem; padding: 1rem; background: #ecfdf5; border-radius: 8px"
+                  >
                     <h4>Typ hosta *</h4>
                     <label>
-                      <input type="radio" name="editGuestType" value="utia" id="editGuestTypeUtia" required>
+                      <input
+                        type="radio"
+                        name="editGuestType"
+                        value="utia"
+                        id="editGuestTypeUtia"
+                        required
+                      />
                       Zaměstnanec ÚTIA
                     </label>
-                    <br>
+                    <br />
                     <label>
-                      <input type="radio" name="editGuestType" value="external" id="editGuestTypeExternal">
+                      <input
+                        type="radio"
+                        name="editGuestType"
+                        value="external"
+                        id="editGuestTypeExternal"
+                      />
                       Externí host
                     </label>
                   </div>
 
-                  <div style="margin-top: 1rem; padding: 1rem; background: #fef3c7; border-radius: 8px;">
+                  <div
+                    style="margin-top: 1rem; padding: 1rem; background: #fef3c7; border-radius: 8px"
+                  >
                     <strong data-translate="totalPrice">Celková cena:</strong>
                     <div
                       id="editTotalPrice"
@@ -1762,7 +1860,11 @@ Tým Chata Mariánská</textarea
             </div>
 
             <!-- Billing Information Tab -->
-            <div id="editBillingTab" class="edit-tab-content" style="display: none;">
+            <div
+              id="editBillingTab"
+              class="edit-tab-content"
+              style="display: none"
+            >
               <div class="form-grid">
                 <div class="input-group">
                   <label for="editName">Jméno a příjmení *</label>
@@ -1797,54 +1899,58 @@ Tým Chata Mariánská</textarea
                   <input
                     type="text"
                     id="editAddress"
-                />
-              </div>
-              <div class="input-group">
-                <label for="editCity">Město *</label>
-                <input
-                  type="text"
-                  id="editCity"
-                />
-              </div>
-              <div class="input-group">
-                <label for="editZip">PSČ *</label>
-                <input
-                  type="text"
-                  id="editZip"
-                  pattern="[0-9]{5}"
-                />
-              </div>
-              <div class="input-group">
-                <label for="editIco">IČO</label>
-                <input
-                  type="text"
-                  id="editIco"
-                />
-              </div>
-              <div class="input-group">
-                <label for="editDic">DIČ</label>
-                <input
-                  type="text"
-                  id="editDic"
-                />
-              </div>
-              <div class="input-group full-width">
-                <label for="editNotes">Poznámky</label>
-                <textarea
-                  id="editNotes"
-                  rows="3"
-                ></textarea>
-              </div>
-              <div class="input-group full-width">
-                <label style="display: flex; align-items: center; gap: 0.5rem;">
-                  <input type="checkbox" id="editPayFromBenefit" style="width: auto; margin: 0;">
-                  <span>Platba z benefitů</span>
-                </label>
+                  />
+                </div>
+                <div class="input-group">
+                  <label for="editCity">Město *</label>
+                  <input
+                    type="text"
+                    id="editCity"
+                  />
+                </div>
+                <div class="input-group">
+                  <label for="editZip">PSČ *</label>
+                  <input
+                    type="text"
+                    id="editZip"
+                    pattern="[0-9]{5}"
+                  />
+                </div>
+                <div class="input-group">
+                  <label for="editIco">IČO</label>
+                  <input
+                    type="text"
+                    id="editIco"
+                  />
+                </div>
+                <div class="input-group">
+                  <label for="editDic">DIČ</label>
+                  <input
+                    type="text"
+                    id="editDic"
+                  />
+                </div>
+                <div class="input-group full-width">
+                  <label for="editNotes">Poznámky</label>
+                  <textarea
+                    id="editNotes"
+                    rows="3"
+                  ></textarea>
+                </div>
+                <div class="input-group full-width">
+                  <label style="display: flex; align-items: center; gap: 0.5rem">
+                    <input
+                      type="checkbox"
+                      id="editPayFromBenefit"
+                      style="width: auto; margin: 0"
+                    />
+                    <span>Platba z benefitů</span>
+                  </label>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div class="modal-actions">
+            <div class="modal-actions">
               <button
                 type="button"
                 class="btn btn-secondary"

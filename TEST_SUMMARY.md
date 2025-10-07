@@ -1,9 +1,11 @@
 # Comprehensive Test Suite Summary
+
 ## Mariánská Chata Reservation System
 
 ## 📊 Overview
 
 A complete test suite has been created for the booking system covering:
+
 - ✅ Backend API endpoints
 - ✅ Business logic (DataManager)
 - ✅ Input validation
@@ -54,6 +56,7 @@ tests/
 **Coverage**: 30+ test cases
 
 **Key Areas**:
+
 - ✅ Health check endpoint
 - ✅ GET /api/data (retrieve all data)
 - ✅ POST /api/booking (create booking)
@@ -76,6 +79,7 @@ tests/
 - ✅ Proposed bookings
 
 **Sample Test**:
+
 ```javascript
 it('should calculate price correctly for ÚTIA guest', () => {
   // Price: base 300 + (2-1) * 50 + 1 * 25 = 375 per night
@@ -89,6 +93,7 @@ it('should calculate price correctly for ÚTIA guest', () => {
 **Coverage**: 40+ test cases
 
 **Key Areas**:
+
 - ✅ Initialization
 - ✅ Booking ID generation (format: BK + 13 chars)
 - ✅ Edit token generation (30 chars)
@@ -116,13 +121,11 @@ it('should calculate price correctly for ÚTIA guest', () => {
 - ✅ Email color generation
 
 **Sample Test**:
+
 ```javascript
 it('should return "available" on checkout day', async () => {
   // Booking ends on day 12, so day 12 should be available
-  const availability = await dataManager.getRoomAvailability(
-    testUtils.getTestDate(12),
-    '12'
-  );
+  const availability = await dataManager.getRoomAvailability(testUtils.getTestDate(12), '12');
   expect(availability.status).toBe('available');
 });
 ```
@@ -132,6 +135,7 @@ it('should return "available" on checkout day', async () => {
 **Coverage**: 50+ test cases
 
 **Key Areas**:
+
 - ✅ Email validation
   - Valid formats
   - Invalid formats
@@ -161,6 +165,7 @@ it('should return "available" on checkout day', async () => {
 - ✅ Christmas code validation
 
 **Sample Tests**:
+
 ```javascript
 describe('Email Validation', () => {
   it('should validate correct email formats', () => {
@@ -187,6 +192,7 @@ describe('Phone Validation', () => {
 **Coverage**: 40+ test scenarios
 
 **Key Flows**:
+
 - ✅ Single room booking flow
   - Navigate to homepage
   - Select room in calendar
@@ -237,6 +243,7 @@ describe('Phone Validation', () => {
   - Alt text
 
 **Sample Test**:
+
 ```javascript
 describe('Proposed Bookings', () => {
   it('should create proposed booking with expiry', () => {
@@ -245,7 +252,7 @@ describe('Proposed Bookings', () => {
       startDate: '2025-06-10',
       endDate: '2025-06-12',
       rooms: ['12'],
-      expiresAt: Date.now() + (15 * 60 * 1000) // 15 minutes
+      expiresAt: Date.now() + 15 * 60 * 1000, // 15 minutes
     };
 
     expect(proposal.expiresAt).toBeGreaterThan(Date.now());
@@ -290,32 +297,37 @@ expect(status).toBeAvailableStatus();
 ### Test Utilities
 
 ```javascript
-testUtils.getTestDate(10);           // 10 days from now
-testUtils.getDateRange(10, 15);      // Date range
-testUtils.sleep(100);                // Async delay
-testUtils.randomEmail();             // Generate random email
-testUtils.randomString(10);          // Random string
-testUtils.mockFetchResponse(data);   // Mock fetch
+testUtils.getTestDate(10); // 10 days from now
+testUtils.getDateRange(10, 15); // Date range
+testUtils.sleep(100); // Async delay
+testUtils.randomEmail(); // Generate random email
+testUtils.randomString(10); // Random string
+testUtils.mockFetchResponse(data); // Mock fetch
 ```
 
 ## 📦 Dependencies
 
 ### Test Framework
+
 - `jest@^29.7.0` - Test runner
 - `@types/jest@^29.5.14` - TypeScript types
 
 ### Testing Libraries
+
 - `@testing-library/dom@^10.4.0` - DOM testing
 - `@testing-library/jest-dom@^6.6.3` - DOM matchers
 
 ### E2E Testing
+
 - `@playwright/test@^1.48.0` - Browser automation
 - `playwright@^1.48.0` - Browser drivers
 
 ### HTTP Testing
+
 - `supertest@^7.0.0` - HTTP assertions
 
 ### Environment
+
 - `jest-environment-jsdom@^29.7.0` - Browser-like environment
 
 ## 🚀 Running Tests
@@ -356,15 +368,15 @@ npm test -- -t "booking creation"
 
 ## 📈 Coverage Goals
 
-| Component | Target | Priority |
-|-----------|--------|----------|
-| **Backend API** | 90%+ | 🔴 High |
-| **DataManager** | 95%+ | 🔴 High |
-| **Validation** | 95%+ | 🔴 High |
-| **Price Calculation** | 100% | 🔴 High |
-| **Availability Logic** | 100% | 🔴 High |
-| **Frontend Components** | 80%+ | 🟡 Medium |
-| **Integration Flows** | 100% critical paths | 🔴 High |
+| Component               | Target              | Priority  |
+| ----------------------- | ------------------- | --------- |
+| **Backend API**         | 90%+                | 🔴 High   |
+| **DataManager**         | 95%+                | 🔴 High   |
+| **Validation**          | 95%+                | 🔴 High   |
+| **Price Calculation**   | 100%                | 🔴 High   |
+| **Availability Logic**  | 100%                | 🔴 High   |
+| **Frontend Components** | 80%+                | 🟡 Medium |
+| **Integration Flows**   | 100% critical paths | 🔴 High   |
 
 ## ✅ Completed
 
@@ -390,6 +402,7 @@ While the test structure and scenarios are fully designed, some tests need actua
 - [ ] Test fixtures (sample data files)
 
 **Note**: The existing tests provide a comprehensive framework. Completing the pending tests involves:
+
 1. Implementing the test logic based on provided scenarios
 2. Running the tests to ensure they pass
 3. Adjusting test assertions based on actual behavior
@@ -397,6 +410,7 @@ While the test structure and scenarios are fully designed, some tests need actua
 ## 📚 Documentation
 
 ### Main Documents
+
 1. **TESTING.md** - Comprehensive testing guide
    - Quick start
    - Test structure
@@ -450,6 +464,7 @@ While the test structure and scenarios are fully designed, some tests need actua
 ## 🏆 Test Quality Metrics
 
 ### Code Quality
+
 - ✅ Clear test names
 - ✅ One assertion per concept
 - ✅ DRY principles
@@ -457,18 +472,21 @@ While the test structure and scenarios are fully designed, some tests need actua
 - ✅ Edge case coverage
 
 ### Test Isolation
+
 - ✅ Independent tests
 - ✅ Fresh state per test
 - ✅ No shared mutable state
 - ✅ Proper cleanup
 
 ### Performance
+
 - ⚡ Fast execution (< 10s total)
 - ⚡ In-memory database
 - ⚡ Parallel test execution
 - ⚡ Minimal external dependencies
 
 ### Maintainability
+
 - 📖 Comprehensive documentation
 - 📖 Clear test structure
 - 📖 Reusable test utilities

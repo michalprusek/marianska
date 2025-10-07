@@ -21,7 +21,8 @@ class DataManager {
   getOrCreateSessionId() {
     let sessionId = sessionStorage.getItem('bookingSessionId');
     if (!sessionId) {
-      sessionId = `SESSION_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+      // CRITICAL FIX 2025-10-07: Use IdGenerator (SSOT) instead of inline generation
+      sessionId = IdGenerator.generateSessionId();
       sessionStorage.setItem('bookingSessionId', sessionId);
     }
     return sessionId;
@@ -560,7 +561,7 @@ class DataManager {
         (pb) =>
           pb.rooms.includes(roomId) &&
           checkDateStr >= pb.start_date &&
-          checkDateStr <= pb.end_date && // INCLUSIVE end date - proposed booking blocks checkout day
+          checkDateStr < pb.end_date && // CRITICAL FIX 2025-10-07: EXCLUSIVE end date - allows back-to-back bookings
           (sessionToExclude === '' || pb.session_id !== sessionToExclude)
       );
 
@@ -815,8 +816,12 @@ class DataManager {
     return data.blockageInstances || [];
   }
 
+  /**
+   * @deprecated Use IdGenerator.generateBlockageId() directly instead.
+   * This wrapper exists for backward compatibility only.
+   */
   generateBlockageId() {
-    return `BLK${Date.now()}${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+    return IdGenerator.generateBlockageId();
   }
 
   // Legacy methods for backward compatibility

@@ -75,6 +75,7 @@ ORDER BY created_at DESC LIMIT 10;
 ### Production
 
 In production:
+
 1. Set up automated backups (daily recommended)
 2. Monitor database file size
 3. Consider log rotation for WAL files

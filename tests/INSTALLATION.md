@@ -1,4 +1,5 @@
 # Test Suite Installation Guide
+
 ## Mariánská Chata Reservation System
 
 This guide will help you install and set up the comprehensive test suite for the booking system.
@@ -13,17 +14,20 @@ This guide will help you install and set up the comprehensive test suite for the
 ## Step 1: Install Dependencies
 
 ### Install All Dependencies
+
 ```bash
 npm install
 ```
 
 This will install both production and development dependencies including:
+
 - `jest` - Test framework
 - `@testing-library/dom` - DOM testing utilities
 - `@playwright/test` - E2E browser testing
 - `supertest` - HTTP API testing
 
 ### Verify Installation
+
 ```bash
 npm list jest
 npm list playwright
@@ -34,21 +38,25 @@ You should see version numbers without errors.
 ## Step 2: Verify Test Infrastructure
 
 ### Check Jest Configuration
+
 ```bash
 cat jest.config.js
 ```
 
 Should display Jest configuration with:
+
 - Test environment: node
 - Coverage configuration
 - Test file patterns
 
 ### Check Test Directory Structure
+
 ```bash
 ls -la tests/
 ```
 
 Should show:
+
 - `backend/` - Backend tests
 - `unit/` - Unit tests
 - `frontend/` - Frontend tests
@@ -59,11 +67,13 @@ Should show:
 ## Step 3: Run First Test
 
 ### Run All Tests
+
 ```bash
 npm test
 ```
 
 Expected output:
+
 ```
 PASS  tests/unit/validation.test.js
 PASS  tests/unit/dataManager.test.js
@@ -77,11 +87,13 @@ Time:        X.XXXs
 ```
 
 ### Run with Coverage
+
 ```bash
 npm run test:coverage
 ```
 
 Expected output:
+
 ```
 ---------|---------|----------|---------|---------|
 File     | % Stmts | % Branch | % Funcs | % Lines |
@@ -95,6 +107,7 @@ Coverage report will be in `coverage/lcov-report/index.html`.
 ## Step 4: Configure Test Environment
 
 ### Create .env.test File (Optional)
+
 ```bash
 # tests/.env.test
 NODE_ENV=test
@@ -106,6 +119,7 @@ SILENT_TESTS=false
 ```
 
 ### Set Environment Variables
+
 Environment variables are automatically set in `tests/helpers/setup.js`, but you can override them:
 
 ```bash
@@ -116,26 +130,31 @@ export DB_PATH=:memory:
 ## Step 5: Run Specific Test Suites
 
 ### Backend API Tests
+
 ```bash
 npm run test:backend
 ```
 
 ### Unit Tests (Business Logic)
+
 ```bash
 npm run test:unit
 ```
 
 ### Frontend Component Tests
+
 ```bash
 npm run test:frontend
 ```
 
 ### Integration Tests (E2E)
+
 ```bash
 npm run test:integration
 ```
 
 ### All Tests Sequentially
+
 ```bash
 npm run test:all
 ```
@@ -143,26 +162,31 @@ npm run test:all
 ## Step 6: Development Workflow
 
 ### Watch Mode for Development
+
 ```bash
 npm run test:watch
 ```
 
 This will:
+
 - Run tests on file changes
 - Show coverage in terminal
 - Allow interactive test selection
 
 ### Run Specific Test File
+
 ```bash
 npm test -- tests/unit/validation.test.js
 ```
 
 ### Run Tests Matching Pattern
+
 ```bash
 npm test -- -t "booking creation"
 ```
 
 ### Run with Verbose Output
+
 ```bash
 npm run test:verbose
 ```
@@ -172,6 +196,7 @@ npm run test:verbose
 ### Issue: "jest: command not found"
 
 **Solution**: Install dependencies
+
 ```bash
 npm install
 ```
@@ -179,6 +204,7 @@ npm install
 ### Issue: "Cannot find module 'jest'"
 
 **Solution**: Clear node_modules and reinstall
+
 ```bash
 rm -rf node_modules
 npm install
@@ -187,6 +213,7 @@ npm install
 ### Issue: "Database is locked"
 
 **Solution**: Use in-memory database (already configured)
+
 ```javascript
 // In tests/helpers/setup.js
 process.env.DB_PATH = ':memory:';
@@ -195,6 +222,7 @@ process.env.DB_PATH = ':memory:';
 ### Issue: "Port 3000 already in use"
 
 **Solution**: Tests use port 3001 by default
+
 ```javascript
 // In tests/helpers/setup.js
 process.env.PORT = 3001;
@@ -203,6 +231,7 @@ process.env.PORT = 3001;
 ### Issue: Tests timeout
 
 **Solution**: Increase timeout in jest.config.js
+
 ```javascript
 module.exports = {
   testTimeout: 10000, // 10 seconds
@@ -212,6 +241,7 @@ module.exports = {
 ### Issue: Coverage not generating
 
 **Solution**: Check jest.config.js has coverage enabled
+
 ```javascript
 module.exports = {
   collectCoverage: true,
@@ -222,11 +252,13 @@ module.exports = {
 ## Verifying Setup
 
 ### 1. Check Test Scripts
+
 ```bash
 npm run | grep test
 ```
 
 Should show:
+
 ```
 test
 test:watch
@@ -240,6 +272,7 @@ test:verbose
 ```
 
 ### 2. Check Jest Version
+
 ```bash
 npx jest --version
 ```
@@ -247,6 +280,7 @@ npx jest --version
 Should show: `29.x.x` or higher
 
 ### 3. Check Playwright Version
+
 ```bash
 npx playwright --version
 ```
@@ -254,7 +288,9 @@ npx playwright --version
 Should show: `1.x.x` or higher
 
 ### 4. Run Minimal Test
+
 Create `tests/minimal.test.js`:
+
 ```javascript
 describe('Minimal Test', () => {
   it('should pass', () => {
@@ -264,6 +300,7 @@ describe('Minimal Test', () => {
 ```
 
 Run:
+
 ```bash
 npm test -- tests/minimal.test.js
 ```
@@ -271,6 +308,7 @@ npm test -- tests/minimal.test.js
 Should pass ✅
 
 ### 5. Check Coverage Report
+
 ```bash
 npm run test:coverage
 open coverage/lcov-report/index.html
@@ -290,29 +328,31 @@ After successful installation:
 
 ## Common Commands Reference
 
-| Command | Description |
-|---------|-------------|
-| `npm test` | Run all tests |
-| `npm run test:watch` | Run tests in watch mode |
-| `npm run test:coverage` | Generate coverage report |
-| `npm run test:backend` | Run backend tests only |
-| `npm run test:unit` | Run unit tests only |
-| `npm run test:frontend` | Run frontend tests only |
-| `npm run test:integration` | Run integration tests only |
-| `npm run test:all` | Run all test suites sequentially |
-| `npm run test:verbose` | Run with verbose output |
-| `npm test -- -t "pattern"` | Run tests matching pattern |
-| `npm test -- tests/file.test.js` | Run specific test file |
+| Command                          | Description                      |
+| -------------------------------- | -------------------------------- |
+| `npm test`                       | Run all tests                    |
+| `npm run test:watch`             | Run tests in watch mode          |
+| `npm run test:coverage`          | Generate coverage report         |
+| `npm run test:backend`           | Run backend tests only           |
+| `npm run test:unit`              | Run unit tests only              |
+| `npm run test:frontend`          | Run frontend tests only          |
+| `npm run test:integration`       | Run integration tests only       |
+| `npm run test:all`               | Run all test suites sequentially |
+| `npm run test:verbose`           | Run with verbose output          |
+| `npm test -- -t "pattern"`       | Run tests matching pattern       |
+| `npm test -- tests/file.test.js` | Run specific test file           |
 
 ## IDE Integration
 
 ### Visual Studio Code
 
 Install extensions:
+
 - **Jest** by Orta
 - **Jest Runner** by firsttris
 
 Configuration (`.vscode/settings.json`):
+
 ```json
 {
   "jest.autoRun": "off",
@@ -330,9 +370,11 @@ Configuration (`.vscode/settings.json`):
 ### Vim/Neovim
 
 Install plugin:
+
 - **vim-test** or **nvim-dap**
 
 Add to config:
+
 ```vim
 let test#javascript#runner = 'jest'
 ```

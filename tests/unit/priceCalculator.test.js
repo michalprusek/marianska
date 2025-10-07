@@ -28,7 +28,6 @@ describe('PriceCalculator', () => {
     },
   };
 
-
   describe('calculatePrice() - Individual Bookings', () => {
     it('should calculate base price for UTIA guest, 1 room, 1 adult, 1 night', () => {
       const price = PriceCalculator.calculatePrice({

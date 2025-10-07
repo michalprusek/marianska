@@ -81,3 +81,6 @@ jscpd-report.json/
 
 # Migration artifacts
 data/*.migrated*
+
+# Sensitive files - NEVER COMMIT
+.sudo-password

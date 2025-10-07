@@ -1,4 +1,5 @@
 # Test Suite Documentation
+
 ## Mariánská Chata Reservation System
 
 This directory contains comprehensive tests for the entire booking system.
@@ -79,6 +80,7 @@ npm run test:watch
 ## Writing Tests
 
 ### Test Structure
+
 ```javascript
 describe('ComponentName', () => {
   beforeEach(() => {
@@ -107,6 +109,7 @@ describe('ComponentName', () => {
 ## Test Priorities
 
 ### High Priority (Must Pass)
+
 - Booking creation/update/delete
 - Payment calculation
 - Room availability checking
@@ -114,6 +117,7 @@ describe('ComponentName', () => {
 - Date conflict detection
 
 ### Medium Priority (Should Pass)
+
 - Form validation
 - Calendar rendering
 - Admin operations
@@ -121,6 +125,7 @@ describe('ComponentName', () => {
 - Statistics calculation
 
 ### Low Priority (Nice to Have)
+
 - UI animations
 - Notification styling
 - Language switching
@@ -129,6 +134,7 @@ describe('ComponentName', () => {
 ## Continuous Integration
 
 Tests run automatically on:
+
 - Every commit to feature branches
 - Pull requests to main
 - Scheduled nightly builds
@@ -168,18 +174,21 @@ const { sampleBookings, testSettings } = require('./fixtures');
 ## Troubleshooting
 
 ### Database Locked
+
 ```javascript
 // Use separate test database
 process.env.DB_PATH = ':memory:';
 ```
 
 ### Async Timeout
+
 ```javascript
 // Increase timeout for slow tests
 jest.setTimeout(10000);
 ```
 
 ### Mock Issues
+
 ```javascript
 // Clear mocks between tests
 beforeEach(() => {

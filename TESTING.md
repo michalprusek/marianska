@@ -1,4 +1,5 @@
 # Testing Guide
+
 ## Mariánská Chata Reservation System
 
 This document provides comprehensive guidance for testing the booking system application.
@@ -60,41 +61,47 @@ tests/
 
 ## Test Coverage Goals
 
-| Component | Target Coverage | Current Status |
-|-----------|----------------|----------------|
-| Backend API | 90%+ | ⚠️ Pending |
-| Business Logic | 95%+ | ⚠️ Pending |
-| Frontend Components | 80%+ | ⚠️ Pending |
-| Integration Flows | 100% critical paths | ⚠️ Pending |
+| Component           | Target Coverage     | Current Status |
+| ------------------- | ------------------- | -------------- |
+| Backend API         | 90%+                | ⚠️ Pending     |
+| Business Logic      | 95%+                | ⚠️ Pending     |
+| Frontend Components | 80%+                | ⚠️ Pending     |
+| Integration Flows   | 100% critical paths | ⚠️ Pending     |
 
 ## Running Tests
 
 ### All Tests
+
 ```bash
 npm test
 ```
 
 ### Specific Test File
+
 ```bash
 npm test -- tests/unit/validation.test.js
 ```
 
 ### Tests Matching Pattern
+
 ```bash
 npm test -- -t "booking creation"
 ```
 
 ### With Verbose Output
+
 ```bash
 npm run test:verbose
 ```
 
 ### Watch Mode
+
 ```bash
 npm run test:watch
 ```
 
 ### Coverage Report
+
 ```bash
 npm run test:coverage
 ```
@@ -104,6 +111,7 @@ Coverage report will be generated in `coverage/` directory. Open `coverage/lcov-
 ## Test Environment
 
 Tests run with the following environment:
+
 - **Node.js**: Test environment
 - **Database**: In-memory SQLite (`:memory:`)
 - **Port**: 3001 (separate from dev server)
@@ -204,6 +212,7 @@ const element = createMockElement('div');
 **Purpose**: Test Express API endpoints and database operations
 
 **Key Areas**:
+
 - Health check endpoint
 - Booking CRUD operations
 - Admin authentication
@@ -212,6 +221,7 @@ const element = createMockElement('div');
 - Proposed bookings
 
 **Example**:
+
 ```javascript
 describe('POST /api/booking', () => {
   it('should create booking with valid data', () => {
@@ -232,6 +242,7 @@ describe('POST /api/booking', () => {
 **Purpose**: Test business logic in isolation
 
 **Key Areas**:
+
 - Price calculation
 - Room availability checking
 - Christmas period detection
@@ -240,6 +251,7 @@ describe('POST /api/booking', () => {
 - Email validation
 
 **Example**:
+
 ```javascript
 describe('Price Calculation', () => {
   it('should calculate ÚTIA price correctly', () => {
@@ -255,6 +267,7 @@ describe('Price Calculation', () => {
 **Purpose**: Test UI components and interactions
 
 **Key Areas**:
+
 - Calendar rendering
 - Form validation
 - Modal behavior
@@ -262,6 +275,7 @@ describe('Price Calculation', () => {
 - State management
 
 **Example**:
+
 ```javascript
 describe('Email Validation', () => {
   it('should validate correct email format', () => {
@@ -276,6 +290,7 @@ describe('Email Validation', () => {
 **Purpose**: Test complete user flows end-to-end
 
 **Key Areas**:
+
 - Complete booking flow
 - Multi-room bookings
 - Bulk bookings
@@ -283,6 +298,7 @@ describe('Email Validation', () => {
 - Error handling
 
 **Example**:
+
 ```javascript
 describe('Complete Booking Flow', () => {
   it('should complete full booking process', async () => {
@@ -299,6 +315,7 @@ describe('Complete Booking Flow', () => {
 ## Testing Best Practices
 
 ### 1. Test Independence
+
 ```javascript
 // Good ✅
 beforeEach(() => {
@@ -312,6 +329,7 @@ const dataManager = new MockDataManager();
 ```
 
 ### 2. Clear Test Names
+
 ```javascript
 // Good ✅
 it('should reject booking with end date before start date', () => {});
@@ -321,6 +339,7 @@ it('works', () => {});
 ```
 
 ### 3. One Assertion Per Concept
+
 ```javascript
 // Good ✅
 it('should create booking with generated ID', () => {
@@ -344,6 +363,7 @@ it('should create booking', () => {
 ```
 
 ### 4. Use Meaningful Test Data
+
 ```javascript
 // Good ✅
 const booking = {
@@ -361,6 +381,7 @@ const booking = {
 ```
 
 ### 5. Test Edge Cases
+
 ```javascript
 describe('Guest Count Validation', () => {
   it('should handle minimum (1 adult)', () => { ... });
@@ -374,6 +395,7 @@ describe('Guest Count Validation', () => {
 ## Common Testing Patterns
 
 ### Testing Async Functions
+
 ```javascript
 it('should create booking asynchronously', async () => {
   const booking = await dataManager.createBooking(data);
@@ -382,6 +404,7 @@ it('should create booking asynchronously', async () => {
 ```
 
 ### Testing Errors
+
 ```javascript
 it('should throw error for invalid input', () => {
   expect(() => {
@@ -391,39 +414,40 @@ it('should throw error for invalid input', () => {
 ```
 
 ### Testing Dates
+
 ```javascript
 it('should detect Christmas period', () => {
   const christmasDate = '2024-12-25';
   const period = { start_date: '2024-12-23', end_date: '2025-01-02' };
 
-  const isChristmas = christmasDate >= period.start_date &&
-                     christmasDate <= period.end_date;
+  const isChristmas = christmasDate >= period.start_date && christmasDate <= period.end_date;
 
   expect(isChristmas).toBe(true);
 });
 ```
 
 ### Testing Array Operations
+
 ```javascript
 it('should filter bookings by date range', () => {
   const bookings = getAllBookings();
-  const filtered = bookings.filter(b =>
-    b.startDate >= '2025-06-01' && b.endDate <= '2025-06-30'
-  );
+  const filtered = bookings.filter((b) => b.startDate >= '2025-06-01' && b.endDate <= '2025-06-30');
 
   expect(filtered.length).toBeGreaterThan(0);
-  expect(filtered.every(b => b.startDate >= '2025-06-01')).toBe(true);
+  expect(filtered.every((b) => b.startDate >= '2025-06-01')).toBe(true);
 });
 ```
 
 ## Debugging Tests
 
 ### Running Single Test
+
 ```bash
 npm test -- -t "should calculate price correctly"
 ```
 
 ### Using Node Inspector
+
 ```bash
 node --inspect-brk node_modules/.bin/jest --runInBand
 ```
@@ -431,6 +455,7 @@ node --inspect-brk node_modules/.bin/jest --runInBand
 Then open `chrome://inspect` in Chrome.
 
 ### Adding Debug Logs
+
 ```javascript
 it('should do something', () => {
   console.log('Debug info:', data);
@@ -441,6 +466,7 @@ it('should do something', () => {
 ```
 
 ### Using Jest Snapshots
+
 ```javascript
 it('should render correctly', () => {
   const output = render(component);
@@ -451,11 +477,13 @@ it('should render correctly', () => {
 ## Continuous Integration
 
 Tests run automatically on:
+
 - Every commit to feature branches
 - Pull requests to main
 - Scheduled nightly builds
 
 ### GitHub Actions Example
+
 ```yaml
 name: Tests
 on: [push, pull_request]
@@ -473,18 +501,21 @@ jobs:
 ## Troubleshooting
 
 ### Database Locked Error
+
 ```javascript
 // Solution: Use in-memory database
 process.env.DB_PATH = ':memory:';
 ```
 
 ### Timeout Errors
+
 ```javascript
 // Solution: Increase timeout for slow tests
 jest.setTimeout(10000); // 10 seconds
 ```
 
 ### Mock Not Working
+
 ```javascript
 // Solution: Clear mocks between tests
 beforeEach(() => {
@@ -493,6 +524,7 @@ beforeEach(() => {
 ```
 
 ### Port Already in Use
+
 ```javascript
 // Solution: Use different port for tests
 process.env.PORT = 3001; // Not 3000
@@ -501,18 +533,21 @@ process.env.PORT = 3001; // Not 3000
 ## Test Maintenance
 
 ### When to Update Tests
+
 - After adding new features
 - After fixing bugs
 - When refactoring code
 - When changing business rules
 
 ### Keeping Tests Fast
+
 - Use in-memory database
 - Mock external dependencies
 - Avoid unnecessary waits
 - Run tests in parallel
 
 ### Test Code Quality
+
 - Follow same coding standards as production code
 - Keep tests DRY (Don't Repeat Yourself)
 - Use descriptive variable names
@@ -528,6 +563,7 @@ process.env.PORT = 3001; // Not 3000
 ## Support
 
 For questions or issues with tests:
+
 1. Check this documentation
 2. Review existing tests for examples
 3. Check test output and error messages

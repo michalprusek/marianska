@@ -453,7 +453,7 @@ class UtilsModule {
 
     const rooms = await dataManager.getRooms();
     const roomPrices = await Promise.all(
-      Array.from(roomsToCalculate).map(async (roomId) => {
+      Array.from(roomsToCalculate).map((roomId) => {
         const guests = this.app.roomGuests.get(roomId) || { adults: 1, children: 0, toddlers: 0 };
         const guestType = this.app.roomGuestTypes.get(roomId) || 'utia';
 
@@ -462,7 +462,7 @@ class UtilsModule {
           return 0;
         }
 
-        return await dataManager.calculatePrice(
+        return dataManager.calculatePrice(
           guestType,
           guests.adults,
           guests.children,

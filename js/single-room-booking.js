@@ -1,3 +1,5 @@
+/* global IdGenerator */
+
 // Single room booking module - handles individual room reservation modals
 class SingleRoomBookingModule {
   constructor(app) {
@@ -260,7 +262,8 @@ class SingleRoomBookingModule {
         guests,
         guestType,
         totalPrice: price,
-        id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        // CRITICAL FIX 2025-10-07: Use IdGenerator (SSOT) for temp IDs
+        id: `temp-${IdGenerator.generateToken(9)}`,
         proposalId, // Store the proposal ID for cleanup
       };
 

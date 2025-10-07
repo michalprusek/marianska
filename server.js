@@ -572,6 +572,35 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
       return res.status(400).json({ error: 'Rezervace musí obsahovat alespoň 1 hosta' });
     }
 
+    // CRITICAL FIX 2025-10-07: Server-side capacity validation
+    // Prevent users from bypassing client-side checks via direct API calls
+    if (bookingData.isBulkBooking) {
+      // Bulk booking: Check against total chalet capacity (26 beds)
+      if (totalGuests > 26) {
+        return res.status(400).json({
+          error: `Překročena kapacita chaty (26 lůžek). Máte ${totalGuests} hostů.`,
+        });
+      }
+    } else {
+      // Individual rooms: Check capacity of selected rooms
+      let totalCapacity = 0;
+      for (const roomId of bookingData.rooms) {
+        const room = settings.rooms.find((r) => r.id === roomId);
+        if (!room) {
+          return res.status(400).json({
+            error: `Pokoj ${roomId} neexistuje`,
+          });
+        }
+        totalCapacity += room.beds || 0;
+      }
+
+      if (totalGuests > totalCapacity) {
+        return res.status(400).json({
+          error: `Počet hostů (${totalGuests}) překračuje kapacitu vybraných pokojů (${totalCapacity} lůžek). Poznámka: Batolata (0-3 roky) se nepočítají.`,
+        });
+      }
+    }
+
     // CRITICAL FIX: Wrap availability check + booking creation in transaction
     // This prevents race conditions where two users book the same room simultaneously
     const transaction = db.db.transaction(() => {
@@ -1122,7 +1151,8 @@ app.post('/api/admin/block-dates', requireApiKeyOrSession, (req, res) => {
       return res.status(400).json({ error: 'Chybí povinné údaje' });
     }
 
-    const blockageId = `BLK${Math.random().toString(36).slice(2, 11).toUpperCase()}`;
+    // CRITICAL FIX 2025-10-07: Use IdGenerator (SSOT) instead of inline generation
+    const blockageId = IdGenerator.generateBlockageId();
     const blockageData = {
       blockageId,
       startDate,

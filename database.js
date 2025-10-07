@@ -15,6 +15,8 @@ class DatabaseManager {
     this.db = new Database(this.dbPath);
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('foreign_keys = ON');
+    // CRITICAL FIX 2025-10-07: Add WAL autocheckpoint to prevent unbounded WAL growth
+    this.db.pragma('wal_autocheckpoint = 1000'); // Checkpoint every 1000 pages (~4MB)
 
     // CRITICAL FIX: Verify foreign keys are actually enabled
     const fkEnabled = this.db.pragma('foreign_keys', { simple: true });

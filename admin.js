@@ -11,12 +11,11 @@ class AdminPanel {
     this.isAuthenticated = false;
     this.refreshInterval = null;
     this.today = new Date(); // Required by BaseCalendar
+    this.currentMonth = new Date(); // Required by BaseCalendar for EDIT mode navigation
     this.editSelectedDates = new Set();
     this.editSelectedRooms = new Set();
     this.editStartDate = null;
     this.editEndDate = null;
-    this.editCurrentMonth = new Date().getMonth();
-    this.editCurrentYear = new Date().getFullYear();
     this.currentEditBooking = null;
     this.init();
   }
@@ -693,6 +692,9 @@ class AdminPanel {
       document.getElementById('editGuestTypeExternal').checked = true;
     }
 
+    // Set calendar to booking's start month for better UX
+    this.currentMonth = new Date(booking.startDate);
+
     // Initialize calendar and rooms
     await this.initEditCalendar();
     await this.loadEditRooms();
@@ -733,18 +735,18 @@ class AdminPanel {
         return;
       }
 
-      // Validate email format
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
-      if (!emailRegex.test(email)) {
-        this.showErrorMessage('Zadejte platnou emailovou adresu');
+      // CRITICAL FIX 2025-10-07: Use ValidationUtils (SSOT) instead of manual regex
+      if (!ValidationUtils.validateEmail(email)) {
+        const errorMsg = ValidationUtils.getValidationError('email', email, 'cs');
+        this.showErrorMessage(errorMsg);
         this.switchEditTab('billing');
         return;
       }
 
       // Validate ZIP format (5 digits)
-      const zipRegex = /^[0-9]{5}$/u;
-      if (!zipRegex.test(zip)) {
-        this.showErrorMessage('PSČ musí obsahovat přesně 5 číslic');
+      if (!ValidationUtils.validateZIP(zip)) {
+        const errorMsg = ValidationUtils.getValidationError('zip', zip, 'cs');
+        this.showErrorMessage(errorMsg);
         this.switchEditTab('billing');
         return;
       }
@@ -891,14 +893,12 @@ class AdminPanel {
     if (this.editSelectedDates.size > 0) {
       const dates = Array.from(this.editSelectedDates).sort();
       this.editStartDate = dates[0];
-      // endDate = day AFTER last selected date (checkout day)
-      const lastSelectedDate = dates[dates.length - 1];
-      const checkoutDate = new Date(lastSelectedDate);
-      checkoutDate.setDate(checkoutDate.getDate() + 1);
-      this.editEndDate = this.formatDate(checkoutDate);
+      // INCLUSIVE DATE MODEL: endDate is the last selected date (last night of stay)
+      // NOT checkout day! Follows pattern from bulk-booking.js
+      this.editEndDate = dates[dates.length - 1];
 
       document.getElementById('editSelectedDates').textContent =
-        `${new Date(this.editStartDate).toLocaleDateString('cs-CZ')} - ${new Date(lastSelectedDate).toLocaleDateString('cs-CZ')}`;
+        `${new Date(this.editStartDate).toLocaleDateString('cs-CZ')} - ${new Date(this.editEndDate).toLocaleDateString('cs-CZ')}`;
     }
 
     await this.updateEditPrice();
@@ -1086,6 +1086,9 @@ class AdminPanel {
     this.editSelectedRooms = new Set();
     this.editStartDate = null;
     this.editEndDate = null;
+
+    // Reset calendar to current month for new bookings
+    this.currentMonth = new Date();
 
     // Clear BaseCalendar if exists
     if (this.editCalendar) {

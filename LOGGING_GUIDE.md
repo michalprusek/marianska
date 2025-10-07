@@ -7,11 +7,13 @@ This guide documents the logging infrastructure added to help debug availability
 ## Log Format
 
 All logs follow this format:
+
 ```
 [COMPONENT] Action: { contextData }
 ```
 
 **Components:**
+
 - `[DB]` - Database layer (database.js)
 - `[BOOKING]` - Server booking endpoints (server.js)
 - `[DataManager]` - Frontend data layer (data.js)
@@ -31,21 +33,21 @@ All logs follow this format:
 console.log('[DB] Checking availability:', {
   roomId,
   date,
-  excludeSessionId
+  excludeSessionId,
 });
 
 // If blocked
 console.log('[DB] Room blocked:', {
   roomId,
   date,
-  blockage: blocked.blockage_id
+  blockage: blocked.blockage_id,
 });
 
 // If booked
 console.log('[DB] Room booked:', {
   roomId,
   date,
-  booking: bookings[0].id
+  booking: bookings[0].id,
 });
 
 // If proposed booking exists
@@ -61,6 +63,7 @@ console.log('[DB] Room available:', { roomId, date });
 ```
 
 **Key Features:**
+
 - Logs the `excludeSessionId` parameter to track session exclusions
 - Shows which specific booking/blockage/proposal is blocking availability
 - Differentiates between proposal from same session vs. other sessions
@@ -86,6 +89,7 @@ console.error('[BOOKING] Availability check failed:', {
 ```
 
 **Data Captured:**
+
 - `roomId` - Which room failed availability
 - `date` - Specific date that's unavailable
 - `reason` - Why it's unavailable (blocked/booked/proposed)
@@ -116,6 +120,7 @@ console.error('[DataManager] Server returned error:', {
 ```
 
 **Data Captured:**
+
 - `error` - Complete error response from server
 - `rooms` - Which rooms were being booked
 - `startDate`/`endDate` - Date range of booking attempt
@@ -125,10 +130,12 @@ console.error('[DataManager] Server returned error:', {
 ## Session ID Support
 
 The logging infrastructure now tracks session IDs to differentiate between:
+
 1. **User's own proposals** - Should be excluded from availability checks
 2. **Other users' proposals** - Should block availability
 
 **Implementation:**
+
 - Server: `getRoomAvailability(roomId, date, excludeSessionId)`
 - Logs show both the proposal's session and the excluded session
 - Helps identify when session exclusion logic fails
@@ -294,6 +301,7 @@ npm start
 ## Future Enhancements
 
 Consider adding:
+
 - Request ID for tracing across distributed systems
 - Log aggregation (e.g., Winston, Pino)
 - Structured logging library
@@ -306,6 +314,7 @@ Consider adding:
 ### Issue: "Proposed" blocks own booking
 
 **Symptoms:**
+
 ```
 [DB] Room has proposal: { proposalSession: 'SESSION_123', excludedSession: 'SESSION_123' }
 [BOOKING] Availability check failed: { reason: 'proposed' }

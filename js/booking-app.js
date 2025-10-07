@@ -1,4 +1,4 @@
-/* global langManager */
+/* global langManager, IdGenerator */
 
 // Main BookingApp class - orchestrates all modules
 class BookingApp {
@@ -57,8 +57,12 @@ class BookingApp {
     this.utils = new UtilsModule(this);
   }
 
+  /**
+   * @deprecated Use IdGenerator.generateSessionId() directly instead.
+   * This wrapper exists for backward compatibility only.
+   */
   generateSessionId() {
-    return `SESSION-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return IdGenerator.generateSessionId();
   }
 
   async init() {
