@@ -1011,13 +1011,15 @@
       </div>
     </div>
 
-    <script src="data.js"></script>
-    <script src="translations.js"></script>
-    <!-- Shared utilities -->
+    <!-- Shared utilities (MUST load before data.js) -->
     <script src="js/shared/idGenerator.js"></script>
     <script src="js/shared/dateUtils.js"></script>
     <script src="js/shared/priceCalculator.js"></script>
     <script src="js/shared/christmasUtils.js"></script>
+
+    <!-- Core modules -->
+    <script src="data.js"></script>
+    <script src="translations.js"></script>
     <script>
             // Global variables
             let editToken = null;

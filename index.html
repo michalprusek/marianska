@@ -1986,11 +1986,7 @@
       ></div>
     </div>
 
-    <!-- Core modules -->
-    <script src="data.js"></script>
-    <script src="translations.js"></script>
-
-    <!-- Shared utilities -->
+    <!-- Shared utilities (MUST load before data.js) -->
     <script src="js/shared/idGenerator.js"></script>
     <script src="js/shared/dateUtils.js"></script>
     <script src="js/shared/validationUtils.js"></script>
@@ -1999,6 +1995,10 @@
     <script src="js/shared/bookingLogic.js"></script>
     <script src="js/calendar-utils.js"></script>
     <script src="js/shared/BaseCalendar.js"></script>
+
+    <!-- Core modules (depend on shared utilities) -->
+    <script src="data.js"></script>
+    <script src="translations.js"></script>
 
     <!-- Modular JS files -->
     <script src="js/calendar.js"></script>
