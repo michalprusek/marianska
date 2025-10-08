@@ -1030,22 +1030,77 @@ class AdminPanel {
       return hasDateOverlap && hasRoomOverlap;
     });
 
-    if (relevantBookings.length === 0) {
-      container.innerHTML =
-        '<p style="color: #10b981;">✓ Žádné konflikty s existujícími rezervacemi</p>';
-    } else {
-      let html = '<div style="display: flex; flex-direction: column; gap: 0.5rem;">';
-      for (const booking of relevantBookings) {
-        html += `
-          <div style="padding: 0.75rem; background: #fee2e2; border-left: 4px solid #ef4444; border-radius: 4px;">
-            <strong>${booking.name}</strong> - Pokoje: ${booking.rooms.join(', ')}<br>
-            ${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}
-          </div>
-        `;
-      }
-      html += '</div>';
-      container.innerHTML = html;
+    // CRITICAL FIX 2025-10-07: Check for blocked dates in selected range and rooms
+    const blockedDays = [];
+    const dateArray = [];
+    const currentDate = new Date(this.editStartDate);
+    const endDate = new Date(this.editEndDate);
+
+    // eslint-disable-next-line no-unmodified-loop-condition
+    while (currentDate <= endDate) {
+      dateArray.push(new Date(currentDate));
+      currentDate.setDate(currentDate.getDate() + 1);
     }
+
+    // Check each date and room combination for blockages
+    for (const date of dateArray) {
+      for (const roomId of this.editSelectedRooms) {
+        const availability = await dataManager.getRoomAvailability(date, roomId);
+        if (availability.status === 'blocked') {
+          const dateStr = DateUtils.formatDate(date);
+          blockedDays.push({ date: dateStr, roomId });
+        }
+      }
+    }
+
+    // Build HTML with both bookings and blocked dates
+    let html = '';
+
+    if (relevantBookings.length === 0 && blockedDays.length === 0) {
+      html =
+        '<p style="color: #10b981;">✓ Žádné konflikty s existujícími rezervacemi nebo blokacemi</p>';
+    } else {
+      html = '<div style="display: flex; flex-direction: column; gap: 0.5rem;">';
+
+      // Show conflicting bookings
+      if (relevantBookings.length > 0) {
+        html += '<h4 style="margin: 0 0 0.5rem 0; color: #dc2626;">⚠️ Konfliktní rezervace:</h4>';
+        for (const booking of relevantBookings) {
+          html += `
+            <div style="padding: 0.75rem; background: #fee2e2; border-left: 4px solid #ef4444; border-radius: 4px;">
+              <strong>${this.escapeHtml(booking.name)}</strong> - Pokoje: ${booking.rooms.join(', ')}<br>
+              ${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}
+            </div>
+          `;
+        }
+      }
+
+      // Show blocked dates
+      if (blockedDays.length > 0) {
+        html += '<h4 style="margin: 1rem 0 0.5rem 0; color: #9ca3af;">🚫 Blokované dny:</h4>';
+        // Group by date for better readability
+        const blockedByDate = {};
+        for (const blocked of blockedDays) {
+          if (!blockedByDate[blocked.date]) {
+            blockedByDate[blocked.date] = [];
+          }
+          blockedByDate[blocked.date].push(blocked.roomId);
+        }
+
+        for (const [date, rooms] of Object.entries(blockedByDate)) {
+          const dateObj = new Date(date);
+          html += `
+            <div style="padding: 0.75rem; background: #f3f4f6; border-left: 4px solid #9ca3af; border-radius: 4px;">
+              <strong>${dateObj.toLocaleDateString('cs-CZ')}</strong> - Pokoje: ${rooms.join(', ')}
+            </div>
+          `;
+        }
+      }
+
+      html += '</div>';
+    }
+
+    container.innerHTML = html;
   }
 
   switchEditTab(tab) {

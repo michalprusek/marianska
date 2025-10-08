@@ -14,7 +14,9 @@
     "**/package-lock.json",
     "**/*.lock",
     "**/tests/**/*.test.js",
-    "**/tests/helpers/**"
+    "**/tests/**/*.spec.js",
+    "**/tests/helpers/**",
+    "**/tests/e2e/**"
   ],
   "format": ["javascript", "markup", "css", "json"],
   "absolute": true,

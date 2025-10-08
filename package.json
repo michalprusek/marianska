@@ -22,7 +22,16 @@
     "test:frontend": "jest tests/frontend",
     "test:integration": "jest tests/integration",
     "test:all": "npm run test:backend && npm run test:unit && npm run test:frontend && npm run test:integration",
-    "test:verbose": "jest --verbose"
+    "test:verbose": "jest --verbose",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:chromium": "playwright test --project=chromium",
+    "test:e2e:firefox": "playwright test --project=firefox",
+    "test:e2e:webkit": "playwright test --project=webkit",
+    "test:e2e:report": "playwright show-report",
+    "test:full": "npm run test:all && npm run test:e2e"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

@@ -496,4 +496,183 @@ describe('DataManager', () => {
       expect(color2).toMatch(/^#[0-9A-F]{6}$/iu);
     });
   });
+
+  describe('Proposed Bookings - EXCLUSIVE End Date (CRITICAL FIX 2025-10-07)', () => {
+    let testUtils;
+
+    beforeEach(() => {
+      // Mock testUtils for date generation
+      testUtils = {
+        getTestDate: (daysFromNow) => {
+          const date = new Date();
+          date.setDate(date.getDate() + daysFromNow);
+          return date.toISOString().split('T')[0];
+        },
+      };
+    });
+
+    it('should block dates from start_date to end_date-1 (EXCLUSIVE end)', async () => {
+      // Add proposed booking: 2025-10-10 to 2025-10-12
+      const proposedBooking = {
+        proposal_id: 'PROP123',
+        session_id: 'SESSION_ABC',
+        start_date: testUtils.getTestDate(10),
+        end_date: testUtils.getTestDate(12),
+        rooms: ['12'],
+        expires_at: Date.now() + 15 * 60 * 1000, // Active (15 minutes from now)
+      };
+
+      dataManager.data.proposedBookings = [proposedBooking];
+
+      // Day 10 (start) - should be PROPOSED
+      const day10 = await dataManager.getRoomAvailability(testUtils.getTestDate(10), '12');
+      expect(day10.status).toBe('proposed');
+
+      // Day 11 (middle) - should be PROPOSED
+      const day11 = await dataManager.getRoomAvailability(testUtils.getTestDate(11), '12');
+      expect(day11.status).toBe('proposed');
+
+      // Day 12 (end) - should be AVAILABLE (EXCLUSIVE end date)
+      // CRITICAL: This allows back-to-back bookings (checkout 12th, checkin 12th)
+      const day12 = await dataManager.getRoomAvailability(testUtils.getTestDate(12), '12');
+      expect(day12.status).toBe('available');
+
+      // Day 13 (after end) - should be AVAILABLE
+      const day13 = await dataManager.getRoomAvailability(testUtils.getTestDate(13), '12');
+      expect(day13.status).toBe('available');
+    });
+
+    it('should allow back-to-back bookings on same day (EXCLUSIVE end)', async () => {
+      // Scenario: Proposed booking A ends on Oct 10, new booking B starts on Oct 10
+      // With EXCLUSIVE end, both should be allowed on the same day
+      const proposedBookingA = {
+        proposal_id: 'PROP_A',
+        session_id: 'SESSION_A',
+        start_date: testUtils.getTestDate(5),
+        end_date: testUtils.getTestDate(10), // Ends on day 10
+        rooms: ['12'],
+        expires_at: Date.now() + 15 * 60 * 1000,
+      };
+
+      dataManager.data.proposedBookings = [proposedBookingA];
+
+      // Day 10 should be AVAILABLE (EXCLUSIVE end) - allows new booking B to start
+      const day10 = await dataManager.getRoomAvailability(testUtils.getTestDate(10), '12');
+      expect(day10.status).toBe('available');
+    });
+
+    it('should NOT block availability when proposed booking is expired', async () => {
+      // Add expired proposed booking
+      const expiredProposal = {
+        proposal_id: 'PROP_EXPIRED',
+        session_id: 'SESSION_EXPIRED',
+        start_date: testUtils.getTestDate(10),
+        end_date: testUtils.getTestDate(12),
+        rooms: ['12'],
+        expires_at: Date.now() - 1000, // Expired (1 second ago)
+      };
+
+      dataManager.data.proposedBookings = [expiredProposal];
+
+      // All dates should be AVAILABLE since proposal expired
+      const day10 = await dataManager.getRoomAvailability(testUtils.getTestDate(10), '12');
+      const day11 = await dataManager.getRoomAvailability(testUtils.getTestDate(11), '12');
+
+      expect(day10.status).toBe('available');
+      expect(day11.status).toBe('available');
+    });
+
+    it('should handle multiple active proposed bookings for same room', async () => {
+      // Two different sessions proposing different date ranges for same room
+      const proposal1 = {
+        proposal_id: 'PROP_1',
+        session_id: 'SESSION_1',
+        start_date: testUtils.getTestDate(5),
+        end_date: testUtils.getTestDate(8), // EXCLUSIVE: blocks 5, 6, 7 only
+        rooms: ['12'],
+        expires_at: Date.now() + 15 * 60 * 1000,
+      };
+
+      const proposal2 = {
+        proposal_id: 'PROP_2',
+        session_id: 'SESSION_2',
+        start_date: testUtils.getTestDate(10),
+        end_date: testUtils.getTestDate(13), // EXCLUSIVE: blocks 10, 11, 12 only
+        rooms: ['12'],
+        expires_at: Date.now() + 15 * 60 * 1000,
+      };
+
+      dataManager.data.proposedBookings = [proposal1, proposal2];
+
+      // Days 5-7 should be PROPOSED (by proposal1)
+      const day5 = await dataManager.getRoomAvailability(testUtils.getTestDate(5), '12');
+      const day7 = await dataManager.getRoomAvailability(testUtils.getTestDate(7), '12');
+      expect(day5.status).toBe('proposed');
+      expect(day7.status).toBe('proposed');
+
+      // Day 8 should be AVAILABLE (EXCLUSIVE end of proposal1)
+      const day8 = await dataManager.getRoomAvailability(testUtils.getTestDate(8), '12');
+      expect(day8.status).toBe('available');
+
+      // Days 10-12 should be PROPOSED (by proposal2)
+      const day10 = await dataManager.getRoomAvailability(testUtils.getTestDate(10), '12');
+      const day12 = await dataManager.getRoomAvailability(testUtils.getTestDate(12), '12');
+      expect(day10.status).toBe('proposed');
+      expect(day12.status).toBe('proposed');
+
+      // Day 13 should be AVAILABLE (EXCLUSIVE end of proposal2)
+      const day13 = await dataManager.getRoomAvailability(testUtils.getTestDate(13), '12');
+      expect(day13.status).toBe('available');
+    });
+
+    it('should prioritize regular booking over proposed booking', async () => {
+      // Regular booking and proposed booking for same dates
+      // Regular booking should take precedence
+      const regularBooking = {
+        id: 'BK_REGULAR',
+        startDate: testUtils.getTestDate(10),
+        endDate: testUtils.getTestDate(12),
+        rooms: ['12'],
+        email: 'regular@example.com',
+      };
+
+      const proposedBooking = {
+        proposal_id: 'PROP_CONFLICT',
+        session_id: 'SESSION_CONFLICT',
+        start_date: testUtils.getTestDate(10),
+        end_date: testUtils.getTestDate(12),
+        rooms: ['12'],
+        expires_at: Date.now() + 15 * 60 * 1000,
+      };
+
+      dataManager.data.bookings = [regularBooking];
+      dataManager.data.proposedBookings = [proposedBooking];
+
+      // Should show as BOOKED (not proposed) since regular booking exists
+      const day10 = await dataManager.getRoomAvailability(testUtils.getTestDate(10), '12');
+      expect(day10.status).toBe('booked');
+      expect(day10.email).toBe('regular@example.com');
+    });
+
+    it('should handle proposed booking for different room (no conflict)', async () => {
+      const proposal = {
+        proposal_id: 'PROP_ROOM13',
+        session_id: 'SESSION_13',
+        start_date: testUtils.getTestDate(10),
+        end_date: testUtils.getTestDate(12),
+        rooms: ['13'], // Different room
+        expires_at: Date.now() + 15 * 60 * 1000,
+      };
+
+      dataManager.data.proposedBookings = [proposal];
+
+      // Room 12 should be AVAILABLE (proposal is for room 13)
+      const room12Day10 = await dataManager.getRoomAvailability(testUtils.getTestDate(10), '12');
+      expect(room12Day10.status).toBe('available');
+
+      // Room 13 should be PROPOSED
+      const room13Day10 = await dataManager.getRoomAvailability(testUtils.getTestDate(10), '13');
+      expect(room13Day10.status).toBe('proposed');
+    });
+  });
 });

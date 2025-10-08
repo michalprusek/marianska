@@ -12,6 +12,7 @@ jest.mock('../../database', () => {
     getAllBlockedDates: jest.fn(() => []),
     blockDate: jest.fn(),
     unblockDate: jest.fn(),
+    getRoomAvailability: jest.fn(() => ({ available: true })),
     getSettings: jest.fn(() => ({
       adminPassword: '$2b$10$rKqH1p3NxZ.F9eQH9fZ0d.YXq0v7Z5KQ5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z',
       christmasAccessCodes: ['XMAS2024'],
@@ -34,6 +35,14 @@ jest.mock('../../database', () => {
       },
     })),
     updateSettings: jest.fn(),
+    // Mock the db.db.transaction method for SQLite transactions
+    db: {
+      transaction: jest.fn(
+        (callback) =>
+          // Execute the callback immediately (synchronous)
+          callback
+      ),
+    },
   };
   return jest.fn(() => mockDb);
 });
@@ -208,6 +217,231 @@ describe('Server Integration Tests', () => {
       expect(response.status).toBe(201);
       expect(response.body.data).toHaveProperty('totalPrice');
       expect(response.body.data.totalPrice).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Server-Side Capacity Validation (CRITICAL FIX 2025-10-07)', () => {
+    describe('Individual Room Bookings', () => {
+      it('should reject booking exceeding room capacity', async () => {
+        const overCapacityBooking = {
+          name: 'Test User',
+          email: 'test@example.com',
+          phone: '+420123456789',
+          startDate: '2025-07-01',
+          endDate: '2025-07-03',
+          rooms: ['12'], // Room 12 has 2 beds
+          guestType: 'utia',
+          adults: 5, // Exceeds 2-bed capacity
+          children: 0,
+          toddlers: 0,
+        };
+
+        const response = await request(app).post('/api/booking').send(overCapacityBooking);
+
+        expect(response.status).toBe(400);
+        expect(response.body.success).toBe(false);
+        expect(response.body.error).toMatch(/překračuje kapacitu|capacity/iu);
+      });
+
+      it('should accept booking at exact room capacity', async () => {
+        const atCapacityBooking = {
+          name: 'Test User',
+          email: 'test@example.com',
+          phone: '+420123456789',
+          startDate: '2025-07-01',
+          endDate: '2025-07-03',
+          rooms: ['12'], // Room 12 has 2 beds
+          guestType: 'utia',
+          adults: 2, // Exactly at capacity
+          children: 0,
+          toddlers: 0,
+        };
+
+        // Mock successful booking creation
+        db.createBooking.mockImplementation((booking) => ({
+          ...booking,
+          id: 'BK1234567890ABC',
+          editToken: 'abc123def456ghi789jkl012mno345',
+        }));
+
+        const response = await request(app).post('/api/booking').send(atCapacityBooking);
+
+        expect(response.status).toBe(200); // Server returns 200 for successful bookings
+        expect(response.body.success).toBe(true);
+      });
+
+      it('should reject booking with multiple rooms exceeding total capacity', async () => {
+        const overCapacityMultiRoom = {
+          name: 'Test User',
+          email: 'test@example.com',
+          phone: '+420123456789',
+          startDate: '2025-07-01',
+          endDate: '2025-07-03',
+          rooms: ['12', '13'], // Room 12: 2 beds, Room 13: 3 beds = 5 total
+          guestType: 'utia',
+          adults: 8, // Exceeds 5-bed total capacity
+          children: 0,
+          toddlers: 0,
+        };
+
+        const response = await request(app).post('/api/booking').send(overCapacityMultiRoom);
+
+        expect(response.status).toBe(400);
+        expect(response.body.success).toBe(false);
+        expect(response.body.error).toMatch(/překračuje kapacitu|capacity/iu);
+      });
+
+      it('should accept booking with multiple rooms at exact capacity', async () => {
+        const atCapacityMultiRoom = {
+          name: 'Test User',
+          email: 'test@example.com',
+          phone: '+420123456789',
+          startDate: '2025-07-01',
+          endDate: '2025-07-03',
+          rooms: ['12', '13'], // Room 12: 2 beds, Room 13: 3 beds = 5 total
+          guestType: 'utia',
+          adults: 5, // Exactly at capacity
+          children: 0,
+          toddlers: 0,
+        };
+
+        // Mock successful booking creation
+        db.createBooking.mockImplementation((booking) => ({
+          ...booking,
+          id: 'BK1234567890ABC',
+          editToken: 'abc123def456ghi789jkl012mno345',
+        }));
+
+        const response = await request(app).post('/api/booking').send(atCapacityMultiRoom);
+
+        expect(response.status).toBe(200); // Server returns 200 for successful bookings
+        expect(response.body.success).toBe(true);
+      });
+
+      it('should correctly count adults + children but NOT toddlers for capacity', async () => {
+        const bookingWithToddlers = {
+          name: 'Test User',
+          email: 'test@example.com',
+          phone: '+420123456789',
+          startDate: '2025-07-01',
+          endDate: '2025-07-03',
+          rooms: ['12'], // Room 12 has 2 beds
+          guestType: 'utia',
+          adults: 1,
+          children: 1, // 1 + 1 = 2, at capacity
+          toddlers: 3, // Toddlers should NOT count toward capacity
+        };
+
+        // Mock successful booking creation
+        db.createBooking.mockImplementation((booking) => ({
+          ...booking,
+          id: 'BK1234567890ABC',
+          editToken: 'abc123def456ghi789jkl012mno345',
+        }));
+
+        const response = await request(app).post('/api/booking').send(bookingWithToddlers);
+
+        expect(response.status).toBe(200); // Server returns 200 for successful bookings
+        expect(response.body.success).toBe(true);
+      });
+
+      it('should reject booking for non-existent room', async () => {
+        const nonExistentRoomBooking = {
+          name: 'Test User',
+          email: 'test@example.com',
+          phone: '+420123456789',
+          startDate: '2025-07-01',
+          endDate: '2025-07-03',
+          rooms: ['99'], // Non-existent room
+          guestType: 'utia',
+          adults: 2,
+          children: 0,
+          toddlers: 0,
+        };
+
+        const response = await request(app).post('/api/booking').send(nonExistentRoomBooking);
+
+        expect(response.status).toBe(400);
+        expect(response.body.success).toBe(false);
+        expect(response.body.error).toMatch(/neexistuje|not found/iu);
+      });
+    });
+
+    describe('Bulk Bookings (Entire Chalet)', () => {
+      it('should reject bulk booking exceeding total chalet capacity', async () => {
+        const overCapacityBulk = {
+          name: 'Test Organization',
+          email: 'test@example.com',
+          phone: '+420123456789',
+          startDate: '2025-07-01',
+          endDate: '2025-07-03',
+          isBulkBooking: true,
+          guestType: 'utia',
+          adults: 30, // Exceeds 26-bed total chalet capacity
+          children: 0,
+          toddlers: 0,
+        };
+
+        const response = await request(app).post('/api/booking').send(overCapacityBulk);
+
+        expect(response.status).toBe(400);
+        expect(response.body.success).toBe(false);
+        expect(response.body.error).toMatch(/překročena kapacita chaty|26 lůžek/iu);
+      });
+
+      it('should accept bulk booking at exact chalet capacity', async () => {
+        const atCapacityBulk = {
+          name: 'Test Organization',
+          email: 'test@example.com',
+          phone: '+420123456789',
+          startDate: '2025-07-01',
+          endDate: '2025-07-03',
+          isBulkBooking: true,
+          guestType: 'utia',
+          adults: 26, // Exactly at 26-bed chalet capacity
+          children: 0,
+          toddlers: 0,
+        };
+
+        // Mock successful booking creation
+        db.createBooking.mockImplementation((booking) => ({
+          ...booking,
+          id: 'BK1234567890ABC',
+          editToken: 'abc123def456ghi789jkl012mno345',
+        }));
+
+        const response = await request(app).post('/api/booking').send(atCapacityBulk);
+
+        expect(response.status).toBe(200); // Server returns 200 for successful bookings
+        expect(response.body.success).toBe(true);
+      });
+
+      it('should correctly count adults + children but NOT toddlers for bulk capacity', async () => {
+        const bulkWithToddlers = {
+          name: 'Test Organization',
+          email: 'test@example.com',
+          phone: '+420123456789',
+          startDate: '2025-07-01',
+          endDate: '2025-07-03',
+          isBulkBooking: true,
+          guestType: 'utia',
+          adults: 20,
+          children: 6, // 20 + 6 = 26, at capacity
+          toddlers: 10, // Toddlers should NOT count
+        };
+
+        // Mock successful booking creation
+        db.createBooking.mockImplementation((booking) => ({
+          ...booking,
+          id: 'BK1234567890ABC',
+          editToken: 'abc123def456ghi789jkl012mno345',
+        }));
+
+        const response = await request(app).post('/api/booking').send(bulkWithToddlers);
+
+        expect(response.status).toBe(200); // Server returns 200 for successful bookings
+        expect(response.body.success).toBe(true);
+      });
     });
   });
 

@@ -13,7 +13,7 @@ class BookingLogic {
   /**
    * Check if two date ranges overlap (share any nights)
    *
-   * NEW LOGIC: Based on shared nights, not shared days
+   * CRITICAL FIX 2025-10-07: EXCLUSIVE end date logic for back-to-back bookings
    * - Booking uses nights BETWEEN days (exclusive interval logic)
    * - Jan 1-3 uses nights: Jan 1->2, Jan 2->3 (NOT Jan 3->4)
    * - Jan 3-5 uses nights: Jan 3->4, Jan 4->5 (NOT Jan 5->6)
@@ -24,10 +24,15 @@ class BookingLogic {
    * - Booking 2: Jan 3-5 → occupies Jan 3 and Jan 4 (days), nights Jan 3->4, 4->5
    * - Result: NO overlap (Jan 3 is shared but no shared NIGHT)
    *
+   * Back-to-back examples:
+   * - Guest A: check-out 6.10 → last occupied night is 5.10→6.10
+   * - Guest B: check-in 6.10 → first occupied night is 6.10→7.10
+   * - NO CONFLICT! Different nights, same day.
+   *
    * @param {string|Date} start1 - Start date of first range
-   * @param {string|Date} end1 - End date of first range (exclusive)
+   * @param {string|Date} end1 - End date of first range (exclusive for nights)
    * @param {string|Date} start2 - Start date of second range
-   * @param {string|Date} end2 - End date of second range (exclusive)
+   * @param {string|Date} end2 - End date of second range (exclusive for nights)
    * @returns {boolean} - True if ranges share a night
    */
   static checkDateOverlap(start1, end1, start2, end2) {
@@ -37,9 +42,10 @@ class BookingLogic {
     const s2 = typeof start2 === 'string' ? new Date(start2) : start2;
     const e2 = typeof end2 === 'string' ? new Date(end2) : end2;
 
-    // Inclusive interval overlap
-    // They overlap if: start1 <= end2 AND end1 >= start2
-    return s1 <= e2 && e1 >= s2;
+    // EXCLUSIVE interval overlap (allows back-to-back bookings)
+    // They overlap if: start1 < end2 AND end1 > start2
+    // Note the strict inequalities - this is KEY for back-to-back!
+    return s1 < e2 && e1 > s2;
   }
 
   /**
