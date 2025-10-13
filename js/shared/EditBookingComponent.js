@@ -1707,6 +1707,289 @@ class EditBookingComponent {
   }
 
   /**
+   * Open calendar for bulk booking (all rooms at once)
+   */
+  async openBulkCalendar() {
+    this.currentEditingRoom = 'bulk'; // Special marker for bulk editing
+    this.tempRoomStartDate = null;
+    this.tempRoomEndDate = null;
+
+    // Update header
+    const roomNameEl = document.getElementById('editingRoomName');
+    if (roomNameEl) {
+      roomNameEl.textContent = 'Celá chata (všechny pokoje)';
+    }
+
+    // Show calendar UI
+    const headerEl = document.getElementById('editCalendarHeader');
+    const containerEl = document.getElementById('editCalendarContainer');
+    const selectedDatesContainer = document.getElementById('editSelectedDatesContainer');
+    const saveBtn = document.getElementById('saveRoomDatesBtn');
+
+    if (headerEl) {
+      headerEl.style.display = 'block';
+    }
+    if (containerEl) {
+      containerEl.style.display = 'block';
+    }
+    if (selectedDatesContainer) {
+      selectedDatesContainer.style.display = 'block';
+    }
+    if (saveBtn) {
+      saveBtn.style.display = 'block';
+    }
+
+    // Setup event listeners
+    const cancelBtn = document.getElementById('cancelRoomEditBtn');
+    if (cancelBtn) {
+      cancelBtn.onclick = () => this.cancelBulkEdit();
+    }
+    if (saveBtn) {
+      saveBtn.onclick = () => this.saveBulkDates();
+    }
+
+    // Re-render list to highlight bulk editing state
+    this.renderPerRoomList();
+
+    // Initialize BULK calendar
+    await this.initializeBulkCalendar();
+
+    // Reset display
+    this.updateRoomDateDisplay();
+  }
+
+  /**
+   * Initialize calendar for bulk booking
+   */
+  async initializeBulkCalendar() {
+    const containerEl = document.getElementById('editCalendarContainer');
+    if (!containerEl) {
+      return;
+    }
+
+    containerEl.innerHTML = '';
+
+    // Get current bulk dates (all rooms should have same dates in bulk booking)
+    const firstRoomDates = this.perRoomDates.values().next().value;
+
+    const bulkCalendar = new BaseCalendar({
+      mode: BaseCalendar.MODES.BULK,
+      app: {
+        getAllData: () => dataManager.getAllData(),
+        getSettings: () => this.settings,
+      },
+      containerId: 'editCalendarContainer',
+      enableDrag: true,
+      allowPast: this.mode === 'admin',
+      enforceContiguous: true, // Bulk bookings must be contiguous
+      minNights: 2,
+      onDateSelect: (dateStr) => this.handleBulkDateSelect(dateStr),
+      onDateDeselect: (dateStr) => this.handleBulkDateDeselect(dateStr),
+      currentEditingBookingId: this.currentBooking.id,
+      originalBookingDates: {
+        startDate: firstRoomDates.startDate,
+        endDate: firstRoomDates.endDate,
+        rooms: Array.from(this.perRoomDates.keys()),
+      },
+    });
+
+    await bulkCalendar.render();
+  }
+
+  /**
+   * Handle date selection in bulk calendar
+   */
+  handleBulkDateSelect(dateStr) {
+    if (this.tempRoomStartDate && this.tempRoomEndDate) {
+      this.tempRoomStartDate = dateStr;
+      this.tempRoomEndDate = null;
+    } else if (this.tempRoomStartDate) {
+      if (dateStr > this.tempRoomStartDate) {
+        this.tempRoomEndDate = dateStr;
+      } else {
+        this.tempRoomEndDate = this.tempRoomStartDate;
+        this.tempRoomStartDate = dateStr;
+      }
+    } else {
+      this.tempRoomStartDate = dateStr;
+    }
+
+    this.updateRoomDateDisplay();
+  }
+
+  /**
+   * Handle date deselection in bulk calendar
+   */
+  handleBulkDateDeselect(dateStr) {
+    if (dateStr === this.tempRoomStartDate) {
+      this.tempRoomStartDate = this.tempRoomEndDate;
+      this.tempRoomEndDate = null;
+    } else if (dateStr === this.tempRoomEndDate) {
+      this.tempRoomEndDate = null;
+    }
+
+    this.updateRoomDateDisplay();
+  }
+
+  /**
+   * Cancel bulk calendar editing
+   */
+  cancelBulkEdit() {
+    this.currentEditingRoom = null;
+    this.tempRoomStartDate = null;
+    this.tempRoomEndDate = null;
+
+    // Hide calendar UI
+    const headerEl = document.getElementById('editCalendarHeader');
+    const containerEl = document.getElementById('editCalendarContainer');
+    const selectedDatesContainer = document.getElementById('editSelectedDatesContainer');
+    const saveBtn = document.getElementById('saveRoomDatesBtn');
+
+    if (headerEl) {
+      headerEl.style.display = 'none';
+    }
+    if (containerEl) {
+      containerEl.style.display = 'none';
+    }
+    if (selectedDatesContainer) {
+      selectedDatesContainer.style.display = 'none';
+    }
+    if (saveBtn) {
+      saveBtn.style.display = 'none';
+    }
+
+    if (containerEl) {
+      containerEl.innerHTML = '';
+    }
+
+    this.renderPerRoomList();
+  }
+
+  /**
+   * Save new dates for bulk booking (all rooms)
+   */
+  async saveBulkDates() {
+    if (!this.tempRoomStartDate || !this.tempRoomEndDate) {
+      this.showNotification('Vyberte prosím kompletní termín (začátek i konec)', 'warning', 3000);
+      return;
+    }
+
+    // Check for conflicts with other bookings for ALL rooms
+    const bookings = await dataManager.getAllBookings();
+    const allRoomIds = Array.from(this.editSelectedRooms.keys());
+
+    for (const roomId of allRoomIds) {
+      const conflicts = bookings.filter((b) => {
+        if (b.id === this.currentBooking.id) {
+          return false;
+        }
+
+        const hasDateOverlap = BookingLogic.checkDateOverlap(
+          this.tempRoomStartDate,
+          this.tempRoomEndDate,
+          b.startDate,
+          b.endDate
+        );
+
+        const hasRoomOverlap = b.rooms.includes(roomId);
+
+        return hasDateOverlap && hasRoomOverlap;
+      });
+
+      if (conflicts.length > 0) {
+        const room = this.settings.rooms.find((r) => r.id === roomId);
+        this.showNotification(
+          `⚠️ ${room?.name || roomId} je v tomto termínu již obsazený. Zvolte jiný termín.`,
+          'error',
+          4000
+        );
+        return;
+      }
+    }
+
+    // Check for blockages for all rooms
+    const currentDate = new Date(this.tempRoomStartDate);
+    const endDate = new Date(this.tempRoomEndDate);
+
+    // eslint-disable-next-line no-unmodified-loop-condition
+    while (currentDate <= endDate) {
+      for (const roomId of allRoomIds) {
+        const availability = await dataManager.getRoomAvailability(currentDate, roomId);
+        if (availability.status === 'blocked') {
+          const room = this.settings.rooms.find((r) => r.id === roomId);
+          this.showNotification(
+            `⚠️ ${room?.name || roomId} je v tomto termínu blokován. Zvolte jiný termín.`,
+            'error',
+            4000
+          );
+          return;
+        }
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Create proposed booking for ALL rooms
+    try {
+      // Aggregate guest data
+      let totalAdults = 0;
+      let totalChildren = 0;
+      let totalToddlers = 0;
+      for (const roomData of this.editSelectedRooms.values()) {
+        totalAdults += roomData.adults || 0;
+        totalChildren += roomData.children || 0;
+        totalToddlers += roomData.toddlers || 0;
+      }
+
+      const response = await fetch('/api/proposed-bookings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionId: this.sessionId,
+          startDate: this.tempRoomStartDate,
+          endDate: this.tempRoomEndDate,
+          rooms: allRoomIds,
+          guests: {
+            adults: totalAdults,
+            children: totalChildren,
+            toddlers: totalToddlers,
+          },
+          guestType: 'external', // Will be determined from per-room data
+          totalPrice: 0,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Nepodařilo se rezervovat termín');
+      }
+
+      const result = await response.json();
+
+      // Update ALL room dates
+      for (const roomId of allRoomIds) {
+        this.perRoomDates.set(roomId, {
+          startDate: this.tempRoomStartDate,
+          endDate: this.tempRoomEndDate,
+          proposalId: result.proposalId,
+        });
+      }
+
+      // Update global dates
+      this.updateGlobalBookingDates();
+
+      // Close calendar
+      this.cancelBulkEdit();
+
+      this.showNotification('Termín byl dočasně rezervován pro všechny pokoje', 'success', 2000);
+    } catch (error) {
+      console.error('Error creating bulk proposed booking:', error);
+      this.showNotification(error.message || 'Chyba při rezervaci termínu', 'error', 4000);
+    }
+  }
+
+  /**
    * Get session ID for proposed bookings
    * @returns {string} Session ID
    */

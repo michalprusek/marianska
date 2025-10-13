@@ -36,12 +36,13 @@ fi
 
 # Check for TODO/FIXME comments
 echo "Checking for TODO/FIXME comments..."
-FILES_WITH_TODO=$(git diff --cached --name-only --diff-filter=ACM | xargs grep -l "TODO\|FIXME" 2>/dev/null)
+FILES_WITH_TODO=$(git diff --cached --name-only --diff-filter=ACM | xargs grep -l "TODO\|FIXME" 2>/dev/null || true)
 if [ ! -z "$FILES_WITH_TODO" ]; then
   echo "${YELLOW}⚠️  Warning: Found TODO/FIXME comments in:${NC}"
   echo "$FILES_WITH_TODO"
   echo "${YELLOW}Consider addressing them or creating issues.${NC}"
 fi
+echo "TODO/FIXME check completed"
 
 # Check file sizes
 echo "Checking file sizes..."
@@ -55,6 +56,7 @@ for file in $(git diff --cached --name-only --diff-filter=ACM); do
     fi
   fi
 done
+echo "File size check completed"
 
 # Run lint-staged
 echo "Running linters and formatters..."
@@ -65,6 +67,7 @@ if [ $? -ne 0 ]; then
   echo "${YELLOW}Please fix the issues and try again.${NC}"
   exit 1
 fi
+echo "Lint-staged check completed"
 
 # Check for sensitive data patterns
 echo "Checking for sensitive data..."
@@ -77,6 +80,7 @@ if [ ! -z "$FILES_WITH_SENSITIVE" ]; then
   echo "${YELLOW}Please review and remove any sensitive information.${NC}"
   exit 1
 fi
+echo "Sensitive data check completed"
 
 # Check branch protection
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
