@@ -83,7 +83,12 @@ class EditBookingComponent {
     // If perRoomGuests is available, use it directly. Otherwise, fall back to distribution.
     const defaultGuestType = booking.guestType || 'external';
 
-    if (booking.perRoomGuests && Object.keys(booking.perRoomGuests).length > 0) {
+    // FIX: Check if perRoomGuests has data for ALL rooms (not just exists)
+    const hasCompletePerRoomGuests =
+      booking.perRoomGuests &&
+      Object.keys(booking.perRoomGuests).length === (booking.rooms || []).length;
+
+    if (hasCompletePerRoomGuests) {
       // Use per-room guest data from database
       (booking.rooms || []).forEach((roomId) => {
         const roomGuests = booking.perRoomGuests[roomId];
@@ -95,7 +100,7 @@ class EditBookingComponent {
             toddlers: roomGuests.toddlers || 0,
           });
         } else {
-          // Fallback for rooms without stored data
+          // Fallback for rooms without stored data (shouldn't happen with complete check)
           this.editSelectedRooms.set(roomId, {
             guestType: defaultGuestType,
             adults: 1,
@@ -110,6 +115,12 @@ class EditBookingComponent {
       const totalAdults = booking.adults || 1;
       const totalChildren = booking.children || 0;
       const totalToddlers = booking.toddlers || 0;
+
+      // FIX: Add validation to ensure we have valid guest counts
+      if (roomCount === 0) {
+        console.error('EditBookingComponent: No rooms in booking', booking.id);
+        return;
+      }
 
       const adultsPerRoom = Math.floor(totalAdults / roomCount);
       const adultsRemainder = totalAdults % roomCount;

@@ -570,6 +570,26 @@ class BulkBookingModule {
     // Christmas validation already performed in confirmBulkDates() - no need to duplicate
     // (uses ChristmasUtils.checkChristmasAccessRequirement for consistent logic)
 
+    // FIX: Create per-room guest data for bulk bookings
+    // This ensures correct guest counts are preserved when editing
+    const perRoomGuests = {};
+    const roomCount = roomIds.length;
+
+    // Distribute guests intelligently across rooms
+    const adultsPerRoom = Math.floor(adults / roomCount);
+    const adultsRemainder = adults % roomCount;
+    const childrenPerRoom = Math.floor(children / roomCount);
+    const childrenRemainder = children % roomCount;
+
+    roomIds.forEach((roomId, index) => {
+      perRoomGuests[roomId] = {
+        adults: adultsPerRoom + (index < adultsRemainder ? 1 : 0),
+        children: childrenPerRoom + (index < childrenRemainder ? 1 : 0),
+        toddlers: 0,
+        guestType: 'external', // Bulk bookings are always external
+      };
+    });
+
     // Create booking
     const booking = {
       name,
@@ -582,6 +602,7 @@ class BulkBookingModule {
       adults,
       children,
       toddlers: 0, // Bulk bookings don't track toddlers separately
+      perRoomGuests, // FIX: Include per-room guest data for proper editing
       notes:
         notes || `${this.app.currentLanguage === 'cs' ? 'Hromadná rezervace' : 'Bulk booking'}`,
       isBulkBooking: true,
