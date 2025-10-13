@@ -1,0 +1,12 @@
+# Ignore scripts directory (migration and utility scripts)
+scripts/
+
+# Ignore node_modules
+node_modules/
+
+# Ignore build output
+dist/
+build/
+
+# Ignore coverage
+coverage/

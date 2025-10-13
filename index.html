@@ -960,6 +960,65 @@
               ></textarea>
             </div>
 
+            <!-- Guest Names Section for bookingFormModal (dynamically generated) -->
+            <div
+              id="bookingFormGuestNamesSection"
+              class="guest-names-section"
+              style="display: none; margin-top: 2rem"
+            >
+              <h3 style="margin-bottom: 1rem; color: var(--primary-color)">Jména hostů *</h3>
+
+              <!-- Adults Section -->
+              <div
+                id="bookingFormAdultsNamesContainer"
+                style="margin-bottom: 1.5rem"
+              >
+                <h4
+                  style="
+                    margin-bottom: 0.75rem;
+                    font-size: 1rem;
+                    color: var(--gray-700);
+                    border-bottom: 2px solid var(--gray-200);
+                    padding-bottom: 0.5rem;
+                  "
+                >
+                  Dospělí
+                </h4>
+                <div
+                  id="bookingFormAdultsNamesList"
+                  class="guest-names-grid"
+                  style="display: grid; gap: 1rem"
+                >
+                  <!-- Adult name inputs will be dynamically generated here -->
+                </div>
+              </div>
+
+              <!-- Children Section -->
+              <div
+                id="bookingFormChildrenNamesContainer"
+                style="display: none; margin-bottom: 1.5rem"
+              >
+                <h4
+                  style="
+                    margin-bottom: 0.75rem;
+                    font-size: 1rem;
+                    color: var(--gray-700);
+                    border-bottom: 2px solid var(--gray-200);
+                    padding-bottom: 0.5rem;
+                  "
+                >
+                  Děti (3-12 let)
+                </h4>
+                <div
+                  id="bookingFormChildrenNamesList"
+                  class="guest-names-grid"
+                  style="display: grid; gap: 1rem"
+                >
+                  <!-- Children name inputs will be dynamically generated here -->
+                </div>
+              </div>
+            </div>
+
             <!-- Christmas Access Code (conditionally shown) -->
             <div
               class="input-group full-width"

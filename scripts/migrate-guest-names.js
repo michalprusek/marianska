@@ -195,13 +195,17 @@ async function migrateGuestNames() {
         // Generate guest names
         const guestNames = generateGuestNames(adultsCount, childrenCount);
 
-        // Insert guest names
-        for (const guest of guestNames) {
-          db.addGuestName(
+        // Insert guest names using prepared statement
+        const now = new Date().toISOString();
+        for (let i = 0; i < guestNames.length; i++) {
+          const guest = guestNames[i];
+          db.statements.insertGuestName.run(
             booking.id,
             guest.personType,
             guest.firstName,
-            guest.lastName
+            guest.lastName,
+            i + 1, // order_index
+            now
           );
         }
 

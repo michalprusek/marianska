@@ -989,8 +989,13 @@ class BookingApp {
       totalChildren += reservation.guests.children || 0;
     });
 
-    // Generate guest names input fields
-    this.bookingForm.generateGuestNamesInputs(totalAdults, totalChildren);
+    console.log('[DEBUG] finalizeAllReservations - Total guests:', {
+      totalAdults,
+      totalChildren,
+    });
+
+    // Generate guest names input fields for bookingFormModal
+    this.bookingForm.generateGuestNamesInputs(totalAdults, totalChildren, 'bookingForm');
 
     // Show the modal
     modal.classList.add('active');

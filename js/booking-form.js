@@ -194,6 +194,20 @@ class BookingFormModule {
         </div>`;
 
     summaryDiv.innerHTML = html;
+
+    // Generate guest names inputs based on total guests
+    let totalAdults = 0;
+    let totalChildren = 0;
+    for (const result of roomPriceResults) {
+      if (result) {
+        const { guests } = result;
+        totalAdults += guests.adults;
+        totalChildren += guests.children;
+      }
+    }
+
+    // Call generateGuestNamesInputs for bookingFormModal
+    this.generateGuestNamesInputs(totalAdults, totalChildren, 'bookingForm');
   }
 
   async submitBooking() {
@@ -801,14 +815,54 @@ class BookingFormModule {
    * Generate guest names input fields dynamically based on guest counts
    * @param {number} adults - Number of adults
    * @param {number} children - Number of children
+   * @param {string} formPrefix - Prefix for element IDs ('bookingForm' for bookingFormModal, '' for finalBookingModal)
    */
-  generateGuestNamesInputs(adults, children) {
-    const guestNamesSection = document.getElementById('guestNamesSection');
-    const adultsNamesList = document.getElementById('adultsNamesList');
-    const childrenNamesList = document.getElementById('childrenNamesList');
-    const childrenContainer = document.getElementById('childrenNamesContainer');
+  generateGuestNamesInputs(adults, children, formPrefix = '') {
+    console.log('[DEBUG] generateGuestNamesInputs called:', {
+      adults,
+      children,
+      formPrefix,
+    });
+
+    const prefix = formPrefix ? `${formPrefix}` : '';
+
+    // Helper function to create proper ID with capitalization
+    // When prefix is used, capitalize first letter of base name (e.g., "bookingForm" + "GuestNamesSection")
+    const makeId = (baseName) => {
+      if (!prefix) return baseName;
+      return prefix + baseName.charAt(0).toUpperCase() + baseName.slice(1);
+    };
+
+    const guestNamesSection = document.getElementById(makeId('guestNamesSection'));
+    const adultsNamesList = document.getElementById(makeId('adultsNamesList'));
+    const childrenNamesList = document.getElementById(makeId('childrenNamesList'));
+    const childrenContainer = document.getElementById(makeId('childrenNamesContainer'));
+
+    console.log('[DEBUG] Elements found:', {
+      guestNamesSection: !!guestNamesSection,
+      adultsNamesList: !!adultsNamesList,
+      childrenNamesList: !!childrenNamesList,
+      childrenContainer: !!childrenContainer,
+    });
+
+    console.log('[DEBUG] Looking for element IDs:', {
+      guestNamesSectionId: makeId('guestNamesSection'),
+      adultsNamesListId: makeId('adultsNamesList'),
+      childrenNamesListId: makeId('childrenNamesList'),
+    });
+
+    if (!guestNamesSection) {
+      console.error('[DEBUG] Missing: guestNamesSection element with ID:', makeId('guestNamesSection'));
+    }
+    if (!adultsNamesList) {
+      console.error('[DEBUG] Missing: adultsNamesList element with ID:', makeId('adultsNamesList'));
+    }
+    if (!childrenNamesList) {
+      console.error('[DEBUG] Missing: childrenNamesList element with ID:', makeId('childrenNamesList'));
+    }
 
     if (!guestNamesSection || !adultsNamesList || !childrenNamesList) {
+      console.warn('[DEBUG] Some elements not found, returning early');
       return;
     }
 
@@ -818,8 +872,15 @@ class BookingFormModule {
 
     // Show/hide section based on guest counts
     if (adults + children > 0) {
+      console.log('[DEBUG] Showing guest names section');
       guestNamesSection.style.display = 'block';
+      // Also show parent containers if they exist
+      const adultsContainer = document.getElementById(makeId('adultsNamesContainer'));
+      if (adultsContainer) {
+        adultsContainer.style.display = adults > 0 ? 'block' : 'none';
+      }
     } else {
+      console.log('[DEBUG] Hiding guest names section (no guests)');
       guestNamesSection.style.display = 'none';
       return;
     }

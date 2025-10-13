@@ -874,6 +874,14 @@ class DatabaseManager {
         });
       }
 
+      // Fetch guest names for this booking
+      const guestNameRows = this.statements.getGuestNamesByBooking.all(booking.id);
+      const guestNames = guestNameRows.map((row) => ({
+        personType: row.person_type,
+        firstName: row.first_name,
+        lastName: row.last_name,
+      }));
+
       return {
         id: booking.id,
         name: booking.name,
@@ -900,6 +908,7 @@ class DatabaseManager {
         editToken: booking.edit_token,
         createdAt: booking.created_at,
         updatedAt: booking.updated_at,
+        guestNames, // Include guest names
       };
     });
   }
