@@ -1284,28 +1284,32 @@ Chata Mariánská`;
   }
 
   async sendContactMessage(bookingId, fromEmail, message) {
-    const booking = await this.getBooking(bookingId);
-    if (!booking) {
+    try {
+      const response = await fetch(`${this.apiUrl}/contact`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          senderEmail: fromEmail,
+          senderName: fromEmail, // Using email as name since we don't have a separate name field
+          message,
+          bookingId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Contact message failed:', errorData);
+        return false;
+      }
+
+      const result = await response.json();
+      return result.success;
+    } catch (error) {
+      console.error('Error sending contact message:', error);
       return false;
     }
-
-    const subject = `Zpráva ohledně rezervace ${bookingId}`;
-    const body = `
-            Dobrý den,
-
-            Obdrželi jste zprávu ohledně vaší rezervace ${bookingId}.
-
-            Od: ${fromEmail}
-            Zpráva:
-            ${message}
-
-            Odpovědět můžete přímo na email: ${fromEmail}
-
-            S pozdravem,
-            Chata Mariánská
-        `;
-
-    return this.sendEmail(booking.email, subject, body);
   }
 
   // Token-based update and delete methods for user self-service

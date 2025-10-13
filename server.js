@@ -238,6 +238,14 @@ const testEmailLimiter = rateLimit({
   ...rateLimitConfig,
 });
 
+// Rate limit for contact form (defense against spam)
+const contactLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // max 5 contact messages per hour
+  message: 'Překročen limit pro odesílání zpráv. Zkuste to za hodinu.',
+  ...rateLimitConfig,
+});
+
 // Rate limiting for Christmas code validation attempts (defense against brute-force)
 const christmasCodeAttempts = new Map(); // { ip: { attempts: number, resetAt: timestamp } }
 
@@ -660,7 +668,9 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
         }
 
         if (guest.lastName.trim().length < 2) {
-          return res.status(400).json({ error: `Příjmení hosta ${i + 1} musí mít alespoň 2 znaky` });
+          return res
+            .status(400)
+            .json({ error: `Příjmení hosta ${i + 1} musí mít alespoň 2 znaky` });
         }
 
         // SECURITY FIX: Add maximum length validation
@@ -1001,7 +1011,9 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
         }
 
         if (guest.lastName.trim().length < 2) {
-          return res.status(400).json({ error: `Příjmení hosta ${i + 1} musí mít alespoň 2 znaky` });
+          return res
+            .status(400)
+            .json({ error: `Příjmení hosta ${i + 1} musí mít alespoň 2 znaky` });
         }
 
         // SECURITY FIX: Add maximum length validation
@@ -1419,6 +1431,80 @@ app.post('/api/admin/test-email', testEmailLimiter, requireSession, async (req, 
   } catch (error) {
     logger.error('Test email error:', error);
     return res.status(500).json({ error: 'Chyba při odesílání testovacího emailu' });
+  }
+});
+
+// Contact form endpoint - public with rate limiting
+app.post('/api/contact', contactLimiter, (req, res) => {
+  try {
+    const { senderName, senderEmail, message, bookingId } = req.body;
+
+    // Validate required fields
+    if (!senderEmail || !message) {
+      return res.status(400).json({ error: 'Chybí povinné údaje (email, zpráva)' });
+    }
+
+    // Validate email format
+    if (!ValidationUtils.validateEmail(senderEmail)) {
+      return res.status(400).json({
+        error: ValidationUtils.getValidationError('email', senderEmail, 'cs'),
+      });
+    }
+
+    // Validate message length (max 500 chars as per requirement)
+    if (message.length < 10) {
+      return res.status(400).json({ error: 'Zpráva musí mít alespoň 10 znaků' });
+    }
+
+    if (message.length > 500) {
+      return res.status(400).json({ error: 'Zpráva je příliš dlouhá (max 500 znaků)' });
+    }
+
+    // Sanitize inputs
+    const contactData = {
+      senderName: sanitizeInput(senderName || 'Neuvedeno', 100),
+      senderEmail: sanitizeInput(senderEmail, 254),
+      message: sanitizeInput(message, 500),
+      bookingId: bookingId ? sanitizeInput(bookingId, 20) : null,
+    };
+
+    logger.info('Sending contact message', {
+      from: contactData.senderEmail,
+      bookingId: contactData.bookingId || 'none',
+    });
+
+    // Send email (non-blocking)
+    // Don't wait for email - respond to user immediately
+    emailService
+      .sendContactMessage(contactData)
+      .then((result) => {
+        if (result.success) {
+          logger.info('Contact message sent', {
+            from: contactData.senderEmail,
+            messageId: result.messageId,
+          });
+        } else {
+          logger.error('Failed to send contact message', {
+            from: contactData.senderEmail,
+            error: result.error,
+          });
+        }
+      })
+      .catch((error) => {
+        logger.error('Error sending contact message', {
+          from: contactData.senderEmail,
+          error: error.message,
+        });
+      });
+
+    // Respond immediately (don't wait for email)
+    return res.json({
+      success: true,
+      message: 'Zpráva byla odeslána. Odpovíme co nejdříve.',
+    });
+  } catch (error) {
+    logger.error('Contact form error:', error);
+    return res.status(500).json({ error: 'Nepodařilo se odeslat zprávu' });
   }
 });
 

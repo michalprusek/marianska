@@ -373,6 +373,102 @@ Automatická zpráva - neodpovídejte
       };
     }
   }
+
+  /**
+   * Send contact message email from booking owner
+   * @param {Object} contactData - Contact form data
+   * @param {string} contactData.senderName - Name of the sender
+   * @param {string} contactData.senderEmail - Email of the sender
+   * @param {string} contactData.message - Message content (max 500 chars)
+   * @param {string} [contactData.bookingId] - Optional booking reference
+   * @returns {Promise<Object>} Email sending result
+   */
+  async sendContactMessage(contactData) {
+    try {
+      if (!contactData || !contactData.senderEmail || !contactData.message) {
+        throw new Error('Invalid contact data: missing required fields (senderEmail, message)');
+      }
+
+      // Generate email content
+      const textContent = this.generateContactMessageText(contactData);
+
+      // Email options
+      const mailOptions = {
+        from: this.config.from,
+        to: 'chata@utia.cas.cz', // Admin contact email
+        replyTo: contactData.senderEmail, // Allow admin to reply directly
+        subject: contactData.bookingId
+          ? `Dotaz k rezervaci ${contactData.bookingId}`
+          : `Kontakt z webu - ${contactData.senderName || 'Host'}`,
+        text: textContent,
+        encoding: 'utf-8',
+      };
+
+      logger.info('Sending contact message email', {
+        from: contactData.senderEmail,
+        senderName: contactData.senderName,
+        bookingId: contactData.bookingId || 'none',
+      });
+
+      // Send email
+      const info = await this.transporter.sendMail(mailOptions);
+
+      logger.info('Contact message email sent successfully', {
+        messageId: info.messageId,
+        from: contactData.senderEmail,
+        accepted: info.accepted,
+      });
+
+      return {
+        success: true,
+        messageId: info.messageId,
+        accepted: info.accepted,
+        rejected: info.rejected,
+      };
+    } catch (error) {
+      logger.error('Failed to send contact message email:', {
+        senderEmail: contactData?.senderEmail,
+        error: error.message,
+        stack: error.stack,
+      });
+
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Generate plain text template for contact message
+   * @param {Object} contactData - Contact form data
+   * @returns {string} Plain text email content
+   */
+  generateContactMessageText(contactData) {
+    const bookingRef = contactData.bookingId ? `\nČíslo rezervace: ${contactData.bookingId}` : '';
+
+    const timestamp = new Date().toLocaleString('cs-CZ', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    return `CHATA MARIÁNSKÁ - Zpráva od hosta
+
+Odesílatel: ${contactData.senderName || 'Neuvedeno'}
+Email: ${contactData.senderEmail}${bookingRef}
+
+ZPRÁVA:
+${contactData.message}
+
+---
+Odesláno z: ${this.config.appUrl}
+Čas odeslání: ${timestamp}
+Pro odpověď použijte Reply nebo přímo email: ${contactData.senderEmail}
+    `.trim();
+  }
 }
 
 module.exports = EmailService;

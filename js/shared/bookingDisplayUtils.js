@@ -25,8 +25,11 @@ class BookingDisplayUtils {
    * Automatically detects per-room data vs legacy global data
    * Falls back gracefully for old bookings without perRoomDates/perRoomGuests
    *
+   * For bulk bookings (all 9 rooms), displays maximum room capacity instead of distributed guests
+   *
    * @param {Object} booking - Booking object from database
    * @param {string} language - 'cs' or 'en'
+   * @param {Array<Object>} roomsConfig - Optional room configuration with beds count
    * @returns {Array<Object>} Array of room detail objects
    *
    * Example return:
@@ -46,8 +49,14 @@ class BookingDisplayUtils {
    *   ...
    * ]
    */
-  static formatPerRoomDetails(booking, language = 'cs') {
+  static formatPerRoomDetails(booking, language = 'cs', roomsConfig = null) {
     const roomDetails = [];
+
+    // Detect bulk booking: all 9 rooms OR isBulkBooking flag
+    const isBulkBooking = booking.isBulkBooking || booking.rooms.length === 9;
+
+    // Get room configuration from window if not provided
+    const rooms = roomsConfig || (typeof window !== 'undefined' && window.roomsConfig);
 
     booking.rooms.forEach((roomId) => {
       // Check for per-room dates (new format)
@@ -58,14 +67,31 @@ class BookingDisplayUtils {
       // Check for per-room guests (new format)
       const roomGuests = booking.perRoomGuests?.[roomId];
 
-      // For legacy bookings without per-room data, distribute totals evenly
+      // For bulk bookings, show maximum capacity per room
       let adults;
       let children;
       let toddlers;
       let guestType;
 
-      if (roomGuests) {
-        // Per-room data available
+      if (isBulkBooking && rooms) {
+        // BULK BOOKING: Show maximum room capacity (beds count)
+        const room = rooms.find((r) => r.id === roomId);
+        if (room) {
+          adults = room.beds || 2; // Use bed count as adult capacity
+          children = 0;
+          toddlers = 0;
+          // eslint-disable-next-line prefer-destructuring
+          guestType = booking.guestType;
+        } else {
+          // Fallback if room not found
+          adults = 2;
+          children = 0;
+          toddlers = 0;
+          // eslint-disable-next-line prefer-destructuring
+          guestType = booking.guestType;
+        }
+      } else if (roomGuests) {
+        // INDIVIDUAL BOOKING: Per-room data available
         adults = roomGuests.adults || 0;
         children = roomGuests.children || 0;
         toddlers = roomGuests.toddlers || 0;
@@ -189,10 +215,11 @@ class BookingDisplayUtils {
    *
    * @param {Object} booking - Booking object
    * @param {string} language - 'cs' or 'en'
+   * @param {Array<Object>} roomsConfig - Optional room configuration with beds count
    * @returns {string} HTML string for detail section
    */
-  static renderPerRoomDetailsHTML(booking, language = 'cs') {
-    const roomDetails = this.formatPerRoomDetails(booking, language);
+  static renderPerRoomDetailsHTML(booking, language = 'cs', roomsConfig = null) {
+    const roomDetails = this.formatPerRoomDetails(booking, language, roomsConfig);
 
     if (roomDetails.length === 0) {
       return '';

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+/* eslint-disable no-implicit-globals, no-param-reassign, no-promise-executor-return, no-plusplus, no-console, no-continue */
+
 /**
  * Migration Script: Add Guest Names to Existing Bookings
  *
@@ -16,33 +18,149 @@ const DatabaseManager = require(path.join(__dirname, '..', 'database.js'));
 // Czech first names
 const CZECH_FIRST_NAMES = {
   male: [
-    'Jan', 'Petr', 'Josef', 'Pavel', 'Martin', 'Tomáš', 'Jaroslav', 'Jiří',
-    'Miroslav', 'František', 'Václav', 'Karel', 'Milan', 'Michal', 'Lukáš',
-    'Jakub', 'David', 'Ondřej', 'Marek', 'Adam', 'Aleš', 'Daniel', 'Filip',
-    'Matěj', 'Vojtěch', 'Radek', 'Stanislav', 'Vlastimil', 'Zdeněk', 'Roman'
+    'Jan',
+    'Petr',
+    'Josef',
+    'Pavel',
+    'Martin',
+    'Tomáš',
+    'Jaroslav',
+    'Jiří',
+    'Miroslav',
+    'František',
+    'Václav',
+    'Karel',
+    'Milan',
+    'Michal',
+    'Lukáš',
+    'Jakub',
+    'David',
+    'Ondřej',
+    'Marek',
+    'Adam',
+    'Aleš',
+    'Daniel',
+    'Filip',
+    'Matěj',
+    'Vojtěch',
+    'Radek',
+    'Stanislav',
+    'Vlastimil',
+    'Zdeněk',
+    'Roman',
   ],
   female: [
-    'Marie', 'Jana', 'Eva', 'Hana', 'Anna', 'Lenka', 'Kateřina', 'Petra',
-    'Lucie', 'Martina', 'Věra', 'Alena', 'Zuzana', 'Ivana', 'Monika', 'Jitka',
-    'Barbora', 'Tereza', 'Veronika', 'Markéta', 'Kristýna', 'Michaela', 'Pavla',
-    'Simona', 'Andrea', 'Nikola', 'Klára', 'Eliška', 'Adéla', 'Natálie'
+    'Marie',
+    'Jana',
+    'Eva',
+    'Hana',
+    'Anna',
+    'Lenka',
+    'Kateřina',
+    'Petra',
+    'Lucie',
+    'Martina',
+    'Věra',
+    'Alena',
+    'Zuzana',
+    'Ivana',
+    'Monika',
+    'Jitka',
+    'Barbora',
+    'Tereza',
+    'Veronika',
+    'Markéta',
+    'Kristýna',
+    'Michaela',
+    'Pavla',
+    'Simona',
+    'Andrea',
+    'Nikola',
+    'Klára',
+    'Eliška',
+    'Adéla',
+    'Natálie',
   ],
   children: [
-    'Jakub', 'Jan', 'Tomáš', 'Matěj', 'Adam', 'Lukáš', 'Filip', 'Vojtěch',
-    'David', 'Martin', 'Ondřej', 'Marek', 'Daniel', 'Petr', 'Pavel',
-    'Tereza', 'Anna', 'Eliška', 'Natálie', 'Karolína', 'Adéla', 'Kristýna',
-    'Barbora', 'Lucie', 'Klára', 'Veronika', 'Aneta', 'Nikola', 'Sofie', 'Emma'
-  ]
+    'Jakub',
+    'Jan',
+    'Tomáš',
+    'Matěj',
+    'Adam',
+    'Lukáš',
+    'Filip',
+    'Vojtěch',
+    'David',
+    'Martin',
+    'Ondřej',
+    'Marek',
+    'Daniel',
+    'Petr',
+    'Pavel',
+    'Tereza',
+    'Anna',
+    'Eliška',
+    'Natálie',
+    'Karolína',
+    'Adéla',
+    'Kristýna',
+    'Barbora',
+    'Lucie',
+    'Klára',
+    'Veronika',
+    'Aneta',
+    'Nikola',
+    'Sofie',
+    'Emma',
+  ],
 };
 
 // Czech last names (gender-neutral base forms)
 const CZECH_LAST_NAMES = [
-  'Novák', 'Svoboda', 'Novotný', 'Dvořák', 'Černý', 'Procházka', 'Kučera',
-  'Veselý', 'Horák', 'Němec', 'Marek', 'Pospíšil', 'Hájek', 'Král', 'Jelínek',
-  'Růžička', 'Beneš', 'Fiala', 'Sedláček', 'Doležal', 'Zeman', 'Kolář',
-  'Navrátil', 'Čermák', 'Urban', 'Vaněk', 'Blažek', 'Krejčí', 'Bartošek',
-  'Vlček', 'Říha', 'Kovář', 'Malý', 'Polák', 'Musil', 'Šimek', 'Kopecký',
-  'Holub', 'Moravec', 'Konečný', 'Bartoš', 'Vítek', 'Šťastný', 'Šmejkal'
+  'Novák',
+  'Svoboda',
+  'Novotný',
+  'Dvořák',
+  'Černý',
+  'Procházka',
+  'Kučera',
+  'Veselý',
+  'Horák',
+  'Němec',
+  'Marek',
+  'Pospíšil',
+  'Hájek',
+  'Král',
+  'Jelínek',
+  'Růžička',
+  'Beneš',
+  'Fiala',
+  'Sedláček',
+  'Doležal',
+  'Zeman',
+  'Kolář',
+  'Navrátil',
+  'Čermák',
+  'Urban',
+  'Vaněk',
+  'Blažek',
+  'Krejčí',
+  'Bartošek',
+  'Vlček',
+  'Říha',
+  'Kovář',
+  'Malý',
+  'Polák',
+  'Musil',
+  'Šimek',
+  'Kopecký',
+  'Holub',
+  'Moravec',
+  'Konečný',
+  'Bartoš',
+  'Vítek',
+  'Šťastný',
+  'Šmejkal',
 ];
 
 /**
@@ -74,13 +192,12 @@ function generateCzechName(type = 'adult', gender = null) {
   const lastName = getRandomElement(CZECH_LAST_NAMES);
 
   // Add feminine suffix to last names for females (if needed)
-  const feminineLastName = gender === 'female' && !lastName.endsWith('ová')
-    ? lastName + 'ová'
-    : lastName;
+  const feminineLastName =
+    gender === 'female' && !lastName.endsWith('ová') ? `${lastName}ová` : lastName;
 
   return {
     firstName,
-    lastName: feminineLastName
+    lastName: feminineLastName,
   };
 }
 
@@ -99,7 +216,7 @@ function generateGuestNames(adultsCount, childrenCount) {
     guestNames.push({
       personType: 'adult',
       firstName: name.firstName,
-      lastName: name.lastName
+      lastName: name.lastName,
     });
   }
 
@@ -109,7 +226,7 @@ function generateGuestNames(adultsCount, childrenCount) {
     guestNames.push({
       personType: 'child',
       firstName: name.firstName,
-      lastName: name.lastName
+      lastName: name.lastName,
     });
   }
 
@@ -168,7 +285,7 @@ async function migrateGuestNames() {
     console.log();
 
     // Wait 5 seconds
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await new Promise((resolve) => setTimeout(resolve, 5000));
 
     console.log('🚀 Starting migration...');
     console.log();
@@ -210,7 +327,9 @@ async function migrateGuestNames() {
         }
 
         console.log(`   ✅ Added ${guestNames.length} guest names`);
-        console.log(`   👥 Names: ${guestNames.map(g => `${g.firstName} ${g.lastName}`).join(', ')}`);
+        console.log(
+          `   👥 Names: ${guestNames.map((g) => `${g.firstName} ${g.lastName}`).join(', ')}`
+        );
         console.log();
         successCount++;
       } catch (error) {

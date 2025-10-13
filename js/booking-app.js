@@ -69,6 +69,10 @@ class BookingApp {
     // Initialize data storage
     await dataManager.initData();
 
+    // Load room configuration for bulk booking display
+    const settings = await dataManager.getSettings();
+    window.roomsConfig = settings.rooms || [];
+
     // Load proposed bookings from database for this session
     await this.loadSessionProposedBookings();
 
@@ -987,11 +991,6 @@ class BookingApp {
     this.tempReservations.forEach((reservation) => {
       totalAdults += reservation.guests.adults || 0;
       totalChildren += reservation.guests.children || 0;
-    });
-
-    console.log('[DEBUG] finalizeAllReservations - Total guests:', {
-      totalAdults,
-      totalChildren,
     });
 
     // Generate guest names input fields for bookingFormModal

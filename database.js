@@ -497,9 +497,7 @@ class DatabaseManager {
         VALUES (?, ?, ?, ?, ?, ?)
       `),
 
-      deleteGuestNamesByBooking: this.db.prepare(
-        'DELETE FROM guest_names WHERE booking_id = ?'
-      ),
+      deleteGuestNamesByBooking: this.db.prepare('DELETE FROM guest_names WHERE booking_id = ?'),
 
       getGuestNamesByBooking: this.db.prepare(`
         SELECT person_type, first_name, last_name, order_index

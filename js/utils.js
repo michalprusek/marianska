@@ -89,13 +89,18 @@ class UtilsModule {
                                 </div>
 
                                 <div style="margin-bottom: 1.5rem;">
-                                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--gray-700);">
-                                        ${this.app.currentLanguage === 'cs' ? 'Zpráva:' : 'Message:'}
-                                    </label>
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                        <label style="font-weight: 600; color: var(--gray-700);">
+                                            ${this.app.currentLanguage === 'cs' ? 'Zpráva:' : 'Message:'}
+                                        </label>
+                                        <span id="charCounter" style="font-size: 0.85rem; color: var(--gray-500);">0/500</span>
+                                    </div>
                                     <textarea
                                         id="contactMessage"
                                         required
                                         rows="4"
+                                        maxlength="500"
+                                        oninput="document.getElementById('charCounter').textContent = this.value.length + '/500'; document.getElementById('charCounter').style.color = this.value.length >= 500 ? 'var(--danger-600)' : 'var(--gray-500)';"
                                         style="width: 100%; padding: 0.75rem; border: 1px solid var(--gray-300); border-radius: var(--radius-md); font-size: 0.95rem; resize: vertical; min-height: 100px;"
                                         placeholder="${
                                           this.app.currentLanguage === 'cs'

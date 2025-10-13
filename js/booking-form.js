@@ -818,18 +818,14 @@ class BookingFormModule {
    * @param {string} formPrefix - Prefix for element IDs ('bookingForm' for bookingFormModal, '' for finalBookingModal)
    */
   generateGuestNamesInputs(adults, children, formPrefix = '') {
-    console.log('[DEBUG] generateGuestNamesInputs called:', {
-      adults,
-      children,
-      formPrefix,
-    });
-
     const prefix = formPrefix ? `${formPrefix}` : '';
 
     // Helper function to create proper ID with capitalization
     // When prefix is used, capitalize first letter of base name (e.g., "bookingForm" + "GuestNamesSection")
     const makeId = (baseName) => {
-      if (!prefix) return baseName;
+      if (!prefix) {
+        return baseName;
+      }
       return prefix + baseName.charAt(0).toUpperCase() + baseName.slice(1);
     };
 
@@ -838,31 +834,7 @@ class BookingFormModule {
     const childrenNamesList = document.getElementById(makeId('childrenNamesList'));
     const childrenContainer = document.getElementById(makeId('childrenNamesContainer'));
 
-    console.log('[DEBUG] Elements found:', {
-      guestNamesSection: !!guestNamesSection,
-      adultsNamesList: !!adultsNamesList,
-      childrenNamesList: !!childrenNamesList,
-      childrenContainer: !!childrenContainer,
-    });
-
-    console.log('[DEBUG] Looking for element IDs:', {
-      guestNamesSectionId: makeId('guestNamesSection'),
-      adultsNamesListId: makeId('adultsNamesList'),
-      childrenNamesListId: makeId('childrenNamesList'),
-    });
-
-    if (!guestNamesSection) {
-      console.error('[DEBUG] Missing: guestNamesSection element with ID:', makeId('guestNamesSection'));
-    }
-    if (!adultsNamesList) {
-      console.error('[DEBUG] Missing: adultsNamesList element with ID:', makeId('adultsNamesList'));
-    }
-    if (!childrenNamesList) {
-      console.error('[DEBUG] Missing: childrenNamesList element with ID:', makeId('childrenNamesList'));
-    }
-
     if (!guestNamesSection || !adultsNamesList || !childrenNamesList) {
-      console.warn('[DEBUG] Some elements not found, returning early');
       return;
     }
 
@@ -872,7 +844,6 @@ class BookingFormModule {
 
     // Show/hide section based on guest counts
     if (adults + children > 0) {
-      console.log('[DEBUG] Showing guest names section');
       guestNamesSection.style.display = 'block';
       // Also show parent containers if they exist
       const adultsContainer = document.getElementById(makeId('adultsNamesContainer'));
@@ -880,7 +851,6 @@ class BookingFormModule {
         adultsContainer.style.display = adults > 0 ? 'block' : 'none';
       }
     } else {
-      console.log('[DEBUG] Hiding guest names section (no guests)');
       guestNamesSection.style.display = 'none';
       return;
     }
@@ -1005,8 +975,12 @@ class BookingFormModule {
     const guestNames = [];
 
     // Collect adult names
-    const adultFirstNames = document.querySelectorAll('input[data-guest-type="adult"][id^="adultFirstName"]');
-    const adultLastNames = document.querySelectorAll('input[data-guest-type="adult"][id^="adultLastName"]');
+    const adultFirstNames = document.querySelectorAll(
+      'input[data-guest-type="adult"][id^="adultFirstName"]'
+    );
+    const adultLastNames = document.querySelectorAll(
+      'input[data-guest-type="adult"][id^="adultLastName"]'
+    );
 
     for (let i = 0; i < adultFirstNames.length; i++) {
       const firstName = adultFirstNames[i].value.trim();
@@ -1021,8 +995,12 @@ class BookingFormModule {
     }
 
     // Collect children names
-    const childFirstNames = document.querySelectorAll('input[data-guest-type="child"][id^="childFirstName"]');
-    const childLastNames = document.querySelectorAll('input[data-guest-type="child"][id^="childLastName"]');
+    const childFirstNames = document.querySelectorAll(
+      'input[data-guest-type="child"][id^="childFirstName"]'
+    );
+    const childLastNames = document.querySelectorAll(
+      'input[data-guest-type="child"][id^="childLastName"]'
+    );
 
     for (let i = 0; i < childFirstNames.length; i++) {
       const firstName = childFirstNames[i].value.trim();
