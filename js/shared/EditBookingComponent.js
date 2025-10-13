@@ -866,6 +866,7 @@ class EditBookingComponent {
 
   /**
    * Render room list with per-room date editing and guest configuration
+   * For bulk bookings, shows summary view instead of individual rooms
    */
   renderPerRoomList() {
     const roomsList = document.getElementById('editRoomsList');
@@ -893,10 +894,14 @@ class EditBookingComponent {
           🏠 HROMADNÁ REZERVACE CELÉ CHATY
         </div>
         <div style="font-size: 0.875rem; opacity: 0.95;">
-          Všech 9 pokojů je rezervováno společně. Výběr jednotlivých pokojů není možný.
+          Všech 9 pokojů je rezervováno společně.
         </div>
       `;
       roomsList.appendChild(bulkBadge);
+
+      // Show summary card for bulk booking instead of individual rooms
+      this.renderBulkSummaryCard();
+      return;
     }
 
     // Initialize per-room dates from current booking
@@ -1014,6 +1019,345 @@ class EditBookingComponent {
 
       roomsList.appendChild(roomCard);
     }
+  }
+
+  /**
+   * Render summary card for bulk bookings
+   * Shows aggregated information instead of individual room cards
+   */
+  renderBulkSummaryCard() {
+    const roomsList = document.getElementById('editRoomsList');
+    if (!roomsList) {
+      return;
+    }
+
+    // Calculate aggregate data
+    let minStart = null;
+    let maxEnd = null;
+    let totalAdults = 0;
+    let totalChildren = 0;
+    let totalToddlers = 0;
+    const guestTypes = new Set();
+
+    for (const dates of this.perRoomDates.values()) {
+      if (!minStart || dates.startDate < minStart) {
+        minStart = dates.startDate;
+      }
+      if (!maxEnd || dates.endDate > maxEnd) {
+        maxEnd = dates.endDate;
+      }
+    }
+
+    for (const roomData of this.editSelectedRooms.values()) {
+      totalAdults += roomData.adults || 0;
+      totalChildren += roomData.children || 0;
+      totalToddlers += roomData.toddlers || 0;
+      guestTypes.add(roomData.guestType);
+    }
+
+    // Determine aggregated guest type
+    let currentGuestType = 'external';
+    if (guestTypes.size === 1) {
+      currentGuestType = Array.from(guestTypes)[0];
+    } else if (guestTypes.has('utia')) {
+      currentGuestType = 'utia';
+    }
+
+    // Format dates for display
+    const startFormatted = minStart
+      ? DateUtils.formatDateDisplay(DateUtils.parseDate(minStart), 'cs')
+      : 'N/A';
+    const endFormatted = maxEnd
+      ? DateUtils.formatDateDisplay(DateUtils.parseDate(maxEnd), 'cs')
+      : 'N/A';
+
+    // Get total chalet capacity
+    const totalCapacity = BookingUtils.getTotalCapacity(this.settings.rooms);
+
+    const onChangePrefix = this.mode === 'admin' ? 'adminPanel' : 'editPage';
+
+    // Create summary card
+    const summaryCard = document.createElement('div');
+    summaryCard.style.cssText = `
+      padding: 1.5rem;
+      border: 2px solid #7c3aed;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+      box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15);
+    `;
+
+    summaryCard.innerHTML = `
+      <!-- Date Range -->
+      <div style="margin-bottom: 1.5rem;">
+        <label style="display: block; font-weight: 600; color: #6b21a8; margin-bottom: 0.5rem; font-size: 0.875rem;">
+          📅 TERMÍN REZERVACE
+        </label>
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div style="
+            flex: 1;
+            padding: 0.75rem 1rem;
+            background: white;
+            border: 1px solid #d8b4fe;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #6b21a8;
+          ">
+            ${startFormatted} - ${endFormatted}
+          </div>
+          <button
+            type="button"
+            onclick="${onChangePrefix}.editComponent.openBulkCalendar()"
+            class="btn btn-primary"
+            style="padding: 0.75rem 1rem; font-size: 0.875rem; white-space: nowrap;">
+            Změnit termín
+          </button>
+        </div>
+      </div>
+
+      <!-- Guest Type -->
+      <div style="margin-bottom: 1.5rem;">
+        <label style="display: block; font-weight: 600; color: #6b21a8; margin-bottom: 0.5rem; font-size: 0.875rem;">
+          👤 TYP HOSTA
+        </label>
+        <select
+          id="bulkGuestType"
+          onchange="${onChangePrefix}.editComponent.updateBulkGuestType(this.value)"
+          style="
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d8b4fe;
+            border-radius: 8px;
+            font-size: 1rem;
+            background: white;
+            cursor: pointer;
+          ">
+          <option value="utia" ${currentGuestType === 'utia' ? 'selected' : ''}>Zaměstnanec ÚTIA</option>
+          <option value="external" ${currentGuestType === 'external' ? 'selected' : ''}>Externí host</option>
+        </select>
+      </div>
+
+      <!-- Guest Counts -->
+      <div style="margin-bottom: 1rem;">
+        <label style="display: block; font-weight: 600; color: #6b21a8; margin-bottom: 0.75rem; font-size: 0.875rem;">
+          👥 POČET HOSTŮ
+        </label>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;">
+          <div>
+            <label style="font-size: 0.75rem; display: block; margin-bottom: 0.5rem; color: #6b21a8; font-weight: 600;">
+              Dospělí (16+):
+            </label>
+            <input
+              type="number"
+              id="bulkAdults"
+              min="1"
+              max="${totalCapacity}"
+              value="${totalAdults}"
+              onchange="${onChangePrefix}.editComponent.updateBulkGuests('adults', parseInt(this.value))"
+              style="
+                width: 100%;
+                padding: 0.75rem;
+                border: 1px solid #d8b4fe;
+                border-radius: 8px;
+                font-size: 1rem;
+                font-weight: 600;
+                text-align: center;
+                background: white;
+              " />
+          </div>
+          <div>
+            <label style="font-size: 0.75rem; display: block; margin-bottom: 0.5rem; color: #6b21a8; font-weight: 600;">
+              Děti (3-18 let):
+            </label>
+            <input
+              type="number"
+              id="bulkChildren"
+              min="0"
+              max="${totalCapacity}"
+              value="${totalChildren}"
+              onchange="${onChangePrefix}.editComponent.updateBulkGuests('children', parseInt(this.value))"
+              style="
+                width: 100%;
+                padding: 0.75rem;
+                border: 1px solid #d8b4fe;
+                border-radius: 8px;
+                font-size: 1rem;
+                font-weight: 600;
+                text-align: center;
+                background: white;
+              " />
+          </div>
+          <div>
+            <label style="font-size: 0.75rem; display: block; margin-bottom: 0.5rem; color: #6b21a8; font-weight: 600;">
+              Batolata (0-3 roky):
+            </label>
+            <input
+              type="number"
+              id="bulkToddlers"
+              min="0"
+              value="${totalToddlers}"
+              onchange="${onChangePrefix}.editComponent.updateBulkGuests('toddlers', parseInt(this.value))"
+              style="
+                width: 100%;
+                padding: 0.75rem;
+                border: 1px solid #d8b4fe;
+                border-radius: 8px;
+                font-size: 1rem;
+                font-weight: 600;
+                text-align: center;
+                background: white;
+              " />
+          </div>
+        </div>
+      </div>
+
+      <!-- Capacity Info -->
+      <div style="
+        margin-top: 1rem;
+        padding: 0.75rem;
+        background: #fef3c7;
+        border: 1px solid #fbbf24;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        color: #92400e;
+      ">
+        💡 <strong>Kapacita chaty:</strong> ${totalCapacity} lůžek<br>
+        <span style="font-size: 0.8rem;">Batolata se nepočítají do kapacity lůžek.</span>
+      </div>
+    `;
+
+    roomsList.appendChild(summaryCard);
+  }
+
+  /**
+   * Update guest type for all rooms in bulk booking
+   */
+  updateBulkGuestType(newGuestType) {
+    // Update all rooms with new guest type
+    for (const roomData of this.editSelectedRooms.values()) {
+      roomData.guestType = newGuestType;
+    }
+
+    // Update price
+    this.updateTotalPrice();
+  }
+
+  /**
+   * Update guest counts for bulk booking
+   * Distributes guests intelligently respecting room capacities
+   */
+  updateBulkGuests(field, newTotal) {
+    // Validate input
+    const numValue = parseInt(newTotal, 10);
+    if (isNaN(numValue) || numValue < 0) {
+      this.showNotification('Počet hostů musí být kladné číslo', 'warning', 3000);
+      this.renderPerRoomList();
+      return;
+    }
+
+    // Minimum constraint: at least 1 adult total
+    if (field === 'adults' && numValue < 1) {
+      this.showNotification('Musí být alespoň 1 dospělý v celé rezervaci', 'warning', 3000);
+      this.renderPerRoomList();
+      return;
+    }
+
+    // Get total capacity
+    const totalCapacity = BookingUtils.getTotalCapacity(this.settings.rooms);
+
+    // Capacity validation (toddlers don't count)
+    if (field === 'adults' || field === 'children') {
+      // Calculate current totals
+      let currentAdults = 0;
+      let currentChildren = 0;
+
+      for (const roomData of this.editSelectedRooms.values()) {
+        currentAdults += roomData.adults || 0;
+        currentChildren += roomData.children || 0;
+      }
+
+      // Project new totals
+      const projectedAdults = field === 'adults' ? numValue : currentAdults;
+      const projectedChildren = field === 'children' ? numValue : currentChildren;
+      const totalGuests = projectedAdults + projectedChildren;
+
+      if (totalGuests > totalCapacity) {
+        this.showNotification(
+          `⚠️ Kapacita chaty: ${totalCapacity} lůžek. ` +
+            `Nelze zadat ${totalGuests} hostů (${projectedAdults} dospělých + ${projectedChildren} dětí).`,
+          'error',
+          4000
+        );
+        this.renderPerRoomList();
+        return;
+      }
+    }
+
+    // Smart distribution that respects individual room capacities
+    // Create array of rooms with their IDs, capacities, and current guest counts
+    const roomsWithCapacity = Array.from(this.editSelectedRooms.entries()).map(
+      ([roomId, roomData]) => {
+        const room = this.settings.rooms.find((r) => r.id === roomId);
+        return {
+          roomId,
+          roomData,
+          capacity: room ? room.beds : 4, // Default to 4 if not found
+        };
+      }
+    );
+
+    // Sort by capacity DESC (largest rooms first) for optimal distribution
+    roomsWithCapacity.sort((a, b) => b.capacity - a.capacity);
+
+    // Distribute guests intelligently
+    let remaining = numValue;
+    const distribution = new Map();
+
+    // First pass: try to distribute evenly
+    const avgPerRoom = Math.floor(numValue / roomsWithCapacity.length);
+    for (const room of roomsWithCapacity) {
+      const allocated = Math.min(avgPerRoom, room.capacity);
+      distribution.set(room.roomId, allocated);
+      remaining -= allocated;
+    }
+
+    // Second pass: distribute remainder to larger rooms first
+    for (const room of roomsWithCapacity) {
+      if (remaining === 0) {
+        break;
+      }
+      const currentAllocation = distribution.get(room.roomId);
+      const canAdd = Math.min(remaining, room.capacity - currentAllocation);
+      if (canAdd > 0) {
+        distribution.set(room.roomId, currentAllocation + canAdd);
+        remaining -= canAdd;
+      }
+    }
+
+    // If we still have remaining guests (shouldn't happen if capacity validation passed)
+    if (remaining > 0) {
+      this.showNotification(
+        `⚠️ Nelze distribuovat všechny hosty s ohledem na kapacity jednotlivých pokojů.`,
+        'error',
+        4000
+      );
+      this.renderPerRoomList();
+      return;
+    }
+
+    // Apply distribution to room data
+    for (const [roomId, count] of distribution.entries()) {
+      const roomData = this.editSelectedRooms.get(roomId);
+      if (roomData) {
+        roomData[field] = count;
+      }
+    }
+
+    // Re-render to show updated values
+    this.renderPerRoomList();
+
+    // Update price
+    this.updateTotalPrice();
   }
 
   /**
