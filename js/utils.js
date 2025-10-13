@@ -43,14 +43,7 @@ class UtilsModule {
                                 <strong>${this.app.currentLanguage === 'cs' ? 'Číslo rezervace:' : 'Booking ID:'}</strong>
                                 <span style="font-family: monospace;">${booking.id}</span>
                             </div>
-                            <div class="detail-row" style="margin-bottom: 0.5rem;">
-                                <strong>${this.app.currentLanguage === 'cs' ? 'Termín:' : 'Dates:'}</strong>
-                                <span>${this.formatDateDisplay(new Date(booking.startDate))} - ${this.formatDateDisplay(new Date(booking.endDate))}</span>
-                            </div>
-                            <div class="detail-row" style="margin-bottom: 0.5rem;">
-                                <strong>${this.app.currentLanguage === 'cs' ? 'Pokoje:' : 'Rooms:'}</strong>
-                                <span>${booking.rooms.join(', ')}</span>
-                            </div>
+                            ${BookingDisplayUtils.renderPerRoomDetailsHTML(booking, this.app.currentLanguage)}
                         </div>
 
 

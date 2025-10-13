@@ -56,15 +56,45 @@ class DatabaseManager {
             )
         `);
 
-    // Create rooms junction table for many-to-many relationship
+    // Create rooms junction table for many-to-many relationship with per-room dates
     this.db.exec(`
             CREATE TABLE IF NOT EXISTS booking_rooms (
                 booking_id TEXT NOT NULL,
                 room_id TEXT NOT NULL,
+                start_date TEXT,
+                end_date TEXT,
                 PRIMARY KEY (booking_id, room_id),
                 FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE
             )
         `);
+
+    // Migration: Add per-room columns if they don't exist
+    const tableInfo = this.db.pragma('table_info(booking_rooms)');
+    const hasStartDate = tableInfo.some((col) => col.name === 'start_date');
+    const hasEndDate = tableInfo.some((col) => col.name === 'end_date');
+    const hasAdults = tableInfo.some((col) => col.name === 'adults');
+    const hasChildren = tableInfo.some((col) => col.name === 'children');
+    const hasToddlers = tableInfo.some((col) => col.name === 'toddlers');
+    const hasGuestType = tableInfo.some((col) => col.name === 'guest_type');
+
+    if (!hasStartDate) {
+      this.db.exec(`ALTER TABLE booking_rooms ADD COLUMN start_date TEXT`);
+    }
+    if (!hasEndDate) {
+      this.db.exec(`ALTER TABLE booking_rooms ADD COLUMN end_date TEXT`);
+    }
+    if (!hasAdults) {
+      this.db.exec(`ALTER TABLE booking_rooms ADD COLUMN adults INTEGER DEFAULT 1`);
+    }
+    if (!hasChildren) {
+      this.db.exec(`ALTER TABLE booking_rooms ADD COLUMN children INTEGER DEFAULT 0`);
+    }
+    if (!hasToddlers) {
+      this.db.exec(`ALTER TABLE booking_rooms ADD COLUMN toddlers INTEGER DEFAULT 0`);
+    }
+    if (!hasGuestType) {
+      this.db.exec(`ALTER TABLE booking_rooms ADD COLUMN guest_type TEXT DEFAULT 'external'`);
+    }
 
     // Create blockage instances table - ONE row per blockage action
     this.db.exec(`
@@ -322,14 +352,16 @@ class DatabaseManager {
 
       getAllBookings: this.db.prepare('SELECT * FROM bookings ORDER BY start_date DESC'),
 
-      // Rooms
+      // Rooms (with per-room dates and guest data)
       insertBookingRoom: this.db.prepare(
-        'INSERT INTO booking_rooms (booking_id, room_id) VALUES (?, ?)'
+        'INSERT INTO booking_rooms (booking_id, room_id, start_date, end_date, adults, children, toddlers, guest_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
       ),
 
       deleteBookingRooms: this.db.prepare('DELETE FROM booking_rooms WHERE booking_id = ?'),
 
-      getBookingRooms: this.db.prepare('SELECT room_id FROM booking_rooms WHERE booking_id = ?'),
+      getBookingRooms: this.db.prepare(
+        'SELECT room_id, start_date, end_date, adults, children, toddlers, guest_type FROM booking_rooms WHERE booking_id = ?'
+      ),
 
       // Blockage instances
       insertBlockageInstance: this.db.prepare(`
@@ -464,12 +496,42 @@ class DatabaseManager {
         updated_at: data.updatedAt,
       });
 
-      // Insert room associations
+      // Insert room associations with per-room dates and guest data
       if (data.rooms && data.rooms.length > 0) {
         for (const roomId of data.rooms) {
           // Skip null/undefined room IDs
           if (roomId != null && roomId !== '') {
-            this.statements.insertBookingRoom.run(data.id, roomId);
+            // Use per-room dates if available, otherwise use booking-level dates
+            let roomStartDate = data.startDate;
+            let roomEndDate = data.endDate;
+            let roomAdults = 1; // Default
+            let roomChildren = 0;
+            let roomToddlers = 0;
+            let roomGuestType = data.guestType;
+
+            if (data.perRoomDates && data.perRoomDates[roomId]) {
+              roomStartDate = data.perRoomDates[roomId].startDate;
+              roomEndDate = data.perRoomDates[roomId].endDate;
+            }
+
+            // Use per-room guest data if available
+            if (data.perRoomGuests && data.perRoomGuests[roomId]) {
+              roomAdults = data.perRoomGuests[roomId].adults || 1;
+              roomChildren = data.perRoomGuests[roomId].children || 0;
+              roomToddlers = data.perRoomGuests[roomId].toddlers || 0;
+              roomGuestType = data.perRoomGuests[roomId].guestType || data.guestType;
+            }
+
+            this.statements.insertBookingRoom.run(
+              data.id,
+              roomId,
+              roomStartDate,
+              roomEndDate,
+              roomAdults,
+              roomChildren,
+              roomToddlers,
+              roomGuestType
+            );
           }
         }
       }
@@ -503,13 +565,43 @@ class DatabaseManager {
         updated_at: new Date().toISOString(),
       });
 
-      // Update rooms (delete and re-insert)
+      // Update rooms (delete and re-insert) with per-room dates and guest data
       this.statements.deleteBookingRooms.run(bookingId);
       if (data.rooms && data.rooms.length > 0) {
         for (const roomId of data.rooms) {
           // Skip null/undefined room IDs
           if (roomId != null && roomId !== '') {
-            this.statements.insertBookingRoom.run(bookingId, roomId);
+            // Use per-room dates if available, otherwise use booking-level dates
+            let roomStartDate = data.startDate;
+            let roomEndDate = data.endDate;
+            let roomAdults = 1; // Default
+            let roomChildren = 0;
+            let roomToddlers = 0;
+            let roomGuestType = data.guestType;
+
+            if (data.perRoomDates && data.perRoomDates[roomId]) {
+              roomStartDate = data.perRoomDates[roomId].startDate;
+              roomEndDate = data.perRoomDates[roomId].endDate;
+            }
+
+            // Use per-room guest data if available
+            if (data.perRoomGuests && data.perRoomGuests[roomId]) {
+              roomAdults = data.perRoomGuests[roomId].adults || 1;
+              roomChildren = data.perRoomGuests[roomId].children || 0;
+              roomToddlers = data.perRoomGuests[roomId].toddlers || 0;
+              roomGuestType = data.perRoomGuests[roomId].guestType || data.guestType;
+            }
+
+            this.statements.insertBookingRoom.run(
+              bookingId,
+              roomId,
+              roomStartDate,
+              roomEndDate,
+              roomAdults,
+              roomChildren,
+              roomToddlers,
+              roomGuestType
+            );
           }
         }
       }
@@ -525,8 +617,28 @@ class DatabaseManager {
   getBooking(id) {
     const booking = this.statements.getBooking.get(id);
     if (booking) {
-      // Get associated rooms
-      const rooms = this.statements.getBookingRooms.all(id).map((r) => r.room_id);
+      // Get associated rooms with per-room dates and guest data
+      const roomRows = this.statements.getBookingRooms.all(id);
+      const rooms = roomRows.map((r) => r.room_id);
+
+      // Build perRoomDates and perRoomGuests objects
+      const perRoomDates = {};
+      const perRoomGuests = {};
+      roomRows.forEach((row) => {
+        if (row.start_date && row.end_date) {
+          perRoomDates[row.room_id] = {
+            startDate: row.start_date,
+            endDate: row.end_date,
+          };
+        }
+        // Include per-room guest data
+        perRoomGuests[row.room_id] = {
+          adults: row.adults || 1,
+          children: row.children || 0,
+          toddlers: row.toddlers || 0,
+          guestType: row.guest_type || booking.guest_type,
+        };
+      });
 
       // Convert snake_case to camelCase
       return {
@@ -543,6 +655,67 @@ class DatabaseManager {
         startDate: booking.start_date,
         endDate: booking.end_date,
         rooms,
+        perRoomDates, // Include per-room dates
+        perRoomGuests, // Include per-room guest data
+        guestType: booking.guest_type,
+        adults: booking.adults,
+        children: booking.children,
+        toddlers: booking.toddlers,
+        totalPrice: booking.total_price,
+        notes: booking.notes,
+        editToken: booking.edit_token,
+        createdAt: booking.created_at,
+        updatedAt: booking.updated_at,
+      };
+    }
+    return null;
+  }
+
+  getBookingByEditToken(editToken) {
+    const stmt = this.db.prepare('SELECT * FROM bookings WHERE edit_token = ?');
+    const booking = stmt.get(editToken);
+
+    if (booking) {
+      // Get associated rooms with per-room dates and guest data
+      const roomRows = this.statements.getBookingRooms.all(booking.id);
+      const rooms = roomRows.map((r) => r.room_id);
+
+      // Build perRoomDates and perRoomGuests objects
+      const perRoomDates = {};
+      const perRoomGuests = {};
+      roomRows.forEach((row) => {
+        if (row.start_date && row.end_date) {
+          perRoomDates[row.room_id] = {
+            startDate: row.start_date,
+            endDate: row.end_date,
+          };
+        }
+        // Include per-room guest data
+        perRoomGuests[row.room_id] = {
+          adults: row.adults || 1,
+          children: row.children || 0,
+          toddlers: row.toddlers || 0,
+          guestType: row.guest_type || booking.guest_type,
+        };
+      });
+
+      // Convert snake_case to camelCase
+      return {
+        id: booking.id,
+        name: booking.name,
+        email: booking.email,
+        phone: booking.phone,
+        company: booking.company,
+        address: booking.address,
+        city: booking.city,
+        zip: booking.zip,
+        ico: booking.ico,
+        dic: booking.dic,
+        startDate: booking.start_date,
+        endDate: booking.end_date,
+        rooms,
+        perRoomDates, // Include per-room dates
+        perRoomGuests, // Include per-room guest data
         guestType: booking.guest_type,
         adults: booking.adults,
         children: booking.children,
@@ -558,11 +731,19 @@ class DatabaseManager {
   }
 
   getAllBookings() {
-    // PERFORMANCE FIX: Use JOIN with GROUP_CONCAT to eliminate N+1 query
+    // PERFORMANCE FIX: Use JOIN with GROUP_CONCAT to get per-room dates and guest data
     const query = `
       SELECT
         b.*,
-        GROUP_CONCAT(br.room_id) as room_ids
+        GROUP_CONCAT(
+          br.room_id || ':' ||
+          COALESCE(br.start_date, '') || ':' ||
+          COALESCE(br.end_date, '') || ':' ||
+          COALESCE(br.adults, 1) || ':' ||
+          COALESCE(br.children, 0) || ':' ||
+          COALESCE(br.toddlers, 0) || ':' ||
+          COALESCE(br.guest_type, '')
+        ) as room_data
       FROM bookings b
       LEFT JOIN booking_rooms br ON b.id = br.booking_id
       GROUP BY b.id
@@ -572,7 +753,29 @@ class DatabaseManager {
     const bookings = this.db.prepare(query).all();
 
     return bookings.map((booking) => {
-      const rooms = booking.room_ids ? booking.room_ids.split(',') : [];
+      // Parse room_data to extract rooms, per-room dates, and per-room guest data
+      const rooms = [];
+      const perRoomDates = {};
+      const perRoomGuests = {};
+
+      if (booking.room_data) {
+        const roomEntries = booking.room_data.split(',');
+        roomEntries.forEach((entry) => {
+          const [roomId, startDate, endDate, adults, children, toddlers, guestType] =
+            entry.split(':');
+          rooms.push(roomId);
+          if (startDate && endDate) {
+            perRoomDates[roomId] = { startDate, endDate };
+          }
+          // Include per-room guest data
+          perRoomGuests[roomId] = {
+            adults: parseInt(adults, 10) || 1,
+            children: parseInt(children, 10) || 0,
+            toddlers: parseInt(toddlers, 10) || 0,
+            guestType: guestType || booking.guest_type,
+          };
+        });
+      }
 
       return {
         id: booking.id,
@@ -588,6 +791,8 @@ class DatabaseManager {
         startDate: booking.start_date,
         endDate: booking.end_date,
         rooms,
+        perRoomDates, // Include per-room dates
+        perRoomGuests, // Include per-room guest data
         guestType: booking.guest_type,
         adults: booking.adults,
         children: booking.children,
@@ -833,6 +1038,12 @@ class DatabaseManager {
     // Get rooms
     settings.rooms = this.statements.getAllRooms.all();
 
+    // Get email template
+    const emailTemplateJson = this.getSetting('emailTemplate');
+    if (emailTemplateJson) {
+      settings.emailTemplate = JSON.parse(emailTemplateJson);
+    }
+
     return settings;
   }
 
@@ -897,6 +1108,11 @@ class DatabaseManager {
       // Handle room configuration updates
       if (updatedSettings.rooms && Array.isArray(updatedSettings.rooms)) {
         this.updateRooms(updatedSettings.rooms);
+      }
+
+      // Handle email template updates
+      if (updatedSettings.emailTemplate) {
+        this.setSetting('emailTemplate', JSON.stringify(updatedSettings.emailTemplate));
       }
     });
 
@@ -975,11 +1191,11 @@ class DatabaseManager {
       return { available: false, status: 'blocked', reason: 'blocked' };
     }
 
-    // Get all bookings for this room
+    // Get all bookings for this room (using per-room dates from booking_rooms table)
     const allBookings = this.db
       .prepare(
         `
-            SELECT b.start_date as startDate, b.end_date as endDate, b.email
+            SELECT br.start_date as startDate, br.end_date as endDate, b.email
             FROM bookings b
             JOIN booking_rooms br ON b.id = br.booking_id
             WHERE br.room_id = ?

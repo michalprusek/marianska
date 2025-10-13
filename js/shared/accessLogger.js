@@ -31,33 +31,38 @@ class AccessLogger {
   }
 
   /**
-   * Get log file path for current date
+   * Get log file path (single unified access.log file)
    */
   getLogFilePath() {
-    const dateString = this.getDateString();
-    return path.join(this.logDir, `access-${dateString}.log`);
+    return path.join(this.logDir, 'access.log');
   }
 
   /**
    * Extract user info from request
    */
   getUserInfo(req) {
-    // Check for admin session
+    // Check for admin session or user email
     const sessionToken = req.headers['x-session-token'];
     const editToken = req.headers['x-edit-token'];
 
-    let userType = 'anonymous';
-    let userId = null;
+    // Try to get user email from session if available
+    let userIdentifier = 'anonymous';
 
-    if (sessionToken) {
-      userType = 'admin';
-      userId = sessionToken.substring(0, 8); // First 8 chars for identification
+    if (req.session && req.session.email) {
+      // User is authenticated with email
+      userIdentifier = req.session.email;
+    } else if (req.user && req.user.email) {
+      // Alternative user object
+      userIdentifier = req.user.email;
+    } else if (sessionToken) {
+      // Admin session (no email stored)
+      userIdentifier = 'admin';
     } else if (editToken) {
-      userType = 'booking_editor';
-      userId = editToken.substring(0, 8);
+      // Booking editor (no email stored)
+      userIdentifier = 'booking_editor';
     }
 
-    return { userType, userId };
+    return userIdentifier;
   }
 
   /**
@@ -75,40 +80,20 @@ class AccessLogger {
   }
 
   /**
-   * Format log entry according to security standards
+   * Format log entry in human-readable format
+   * Format: [timestamp] IP user METHOD /path STATUS time "User-Agent"
    */
   formatLogEntry(req, res, responseTime) {
     const timestamp = new Date().toISOString();
-    const { userType, userId } = this.getUserInfo(req);
+    const userIdentifier = this.getUserInfo(req);
     const clientIP = this.getClientIP(req);
     const userAgent = req.get('user-agent') || 'unknown';
     const { method } = req;
     const url = req.originalUrl || req.url;
     const { statusCode } = res;
-    const contentLength = res.get('content-length') || 0;
-    const referer = req.get('referer') || '-';
-    const { protocol } = req;
-    const httpVersion = `HTTP/${req.httpVersion}`;
 
-    // Create structured log entry
-    const logEntry = {
-      timestamp,
-      client_ip: clientIP,
-      user_type: userType,
-      user_id: userId || '-',
-      method,
-      url,
-      protocol,
-      http_version: httpVersion,
-      status_code: statusCode,
-      content_length: contentLength,
-      referer,
-      user_agent: userAgent,
-      response_time_ms: responseTime,
-    };
-
-    // Format as JSON for easy parsing
-    return JSON.stringify(logEntry);
+    // Format: [2025-10-09T14:03:42.190Z] 147.231.12.83 prusemic@cvut.cz POST /api/queue/batch 200 21ms "Mozilla/5.0..."
+    return `[${timestamp}] ${clientIP} ${userIdentifier} ${method} ${url} ${statusCode} ${responseTime}ms "${userAgent}"`;
   }
 
   /**
@@ -127,8 +112,7 @@ class AccessLogger {
         return null;
       }
 
-      const lastLine = lines[lines.length - 1];
-      return JSON.parse(lastLine);
+      return lines[lines.length - 1];
     } catch {
       // If parsing fails, return null (allow new entry)
       return null;
@@ -137,23 +121,28 @@ class AccessLogger {
 
   /**
    * Generate signature for log entry (for duplicate detection)
-   * Signature includes only stable fields, ignoring timestamp/response_time/content_length
-   * NOTE: content_length is excluded because it can vary slightly for identical requests
-   * (e.g., health endpoint with varying uptime in response)
+   * Extracts stable fields from plain text log entry
+   * Format: [timestamp] IP user METHOD /path STATUS time "User-Agent"
    */
   getLogSignature(logEntry) {
-    const parsed = typeof logEntry === 'string' ? JSON.parse(logEntry) : logEntry;
+    if (!logEntry || typeof logEntry !== 'string') {
+      return '';
+    }
 
-    return [
-      parsed.client_ip,
-      parsed.user_type,
-      parsed.user_id,
-      parsed.method,
-      parsed.url,
-      parsed.status_code,
-      parsed.user_agent,
-      // Deliberately exclude: timestamp, response_time_ms, content_length
-    ].join('|');
+    // Extract parts between brackets and quotes, split by spaces
+    // Example: [2025-10-09T14:03:42.190Z] 147.231.12.83 prusemic@cvut.cz POST /api/queue/batch 200 21ms "Mozilla..."
+    const match = logEntry.match(
+      /^\[(.*?)\]\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\d+)\s+\d+ms\s+"(.*)"/
+    );
+
+    if (!match) {
+      return logEntry; // Fallback to full string comparison
+    }
+
+    const [, , ip, user, method, url, status, userAgent] = match;
+
+    // Signature excludes timestamp and response time
+    return `${ip}|${user}|${method}|${url}|${status}|${userAgent}`;
   }
 
   /**
@@ -196,8 +185,8 @@ class AccessLogger {
       // Append to log file
       fs.appendFileSync(logFilePath, `${logEntry}\n`, 'utf8');
 
-      // Update cache
-      this.lastLogEntry = JSON.parse(logEntry);
+      // Update cache (store as plain text string)
+      this.lastLogEntry = logEntry;
     } catch {
       // Fallback to stderr if file write fails (silent - logged via main logger)
     } finally {

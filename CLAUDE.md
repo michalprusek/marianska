@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+sudo password: @.sudo-password
+
 ## Rezervační systém Chata Mariánská
 
 Rezervační systém pro horskou chatu s 9 pokoji, navržený pro zaměstnance ÚTIA a externí hosty. SPA implementace s Node.js/Express backend a LocalStorage fallback pro offline režim.
@@ -99,15 +101,28 @@ npm run dev         # Start development server with auto-reload
 - Kontrola datum-závislých pravidel (před/po 1. říjnu)
 - Kontrola překrytí rezervace s vánočním obdobím
 
-**8. AccessLogger** (`js/shared/accessLogger.js`) - **NOVÝ 2025-10-06**: Přístupové logování:
+**8. AccessLogger** (`js/shared/accessLogger.js`) - **AKTUALIZOVÁNO 2025-10-13**: Přístupové logování:
 
-- Strukturované JSON logování všech HTTP requestů
+- Human-readable plain text logování všech HTTP requestů
 - Automatická detekce IP adres (s podporou reverse proxy)
-- Identifikace typů uživatelů (anonymous/admin/booking_editor)
+- Identifikace uživatelů (email, anonymous, admin, booking_editor)
 - Měření response times pro performance monitoring
-- Denní rotace logů (`access-YYYY-MM-DD.log`)
+- Jednotný soubor `access.log` (bez automatické rotace)
 - Splňuje standardy IT bezpečnosti pro audit trail
-- Dokumentace: `ACCESS_LOGGING_DOCS.md`, `logs/README.md`
+- Dokumentace: `logs/README.md`
+- **Formát**: `[timestamp] IP user METHOD /path STATUS time "User-Agent"`
+
+**9. EmailService** (`js/shared/emailService.js`) - **NOVÝ 2025-10-13**: Odesílání emailů:
+
+- Automatické odesílání potvrzení po vytvoření rezervace
+- HTML a plain text formáty (profesionální design)
+- Edit link v emailu pro úpravu/zrušení rezervace
+- SMTP komunikace přes nodemailer
+- Připojení na `hermes.utia.cas.cz:25` (bez autentizace)
+- Testovací endpoint `/api/admin/test-email` pro admin
+- Non-blocking odeslání (neblokuje response)
+- Kompletní error handling a logging
+- **Template features**: Booking details, price, edit button, contact info
 
 #### ❌ NIKDY NEDĚLEJTE:
 
@@ -171,6 +186,13 @@ const { codeRequired, bulkBlocked } = ChristmasUtils.checkChristmasAccessRequire
   christmasStart,
   isBulk
 );
+
+// ✅ Použijte EmailService pro odesílání emailů (server-side)
+const emailService = new EmailService();
+// Odeslání potvrzení o rezervaci (non-blocking)
+await emailService.sendBookingConfirmation(booking, { settings });
+// Test email (admin panel)
+await emailService.sendTestEmail(recipientEmail);
 ```
 
 **Pravidlo**: Pokud se kód opakuje 2x+ → Přesuňte do `js/shared/`
@@ -933,6 +955,13 @@ Povinné změny před produkcí:
 ADMIN_PASSWORD=<change-this>
 API_KEY=<change-this>
 SESSION_SECRET=<change-this>
+
+# Email konfigurace (již nastaveno pro produkci):
+SMTP_HOST=hermes.utia.cas.cz
+SMTP_PORT=25
+SMTP_SECURE=false
+EMAIL_FROM=noreply@chata.utia.cas.cz
+APP_URL=http://chata.utia.cas.cz
 ```
 
 ### Backup Strategy

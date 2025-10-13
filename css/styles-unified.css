@@ -686,17 +686,18 @@ input:checked + .slider:before {
   padding: 6px 4px;
   border-radius: var(--radius-md);
   cursor: default;
-  transition: var(--transition-fast);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
   position: relative;
   min-height: 90px;
   background: var(--surface-1);
   border: 2px solid transparent;
   animation: scaleIn 0.2s ease-out;
+  box-sizing: border-box;
 }
 
 .calendar-day:hover {
   background: var(--surface-3);
-  transform: scale(1.02);
+  /* Removed transform to prevent layout shift */
 }
 
 .calendar-day.other-month {
@@ -883,8 +884,8 @@ input:checked + .slider:before {
 
 .calendar-day:not(.disabled):not(.other-month):hover {
   background: rgba(33, 150, 243, 0.1);
-  transform: scale(1.02);
-  transition: all 0.2s ease;
+  /* Removed transform to prevent layout shift */
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 /* ===== BOOKING SECTION ===== */
@@ -1419,7 +1420,7 @@ input:checked + .slider:before {
 #bookingFormModal .calendar-day:not(.disabled):hover,
 #singleRoomBookingModal .calendar-day:not(.disabled):hover {
   background: rgba(33, 150, 243, 0.1);
-  transform: scale(1.05);
+  /* Removed transform to prevent layout shift */
 }
 
 /* Ultra-compact modal calendar optimization */
@@ -1833,9 +1834,8 @@ input:checked + .slider:before {
 }
 
 .mini-calendar-day.available:hover {
-  border-color: #ef4444;
-  border-width: 2px;
-  box-shadow: 0 0 0 1px #ef4444;
+  /* Keep border-width consistent to prevent jumping */
+  box-shadow: 0 0 0 2px #ef4444;
 }
 
 .mini-calendar-day.occupied {
@@ -1886,9 +1886,8 @@ input:checked + .slider:before {
 }
 
 .mini-calendar-day.selected:hover {
-  border-color: #ef4444;
-  border-width: 2px;
-  box-shadow: 0 0 0 1px #ef4444;
+  /* Keep border-width consistent to prevent jumping */
+  box-shadow: 0 0 0 2px #ef4444;
 }
 
 .mini-calendar-day.in-range {
@@ -1897,9 +1896,8 @@ input:checked + .slider:before {
 }
 
 .mini-calendar-day.in-range:hover {
-  border-color: #ef4444;
-  border-width: 2px;
-  box-shadow: 0 0 0 1px #ef4444;
+  /* Keep border-width consistent to prevent jumping */
+  box-shadow: 0 0 0 2px #ef4444;
 }
 
 .mini-calendar-day.christmas {
@@ -3036,4 +3034,69 @@ input:checked + .slider:before {
 }
 .p-0 {
   padding: 0;
+}
+
+/* ===== PER-ROOM BOOKING DETAILS (Added 2025-10-13) ===== */
+/* Used by BookingDisplayUtils for consistent per-room display */
+
+.per-room-details {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--surface-1, #f9fafb);
+  border-radius: var(--radius-md, 8px);
+}
+
+.room-detail-card {
+  padding: 0.75rem;
+  background: var(--gray-50, #f9fafb);
+  border-left: 4px solid var(--primary-500, #3b82f6);
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  transition: all var(--transition-fast, 0.15s ease);
+}
+
+.room-detail-card:hover {
+  background: var(--gray-100, #f3f4f6);
+  transform: translateX(4px);
+  box-shadow: var(--elevation-1, 0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.room-detail-card:last-child {
+  margin-bottom: 0;
+}
+
+.room-detail-card > div:first-child {
+  font-weight: 600;
+  color: var(--gray-900, #111827);
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--gray-200, #e5e7eb);
+}
+
+.room-detail-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.room-detail-grid span:first-child {
+  color: var(--gray-600, #4b5563);
+  font-weight: 500;
+}
+
+.room-detail-grid span:last-child {
+  color: var(--gray-800, #1f2937);
+}
+
+/* Room badge styling (reusable) */
+.room-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background: var(--primary-600, #2563eb);
+  color: white;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  margin: 0 0.25rem;
 }

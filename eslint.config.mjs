@@ -402,6 +402,9 @@ export default [
         ValidationUtils: 'readonly',
         BaseCalendar: 'readonly',
         DateUtils: 'readonly',
+        PriceCalculator: 'readonly',
+        ChristmasUtils: 'readonly',
+        IdGenerator: 'readonly',
       },
     },
     rules: {
@@ -409,7 +412,7 @@ export default [
       'no-unused-vars': [
         'error',
         {
-          varsIgnorePattern: '^(ValidationUtils|BookingLogic|BaseCalendar)$',
+          varsIgnorePattern: '^(ValidationUtils|BookingLogic|BaseCalendar|EditBookingComponent)$',
         },
       ],
     },
@@ -480,6 +483,11 @@ export default [
         BulkBookingModule: 'readonly',
         BookingFormModule: 'readonly',
         UtilsModule: 'readonly',
+        PriceCalculator: 'readonly',
+        ChristmasUtils: 'readonly',
+        IdGenerator: 'readonly',
+        EditBookingComponent: 'readonly',
+        BookingDisplayUtils: 'readonly',
       },
     },
     rules: {
@@ -488,7 +496,7 @@ export default [
         'error',
         {
           varsIgnorePattern:
-            '^(DataManager|BookingApp|adminPanel|BookingFormModule|BulkBookingModule|SingleRoomBookingModule|CalendarModule|CalendarUtils|UtilsModule|AirbnbCalendarModule|BaseCalendar)$',
+            '^(DataManager|BookingApp|adminPanel|BookingFormModule|BulkBookingModule|SingleRoomBookingModule|CalendarModule|CalendarUtils|UtilsModule|AirbnbCalendarModule|BaseCalendar|editPage)$',
         },
       ],
     },

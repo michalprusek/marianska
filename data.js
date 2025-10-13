@@ -510,7 +510,7 @@ class DataManager {
     });
   }
 
-  async getRoomAvailability(date, roomId, excludeSessionId = null) {
+  async getRoomAvailability(date, roomId, excludeSessionId = null, excludeBookingId = null) {
     const data = await this.getData();
     const dateStr = this.formatDate(date);
 
@@ -561,7 +561,7 @@ class DataManager {
         (pb) =>
           pb.rooms.includes(roomId) &&
           checkDateStr >= pb.start_date &&
-          checkDateStr < pb.end_date && // CRITICAL FIX 2025-10-07: EXCLUSIVE end date - allows back-to-back bookings
+          checkDateStr <= pb.end_date && // INCLUSIVE end date for proposed bookings - blocks checkout day
           (sessionToExclude === '' || pb.session_id !== sessionToExclude)
       );
 
@@ -572,10 +572,24 @@ class DataManager {
       console.error('Failed to check proposed bookings:', error);
     }
 
-    // Get all bookings for this room
+    // Get all bookings for this room, EXCLUDING the booking being edited
+    // CRITICAL: Use per-room dates if available, otherwise fall back to global dates
     const roomBookings = data.bookings
       .filter((booking) => booking.rooms.includes(roomId))
-      .map((b) => ({ startDate: b.startDate, endDate: b.endDate, email: b.email }));
+      .filter((booking) => !excludeBookingId || booking.id !== excludeBookingId)
+      .map((b) => {
+        // Check for per-room dates first (new format)
+        const perRoomDate = b.perRoomDates?.[roomId];
+        if (perRoomDate) {
+          return {
+            startDate: perRoomDate.startDate,
+            endDate: perRoomDate.endDate,
+            email: b.email,
+          };
+        }
+        // Fallback to global dates (legacy format)
+        return { startDate: b.startDate, endDate: b.endDate, email: b.email };
+      });
 
     // Calculate nights around the given day using DateUtils
     const nightBefore = DateUtils.getPreviousDay(checkDateStr); // night from (day-1) to day

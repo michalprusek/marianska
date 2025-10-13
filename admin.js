@@ -13,7 +13,8 @@ class AdminPanel {
     this.today = new Date(); // Required by BaseCalendar
     this.currentMonth = new Date(); // Required by BaseCalendar for EDIT mode navigation
     this.editSelectedDates = new Set();
-    this.editSelectedRooms = new Set();
+    // Map<roomId, {guestType, adults, children, toddlers}>
+    this.editSelectedRooms = new Map();
     this.editStartDate = null;
     this.editEndDate = null;
     this.currentEditBooking = null;
@@ -441,14 +442,35 @@ class AdminPanel {
     bookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     bookings.forEach((booking) => {
+      // Format date range display
+      let dateRangeDisplay = '';
+      if (booking.perRoomDates && Object.keys(booking.perRoomDates).length > 0) {
+        // Calculate overall range from per-room dates
+        let minStart = booking.startDate;
+        let maxEnd = booking.endDate;
+
+        Object.values(booking.perRoomDates).forEach((dates) => {
+          if (!minStart || dates.startDate < minStart) {
+            minStart = dates.startDate;
+          }
+          if (!maxEnd || dates.endDate > maxEnd) {
+            maxEnd = dates.endDate;
+          }
+        });
+
+        dateRangeDisplay = `${new Date(minStart).toLocaleDateString('cs-CZ')} - ${new Date(maxEnd).toLocaleDateString('cs-CZ')}`;
+      } else {
+        // Fallback to booking-level dates
+        dateRangeDisplay = `${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}`;
+      }
+
       const row = document.createElement('tr');
       row.innerHTML = `
                 <td>${this.escapeHtml(booking.id)}</td>
                 <td>${this.escapeHtml(booking.name)}</td>
                 <td>${this.escapeHtml(booking.email)}</td>
                 <td>${this.escapeHtml(booking.phone)}</td>
-                <td>${new Date(booking.startDate).toLocaleDateString('cs-CZ')} -
-                    ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}</td>
+                <td>${dateRangeDisplay}</td>
                 <td>${booking.rooms.map((roomId) => this.createRoomBadge(roomId, true)).join('')}</td>
                 <td>
                     ${booking.totalPrice} Kč
@@ -542,27 +564,95 @@ class AdminPanel {
                         <div style="margin-top: 0.25rem;">${this.escapeHtml(booking.address)}, ${this.escapeHtml(booking.city)} ${this.escapeHtml(booking.zip)}</div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
-                        <div>
-                            <strong style="color: var(--gray-600); font-size: 0.9rem;">Datum pobytu:</strong>
-                            <div style="margin-top: 0.25rem;">
-                                ${new Date(booking.startDate).toLocaleDateString('cs-CZ')} -
-                                ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}
+                    <div>
+                        <strong style="color: var(--gray-600); font-size: 0.9rem;">Termíny pokojů:</strong>
+                        <div style="margin-top: 0.5rem;">
+                            ${
+                              booking.perRoomDates && Object.keys(booking.perRoomDates).length > 0
+                                ? booking.rooms
+                                    .map((roomId) => {
+                                      const dates = booking.perRoomDates[roomId];
+                                      if (dates) {
+                                        return `
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                                      ${this.createRoomBadge(roomId, true)}
+                                      <span style="color: #4b5563;">
+                                        ${new Date(dates.startDate).toLocaleDateString('cs-CZ')} - ${new Date(dates.endDate).toLocaleDateString('cs-CZ')}
+                                      </span>
+                                    </div>
+                                  `;
+                                      }
+                                      return `
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                                      ${this.createRoomBadge(roomId, true)}
+                                      <span style="color: #4b5563;">
+                                        ${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}
+                                      </span>
+                                    </div>
+                                  `;
+                                    })
+                                    .join('')
+                                : `
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
+                              <span style="color: #4b5563;">
+                                ${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}
+                              </span>
+                              <span style="color: #9ca3af;">•</span>
+                              ${booking.rooms.map((roomId) => this.createRoomBadge(roomId, true)).join('')}
                             </div>
+                          `
+                            }
                         </div>
-                        <div>
-                            <strong style="color: var(--gray-600); font-size: 0.9rem;">Pokoje:</strong>
-                            <div style="margin-top: 0.25rem;">${booking.rooms.map((roomId) => this.createRoomBadge(roomId, true)).join('')}</div>
-                        </div>
-                        <div>
-                            <strong style="color: var(--gray-600); font-size: 0.9rem;">Počet hostů:</strong>
-                            <div style="margin-top: 0.25rem;">
-                                Dospělí: ${booking.adults}, Děti: ${booking.children}, Batolata: ${booking.toddlers}
+                    </div>
+
+                    <div>
+                        <strong style="color: var(--gray-600); font-size: 0.9rem;">Hosté v pokojích:</strong>
+                        <div style="margin-top: 0.75rem;">
+                            ${
+                              booking.perRoomGuests && Object.keys(booking.perRoomGuests).length > 0
+                                ? booking.rooms
+                                    .map((roomId) => {
+                                      const guests = booking.perRoomGuests[roomId];
+                                      if (guests) {
+                                        const guestType = guests.guestType || booking.guestType;
+                                        return `
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+                                      ${this.createRoomBadge(roomId, true)}
+                                      <span style="color: #4b5563;">
+                                        ${guests.adults} dosp., ${guests.children} děti, ${guests.toddlers} bat.
+                                        <span style="color: #9ca3af; margin: 0 0.5rem;">•</span>
+                                        ${guestType === 'utia' ? 'ÚTIA' : 'Externí'}
+                                      </span>
+                                    </div>
+                                  `;
+                                      }
+                                      return `
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+                                      ${this.createRoomBadge(roomId, true)}
+                                      <span style="color: #9ca3af; font-size: 0.85rem;">Bez údajů</span>
+                                    </div>
+                                  `;
+                                    })
+                                    .join('')
+                                : `
+                            <div style="color: #6b7280;">
+                              Dospělí: ${booking.adults}, Děti: ${booking.children}, Batolata: ${booking.toddlers}
+                              <div style="margin-top: 0.5rem; color: #9ca3af; font-size: 0.85rem;">
+                                (Starší formát - bez rozdělení po pokojích)
+                              </div>
                             </div>
-                        </div>
-                        <div>
-                            <strong style="color: var(--gray-600); font-size: 0.9rem;">Typ hosta:</strong>
-                            <div style="margin-top: 0.25rem;">${booking.guestType === 'utia' ? 'Zaměstnanec ÚTIA' : 'Externí host'}</div>
+                          `
+                            }
+                            <!-- Show totals in gray for reference -->
+                            ${
+                              booking.perRoomGuests && Object.keys(booking.perRoomGuests).length > 0
+                                ? `
+                            <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 0.85rem;">
+                              Celkem: ${booking.adults} dosp., ${booking.children} děti, ${booking.toddlers} bat.
+                            </div>
+                          `
+                                : ''
+                            }
                         </div>
                     </div>
 
@@ -644,68 +734,28 @@ class AdminPanel {
     // Store booking for reference
     this.currentEditBooking = booking;
 
-    // Initialize edit state
-    this.editSelectedRooms = new Set(booking.rooms || []);
-    this.editStartDate = booking.startDate;
-    this.editEndDate = booking.endDate;
+    // Get settings
+    const settings = await dataManager.getSettings();
 
-    // Set dates for BaseCalendar
-    this.editSelectedDates = new Set();
-    const start = new Date(booking.startDate);
-    const end = new Date(booking.endDate);
-    const endTime = end.getTime();
-    for (let d = new Date(start); d.getTime() < endTime; d.setDate(d.getDate() + 1)) {
-      this.editSelectedDates.add(this.formatDate(new Date(d)));
-    }
+    // Initialize EditBookingComponent for admin mode
+    this.editComponent = new EditBookingComponent({
+      mode: 'admin',
+      enforceDeadline: false, // Admin can edit any time
+      validateSession: () => this.validateSession(),
+      onSubmit: (formData) => this.handleEditBookingSubmit(formData),
+      onDelete: (id) => this.handleEditBookingDelete(id),
+      settings,
+    });
 
-    // If BaseCalendar exists, update its selectedDates
-    if (this.editCalendar) {
-      this.editCalendar.selectedDates = new Set(this.editSelectedDates);
-      this.editCalendar.intervalState.firstClick = booking.startDate;
-      const lastDate = this.formatDate(new Date(end.getTime() - 24 * 60 * 60 * 1000));
-      this.editCalendar.intervalState.secondClick = lastDate;
-    }
-
-    // Set form values
-    document.getElementById('editBookingId').value = bookingId;
-    document.getElementById('editName').value = booking.name || '';
-    document.getElementById('editEmail').value = booking.email || '';
-    document.getElementById('editPhone').value = booking.phone || '';
-    document.getElementById('editCompany').value = booking.company || '';
-    document.getElementById('editAddress').value = booking.address || '';
-    document.getElementById('editCity').value = booking.city || '';
-    document.getElementById('editZip').value = booking.zip || '';
-    document.getElementById('editIco').value = booking.ico || '';
-    document.getElementById('editDic').value = booking.dic || '';
-    document.getElementById('editNotes').value = booking.notes || '';
-    document.getElementById('editPayFromBenefit').checked = booking.payFromBenefit || false;
-
-    // Set guest counts and type
-    document.getElementById('editAdults').value = booking.adults || 1;
-    document.getElementById('editChildren').value = booking.children || 0;
-    document.getElementById('editToddlers').value = booking.toddlers || 0;
-
-    // Set guest type
-    if (booking.guestType === 'utia') {
-      document.getElementById('editGuestTypeUtia').checked = true;
-    } else {
-      document.getElementById('editGuestTypeExternal').checked = true;
-    }
-
-    // Set calendar to booking's start month for better UX
-    this.currentMonth = new Date(booking.startDate);
-
-    // Initialize calendar and rooms
-    await this.initEditCalendar();
-    await this.loadEditRooms();
-    await this.updateEditPrice();
-    await this.loadExistingBookingsForEdit();
+    // Load booking data into component
+    await this.editComponent.loadBooking(booking, settings);
 
     // Set modal title and button text for edit mode
     document.getElementById('editModalTitle').textContent = 'Upravit rezervaci';
     document.getElementById('editSubmitButton').textContent = 'Uložit změny';
 
     // Show modal
+    this.editComponent.switchTab('dates');
     document.getElementById('editBookingModal').classList.add('active');
   }
 
@@ -718,127 +768,54 @@ class AdminPanel {
     }
 
     try {
-      const bookingId = document.getElementById('editBookingId').value;
+      // Use EditBookingComponent for validation and data collection
+      await this.editComponent.validateForm();
+      const formData = this.editComponent.getFormData();
 
-      // Validate all required billing fields first
-      const name = document.getElementById('editName').value.trim();
-      const email = document.getElementById('editEmail').value.trim();
-      const phone = document.getElementById('editPhone').value.trim();
-      const address = document.getElementById('editAddress').value.trim();
-      const city = document.getElementById('editCity').value.trim();
-      const zip = document.getElementById('editZip').value.trim();
-
-      if (!name || !email || !phone || !address || !city || !zip) {
-        this.showErrorMessage('Vyplňte prosím všechny povinné údaje v sekci "Fakturační údaje"');
-        // Switch to billing tab to show the missing fields
-        this.switchEditTab('billing');
-        return;
+      // Submit using component's data
+      await this.handleEditBookingSubmit(formData);
+    } catch (error) {
+      console.error('Chyba při ukládání rezervace:', error);
+      this.showErrorMessage(error.message || 'Nepodařilo se uložit rezervaci');
+      // Switch to appropriate tab based on error
+      if (error.message && error.message.includes('povinné údaje')) {
+        this.editComponent.switchTab('billing');
       }
+    }
+  }
 
-      // CRITICAL FIX 2025-10-07: Use ValidationUtils (SSOT) instead of manual regex
-      if (!ValidationUtils.validateEmail(email)) {
-        const errorMsg = ValidationUtils.getValidationError('email', email, 'cs');
-        this.showErrorMessage(errorMsg);
-        this.switchEditTab('billing');
-        return;
-      }
+  /**
+   * Submit handler called by EditBookingComponent
+   */
+  async handleEditBookingSubmit(formData) {
+    try {
+      const bookingId = formData.id;
 
-      // Validate ZIP format (5 digits)
-      if (!ValidationUtils.validateZIP(zip)) {
-        const errorMsg = ValidationUtils.getValidationError('zip', zip, 'cs');
-        this.showErrorMessage(errorMsg);
-        this.switchEditTab('billing');
-        return;
-      }
-
-      // Validate date selection exists
-      if (!this.editStartDate || !this.editEndDate) {
-        this.showErrorMessage('Vyberte prosím termín rezervace');
-        this.switchEditTab('dates');
-        return;
-      }
-
-      // Validate minimum 2 days (1 night)
-      const startDateObj = new Date(this.editStartDate);
-      const endDateObj = new Date(this.editEndDate);
-      const daysDiff = Math.ceil((endDateObj - startDateObj) / (1000 * 60 * 60 * 24));
-
-      if (daysDiff < 1) {
-        this.showErrorMessage('Minimální rezervace je na 1 noc (2 dny)');
-        return;
-      }
-
-      // Validate at least one room is selected
-      if (!this.editSelectedRooms || this.editSelectedRooms.size === 0) {
-        this.showErrorMessage('Vyberte prosím alespoň jeden pokoj');
-        return;
-      }
-
-      // Validate no blocked dates in selection
-      const dateArray = [];
-      const currentDate = new Date(this.editStartDate);
-      const endDate = new Date(this.editEndDate);
-
-      // eslint-disable-next-line no-unmodified-loop-condition
-      while (currentDate <= endDate) {
-        dateArray.push(new Date(currentDate));
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
-
-      for (const date of dateArray) {
-        for (const roomId of this.editSelectedRooms) {
-          const availability = await dataManager.getRoomAvailability(date, roomId);
-
-          if (availability.status === 'blocked') {
-            const dateStr = DateUtils.formatDate(date);
-            this.showErrorMessage(
-              `Pokoj ${roomId} je blokován dne ${dateStr}. Upravte termín nebo vyberte jiný pokoj.`
-            );
-            return;
-          }
+      // Delete all proposed bookings for this edit session before saving final booking
+      const sessionId = this.editComponent?.getSessionId();
+      if (sessionId) {
+        try {
+          await fetch(`/api/proposed-bookings/session/${sessionId}`, {
+            method: 'DELETE',
+          });
+          // Proposed bookings deleted for session
+        } catch (error) {
+          console.warn('Failed to delete proposed bookings:', error);
+          // Continue with saving - this is not critical
         }
       }
-
-      // Get selected guest type
-      const guestType =
-        document.querySelector('input[name="editGuestType"]:checked')?.value || 'external';
-
-      // Calculate price based on new selections
-      const totalPrice = await this.calculateEditPrice();
-
-      const updates = {
-        name: document.getElementById('editName').value,
-        email: document.getElementById('editEmail').value,
-        phone: document.getElementById('editPhone').value,
-        company: document.getElementById('editCompany').value,
-        startDate: this.editStartDate,
-        endDate: this.editEndDate,
-        rooms: Array.from(this.editSelectedRooms),
-        adults: parseInt(document.getElementById('editAdults').value, 10),
-        children: parseInt(document.getElementById('editChildren').value, 10),
-        toddlers: parseInt(document.getElementById('editToddlers').value, 10),
-        guestType,
-        totalPrice,
-        address: document.getElementById('editAddress').value,
-        city: document.getElementById('editCity').value,
-        zip: document.getElementById('editZip').value,
-        ico: document.getElementById('editIco').value,
-        dic: document.getElementById('editDic').value,
-        notes: document.getElementById('editNotes').value,
-        payFromBenefit: document.getElementById('editPayFromBenefit').checked,
-      };
 
       // Check if we're creating new booking or updating existing
       if (bookingId) {
         // Update existing booking
-        await dataManager.updateBooking(bookingId, updates);
+        await dataManager.updateBooking(bookingId, formData);
         this.showSuccessMessage('Rezervace byla úspěšně upravena');
       } else {
         // Create new booking - use admin-specific creation
         const newBooking = {
-          ...updates,
-          id: dataManager.generateBookingId(),
-          editToken: dataManager.generateEditToken(),
+          ...formData,
+          id: IdGenerator.generateBookingId(),
+          editToken: IdGenerator.generateEditToken(),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -859,272 +836,18 @@ class AdminPanel {
     }
   }
 
-  // Helper functions for comprehensive edit modal
-  async initEditCalendar() {
-    const container = document.getElementById('editCalendarContainer');
-    if (!container) {
-      return;
-    }
-
-    // Use BaseCalendar for admin edit (same as single room, but allows past dates and ignores blocks)
-    if (!this.editCalendar) {
-      this.editCalendar = new BaseCalendar({
-        mode: BaseCalendar.MODES.EDIT,
-        app: this,
-        containerId: 'editCalendarContainer',
-        roomId: null, // Admin can select any room
-        allowPast: true, // Admin can select past dates
-        enforceContiguous: true,
-        minNights: 1,
-        onDateSelect: async (dateStr) => {
-          await this.handleEditDateSelect(dateStr);
-        },
-      });
-    }
-
-    await this.editCalendar.render();
-  }
-
-  async handleEditDateSelect() {
-    // BaseCalendar updates this.selectedDates automatically
-    this.editSelectedDates = this.editCalendar.selectedDates;
-
-    // Calculate start and end dates
-    if (this.editSelectedDates.size > 0) {
-      const dates = Array.from(this.editSelectedDates).sort();
-      this.editStartDate = dates[0];
-      // INCLUSIVE DATE MODEL: endDate is the last selected date (last night of stay)
-      // NOT checkout day! Follows pattern from bulk-booking.js
-      this.editEndDate = dates[dates.length - 1];
-
-      document.getElementById('editSelectedDates').textContent =
-        `${new Date(this.editStartDate).toLocaleDateString('cs-CZ')} - ${new Date(this.editEndDate).toLocaleDateString('cs-CZ')}`;
-    }
-
-    await this.updateEditPrice();
-    await this.loadExistingBookingsForEdit();
-  }
-
-  async loadEditRooms() {
-    const container = document.getElementById('editRoomsList');
-    const rooms = await dataManager.getRooms();
-
-    let html = '';
-    for (const room of rooms) {
-      const isSelected = this.editSelectedRooms.has(room.id);
-      html += `
-        <label style="display: flex; align-items: center; padding: 0.5rem; background: ${isSelected ? '#10b981' : '#f3f4f6'}; color: ${isSelected ? '#ffffff' : '#000000'}; border-radius: 4px; cursor: pointer;">
-          <input
-            type="checkbox"
-            value="${room.id}"
-            ${isSelected ? 'checked' : ''}
-            onchange="adminPanel.toggleEditRoom('${room.id}')"
-            style="margin-right: 0.5rem;"
-          >
-          Pokoj ${room.id} (${room.beds} lůžek)
-        </label>
-      `;
-    }
-
-    container.innerHTML = html;
-  }
-
-  async toggleEditRoom(roomId) {
-    if (this.editSelectedRooms.has(roomId)) {
-      this.editSelectedRooms.delete(roomId);
-    } else {
-      this.editSelectedRooms.add(roomId);
-    }
-    await this.loadEditRooms();
-    await this.updateEditPrice();
-    await this.loadExistingBookingsForEdit();
-  }
-
-  async updateEditPrice() {
-    const guestType =
-      document.querySelector('input[name="editGuestType"]:checked')?.value || 'external';
-    const adults = parseInt(document.getElementById('editAdults').value, 10) || 0;
-    const children = parseInt(document.getElementById('editChildren').value, 10) || 0;
-
-    if (this.editSelectedDates.size === 0 || this.editSelectedRooms.size === 0) {
-      document.getElementById('editTotalPrice').textContent = '0 Kč';
-      return 0;
-    }
-
-    // Calculate nights: number of selected days = number of nights
-    // E.g., selecting day 5 = 1 night, selecting days 5 and 6 = 2 nights
-    const nights = this.editSelectedDates.size;
-    const roomCount = this.editSelectedRooms.size;
-
+  /**
+   * Delete handler called by EditBookingComponent
+   */
+  async handleEditBookingDelete(bookingId) {
     try {
-      // P1 FIX: Use actual price settings instead of hardcoded values
-      const settings = await dataManager.getSettings();
-      const prices = settings.prices || {
-        utia: { base: 298, adult: 49, child: 24 },
-        external: { base: 499, adult: 99, child: 49 },
-      };
-
-      const priceConfig = prices[guestType] || prices.utia;
-      const basePrice = priceConfig.base;
-      const adultPrice = priceConfig.adult;
-      const childPrice = priceConfig.child;
-
-      const totalPrice =
-        nights * roomCount * basePrice +
-        nights * (adults - roomCount) * adultPrice +
-        nights * children * childPrice;
-
-      document.getElementById('editTotalPrice').textContent =
-        `${totalPrice.toLocaleString('cs-CZ')} Kč`;
-      return totalPrice;
+      await dataManager.deleteBooking(bookingId);
+      this.showSuccessMessage('Rezervace byla smazána');
+      document.getElementById('editBookingModal').classList.remove('active');
+      await this.loadBookings();
     } catch (error) {
-      console.error('Failed to load price settings:', error);
-      // Fallback to default prices if settings load fails
-      const defaultPrices = {
-        utia: { base: 298, adult: 49, child: 24 },
-        external: { base: 499, adult: 99, child: 49 },
-      };
-      const priceConfig = defaultPrices[guestType] || defaultPrices.utia;
-      const totalPrice =
-        nights * roomCount * priceConfig.base +
-        nights * (adults - roomCount) * priceConfig.adult +
-        nights * children * priceConfig.child;
-
-      document.getElementById('editTotalPrice').textContent =
-        `${totalPrice.toLocaleString('cs-CZ')} Kč`;
-      this.showWarningMessage('Použity výchozí ceny - nastavení se nepodařilo načíst');
-      return totalPrice;
-    }
-  }
-
-  calculateEditPrice() {
-    return this.updateEditPrice();
-  }
-
-  async loadExistingBookingsForEdit() {
-    const container = document.getElementById('editExistingBookings');
-
-    if (!this.editStartDate || !this.editEndDate) {
-      container.innerHTML =
-        '<p style="color: #6b7280;">Vyberte datum pro zobrazení existujících rezervací</p>';
-      return;
-    }
-
-    const bookings = await dataManager.getAllBookings();
-    const relevantBookings = bookings.filter((b) => {
-      if (b.id === this.currentEditBooking?.id) {
-        return false;
-      } // Skip current booking
-
-      const bStart = new Date(b.startDate);
-      const bEnd = new Date(b.endDate);
-      const eStart = new Date(this.editStartDate);
-      const eEnd = new Date(this.editEndDate);
-
-      // Check for date overlap
-      const hasDateOverlap = bStart < eEnd && bEnd > eStart;
-
-      // Check for room overlap
-      const hasRoomOverlap = b.rooms.some((r) => this.editSelectedRooms.has(r));
-
-      return hasDateOverlap && hasRoomOverlap;
-    });
-
-    // CRITICAL FIX 2025-10-07: Check for blocked dates in selected range and rooms
-    const blockedDays = [];
-    const dateArray = [];
-    const currentDate = new Date(this.editStartDate);
-    const endDate = new Date(this.editEndDate);
-
-    // eslint-disable-next-line no-unmodified-loop-condition
-    while (currentDate <= endDate) {
-      dateArray.push(new Date(currentDate));
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-
-    // Check each date and room combination for blockages
-    for (const date of dateArray) {
-      for (const roomId of this.editSelectedRooms) {
-        const availability = await dataManager.getRoomAvailability(date, roomId);
-        if (availability.status === 'blocked') {
-          const dateStr = DateUtils.formatDate(date);
-          blockedDays.push({ date: dateStr, roomId });
-        }
-      }
-    }
-
-    // Build HTML with both bookings and blocked dates
-    let html = '';
-
-    if (relevantBookings.length === 0 && blockedDays.length === 0) {
-      html =
-        '<p style="color: #10b981;">✓ Žádné konflikty s existujícími rezervacemi nebo blokacemi</p>';
-    } else {
-      html = '<div style="display: flex; flex-direction: column; gap: 0.5rem;">';
-
-      // Show conflicting bookings
-      if (relevantBookings.length > 0) {
-        html += '<h4 style="margin: 0 0 0.5rem 0; color: #dc2626;">⚠️ Konfliktní rezervace:</h4>';
-        for (const booking of relevantBookings) {
-          html += `
-            <div style="padding: 0.75rem; background: #fee2e2; border-left: 4px solid #ef4444; border-radius: 4px;">
-              <strong>${this.escapeHtml(booking.name)}</strong> - Pokoje: ${booking.rooms.join(', ')}<br>
-              ${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}
-            </div>
-          `;
-        }
-      }
-
-      // Show blocked dates
-      if (blockedDays.length > 0) {
-        html += '<h4 style="margin: 1rem 0 0.5rem 0; color: #9ca3af;">🚫 Blokované dny:</h4>';
-        // Group by date for better readability
-        const blockedByDate = {};
-        for (const blocked of blockedDays) {
-          if (!blockedByDate[blocked.date]) {
-            blockedByDate[blocked.date] = [];
-          }
-          blockedByDate[blocked.date].push(blocked.roomId);
-        }
-
-        for (const [date, rooms] of Object.entries(blockedByDate)) {
-          const dateObj = new Date(date);
-          html += `
-            <div style="padding: 0.75rem; background: #f3f4f6; border-left: 4px solid #9ca3af; border-radius: 4px;">
-              <strong>${dateObj.toLocaleDateString('cs-CZ')}</strong> - Pokoje: ${rooms.join(', ')}
-            </div>
-          `;
-        }
-      }
-
-      html += '</div>';
-    }
-
-    container.innerHTML = html;
-  }
-
-  switchEditTab(tab) {
-    // Update tab buttons
-    document.querySelectorAll('.edit-tab-btn').forEach((button) => {
-      const btn = button;
-      if (btn.dataset.tab === tab) {
-        btn.classList.add('active');
-        btn.style.borderBottom = '3px solid #0d9488';
-        btn.style.color = '#0d9488';
-      } else {
-        btn.classList.remove('active');
-        btn.style.borderBottom = '3px solid transparent';
-        btn.style.color = '#6b7280';
-      }
-    });
-
-    // Show/hide tab content
-    if (tab === 'dates') {
-      document.getElementById('editDatesTab').style.display = 'block';
-      document.getElementById('editBillingTab').style.display = 'none';
-    } else {
-      document.getElementById('editDatesTab').style.display = 'none';
-      document.getElementById('editBillingTab').style.display = 'block';
+      console.error('Chyba při mazání rezervace:', error);
+      this.showToast(`Chyba: ${error.message}`, 'error');
     }
   }
 
@@ -1136,56 +859,54 @@ class AdminPanel {
     // Set modal to create mode
     this.currentEditBooking = null;
 
-    // Initialize edit state (empty for new booking)
-    this.editSelectedDates = new Set();
-    this.editSelectedRooms = new Set();
-    this.editStartDate = null;
-    this.editEndDate = null;
+    // Get settings
+    const settings = await dataManager.getSettings();
 
-    // Reset calendar to current month for new bookings
-    this.currentMonth = new Date();
+    // Create empty booking object for new booking
+    const emptyBooking = {
+      id: null,
+      name: '',
+      email: '',
+      phone: '',
+      company: '',
+      address: '',
+      city: '',
+      zip: '',
+      ico: '',
+      dic: '',
+      notes: '',
+      payFromBenefit: false,
+      startDate: DateUtils.formatDate(new Date()),
+      endDate: DateUtils.formatDate(new Date()),
+      rooms: [],
+      guestType: 'external',
+      adults: 1,
+      children: 0,
+      toddlers: 0,
+      totalPrice: 0,
+      perRoomDates: {},
+      perRoomGuests: {},
+    };
 
-    // Clear BaseCalendar if exists
-    if (this.editCalendar) {
-      this.editCalendar.selectedDates.clear();
-      this.editCalendar.intervalState.firstClick = null;
-      this.editCalendar.intervalState.secondClick = null;
-      this.editCalendar.intervalState.hoverDate = null;
-    }
+    // Initialize EditBookingComponent for admin mode (create)
+    this.editComponent = new EditBookingComponent({
+      mode: 'admin',
+      enforceDeadline: false, // Admin can create any time
+      validateSession: () => this.validateSession(),
+      onSubmit: (formData) => this.handleEditBookingSubmit(formData),
+      onDelete: null, // No delete button for new bookings
+      settings,
+    });
 
-    // Clear form values
-    document.getElementById('editBookingId').value = '';
-    document.getElementById('editName').value = '';
-    document.getElementById('editEmail').value = '';
-    document.getElementById('editPhone').value = '';
-    document.getElementById('editCompany').value = '';
-    document.getElementById('editAddress').value = '';
-    document.getElementById('editCity').value = '';
-    document.getElementById('editZip').value = '';
-    document.getElementById('editIco').value = '';
-    document.getElementById('editDic').value = '';
-    document.getElementById('editNotes').value = '';
-    document.getElementById('editPayFromBenefit').checked = false;
+    // Load empty booking data into component
+    await this.editComponent.loadBooking(emptyBooking, settings);
 
-    // Set default guest counts and type
-    document.getElementById('editAdults').value = 1;
-    document.getElementById('editChildren').value = 0;
-    document.getElementById('editToddlers').value = 0;
-    document.getElementById('editGuestTypeUtia').checked = true;
-
-    // Change modal title and button text
+    // Set modal title and button text for create mode
     document.getElementById('editModalTitle').textContent = 'Přidat rezervaci';
     document.getElementById('editSubmitButton').textContent = 'Vytvořit rezervaci';
 
-    // Initialize calendar and rooms
-    await this.initEditCalendar();
-    await this.loadEditRooms();
-    await this.updateEditPrice();
-    document.getElementById('editExistingBookings').innerHTML =
-      '<p>Zatím nebyly vybrány žádné termíny</p>';
-
-    // Show modal (ensure we're on dates tab)
-    this.switchEditTab('dates');
+    // Show modal
+    this.editComponent.switchTab('dates');
     document.getElementById('editBookingModal').classList.add('active');
   }
 
@@ -1344,8 +1065,8 @@ class AdminPanel {
     // Create ONE blockage instance with date range and rooms
     try {
       await dataManager.createBlockageInstance(
-        new Date(startDate),
-        new Date(endDate),
+        startDate,
+        endDate,
         selectedRooms, // Empty array = all rooms
         reason
       );
@@ -2072,6 +1793,30 @@ class AdminPanel {
       emailSettings.subject || 'Potvrzení rezervace - Chata Mariánská';
     document.getElementById('emailTemplate').value =
       emailSettings.template || document.getElementById('emailTemplate').value;
+
+    // Initialize character counter
+    this.updateEmailTemplateCharCount();
+
+    // Add input listener for real-time character count
+    const templateTextarea = document.getElementById('emailTemplate');
+    templateTextarea.addEventListener('input', () => this.updateEmailTemplateCharCount());
+  }
+
+  updateEmailTemplateCharCount() {
+    const templateTextarea = document.getElementById('emailTemplate');
+    const charCount = templateTextarea.value.length;
+    const maxChars = 600;
+
+    document.getElementById('emailTemplateCharCount').textContent = charCount;
+
+    const warning = document.getElementById('emailTemplateWarning');
+    if (charCount > maxChars) {
+      warning.style.display = 'inline';
+      templateTextarea.style.borderColor = 'var(--error-color)';
+    } else {
+      warning.style.display = 'none';
+      templateTextarea.style.borderColor = '';
+    }
   }
 
   async handleEmailTemplate(e) {
@@ -2083,14 +1828,28 @@ class AdminPanel {
     }
 
     try {
+      const template = document.getElementById('emailTemplate').value;
+      const maxChars = 600;
+
+      // Validate 600 character limit
+      if (template.length > maxChars) {
+        this.showToast(
+          `Text emailu nesmí přesáhnout ${maxChars} znaků (aktuálně: ${template.length})`,
+          'error'
+        );
+        return;
+      }
+
       const settings = await dataManager.getSettings();
       settings.emailTemplate = {
         subject: document.getElementById('emailSubject').value,
-        template: document.getElementById('emailTemplate').value,
+        template,
       };
 
       await dataManager.updateSettings(settings);
-      this.showSuccessMessage('Šablona emailu byla uložena');
+      this.showSuccessMessage(
+        'Šablona emailu byla uložena. Editační odkaz {edit_url} se automaticky přidá na konec emailu.'
+      );
     } catch (error) {
       console.error('Chyba při ukládání email šablony:', error);
       this.showToast(`Chyba: ${error.message}`, 'error');

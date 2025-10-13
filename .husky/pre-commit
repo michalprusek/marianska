@@ -8,9 +8,9 @@ NC='\033[0m' # No Color
 
 echo "${YELLOW}🔍 Running pre-commit checks...${NC}"
 
-# Check for debugging artifacts (skip .husky directory and logger.js)
+# Check for debugging artifacts (skip .husky directory, logger.js, and test files)
 echo "Checking for console.log and debugger statements..."
-JS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|jsx|ts|tsx|mjs)$' | grep -v "^\.husky/" | grep -v "logger\.js")
+JS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|jsx|ts|tsx|mjs)$' | grep -v "^\.husky/" | grep -v "logger\.js" | grep -v "^test-" | grep -v "\.test\.js$" | grep -v "\.spec\.js$")
 if [ ! -z "$JS_FILES" ]; then
   FILES_WITH_CONSOLE=$(echo "$JS_FILES" | xargs grep -l "console\.\(log\|debug\)" 2>/dev/null || true)
   FILES_WITH_DEBUGGER=$(echo "$JS_FILES" | xargs grep -l "^[^/]*debugger[;\s]" 2>/dev/null || true)

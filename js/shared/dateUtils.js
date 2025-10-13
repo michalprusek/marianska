@@ -46,6 +46,7 @@ class DateUtils {
 
   /**
    * Convert array of date strings to date ranges
+   * CRITICAL: Uses timezone-safe parsing to avoid DST issues
    * @param {string[]} dates - Array of date strings in YYYY-MM-DD format
    * @returns {Array<{start: string, end: string}>} Array of date ranges
    */
@@ -58,8 +59,9 @@ class DateUtils {
     let currentRange = { start: dates[0], end: dates[0] };
 
     for (let i = 1; i < dates.length; i++) {
-      const currentDate = new Date(dates[i]);
-      const prevDate = new Date(dates[i - 1]);
+      // Use parseDate() for timezone-safe parsing
+      const currentDate = this.parseDate(dates[i]);
+      const prevDate = this.parseDate(dates[i - 1]);
       const dayDiff = (currentDate - prevDate) / (1000 * 60 * 60 * 24);
 
       if (dayDiff === 1) {
@@ -75,45 +77,64 @@ class DateUtils {
   }
 
   /**
-   * Parse date string to Date object
+   * Parse date string to Date object in LOCAL timezone
+   * CRITICAL: Avoids DST/timezone issues by parsing as local noon
    * @param {string} dateStr - Date string in YYYY-MM-DD format
-   * @returns {Date} Date object
+   * @returns {Date} Date object at noon local time (DST-safe)
    */
   static parseDate(dateStr) {
+    // Parse as local noon (12:00:00) to avoid DST midnight issues
+    // Example: "2025-10-31" → "2025-10-31T12:00:00" (local time)
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      // Create date at noon local time (avoids DST edge cases)
+      return new Date(
+        parseInt(parts[0], 10),
+        parseInt(parts[1], 10) - 1,
+        parseInt(parts[2], 10),
+        12,
+        0,
+        0
+      );
+    }
+    // Fallback for invalid format
     return new Date(dateStr);
   }
 
   /**
    * Get number of days between two dates
+   * CRITICAL: Uses timezone-safe parsing to avoid DST issues
    * @param {Date|string} startDate - Start date
    * @param {Date|string} endDate - End date
    * @returns {number} Number of days
    */
   static getDaysBetween(startDate, endDate) {
-    const start = typeof startDate === 'string' ? new Date(startDate) : startDate;
-    const end = typeof endDate === 'string' ? new Date(endDate) : endDate;
+    const start = typeof startDate === 'string' ? this.parseDate(startDate) : startDate;
+    const end = typeof endDate === 'string' ? this.parseDate(endDate) : endDate;
     return Math.floor((end - start) / (1000 * 60 * 60 * 24));
   }
 
   /**
    * Add days to a date
+   * CRITICAL: Uses timezone-safe parsing to avoid DST issues
    * @param {Date|string} date - Base date
    * @param {number} days - Number of days to add
    * @returns {Date} New date
    */
   static addDays(date, days) {
-    const d = typeof date === 'string' ? new Date(date) : new Date(date);
+    const d = typeof date === 'string' ? this.parseDate(date) : new Date(date);
     d.setDate(d.getDate() + days);
     return d;
   }
 
   /**
    * Check if date is in the past
+   * CRITICAL: Uses timezone-safe parsing to avoid DST issues
    * @param {Date|string} date - Date to check
    * @returns {boolean} True if date is in the past
    */
   static isPast(date) {
-    const d = typeof date === 'string' ? new Date(date) : date;
+    const d = typeof date === 'string' ? this.parseDate(date) : date;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return d < today;

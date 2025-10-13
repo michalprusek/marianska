@@ -211,8 +211,20 @@ class BookingLogic {
           continue;
         }
 
-        // Check for date overlap using unified logic
-        if (this.checkDateOverlap(startDate, endDate, booking.startDate, booking.endDate)) {
+        // CRITICAL FIX 2025-10-13: Use per-room dates instead of global dates
+        // This fixes the bug where multi-room bookings with different per-room dates
+        // were incorrectly showing all rooms blocked for the entire date range
+        let bookingStart = booking.startDate;
+        let bookingEnd = booking.endDate;
+
+        // Check if this booking has per-room dates for this specific room
+        if (booking.perRoomDates && booking.perRoomDates[roomId]) {
+          bookingStart = booking.perRoomDates[roomId].startDate;
+          bookingEnd = booking.perRoomDates[roomId].endDate;
+        }
+
+        // Check for date overlap using unified logic with per-room dates
+        if (this.checkDateOverlap(startDate, endDate, bookingStart, bookingEnd)) {
           return {
             hasConflict: true,
             conflictingBooking: booking,

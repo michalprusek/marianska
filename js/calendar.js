@@ -360,17 +360,38 @@ class CalendarModule {
     // Animate newly booked rooms
     this.app.recentlyBookedRooms = [];
 
-    const checkIn = new Date(booking.startDate);
-    const checkOut = new Date(booking.endDate);
-    const current = new Date(checkIn);
-
-    // Highlight all days from start to end date (inclusive)
-    while (current.getTime() <= checkOut.getTime()) {
-      const dateStr = dataManager.formatDate(current);
+    // Use per-room dates if available, otherwise fall back to global dates
+    if (booking.perRoomDates && Object.keys(booking.perRoomDates).length > 0) {
+      // Highlight each room based on its specific date range
       booking.rooms.forEach((roomId) => {
-        this.app.recentlyBookedRooms.push({ date: dateStr, roomId });
+        const roomDates = booking.perRoomDates[roomId];
+        if (roomDates) {
+          const checkIn = new Date(roomDates.startDate);
+          const checkOut = new Date(roomDates.endDate);
+          const current = new Date(checkIn);
+
+          // Highlight all days from start to end date (inclusive) for this room
+          while (current.getTime() <= checkOut.getTime()) {
+            const dateStr = dataManager.formatDate(current);
+            this.app.recentlyBookedRooms.push({ date: dateStr, roomId });
+            current.setDate(current.getDate() + 1);
+          }
+        }
       });
-      current.setDate(current.getDate() + 1);
+    } else {
+      // Fallback: use global dates for all rooms (legacy bookings)
+      const checkIn = new Date(booking.startDate);
+      const checkOut = new Date(booking.endDate);
+      const current = new Date(checkIn);
+
+      // Highlight all days from start to end date (inclusive)
+      while (current.getTime() <= checkOut.getTime()) {
+        const dateStr = dataManager.formatDate(current);
+        booking.rooms.forEach((roomId) => {
+          this.app.recentlyBookedRooms.push({ date: dateStr, roomId });
+        });
+        current.setDate(current.getDate() + 1);
+      }
     }
 
     // Re-render calendar to show new booking with animation

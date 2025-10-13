@@ -257,7 +257,7 @@ interface Settings {
 interface PriceConfig {
   base: number; // Base price per night
   adult: number; // Additional adult price
-  child: number; // Child price (3-15 years)
+  child: number; // Child price (3-18 years)
 }
 ```
 

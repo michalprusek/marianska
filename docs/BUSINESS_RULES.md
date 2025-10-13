@@ -51,13 +51,13 @@ Total: 26 beds
 Small Room (2 beds):
   Base price: 300 Kč
   + 50 Kč per additional adult
-  + 25 Kč per child (3-15 years)
+  + 25 Kč per child (3-18 years)
   + 0 Kč per toddler (0-3 years)
 
 Large Room (3-4 beds):
   Base price: 400 Kč
   + 50 Kč per additional adult
-  + 25 Kč per child (3-15 years)
+  + 25 Kč per child (3-18 years)
   + 0 Kč per toddler (0-3 years)
 ```
 
@@ -67,13 +67,13 @@ Large Room (3-4 beds):
 Small Room (2 beds):
   Base price: 500 Kč
   + 100 Kč per additional adult
-  + 50 Kč per child (3-15 years)
+  + 50 Kč per child (3-18 years)
   + 0 Kč per toddler (0-3 years)
 
 Large Room (3-4 beds):
   Base price: 600 Kč
   + 100 Kč per additional adult
-  + 50 Kč per child (3-15 years)
+  + 50 Kč per child (3-18 years)
   + 0 Kč per toddler (0-3 years)
 ```
 

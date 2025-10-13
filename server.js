@@ -18,6 +18,7 @@ const DateUtils = require('./js/shared/dateUtils');
 const IdGenerator = require('./js/shared/idGenerator');
 const PriceCalculator = require('./js/shared/priceCalculator');
 const ChristmasUtils = require('./js/shared/christmasUtils');
+const EmailService = require('./js/shared/emailService');
 const { createLogger } = require('./js/shared/logger');
 const { createAccessLogger } = require('./js/shared/accessLogger');
 const {
@@ -37,6 +38,29 @@ const logger = createLogger(
 
 // Initialize access logger for security audit trail
 const accessLogger = createAccessLogger(path.join(__dirname, 'logs'));
+
+// Initialize email service
+const emailService = new EmailService({
+  host: process.env.SMTP_HOST,
+  port: process.env.SMTP_PORT,
+  secure: process.env.SMTP_SECURE === 'true',
+  from: process.env.EMAIL_FROM,
+  appUrl: process.env.APP_URL,
+});
+
+// Verify email connection on startup (non-blocking)
+emailService
+  .verifyConnection()
+  .then((verified) => {
+    if (verified) {
+      logger.info('Email service ready');
+    } else {
+      logger.warn('Email service verification failed - emails may not be sent');
+    }
+  })
+  .catch((error) => {
+    logger.error('Email service initialization error:', error);
+  });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -656,6 +680,33 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
     // Execute transaction atomically
     const booking = transaction();
 
+    // Send booking confirmation email (non-blocking)
+    // Don't wait for email - respond to user immediately
+    emailService
+      .sendBookingConfirmation(booking, { settings })
+      .then((result) => {
+        if (result.success) {
+          logger.info('Booking confirmation email sent', {
+            bookingId: booking.id,
+            email: booking.email,
+            messageId: result.messageId,
+          });
+        } else {
+          logger.error('Failed to send booking confirmation email', {
+            bookingId: booking.id,
+            email: booking.email,
+            error: result.error,
+          });
+        }
+      })
+      .catch((error) => {
+        logger.error('Error sending booking confirmation email', {
+          bookingId: booking.id,
+          email: booking.email,
+          error: error.message,
+        });
+      });
+
     return res.json({
       success: true,
       booking,
@@ -681,6 +732,30 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
   }
 });
 
+// Get booking by edit token - for user edit page
+app.get('/api/booking-by-token', readLimiter, (req, res) => {
+  try {
+    const { token } = req.query;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Token je povinný' });
+    }
+
+    // Find booking by edit token
+    const booking = db.getBookingByEditToken(token);
+
+    if (!booking) {
+      return res.status(404).json({ error: 'Rezervace nenalezena' });
+    }
+
+    // Return booking data (edit token is validated by existence)
+    return res.json(booking);
+  } catch (error) {
+    logger.error('Error fetching booking by token:', error);
+    return res.status(500).json({ error: 'Nepodařilo se načíst rezervaci' });
+  }
+});
+
 // Update booking - requires edit token or API key
 app.put('/api/booking/:id', writeLimiter, (req, res) => {
   try {
@@ -703,6 +778,26 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
       // Check if user is admin
       if (!isAdmin) {
         return res.status(403).json({ error: 'Neplatný editační token' });
+      }
+    }
+
+    // Check 3-day edit deadline for non-admin users
+    if (!isAdmin) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const bookingStart = new Date(existingBooking.startDate);
+      bookingStart.setHours(0, 0, 0, 0);
+
+      const daysUntilStart = Math.floor((bookingStart - today) / (1000 * 60 * 60 * 24));
+
+      if (daysUntilStart < 3) {
+        return res.status(403).json({
+          error:
+            'Úpravy rezervace jsou možné pouze 3 dny před začátkem pobytu. Pro změny kontaktujte administrátora.',
+          daysUntilStart,
+          editDeadlinePassed: true,
+        });
       }
     }
 
@@ -858,6 +953,31 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
     db.updateBooking(bookingId, bookingData);
     const updatedBooking = db.getBooking(bookingId);
 
+    // Send updated booking confirmation email (non-blocking)
+    // Don't wait for email - respond to user immediately
+    emailService
+      .sendBookingConfirmation(updatedBooking, { settings })
+      .then((result) => {
+        if (result.success) {
+          logger.info('Updated booking confirmation email sent', {
+            bookingId: updatedBooking.id,
+            email: updatedBooking.email,
+          });
+        } else {
+          logger.warn('Failed to send updated booking confirmation email', {
+            bookingId: updatedBooking.id,
+            email: updatedBooking.email,
+            error: result.error,
+          });
+        }
+      })
+      .catch((err) => {
+        logger.error('Error sending updated booking confirmation email:', {
+          bookingId: updatedBooking.id,
+          error: err.message,
+        });
+      });
+
     return res.json({
       success: true,
       booking: updatedBooking,
@@ -891,6 +1011,26 @@ app.delete('/api/booking/:id', writeLimiter, (req, res) => {
       const apiKey = req.headers['x-api-key'];
       if (!apiKey || apiKey !== process.env.API_KEY) {
         return res.status(403).json({ error: 'Neplatný editační token' });
+      }
+    }
+
+    // Check 3-day delete deadline for non-admin users
+    if (!isAdmin) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const bookingStart = new Date(existingBooking.startDate);
+      bookingStart.setHours(0, 0, 0, 0);
+
+      const daysUntilStart = Math.floor((bookingStart - today) / (1000 * 60 * 60 * 24));
+
+      if (daysUntilStart < 3) {
+        return res.status(403).json({
+          error:
+            'Zrušení rezervace je možné pouze 3 dny před začátkem pobytu. Pro zrušení kontaktujte administrátora.',
+          daysUntilStart,
+          editDeadlinePassed: true,
+        });
       }
     }
 
@@ -1071,6 +1211,42 @@ app.post('/api/admin/settings', requireSession, async (req, res) => {
   } catch (error) {
     logger.error('updating settings:', error);
     return res.status(500).json({ error: 'Chyba při ukládání nastavení' });
+  }
+});
+
+// Test email endpoint (admin only)
+app.post('/api/admin/test-email', requireSession, async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email je povinný' });
+    }
+
+    // Validate email format
+    if (!ValidationUtils.validateEmail(email)) {
+      return res.status(400).json({ error: 'Neplatný formát emailu' });
+    }
+
+    logger.info('Sending test email', { to: email });
+
+    const result = await emailService.sendTestEmail(email);
+
+    if (result.success) {
+      return res.json({
+        success: true,
+        message: 'Testovací email byl odeslán',
+        messageId: result.messageId,
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      error: 'Nepodařilo se odeslat testovací email',
+      details: result.error,
+    });
+  } catch (error) {
+    logger.error('Test email error:', error);
+    return res.status(500).json({ error: 'Chyba při odesílání testovacího emailu' });
   }
 });
 

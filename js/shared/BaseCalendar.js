@@ -61,6 +61,8 @@ class BaseCalendar {
       enforceContiguous: config.enforceContiguous || false,
       minNights: config.minNights || 1,
       maxNights: config.maxNights || null,
+      originalBookingDates: config.originalBookingDates || null,
+      currentEditingBookingId: config.currentEditingBookingId || null,
     };
 
     // Internal state
@@ -222,8 +224,13 @@ class BaseCalendar {
       return {
         day,
         cellPromises: rooms.map(async (room) => {
-          // Pass '' to show ALL proposed bookings in calendar
-          const availability = await dataManager.getRoomAvailability(date, room.id, '');
+          // Pass '' to show ALL proposed bookings, pass currentEditingBookingId to exclude from conflicts
+          const availability = await dataManager.getRoomAvailability(
+            date,
+            room.id,
+            '',
+            this.config.currentEditingBookingId
+          );
           return this.createDayCell(day, room.id, availability);
         }),
       };
@@ -255,8 +262,13 @@ class BaseCalendar {
   async buildSingleRoomMode(calendarData) {
     const dayCellPromises = calendarData.days.map(async (day) => {
       const date = new Date(day.dateStr);
-      // Pass '' to show ALL proposed bookings in calendar
-      const availability = await dataManager.getRoomAvailability(date, this.config.roomId, '');
+      // Pass '' to show ALL proposed bookings, pass currentEditingBookingId to exclude from conflicts
+      const availability = await dataManager.getRoomAvailability(
+        date,
+        this.config.roomId,
+        '',
+        this.config.currentEditingBookingId
+      );
       return this.createDayCell(day, this.config.roomId, availability);
     });
 
@@ -383,12 +395,37 @@ class BaseCalendar {
       }
     }
 
+    // Original booking dates indicator (for EDIT mode)
+    if (
+      this.config.originalBookingDates &&
+      dateStr >= this.config.originalBookingDates.startDate &&
+      dateStr <= this.config.originalBookingDates.endDate
+    ) {
+      classes.push('original-booking-date');
+      // Add distinctive border/outline to show original booking dates
+      // Use dashed blue border so it's visible on any background
+      styles.push(
+        'box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5) inset; outline: 2px dashed #3b82f6;'
+      );
+    }
+
     // Selection state - override background
     if (this.selectedDates.has(dateStr)) {
       classes.push('selected');
-      styles.push(
-        'background: #2563eb !important; color: white !important; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.3);'
-      );
+
+      // Check if this is the anchor point (first clicked date) AND interval is not yet complete
+      // After second click, all selected dates should have the same blue color
+      if (this.intervalState.firstClick === dateStr && !this.intervalState.secondClick) {
+        // Dark blue for anchor point (only while selecting)
+        styles.push(
+          'background: #1e40af !important; color: white !important; box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.5);'
+        );
+      } else {
+        // Regular blue for other selected dates (and anchor point after completion)
+        styles.push(
+          'background: #2563eb !important; color: white !important; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.3);'
+        );
+      }
     }
 
     const classStr = classes.join(' ');
@@ -424,8 +461,8 @@ class BaseCalendar {
     const rooms = data.settings?.rooms || [];
 
     const availabilityPromises = rooms.map((room) =>
-      // Pass '' to show ALL proposed bookings (including others)
-      dataManager.getRoomAvailability(date, room.id, '')
+      // Pass '' to show ALL proposed bookings, pass currentEditingBookingId to exclude from conflicts
+      dataManager.getRoomAvailability(date, room.id, '', this.config.currentEditingBookingId)
     );
     const availabilities = await Promise.all(availabilityPromises);
 
@@ -687,11 +724,13 @@ class BaseCalendar {
 
   /**
    * Get array of date strings between two dates (inclusive)
+   * CRITICAL: Uses timezone-safe parsing to avoid DST issues
    */
   getDateRangeBetween(startDateStr, endDateStr) {
     const dates = [];
-    const start = new Date(startDateStr);
-    const end = new Date(endDateStr);
+    // Use DateUtils.parseDate() for timezone-safe parsing (local noon)
+    const start = DateUtils.parseDate(startDateStr);
+    const end = DateUtils.parseDate(endDateStr);
 
     // Ensure start <= end
     const [firstDate, lastDate] = start <= end ? [start, end] : [end, start];
@@ -724,10 +763,16 @@ class BaseCalendar {
     // Only update cells in range (not ALL cells)
     previewRange.forEach((dateStr) => {
       const cell = this.cellElements.get(dateStr);
-      if (cell && !this.selectedDates.has(dateStr)) {
+      if (cell) {
+        // Skip if already selected (anchor point stays dark blue)
+        if (this.selectedDates.has(dateStr)) {
+          return;
+        }
+
         cell.classList.add('preview-interval');
         cell.style.background = 'rgba(37, 99, 235, 0.3)';
-        cell.style.border = '2px dashed #2563eb';
+        // Use box-shadow instead of border to prevent layout shift
+        cell.style.boxShadow = 'inset 0 0 0 2px #2563eb';
       }
     });
 
@@ -737,6 +782,7 @@ class BaseCalendar {
   /**
    * Clear preview styling
    * PERFORMANCE FIX: Only clear cells that were previewed
+   * BUG FIX: Skip cells that are actually selected (especially the anchor point)
    */
   clearPreview() {
     if (!this.currentPreviewRange) {
@@ -745,6 +791,11 @@ class BaseCalendar {
 
     // Only clear cells that were previewed
     this.currentPreviewRange.forEach((dateStr) => {
+      // CRITICAL FIX: Skip cells that are actually selected (not just preview)
+      if (this.selectedDates.has(dateStr)) {
+        return; // Keep the selection styling
+      }
+
       const cell = this.cellElements.get(dateStr);
       if (cell) {
         cell.classList.remove('preview-interval');
@@ -752,7 +803,7 @@ class BaseCalendar {
         if (originalBg) {
           cell.style.cssText = cell.style.cssText.replace(/background:[^;]*;?/u, originalBg);
         }
-        cell.style.border = '';
+        cell.style.boxShadow = '';
       }
     });
 
@@ -764,6 +815,12 @@ class BaseCalendar {
    */
   navigateMonth(direction) {
     const { app } = this.config;
+
+    // Initialize currentMonth if it doesn't exist
+    if (!app.currentMonth) {
+      app.currentMonth = new Date();
+    }
+
     const newMonth = new Date(app.currentMonth);
     newMonth.setMonth(newMonth.getMonth() + direction);
 
@@ -830,8 +887,13 @@ class BaseCalendar {
         // For single room or edit mode, check specific room availability
         const { roomId } = this.config;
         if (roomId) {
-          // Pass '' to show ALL proposed bookings (including others)
-          const availability = await dataManager.getRoomAvailability(date, roomId, '');
+          // Pass '' to show ALL proposed bookings, pass currentEditingBookingId to exclude from conflicts
+          const availability = await dataManager.getRoomAvailability(
+            date,
+            roomId,
+            '',
+            this.config.currentEditingBookingId
+          );
           // Edge days are available for new bookings
           isUnavailable = availability.status !== 'available' && availability.status !== 'edge';
         }

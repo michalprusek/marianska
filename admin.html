@@ -1591,47 +1591,66 @@
               </div>
 
               <div class="input-group">
-                <label for="emailTemplate">Text emailu *</label>
+                <label for="emailTemplate">
+                  Text emailu *
+                  <span style="font-weight: normal; color: var(--gray-600)">
+                    (max 600 znaků, edit link se přidá automaticky)
+                  </span>
+                </label>
                 <textarea
                   id="emailTemplate"
                   rows="15"
                   required
+                  maxlength="600"
                   style="font-family: monospace; font-size: 0.9rem"
                 >
 Dobrý den {name},
 
-děkujeme za Vaši rezervaci v chatě Mariánská.
+děkujeme za rezervaci v Chatě Mariánská.
 
-DETAIL REZERVACE:
-================
-Číslo rezervace: {booking_id}
-Datum příjezdu: {start_date}
-Datum odjezdu: {end_date}
+REZERVACE {booking_id}
+Příjezd: {start_date}
+Odjezd: {end_date}
 Pokoje: {rooms}
-Počet hostů: {adults} dospělých, {children} dětí, {toddlers} batolat
-Celková cena: {total_price} Kč
+Hosté: {adults} dospělých, {children} dětí
+Cena: {total_price}
 
-PLATEBNÍ ÚDAJE:
-==============
-Číslo účtu: 123456789/0300
-Variabilní symbol: použijte číslo rezervace
-Splatnost: 7 dní od vytvoření rezervace
+PLATBA
+Účet: 123456789/0300
+VS: {booking_id}
+Splatnost: 7 dní
 
-DŮLEŽITÉ INFORMACE:
-==================
-- Check-in: od 14:00
-- Check-out: do 10:00
-- Adresa: Mariánská 1234, 543 21 Pec pod Sněžkou
-- Telefon: +420 123 456 789
+INFO
+Check-in: 14:00 | Check-out: 10:00
+Adresa: Mariánská 1234, Pec pod Sněžkou
+Tel: +420 123 456 789
 
-Pro úpravu nebo zrušení rezervace použijte tento odkaz:
+Úpravy nebo zrušení:
 {edit_url}
 
-Těšíme se na Vaši návštěvu!
-
-S pozdravem,
+Těšíme se na Vás!
 Tým Chata Mariánská</textarea
                 >
+                <div
+                  style="
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-top: 0.5rem;
+                    font-size: 0.875rem;
+                    color: var(--gray-600);
+                  "
+                >
+                  <span>
+                    <span id="emailTemplateCharCount">0</span> / 600 znaků
+                  </span>
+                  <span
+                    id="emailTemplateWarning"
+                    style="color: var(--error-color); display: none"
+                  >
+                    ⚠️ Překročen limit
+                  </span>
+                </div>
               </div>
 
               <button
@@ -1698,7 +1717,7 @@ Tým Chata Mariánská</textarea
             <button
               class="edit-tab-btn active"
               data-tab="dates"
-              onclick="adminPanel.switchEditTab('dates')"
+              onclick="adminPanel.editComponent.switchTab('dates')"
               style="
                 padding: 0.75rem 1.5rem;
                 background: none;
@@ -1714,7 +1733,7 @@ Tým Chata Mariánská</textarea
             <button
               class="edit-tab-btn"
               data-tab="billing"
-              onclick="adminPanel.switchEditTab('billing')"
+              onclick="adminPanel.editComponent.switchTab('billing')"
               style="
                 padding: 0.75rem 1.5rem;
                 background: none;
@@ -1740,34 +1759,42 @@ Tým Chata Mariánská</textarea
               id="editDatesTab"
               class="edit-tab-content"
             >
-              <!-- Calendar and room selection -->
-              <div style="display: grid; grid-template-columns: 1fr 300px; gap: 2rem">
-                <div>
-                  <h3>Vyberte nové datum</h3>
-                  <div id="editCalendarContainer"></div>
-                  <div style="margin-top: 1rem">
-                    <strong>Vybraný termín:</strong>
-                    <span id="editSelectedDates">Zatím nevybráno</span>
-                  </div>
+              <div style="margin-bottom: 1rem; padding: 1rem; background: #e0f2fe; border-radius: 8px; border-left: 4px solid #0284c7;">
+                <p style="margin: 0; font-size: 0.9rem; color: #075985">
+                  ℹ️ <strong>Klikněte na "Změnit termín"</strong> u pokoje, který chcete upravit.
+                  Kalendář zobrazí původní termín <strong style="color: #3b82f6;">modře</strong>.
+                </p>
+              </div>
 
-                  <!-- Existing bookings for selected dates/rooms - MOVED HERE directly under calendar -->
-                  <div
-                    style="
-                      margin-top: 1.5rem;
-                      padding: 1rem;
-                      background: #f9fafb;
-                      border-radius: 8px;
-                    "
-                  >
-                    <h3 style="margin-top: 0">Existující rezervace v tomto termínu</h3>
-                    <div id="editExistingBookings">
-                      <!-- Will be populated with existing bookings -->
-                    </div>
+              <!-- Two column layout: Calendar left, Rooms right -->
+              <div style="display: grid; grid-template-columns: 1fr 450px; gap: 2rem">
+                <div>
+                  <div id="editCalendarHeader" style="display: none; margin-bottom: 1rem;">
+                    <h3 style="margin: 0 0 0.5rem 0;">Kalendář - <span id="editingRoomName"></span></h3>
+                    <button
+                      type="button"
+                      id="cancelRoomEditBtn"
+                      class="btn btn-secondary"
+                      style="padding: 0.5rem 1rem;">
+                      ✕ Zavřít kalendář
+                    </button>
                   </div>
+                  <div id="editCalendarContainer" style="display: none;"></div>
+                  <div id="editSelectedDatesContainer" style="display: none; margin-top: 1rem; padding: 1rem; background: #fef3c7; border-radius: 8px;">
+                    <strong>Nově vybraný termín:</strong>
+                    <div id="editSelectedDates" style="margin-top: 0.5rem; color: #d97706; font-weight: 600;">Zatím nevybráno</div>
+                  </div>
+                  <button
+                    type="button"
+                    id="saveRoomDatesBtn"
+                    class="btn btn-primary"
+                    style="display: none; margin-top: 1rem; padding: 0.75rem 1.5rem; width: 100%; font-size: 1.1rem;">
+                    ✓ Uložit termín
+                  </button>
                 </div>
 
                 <div>
-                  <h3>Vyberte pokoje</h3>
+                  <h3>Všechny pokoje</h3>
                   <div
                     id="editRoomsList"
                     style="display: flex; flex-direction: column; gap: 0.5rem"
@@ -1776,76 +1803,7 @@ Tým Chata Mariánská</textarea
                   </div>
 
                   <div
-                    style="
-                      margin-top: 1.5rem;
-                      padding: 1rem;
-                      background: #f3f4f6;
-                      border-radius: 8px;
-                    "
-                  >
-                    <h4>Počet hostů</h4>
-                    <div style="display: flex; flex-direction: column; gap: 0.5rem">
-                      <label>
-                        Dospělí:
-                        <input
-                          type="number"
-                          id="editAdults"
-                          min="1"
-                          value="1"
-                          style="width: 60px; margin-left: 0.5rem"
-                        />
-                      </label>
-                      <label>
-                        Děti (3-15):
-                        <input
-                          type="number"
-                          id="editChildren"
-                          min="0"
-                          value="0"
-                          style="width: 60px; margin-left: 0.5rem"
-                        />
-                      </label>
-                      <label>
-                        Batolata (0-3):
-                        <input
-                          type="number"
-                          id="editToddlers"
-                          min="0"
-                          value="0"
-                          style="width: 60px; margin-left: 0.5rem"
-                        />
-                      </label>
-                    </div>
-                  </div>
-
-                  <div
-                    style="margin-top: 1rem; padding: 1rem; background: #ecfdf5; border-radius: 8px"
-                  >
-                    <h4>Typ hosta *</h4>
-                    <label>
-                      <input
-                        type="radio"
-                        name="editGuestType"
-                        value="utia"
-                        id="editGuestTypeUtia"
-                        required
-                      />
-                      Zaměstnanec ÚTIA
-                    </label>
-                    <br />
-                    <label>
-                      <input
-                        type="radio"
-                        name="editGuestType"
-                        value="external"
-                        id="editGuestTypeExternal"
-                      />
-                      Externí host
-                    </label>
-                  </div>
-
-                  <div
-                    style="margin-top: 1rem; padding: 1rem; background: #fef3c7; border-radius: 8px"
+                    style="margin-top: 1.5rem; padding: 1rem; background: #fef3c7; border-radius: 8px"
                   >
                     <strong data-translate="totalPrice">Celková cena:</strong>
                     <div
@@ -1977,6 +1935,24 @@ Tým Chata Mariánská</textarea
       ></div>
     </div>
 
+    <style>
+      /* Ensure notification container is visible */
+      #notificationContainer {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        pointer-events: none;
+      }
+
+      #notificationContainer .notification {
+        pointer-events: all;
+      }
+    </style>
+
     <!-- Shared utilities (MUST load before data.js) -->
     <script src="js/shared/idGenerator.js"></script>
     <script src="js/shared/dateUtils.js"></script>
@@ -1984,7 +1960,9 @@ Tým Chata Mariánská</textarea
     <script src="js/shared/priceCalculator.js"></script>
     <script src="js/shared/christmasUtils.js"></script>
     <script src="js/shared/bookingLogic.js"></script>
+    <script src="js/shared/bookingDisplayUtils.js"></script>
     <script src="js/shared/BaseCalendar.js"></script>
+    <script src="js/shared/EditBookingComponent.js"></script>
     <script src="js/calendar-utils.js"></script>
 
     <!-- Core modules -->
