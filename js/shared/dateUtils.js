@@ -268,7 +268,7 @@ class DateUtils {
     today.setUTCHours(0, 0, 0, 0);
 
     const bookingStart =
-      typeof startDate === 'string' ? new Date(startDate + 'T00:00:00Z') : new Date(startDate);
+      typeof startDate === 'string' ? new Date(`${startDate}T00:00:00Z`) : new Date(startDate);
     bookingStart.setUTCHours(0, 0, 0, 0);
 
     return Math.floor((bookingStart - today) / (1000 * 60 * 60 * 24));

@@ -171,10 +171,11 @@ class EditPage {
     // Disable tab switching in read-only mode
     const tabButtons = document.querySelectorAll('.edit-tab-btn');
     tabButtons.forEach((btn) => {
-      btn.disabled = true;
-      btn.style.cursor = 'not-allowed';
-      btn.style.opacity = '0.6';
-      btn.onclick = null;
+      const button = btn;
+      button.disabled = true;
+      button.style.cursor = 'not-allowed';
+      button.style.opacity = '0.6';
+      button.onclick = null;
     });
 
     // Hide calendar
