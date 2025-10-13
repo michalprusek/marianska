@@ -2,26 +2,45 @@
 <html lang="cs">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
     <title>Upravit rezervaci - Chata Mariánská</title>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-    <link rel="stylesheet" href="css/styles-unified.css" />
+    <link
+      rel="icon"
+      type="image/x-icon"
+      href="/favicon.ico"
+    />
+    <link
+      rel="stylesheet"
+      href="css/styles-unified.css"
+    />
   </head>
-  <body style="margin: 0; padding: 0; width: 100%; max-width: 100%; overflow-x: hidden;">
-    <div style="width: 100%; max-width: 100%; padding: 1rem 1rem; box-sizing: border-box;">
-      <div class="header" style="max-width: none;">
+  <body style="margin: 0; padding: 0; width: 100%; max-width: 100%; overflow-x: hidden">
+    <div style="width: 100%; max-width: 100%; padding: 1rem 1rem; box-sizing: border-box">
+      <div
+        class="header"
+        style="max-width: none"
+      >
         <h1>📝 Upravit rezervaci</h1>
         <p style="color: var(--gray-600)">Chata Mariánská</p>
       </div>
 
       <!-- Loading State -->
-      <div id="loadingState" style="text-align: center; padding: 3rem">
+      <div
+        id="loadingState"
+        style="text-align: center; padding: 3rem"
+      >
         <div class="spinner"></div>
         <p>Načítání rezervace...</p>
       </div>
 
       <!-- Error State -->
-      <div id="errorState" style="display: none">
+      <div
+        id="errorState"
+        style="display: none"
+      >
         <div
           style="
             background: #fee2e2;
@@ -32,15 +51,25 @@
           "
         >
           <h2 style="color: #dc2626; margin-bottom: 1rem">⚠️ Chyba</h2>
-          <p id="errorMessage" style="color: #991b1b; font-size: 1.1rem"></p>
-          <a href="/" class="btn btn-primary" style="margin-top: 1rem; display: inline-block">
+          <p
+            id="errorMessage"
+            style="color: #991b1b; font-size: 1.1rem"
+          ></p>
+          <a
+            href="/"
+            class="btn btn-primary"
+            style="margin-top: 1rem; display: inline-block"
+          >
             Zpět na hlavní stránku
           </a>
         </div>
       </div>
 
       <!-- Edit Deadline Warning -->
-      <div id="editDeadlineWarning" style="display: none">
+      <div
+        id="editDeadlineWarning"
+        style="display: none"
+      >
         <div
           style="
             background: linear-gradient(135deg, #fee2e2, #fecaca);
@@ -58,14 +87,15 @@
           <p id="deadlineMessage">
             Úpravy a zrušení rezervace jsou možné pouze <strong>3 dny před začátkem pobytu</strong>.
           </p>
-          <p>
-            💡 Pro změny kontaktujte administrátora: <strong>chata@utia.cas.cz</strong>
-          </p>
+          <p>💡 Pro změny kontaktujte administrátora: <strong>chata@utia.cas.cz</strong></p>
         </div>
       </div>
 
       <!-- Edit Form Container -->
-      <div id="editFormContainer" style="display: none">
+      <div
+        id="editFormContainer"
+        style="display: none"
+      >
         <div
           class="modal-content"
           style="
@@ -78,7 +108,10 @@
             box-sizing: border-box;
           "
         >
-          <h2 id="editModalTitle" style="margin-bottom: 2rem">
+          <h2
+            id="editModalTitle"
+            style="margin-bottom: 2rem"
+          >
             Upravit rezervaci <span id="bookingIdDisplay"></span>
           </h2>
 
@@ -127,40 +160,84 @@
           </div>
 
           <form id="editBookingForm">
-            <input type="hidden" id="editBookingId" />
+            <input
+              type="hidden"
+              id="editBookingId"
+            />
 
             <!-- Dates and Rooms Tab -->
-            <div id="editDatesTab" class="edit-tab-content">
-              <div style="margin-bottom: 1rem; padding: 1rem; background: #e0f2fe; border-radius: 8px; border-left: 4px solid #0284c7;">
+            <div
+              id="editDatesTab"
+              class="edit-tab-content"
+            >
+              <div
+                style="
+                  margin-bottom: 1rem;
+                  padding: 1rem;
+                  background: #e0f2fe;
+                  border-radius: 8px;
+                  border-left: 4px solid #0284c7;
+                "
+              >
                 <p style="margin: 0; font-size: 0.9rem; color: #075985">
                   ℹ️ <strong>Klikněte na "Změnit termín"</strong> u pokoje, který chcete upravit.
-                  Kalendář zobrazí původní termín <strong style="color: #3b82f6;">modře</strong>.
+                  Kalendář zobrazí původní termín <strong style="color: #3b82f6">modře</strong>.
                 </p>
               </div>
 
               <!-- Two column layout: Calendar left, Rooms right -->
               <div style="display: grid; grid-template-columns: 1fr 450px; gap: 2rem">
                 <div>
-                  <div id="editCalendarHeader" style="display: none; margin-bottom: 1rem;">
-                    <h3 style="margin: 0 0 0.5rem 0;">Kalendář - <span id="editingRoomName"></span></h3>
+                  <div
+                    id="editCalendarHeader"
+                    style="display: none; margin-bottom: 1rem"
+                  >
+                    <h3 style="margin: 0 0 0.5rem 0">
+                      Kalendář - <span id="editingRoomName"></span>
+                    </h3>
                     <button
                       type="button"
                       id="cancelRoomEditBtn"
                       class="btn btn-secondary"
-                      style="padding: 0.5rem 1rem;">
+                      style="padding: 0.5rem 1rem"
+                    >
                       ✕ Zavřít kalendář
                     </button>
                   </div>
-                  <div id="editCalendarContainer" style="display: none;"></div>
-                  <div id="editSelectedDatesContainer" style="display: none; margin-top: 1rem; padding: 1rem; background: #fef3c7; border-radius: 8px;">
+                  <div
+                    id="editCalendarContainer"
+                    style="display: none"
+                  ></div>
+                  <div
+                    id="editSelectedDatesContainer"
+                    style="
+                      display: none;
+                      margin-top: 1rem;
+                      padding: 1rem;
+                      background: #fef3c7;
+                      border-radius: 8px;
+                    "
+                  >
                     <strong>Nově vybraný termín:</strong>
-                    <div id="editSelectedDates" style="margin-top: 0.5rem; color: #d97706; font-weight: 600;">Zatím nevybráno</div>
+                    <div
+                      id="editSelectedDates"
+                      style="margin-top: 0.5rem; color: #d97706; font-weight: 600"
+                    >
+                      Zatím nevybráno
+                    </div>
                   </div>
                   <button
                     type="button"
                     id="saveRoomDatesBtn"
                     class="btn btn-primary"
-                    style="display: none; margin-top: 1rem; padding: 0.75rem 1.5rem; width: 100%; font-size: 1.1rem;">
+                    style="
+                      display: none;
+                      margin-top: 1rem;
+                      padding: 0.75rem 1.5rem;
+                      width: 100%;
+                      font-size: 1.1rem;
+                    "
+                  >
                     ✓ Uložit termín
                   </button>
                 </div>
@@ -183,69 +260,130 @@
                     "
                   >
                     <strong>Celková cena:</strong>
-                    <div id="editTotalPrice" style="font-size: 1.5rem; color: #d97706">0 Kč</div>
+                    <div
+                      id="editTotalPrice"
+                      style="font-size: 1.5rem; color: #d97706"
+                    >
+                      0 Kč
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
             <!-- Billing Information Tab -->
-            <div id="editBillingTab" class="edit-tab-content" style="display: none">
+            <div
+              id="editBillingTab"
+              class="edit-tab-content"
+              style="display: none"
+            >
               <div class="form-grid">
                 <div class="input-group">
                   <label for="editName">Jméno a příjmení *</label>
-                  <input type="text" id="editName" required />
+                  <input
+                    type="text"
+                    id="editName"
+                    required
+                  />
                 </div>
                 <div class="input-group">
                   <label for="editEmail">Email *</label>
-                  <input type="email" id="editEmail" required />
+                  <input
+                    type="email"
+                    id="editEmail"
+                    required
+                  />
                 </div>
                 <div class="input-group">
                   <label for="editPhone">Telefon *</label>
-                  <input type="tel" id="editPhone" required />
+                  <input
+                    type="tel"
+                    id="editPhone"
+                    required
+                  />
                 </div>
                 <div class="input-group">
                   <label for="editCompany">Firma</label>
-                  <input type="text" id="editCompany" />
+                  <input
+                    type="text"
+                    id="editCompany"
+                  />
                 </div>
                 <div class="input-group full-width">
                   <label for="editAddress">Adresa *</label>
-                  <input type="text" id="editAddress" required />
+                  <input
+                    type="text"
+                    id="editAddress"
+                    required
+                  />
                 </div>
                 <div class="input-group">
                   <label for="editCity">Město *</label>
-                  <input type="text" id="editCity" required />
+                  <input
+                    type="text"
+                    id="editCity"
+                    required
+                  />
                 </div>
                 <div class="input-group">
                   <label for="editZip">PSČ *</label>
-                  <input type="text" id="editZip" pattern="[0-9]{5}" required />
+                  <input
+                    type="text"
+                    id="editZip"
+                    pattern="[0-9]{5}"
+                    required
+                  />
                 </div>
                 <div class="input-group">
                   <label for="editIco">IČO</label>
-                  <input type="text" id="editIco" />
+                  <input
+                    type="text"
+                    id="editIco"
+                  />
                 </div>
                 <div class="input-group">
                   <label for="editDic">DIČ</label>
-                  <input type="text" id="editDic" />
+                  <input
+                    type="text"
+                    id="editDic"
+                  />
                 </div>
                 <div class="input-group full-width">
                   <label for="editNotes">Poznámky</label>
-                  <textarea id="editNotes" rows="3"></textarea>
+                  <textarea
+                    id="editNotes"
+                    rows="3"
+                  ></textarea>
                 </div>
                 <div class="input-group full-width">
                   <label style="display: flex; align-items: center; gap: 0.5rem">
-                    <input type="checkbox" id="editPayFromBenefit" style="width: auto; margin: 0" />
+                    <input
+                      type="checkbox"
+                      id="editPayFromBenefit"
+                      style="width: auto; margin: 0"
+                    />
                     <span>Platba z benefitů</span>
                   </label>
                 </div>
               </div>
             </div>
 
-            <div class="modal-actions" style="margin-top: 2rem; text-align: right">
-              <button type="button" class="btn btn-secondary" onclick="window.location.href='/'">
+            <div
+              class="modal-actions"
+              style="margin-top: 2rem; text-align: right"
+            >
+              <button
+                type="button"
+                class="btn btn-secondary"
+                onclick="window.location.href='/'"
+              >
                 Zrušit
               </button>
-              <button type="submit" class="btn btn-primary" id="editSubmitButton">
+              <button
+                type="submit"
+                class="btn btn-primary"
+                id="editSubmitButton"
+              >
                 Uložit změny
               </button>
               <button
@@ -263,7 +401,11 @@
       </div>
 
       <!-- Success Message -->
-      <div id="successMessage" class="success-message" style="display: none"></div>
+      <div
+        id="successMessage"
+        class="success-message"
+        style="display: none"
+      ></div>
     </div>
 
     <!-- Shared utilities (MUST load before data.js) -->
@@ -273,6 +415,7 @@
     <script src="js/shared/christmasUtils.js"></script>
     <script src="js/shared/priceCalculator.js"></script>
     <script src="js/shared/bookingLogic.js"></script>
+    <script src="js/shared/bookingUtils.js"></script>
     <script src="js/calendar-utils.js"></script>
     <script src="js/shared/BaseCalendar.js"></script>
     <script src="js/shared/EditBookingComponent.js"></script>

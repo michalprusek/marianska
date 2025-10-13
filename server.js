@@ -230,6 +230,14 @@ const adminLoginLimiter = rateLimit({
   ...rateLimitConfig,
 });
 
+// Rate limit for test email sending (defense against abuse)
+const testEmailLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // max 10 test emails per hour
+  message: 'Překročen limit pro odesílání testovacích emailů. Zkuste to za hodinu.',
+  ...rateLimitConfig,
+});
+
 // Rate limiting for Christmas code validation attempts (defense against brute-force)
 const christmasCodeAttempts = new Map(); // { ip: { attempts: number, resetAt: timestamp } }
 
@@ -782,12 +790,13 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
     }
 
     // Check 3-day edit deadline for non-admin users
+    // FIX: Use UTC to avoid timezone edge cases
     if (!isAdmin) {
       const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      today.setUTCHours(0, 0, 0, 0);
 
       const bookingStart = new Date(existingBooking.startDate);
-      bookingStart.setHours(0, 0, 0, 0);
+      bookingStart.setUTCHours(0, 0, 0, 0);
 
       const daysUntilStart = Math.floor((bookingStart - today) / (1000 * 60 * 60 * 24));
 
@@ -1015,12 +1024,13 @@ app.delete('/api/booking/:id', writeLimiter, (req, res) => {
     }
 
     // Check 3-day delete deadline for non-admin users
+    // FIX: Use UTC to avoid timezone edge cases
     if (!isAdmin) {
       const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      today.setUTCHours(0, 0, 0, 0);
 
       const bookingStart = new Date(existingBooking.startDate);
-      bookingStart.setHours(0, 0, 0, 0);
+      bookingStart.setUTCHours(0, 0, 0, 0);
 
       const daysUntilStart = Math.floor((bookingStart - today) / (1000 * 60 * 60 * 24));
 
@@ -1214,8 +1224,8 @@ app.post('/api/admin/settings', requireSession, async (req, res) => {
   }
 });
 
-// Test email endpoint (admin only)
-app.post('/api/admin/test-email', requireSession, async (req, res) => {
+// Test email endpoint (admin only) - with rate limiting to prevent abuse
+app.post('/api/admin/test-email', testEmailLimiter, requireSession, async (req, res) => {
   try {
     const { email } = req.body;
 

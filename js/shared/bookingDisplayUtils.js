@@ -252,7 +252,8 @@ class BookingDisplayUtils {
     // Determine header text based on language and room count
     let headerText = 'Room details:';
     if (language === 'cs') {
-      headerText = roomDetails.length > 1 ? 'Rozdílné termíny pro jednotlivé pokoje:' : 'Detail pokoje:';
+      headerText =
+        roomDetails.length > 1 ? 'Rozdílné termíny pro jednotlivé pokoje:' : 'Detail pokoje:';
     } else {
       headerText = roomDetails.length > 1 ? 'Different dates per room:' : 'Room details:';
     }

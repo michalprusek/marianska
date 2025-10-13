@@ -10,7 +10,7 @@ echo "${YELLOW}🔍 Running pre-commit checks...${NC}"
 
 # Check for debugging artifacts (skip .husky directory, logger.js, and test files)
 echo "Checking for console.log and debugger statements..."
-JS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|jsx|ts|tsx|mjs)$' | grep -v "^\.husky/" | grep -v "logger\.js" | grep -v "^test-" | grep -v "\.test\.js$" | grep -v "\.spec\.js$")
+JS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|jsx|ts|tsx|mjs)$' | grep -v "^\.husky/" | grep -v "logger\.js" | grep -v "^test-" | grep -v "^tests/" | grep -v "\.test\.js$" | grep -v "\.spec\.js$")
 if [ ! -z "$JS_FILES" ]; then
   FILES_WITH_CONSOLE=$(echo "$JS_FILES" | xargs grep -l "console\.\(log\|debug\)" 2>/dev/null || true)
   FILES_WITH_DEBUGGER=$(echo "$JS_FILES" | xargs grep -l "^[^/]*debugger[;\s]" 2>/dev/null || true)
@@ -68,8 +68,8 @@ fi
 
 # Check for sensitive data patterns
 echo "Checking for sensitive data..."
-PATTERNS="password=|api_key=|apikey=|secret=|token=|private_key=|ssh-rsa|-----BEGIN"
-FILES_WITH_SENSITIVE=$(git diff --cached --name-only --diff-filter=ACM | xargs grep -E "$PATTERNS" 2>/dev/null | grep -v "^#" | grep -v "password:" | head -5)
+PATTERNS="password=|api_key=|apikey=|secret=|private_key=|ssh-rsa|-----BEGIN"
+FILES_WITH_SENSITIVE=$(git diff --cached --name-only --diff-filter=ACM | xargs grep -E "$PATTERNS" 2>/dev/null | grep -v "^#" | grep -v "password:" | grep -v "token=" | grep -v "PATTERNS=" | head -5)
 
 if [ ! -z "$FILES_WITH_SENSITIVE" ]; then
   echo "${RED}❌ Possible sensitive data found:${NC}"

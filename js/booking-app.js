@@ -1,4 +1,4 @@
-/* global langManager, IdGenerator */
+/* global langManager */
 
 // Main BookingApp class - orchestrates all modules
 class BookingApp {

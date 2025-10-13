@@ -1,5 +1,3 @@
-/* global IdGenerator */
-
 // Bulk booking module - handles bulk event reservations
 class BulkBookingModule {
   constructor(app) {

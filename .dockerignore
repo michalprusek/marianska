@@ -6,3 +6,12 @@ README.md
 .env
 .DS_Store
 ssl/
+
+# Test files and documentation (not needed in production)
+tests/
+*.test.js
+*.spec.js
+EDIT_DEADLINE_FEATURE.md
+EMAIL_IMPLEMENTATION_SUMMARY.md
+CLAUDE.md
+docs/

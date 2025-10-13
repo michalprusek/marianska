@@ -44,6 +44,7 @@ class EditBookingComponent {
     this.originalEndDate = null;
     this.editCalendar = null;
     this.isEditLocked = false;
+    this.isBulkBooking = false; // True if booking contains all rooms
 
     // Per-room editing state
     this.perRoomDates = new Map(); // roomId -> {startDate, endDate}
@@ -66,6 +67,9 @@ class EditBookingComponent {
 
     // Generate consistent session ID for proposed bookings in this edit session
     this.sessionId = `edit-${booking.id}-${Date.now()}`;
+
+    // Detect if this is a bulk booking (all rooms reserved)
+    this.isBulkBooking = BookingUtils.isBulkBooking(booking, settings.rooms);
 
     // Store original dates for calendar display
     this.originalStartDate = booking.startDate;
@@ -394,6 +398,17 @@ class EditBookingComponent {
    * Toggle room selection
    */
   toggleRoom(roomId) {
+    // Prevent room toggle for bulk bookings
+    if (this.isBulkBooking) {
+      this.showNotification(
+        'Hromadné rezervace celé chaty nelze měnit po jednotlivých pokojích. ' +
+          'Všechny pokoje musí zůstat vybrané společně.',
+        'warning',
+        4000
+      );
+      return;
+    }
+
     if (this.editSelectedRooms.has(roomId)) {
       // Uncheck - remove room
       this.editSelectedRooms.delete(roomId);
@@ -530,6 +545,7 @@ class EditBookingComponent {
 
   /**
    * Calculate and update total price based on CHECKED rooms only
+   * Uses bulk pricing for bulk bookings (all 9 rooms)
    */
   updateTotalPrice() {
     if (this.editSelectedRooms.size === 0) {
@@ -539,27 +555,72 @@ class EditBookingComponent {
 
     let totalPrice = 0;
 
-    // Iterate over CHECKED rooms (editSelectedRooms), not all rooms with dates
-    for (const [roomId, roomData] of this.editSelectedRooms) {
-      const dates = this.perRoomDates.get(roomId);
+    // Use bulk pricing for bulk bookings
+    if (this.isBulkBooking) {
+      // Aggregate guest data across all rooms
+      let totalAdults = 0;
+      let totalChildren = 0;
+      const guestTypes = new Set();
 
-      // Skip if room doesn't have dates yet - continue is acceptable here
-      if (!dates) {
-        // eslint-disable-next-line no-continue
-        continue;
+      for (const roomData of this.editSelectedRooms.values()) {
+        totalAdults += roomData.adults || 0;
+        totalChildren += roomData.children || 0;
+        guestTypes.add(roomData.guestType);
       }
 
-      const nights = DateUtils.getDaysBetween(dates.startDate, dates.endDate);
-      const price = PriceCalculator.calculatePrice({
-        guestType: roomData.guestType,
-        adults: roomData.adults,
-        children: roomData.children,
+      // Determine aggregated guest type
+      let finalGuestType = 'external';
+      if (guestTypes.size === 1) {
+        finalGuestType = Array.from(guestTypes)[0];
+      } else if (guestTypes.has('utia')) {
+        finalGuestType = 'utia';
+      }
+
+      // Calculate nights from global booking dates
+      let minStart = null;
+      let maxEnd = null;
+      for (const dates of this.perRoomDates.values()) {
+        if (!minStart || dates.startDate < minStart) {
+          minStart = dates.startDate;
+        }
+        if (!maxEnd || dates.endDate > maxEnd) {
+          maxEnd = dates.endDate;
+        }
+      }
+
+      const nights = minStart && maxEnd ? DateUtils.getDaysBetween(minStart, maxEnd) : 0;
+
+      // Use bulk price calculator
+      totalPrice = PriceCalculator.calculateBulkPrice({
+        guestType: finalGuestType,
+        adults: totalAdults,
+        children: totalChildren,
         nights,
-        roomsCount: 1,
         settings: this.settings,
       });
+    } else {
+      // Regular pricing: sum individual room prices
+      for (const [roomId, roomData] of this.editSelectedRooms) {
+        const dates = this.perRoomDates.get(roomId);
 
-      totalPrice += price;
+        // Skip if room doesn't have dates yet - continue is acceptable here
+        if (!dates) {
+          // eslint-disable-next-line no-continue
+          continue;
+        }
+
+        const nights = DateUtils.getDaysBetween(dates.startDate, dates.endDate);
+        const price = PriceCalculator.calculatePrice({
+          guestType: roomData.guestType,
+          adults: roomData.adults,
+          children: roomData.children,
+          nights,
+          roomsCount: 1,
+          settings: this.settings,
+        });
+
+        totalPrice += price;
+      }
     }
 
     document.getElementById('editTotalPrice').textContent =
@@ -662,6 +723,7 @@ class EditBookingComponent {
       rooms: Array.from(this.perRoomDates.keys()),
       perRoomDates: Object.fromEntries(this.perRoomDates), // Include per-room dates
       perRoomGuests: Object.fromEntries(this.editSelectedRooms), // Include per-room guest data
+      isBulkBooking: this.isBulkBooking, // Include bulk booking flag
     };
 
     // Aggregate guest data from per-room configuration
@@ -690,24 +752,37 @@ class EditBookingComponent {
     }
     formData.guestType = finalGuestType;
 
-    // Calculate total price based on per-room dates
+    // Calculate total price based on booking type
     let totalPrice = 0;
-    for (const [roomId, dates] of this.perRoomDates) {
-      const roomData = this.editSelectedRooms.get(roomId) || {
-        guestType: 'external',
-        adults: 1,
-        children: 0,
-      };
-
-      const nights = DateUtils.getDaysBetween(dates.startDate, dates.endDate);
-      totalPrice += PriceCalculator.calculatePrice({
-        guestType: roomData.guestType,
-        adults: roomData.adults,
-        children: roomData.children,
+    if (this.isBulkBooking) {
+      // Use bulk pricing for bulk bookings
+      const nights = DateUtils.getDaysBetween(minStart, maxEnd);
+      totalPrice = PriceCalculator.calculateBulkPrice({
+        guestType: finalGuestType,
+        adults: totalAdults,
+        children: totalChildren,
         nights,
-        roomsCount: 1,
         settings: this.settings,
       });
+    } else {
+      // Regular pricing: sum individual room prices
+      for (const [roomId, dates] of this.perRoomDates) {
+        const roomData = this.editSelectedRooms.get(roomId) || {
+          guestType: 'external',
+          adults: 1,
+          children: 0,
+        };
+
+        const nights = DateUtils.getDaysBetween(dates.startDate, dates.endDate);
+        totalPrice += PriceCalculator.calculatePrice({
+          guestType: roomData.guestType,
+          adults: roomData.adults,
+          children: roomData.children,
+          nights,
+          roomsCount: 1,
+          settings: this.settings,
+        });
+      }
     }
     formData.totalPrice = totalPrice;
 
@@ -800,6 +875,30 @@ class EditBookingComponent {
 
     roomsList.innerHTML = '';
 
+    // Show bulk booking badge if applicable
+    if (this.isBulkBooking) {
+      const bulkBadge = document.createElement('div');
+      bulkBadge.style.cssText = `
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+        color: white;
+        font-weight: 600;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(124, 58, 237, 0.3);
+      `;
+      bulkBadge.innerHTML = `
+        <div style="font-size: 1.25rem; margin-bottom: 0.5rem;">
+          🏠 HROMADNÁ REZERVACE CELÉ CHATY
+        </div>
+        <div style="font-size: 0.875rem; opacity: 0.95;">
+          Všech 9 pokojů je rezervováno společně. Výběr jednotlivých pokojů není možný.
+        </div>
+      `;
+      roomsList.appendChild(bulkBadge);
+    }
+
     // Initialize per-room dates from current booking
     if (this.perRoomDates.size === 0 && this.currentBooking) {
       this.currentBooking.rooms.forEach((roomId) => {
@@ -865,10 +964,11 @@ class EditBookingComponent {
       }
 
       roomCard.innerHTML = `
-        <label style="cursor: pointer; display: flex; align-items: flex-start; gap: 0.5rem;">
+        <label style="cursor: ${this.isBulkBooking ? 'not-allowed' : 'pointer'}; display: flex; align-items: flex-start; gap: 0.5rem; opacity: ${this.isBulkBooking ? '0.7' : '1'};">
           <input type="checkbox" ${isSelected ? 'checked' : ''}
+            ${this.isBulkBooking ? 'disabled' : ''}
             onchange="${onChangePrefix}.editComponent.toggleRoom('${room.id}')"
-            style="width: auto; margin: 0.25rem 0 0 0; flex-shrink: 0;" />
+            style="width: auto; margin: 0.25rem 0 0 0; flex-shrink: 0; cursor: ${this.isBulkBooking ? 'not-allowed' : 'pointer'};" />
           <div style="flex: 1;">
             <div>
               <strong style="font-size: 1.1rem;">${room.name}</strong>

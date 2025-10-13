@@ -405,6 +405,7 @@ export default [
         PriceCalculator: 'readonly',
         ChristmasUtils: 'readonly',
         IdGenerator: 'readonly',
+        BookingUtils: 'readonly',
       },
     },
     rules: {
@@ -450,6 +451,38 @@ export default [
     },
   },
   {
+    files: ['js/shared/bookingUtils.js'],
+    languageOptions: {
+      globals: {
+        BookingUtils: 'off',
+      },
+    },
+  },
+  {
+    files: ['js/shared/idGenerator.js'],
+    languageOptions: {
+      globals: {
+        IdGenerator: 'off',
+      },
+    },
+  },
+  {
+    files: ['js/shared/christmasUtils.js'],
+    languageOptions: {
+      globals: {
+        ChristmasUtils: 'off',
+      },
+    },
+  },
+  {
+    files: ['js/shared/priceCalculator.js'],
+    languageOptions: {
+      globals: {
+        PriceCalculator: 'off',
+      },
+    },
+  },
+  {
     files: ['js/**/*.js', 'admin.js'],
     ignores: ['js/shared/**/*.js'],
     languageOptions: {
@@ -486,6 +519,7 @@ export default [
         PriceCalculator: 'readonly',
         ChristmasUtils: 'readonly',
         IdGenerator: 'readonly',
+        BookingUtils: 'readonly',
         EditBookingComponent: 'readonly',
         BookingDisplayUtils: 'readonly',
       },

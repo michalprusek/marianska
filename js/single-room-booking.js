@@ -1,5 +1,3 @@
-/* global IdGenerator */
-
 // Single room booking module - handles individual room reservation modals
 class SingleRoomBookingModule {
   constructor(app) {

@@ -60,30 +60,32 @@ class EditPage {
     }
   }
 
+  /**
+   * Calculate days until booking start using UTC to avoid timezone edge cases
+   * @returns {number} Days until start (negative if booking has started)
+   */
+  calculateDaysUntilStart() {
+    // FIX: Use UTC to avoid timezone edge cases (consistent with server)
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    const startDate = new Date(this.currentBooking.startDate);
+    startDate.setUTCHours(0, 0, 0, 0);
+
+    return Math.floor((startDate - today) / (1000 * 60 * 60 * 24));
+  }
+
   checkEditDeadline() {
     if (!this.currentBooking || !this.currentBooking.startDate) {
       return false;
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const startDate = new Date(this.currentBooking.startDate);
-    startDate.setHours(0, 0, 0, 0);
-
-    const daysUntilStart = Math.floor((startDate - today) / (1000 * 60 * 60 * 24));
-
+    const daysUntilStart = this.calculateDaysUntilStart();
     return daysUntilStart < 3; // Lock if less than 3 days
   }
 
   displayEditDeadlineWarning() {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const startDate = new Date(this.currentBooking.startDate);
-    startDate.setHours(0, 0, 0, 0);
-
-    const daysUntilStart = Math.floor((startDate - today) / (1000 * 60 * 60 * 24));
+    const daysUntilStart = this.calculateDaysUntilStart();
 
     let message = '';
     if (daysUntilStart < 0) {
@@ -459,5 +461,5 @@ class EditPage {
 }
 
 // Initialize edit page
-// eslint-disable-next-line no-unused-vars
+
 const editPage = new EditPage();

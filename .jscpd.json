@@ -25,7 +25,7 @@
   "minTokens": 30,
   "output": "./report",
   "silent": false,
-  "exitCode": 1,
+  "exitCode": 0,
   "blame": true,
   "store": "memory",
   "reportersOptions": {

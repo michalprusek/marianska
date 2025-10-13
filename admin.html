@@ -1641,9 +1641,7 @@ Tým Chata Mariánská</textarea
                     color: var(--gray-600);
                   "
                 >
-                  <span>
-                    <span id="emailTemplateCharCount">0</span> / 600 znaků
-                  </span>
+                  <span> <span id="emailTemplateCharCount">0</span> / 600 znaků </span>
                   <span
                     id="emailTemplateWarning"
                     style="color: var(--error-color); display: none"
@@ -1759,36 +1757,74 @@ Tým Chata Mariánská</textarea
               id="editDatesTab"
               class="edit-tab-content"
             >
-              <div style="margin-bottom: 1rem; padding: 1rem; background: #e0f2fe; border-radius: 8px; border-left: 4px solid #0284c7;">
+              <div
+                style="
+                  margin-bottom: 1rem;
+                  padding: 1rem;
+                  background: #e0f2fe;
+                  border-radius: 8px;
+                  border-left: 4px solid #0284c7;
+                "
+              >
                 <p style="margin: 0; font-size: 0.9rem; color: #075985">
                   ℹ️ <strong>Klikněte na "Změnit termín"</strong> u pokoje, který chcete upravit.
-                  Kalendář zobrazí původní termín <strong style="color: #3b82f6;">modře</strong>.
+                  Kalendář zobrazí původní termín <strong style="color: #3b82f6">modře</strong>.
                 </p>
               </div>
 
               <!-- Two column layout: Calendar left, Rooms right -->
               <div style="display: grid; grid-template-columns: 1fr 450px; gap: 2rem">
                 <div>
-                  <div id="editCalendarHeader" style="display: none; margin-bottom: 1rem;">
-                    <h3 style="margin: 0 0 0.5rem 0;">Kalendář - <span id="editingRoomName"></span></h3>
+                  <div
+                    id="editCalendarHeader"
+                    style="display: none; margin-bottom: 1rem"
+                  >
+                    <h3 style="margin: 0 0 0.5rem 0">
+                      Kalendář - <span id="editingRoomName"></span>
+                    </h3>
                     <button
                       type="button"
                       id="cancelRoomEditBtn"
                       class="btn btn-secondary"
-                      style="padding: 0.5rem 1rem;">
+                      style="padding: 0.5rem 1rem"
+                    >
                       ✕ Zavřít kalendář
                     </button>
                   </div>
-                  <div id="editCalendarContainer" style="display: none;"></div>
-                  <div id="editSelectedDatesContainer" style="display: none; margin-top: 1rem; padding: 1rem; background: #fef3c7; border-radius: 8px;">
+                  <div
+                    id="editCalendarContainer"
+                    style="display: none"
+                  ></div>
+                  <div
+                    id="editSelectedDatesContainer"
+                    style="
+                      display: none;
+                      margin-top: 1rem;
+                      padding: 1rem;
+                      background: #fef3c7;
+                      border-radius: 8px;
+                    "
+                  >
                     <strong>Nově vybraný termín:</strong>
-                    <div id="editSelectedDates" style="margin-top: 0.5rem; color: #d97706; font-weight: 600;">Zatím nevybráno</div>
+                    <div
+                      id="editSelectedDates"
+                      style="margin-top: 0.5rem; color: #d97706; font-weight: 600"
+                    >
+                      Zatím nevybráno
+                    </div>
                   </div>
                   <button
                     type="button"
                     id="saveRoomDatesBtn"
                     class="btn btn-primary"
-                    style="display: none; margin-top: 1rem; padding: 0.75rem 1.5rem; width: 100%; font-size: 1.1rem;">
+                    style="
+                      display: none;
+                      margin-top: 1rem;
+                      padding: 0.75rem 1.5rem;
+                      width: 100%;
+                      font-size: 1.1rem;
+                    "
+                  >
                     ✓ Uložit termín
                   </button>
                 </div>
@@ -1803,7 +1839,12 @@ Tým Chata Mariánská</textarea
                   </div>
 
                   <div
-                    style="margin-top: 1.5rem; padding: 1rem; background: #fef3c7; border-radius: 8px"
+                    style="
+                      margin-top: 1.5rem;
+                      padding: 1rem;
+                      background: #fef3c7;
+                      border-radius: 8px;
+                    "
                   >
                     <strong data-translate="totalPrice">Celková cena:</strong>
                     <div
@@ -1960,6 +2001,7 @@ Tým Chata Mariánská</textarea
     <script src="js/shared/priceCalculator.js"></script>
     <script src="js/shared/christmasUtils.js"></script>
     <script src="js/shared/bookingLogic.js"></script>
+    <script src="js/shared/bookingUtils.js"></script>
     <script src="js/shared/bookingDisplayUtils.js"></script>
     <script src="js/shared/BaseCalendar.js"></script>
     <script src="js/shared/EditBookingComponent.js"></script>
