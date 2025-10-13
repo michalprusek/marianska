@@ -119,9 +119,10 @@ class BookingLogic {
    * @param {string|Date} startDate - Check-in date
    * @param {string|Date} endDate - Check-out date
    * @param {boolean} [isAdmin=false] - Skip past date validation for admin
+   * @param {boolean} [allowSingleDay=false] - Allow same start and end date (for blockages)
    * @returns {{valid: boolean, error: string|null}} - Validation result
    */
-  static validateDateRange(startDate, endDate, isAdmin = false) {
+  static validateDateRange(startDate, endDate, isAdmin = false, allowSingleDay = false) {
     const start = typeof startDate === 'string' ? new Date(startDate) : startDate;
     const end = typeof endDate === 'string' ? new Date(endDate) : endDate;
 
@@ -152,19 +153,31 @@ class BookingLogic {
       }
     }
 
-    if (start >= end) {
-      return {
-        valid: false,
-        error: 'Datum odjezdu musí být po datu příjezdu',
-      };
-    }
+    // CRITICAL FIX 2025-10-13: Support single-day blockages
+    // For blockages, allow start === end (same day)
+    // For bookings, require end > start (at least 1 night)
+    if (allowSingleDay) {
+      if (start > end) {
+        return {
+          valid: false,
+          error: 'Konec období musí být po začátku nebo stejný den',
+        };
+      }
+    } else {
+      if (start >= end) {
+        return {
+          valid: false,
+          error: 'Datum odjezdu musí být po datu příjezdu',
+        };
+      }
 
-    const nights = this.calculateNights(start, end);
-    if (nights < 1) {
-      return {
-        valid: false,
-        error: 'Rezervace musí být alespoň na 1 noc',
-      };
+      const nights = this.calculateNights(start, end);
+      if (nights < 1) {
+        return {
+          valid: false,
+          error: 'Rezervace musí být alespoň na 1 noc',
+        };
+      }
     }
 
     // Check if dates are not too far in future (e.g., 2 years)

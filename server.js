@@ -604,6 +604,84 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
       return res.status(400).json({ error: 'Rezervace musí obsahovat alespoň 1 hosta' });
     }
 
+    // Validate guest names if provided
+    if (bookingData.guestNames) {
+      if (!Array.isArray(bookingData.guestNames)) {
+        return res.status(400).json({ error: 'Jména hostů musí být pole' });
+      }
+
+      const expectedCount = (bookingData.adults || 0) + (bookingData.children || 0);
+      if (bookingData.guestNames.length !== expectedCount) {
+        return res.status(400).json({
+          error: `Počet jmen (${bookingData.guestNames.length}) neodpovídá počtu hostů (${expectedCount})`,
+        });
+      }
+
+      // SECURITY FIX: Validate adult/child count distribution
+      const adultCount = bookingData.guestNames.filter((g) => g.personType === 'adult').length;
+      const childCount = bookingData.guestNames.filter((g) => g.personType === 'child').length;
+
+      if (adultCount !== (bookingData.adults || 0)) {
+        return res.status(400).json({
+          error: `Počet dospělých jmen (${adultCount}) neodpovídá počtu dospělých (${bookingData.adults || 0})`,
+        });
+      }
+
+      if (childCount !== (bookingData.children || 0)) {
+        return res.status(400).json({
+          error: `Počet dětských jmen (${childCount}) neodpovídá počtu dětí (${bookingData.children || 0})`,
+        });
+      }
+
+      const MAX_NAME_LENGTH = 50;
+
+      for (let i = 0; i < bookingData.guestNames.length; i++) {
+        const guest = bookingData.guestNames[i];
+
+        if (!guest.firstName || !guest.firstName.trim()) {
+          return res.status(400).json({ error: `Křestní jméno hosta ${i + 1} je povinné` });
+        }
+
+        if (guest.firstName.trim().length < 2) {
+          return res
+            .status(400)
+            .json({ error: `Křestní jméno hosta ${i + 1} musí mít alespoň 2 znaky` });
+        }
+
+        // SECURITY FIX: Add maximum length validation
+        if (guest.firstName.trim().length > MAX_NAME_LENGTH) {
+          return res.status(400).json({
+            error: `Křestní jméno hosta ${i + 1} nesmí překročit ${MAX_NAME_LENGTH} znaků`,
+          });
+        }
+
+        if (!guest.lastName || !guest.lastName.trim()) {
+          return res.status(400).json({ error: `Příjmení hosta ${i + 1} je povinné` });
+        }
+
+        if (guest.lastName.trim().length < 2) {
+          return res.status(400).json({ error: `Příjmení hosta ${i + 1} musí mít alespoň 2 znaky` });
+        }
+
+        // SECURITY FIX: Add maximum length validation
+        if (guest.lastName.trim().length > MAX_NAME_LENGTH) {
+          return res.status(400).json({
+            error: `Příjmení hosta ${i + 1} nesmí překročit ${MAX_NAME_LENGTH} znaků`,
+          });
+        }
+
+        if (guest.personType !== 'adult' && guest.personType !== 'child') {
+          return res.status(400).json({
+            error: `Neplatný typ osoby pro hosta ${i + 1} (musí být 'adult' nebo 'child')`,
+          });
+        }
+
+        // SECURITY FIX: Sanitize guest names before storing
+        guest.firstName = sanitizeInput(guest.firstName.trim(), MAX_NAME_LENGTH);
+        guest.lastName = sanitizeInput(guest.lastName.trim(), MAX_NAME_LENGTH);
+      }
+    }
+
     // CRITICAL FIX 2025-10-07: Server-side capacity validation
     // Prevent users from bypassing client-side checks via direct API calls
     if (bookingData.isBulkBooking) {
@@ -789,16 +867,19 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
       }
     }
 
-    // Check 3-day edit deadline for non-admin users
-    // FIX: Use UTC to avoid timezone edge cases
+    // Check if booking is paid (cannot be edited by users)
+    if (!isAdmin && existingBooking.paid) {
+      return res.status(403).json({
+        error:
+          'Tato rezervace byla zaplacena a nelze ji upravit. Pro změny kontaktujte administrátora.',
+        isPaid: true,
+        paidBooking: true,
+      });
+    }
+
+    // Check 3-day edit deadline for non-admin users using DateUtils (SSOT)
     if (!isAdmin) {
-      const today = new Date();
-      today.setUTCHours(0, 0, 0, 0);
-
-      const bookingStart = new Date(existingBooking.startDate);
-      bookingStart.setUTCHours(0, 0, 0, 0);
-
-      const daysUntilStart = Math.floor((bookingStart - today) / (1000 * 60 * 60 * 24));
+      const daysUntilStart = DateUtils.calculateDaysUntilStart(existingBooking.startDate);
 
       if (daysUntilStart < 3) {
         return res.status(403).json({
@@ -862,6 +943,84 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
     }
     if (bookingData.notes) {
       bookingData.notes = sanitizeInput(bookingData.notes, MAX_LENGTHS.notes);
+    }
+
+    // Validate guest names if provided
+    if (bookingData.guestNames) {
+      if (!Array.isArray(bookingData.guestNames)) {
+        return res.status(400).json({ error: 'Jména hostů musí být pole' });
+      }
+
+      const expectedCount = (bookingData.adults || 0) + (bookingData.children || 0);
+      if (bookingData.guestNames.length !== expectedCount) {
+        return res.status(400).json({
+          error: `Počet jmen (${bookingData.guestNames.length}) neodpovídá počtu hostů (${expectedCount})`,
+        });
+      }
+
+      // SECURITY FIX: Validate adult/child count distribution
+      const adultCount = bookingData.guestNames.filter((g) => g.personType === 'adult').length;
+      const childCount = bookingData.guestNames.filter((g) => g.personType === 'child').length;
+
+      if (adultCount !== (bookingData.adults || 0)) {
+        return res.status(400).json({
+          error: `Počet dospělých jmen (${adultCount}) neodpovídá počtu dospělých (${bookingData.adults || 0})`,
+        });
+      }
+
+      if (childCount !== (bookingData.children || 0)) {
+        return res.status(400).json({
+          error: `Počet dětských jmen (${childCount}) neodpovídá počtu dětí (${bookingData.children || 0})`,
+        });
+      }
+
+      const MAX_NAME_LENGTH = 50;
+
+      for (let i = 0; i < bookingData.guestNames.length; i++) {
+        const guest = bookingData.guestNames[i];
+
+        if (!guest.firstName || !guest.firstName.trim()) {
+          return res.status(400).json({ error: `Křestní jméno hosta ${i + 1} je povinné` });
+        }
+
+        if (guest.firstName.trim().length < 2) {
+          return res
+            .status(400)
+            .json({ error: `Křestní jméno hosta ${i + 1} musí mít alespoň 2 znaky` });
+        }
+
+        // SECURITY FIX: Add maximum length validation
+        if (guest.firstName.trim().length > MAX_NAME_LENGTH) {
+          return res.status(400).json({
+            error: `Křestní jméno hosta ${i + 1} nesmí překročit ${MAX_NAME_LENGTH} znaků`,
+          });
+        }
+
+        if (!guest.lastName || !guest.lastName.trim()) {
+          return res.status(400).json({ error: `Příjmení hosta ${i + 1} je povinné` });
+        }
+
+        if (guest.lastName.trim().length < 2) {
+          return res.status(400).json({ error: `Příjmení hosta ${i + 1} musí mít alespoň 2 znaky` });
+        }
+
+        // SECURITY FIX: Add maximum length validation
+        if (guest.lastName.trim().length > MAX_NAME_LENGTH) {
+          return res.status(400).json({
+            error: `Příjmení hosta ${i + 1} nesmí překročit ${MAX_NAME_LENGTH} znaků`,
+          });
+        }
+
+        if (guest.personType !== 'adult' && guest.personType !== 'child') {
+          return res.status(400).json({
+            error: `Neplatný typ osoby pro hosta ${i + 1} (musí být 'adult' nebo 'child')`,
+          });
+        }
+
+        // SECURITY FIX: Sanitize guest names before storing
+        guest.firstName = sanitizeInput(guest.firstName.trim(), MAX_NAME_LENGTH);
+        guest.lastName = sanitizeInput(guest.lastName.trim(), MAX_NAME_LENGTH);
+      }
     }
 
     // Validate dates
@@ -1023,16 +1182,19 @@ app.delete('/api/booking/:id', writeLimiter, (req, res) => {
       }
     }
 
-    // Check 3-day delete deadline for non-admin users
-    // FIX: Use UTC to avoid timezone edge cases
+    // Check if booking is paid (cannot be deleted by users)
+    if (!isAdmin && existingBooking.paid) {
+      return res.status(403).json({
+        error:
+          'Tato rezervace byla zaplacena a nelze ji zrušit. Pro zrušení kontaktujte administrátora.',
+        isPaid: true,
+        paidBooking: true,
+      });
+    }
+
+    // Check 3-day delete deadline for non-admin users using DateUtils (SSOT)
     if (!isAdmin) {
-      const today = new Date();
-      today.setUTCHours(0, 0, 0, 0);
-
-      const bookingStart = new Date(existingBooking.startDate);
-      bookingStart.setUTCHours(0, 0, 0, 0);
-
-      const daysUntilStart = Math.floor((bookingStart - today) / (1000 * 60 * 60 * 24));
+      const daysUntilStart = DateUtils.calculateDaysUntilStart(existingBooking.startDate);
 
       if (daysUntilStart < 3) {
         return res.status(403).json({

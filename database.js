@@ -207,6 +207,9 @@ class DatabaseManager {
     addColumnIfNotExists('proposed_bookings', 'guest_type', 'TEXT', "'external'");
     addColumnIfNotExists('proposed_bookings', 'total_price', 'INTEGER', 0);
 
+    // Add paid status column to bookings table if it doesn't exist
+    addColumnIfNotExists('bookings', 'paid', 'INTEGER', 0);
+
     // Create proposed booking rooms table
     this.db.exec(`
             CREATE TABLE IF NOT EXISTS proposed_booking_rooms (
@@ -222,6 +225,27 @@ class DatabaseManager {
             CREATE INDEX IF NOT EXISTS idx_proposed_bookings_dates ON proposed_bookings(start_date, end_date);
             CREATE INDEX IF NOT EXISTS idx_proposed_bookings_expires ON proposed_bookings(expires_at);
             CREATE INDEX IF NOT EXISTS idx_proposed_booking_rooms ON proposed_booking_rooms(room_id);
+        `);
+
+    // Create guest names table for storing individual guest information
+    this.db.exec(`
+            CREATE TABLE IF NOT EXISTS guest_names (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                booking_id TEXT NOT NULL,
+                person_type TEXT NOT NULL CHECK(person_type IN ('adult', 'child')),
+                first_name TEXT NOT NULL,
+                last_name TEXT NOT NULL,
+                order_index INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
+                UNIQUE(booking_id, person_type, order_index)
+            )
+        `);
+
+    // Create indexes for guest names performance
+    this.db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_guest_names_booking ON guest_names(booking_id);
+            CREATE INDEX IF NOT EXISTS idx_guest_names_type ON guest_names(booking_id, person_type);
         `);
 
     // Create admin sessions table for persistent session storage
@@ -325,11 +349,11 @@ class DatabaseManager {
                 INSERT INTO bookings (
                     id, name, email, phone, company, address, city, zip, ico, dic,
                     start_date, end_date, guest_type, adults, children, toddlers,
-                    total_price, notes, edit_token, created_at, updated_at
+                    total_price, notes, paid, edit_token, created_at, updated_at
                 ) VALUES (
                     @id, @name, @email, @phone, @company, @address, @city, @zip, @ico, @dic,
                     @start_date, @end_date, @guest_type, @adults, @children, @toddlers,
-                    @total_price, @notes, @edit_token, @created_at, @updated_at
+                    @total_price, @notes, @paid, @edit_token, @created_at, @updated_at
                 )
             `),
 
@@ -342,6 +366,7 @@ class DatabaseManager {
                     guest_type = @guest_type, adults = @adults,
                     children = @children, toddlers = @toddlers,
                     total_price = @total_price, notes = @notes,
+                    paid = @paid,
                     updated_at = @updated_at
                 WHERE id = @id
             `),
@@ -465,6 +490,25 @@ class DatabaseManager {
       deleteProposedBookingsBySession: this.db.prepare(
         'DELETE FROM proposed_bookings WHERE session_id = ?'
       ),
+
+      // Guest names
+      insertGuestName: this.db.prepare(`
+        INSERT INTO guest_names (booking_id, person_type, first_name, last_name, order_index, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `),
+
+      deleteGuestNamesByBooking: this.db.prepare(
+        'DELETE FROM guest_names WHERE booking_id = ?'
+      ),
+
+      getGuestNamesByBooking: this.db.prepare(`
+        SELECT person_type, first_name, last_name, order_index
+        FROM guest_names
+        WHERE booking_id = ?
+        ORDER BY
+          CASE person_type WHEN 'adult' THEN 1 WHEN 'child' THEN 2 END,
+          order_index
+      `),
     };
   }
 
@@ -491,6 +535,7 @@ class DatabaseManager {
         toddlers: data.toddlers || 0,
         total_price: data.totalPrice,
         notes: data.notes || null,
+        paid: data.paid ? 1 : 0,
         edit_token: data.editToken,
         created_at: data.createdAt,
         updated_at: data.updatedAt,
@@ -535,6 +580,21 @@ class DatabaseManager {
           }
         }
       }
+
+      // Insert guest names if provided
+      if (data.guestNames && Array.isArray(data.guestNames)) {
+        const now = new Date().toISOString();
+        data.guestNames.forEach((guest, index) => {
+          this.statements.insertGuestName.run(
+            data.id,
+            guest.personType, // 'adult' or 'child'
+            guest.firstName,
+            guest.lastName,
+            index + 1, // order_index starts at 1
+            now
+          );
+        });
+      }
     });
 
     return transaction(bookingData);
@@ -562,6 +622,7 @@ class DatabaseManager {
         toddlers: data.toddlers || 0,
         total_price: data.totalPrice,
         notes: data.notes || null,
+        paid: data.paid ? 1 : 0,
         updated_at: new Date().toISOString(),
       });
 
@@ -605,6 +666,22 @@ class DatabaseManager {
           }
         }
       }
+
+      // Update guest names (delete and re-insert)
+      this.statements.deleteGuestNamesByBooking.run(bookingId);
+      if (data.guestNames && Array.isArray(data.guestNames)) {
+        const now = new Date().toISOString();
+        data.guestNames.forEach((guest, index) => {
+          this.statements.insertGuestName.run(
+            bookingId,
+            guest.personType, // 'adult' or 'child'
+            guest.firstName,
+            guest.lastName,
+            index + 1, // order_index starts at 1
+            now
+          );
+        });
+      }
     });
 
     return transaction(id, bookingData);
@@ -640,6 +717,14 @@ class DatabaseManager {
         };
       });
 
+      // Get guest names
+      const guestNameRows = this.statements.getGuestNamesByBooking.all(id);
+      const guestNames = guestNameRows.map((row) => ({
+        personType: row.person_type,
+        firstName: row.first_name,
+        lastName: row.last_name,
+      }));
+
       // Convert snake_case to camelCase
       return {
         id: booking.id,
@@ -663,9 +748,11 @@ class DatabaseManager {
         toddlers: booking.toddlers,
         totalPrice: booking.total_price,
         notes: booking.notes,
+        paid: Boolean(booking.paid),
         editToken: booking.edit_token,
         createdAt: booking.created_at,
         updatedAt: booking.updated_at,
+        guestNames, // Include guest names
       };
     }
     return null;
@@ -699,6 +786,14 @@ class DatabaseManager {
         };
       });
 
+      // Get guest names
+      const guestNameRows = this.statements.getGuestNamesByBooking.all(booking.id);
+      const guestNames = guestNameRows.map((row) => ({
+        personType: row.person_type,
+        firstName: row.first_name,
+        lastName: row.last_name,
+      }));
+
       // Convert snake_case to camelCase
       return {
         id: booking.id,
@@ -722,9 +817,11 @@ class DatabaseManager {
         toddlers: booking.toddlers,
         totalPrice: booking.total_price,
         notes: booking.notes,
+        paid: Boolean(booking.paid),
         editToken: booking.edit_token,
         createdAt: booking.created_at,
         updatedAt: booking.updated_at,
+        guestNames, // Include guest names
       };
     }
     return null;
@@ -799,6 +896,7 @@ class DatabaseManager {
         toddlers: booking.toddlers,
         totalPrice: booking.total_price,
         notes: booking.notes,
+        paid: Boolean(booking.paid),
         editToken: booking.edit_token,
         createdAt: booking.created_at,
         updatedAt: booking.updated_at,

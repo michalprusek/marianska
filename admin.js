@@ -476,6 +476,19 @@ class AdminPanel {
                     ${booking.totalPrice} Kč
                     ${booking.payFromBenefit ? '<span style="margin-left: 0.5rem; padding: 0.15rem 0.5rem; background: #17a2b8; color: white; border-radius: 3px; font-size: 0.75rem; font-weight: 600;">💳 Benefit</span>' : ''}
                 </td>
+                <td style="text-align: center;">
+                    <label style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                        <input
+                            type="checkbox"
+                            ${booking.paid ? 'checked' : ''}
+                            onchange="adminPanel.togglePaidStatus('${booking.id}', this.checked)"
+                            style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--success-color);"
+                        />
+                        <span style="font-weight: 600; color: ${booking.paid ? '#10b981' : '#ef4444'}; font-size: 0.85rem;">
+                            ${booking.paid ? '✓ Ano' : '✗ Ne'}
+                        </span>
+                    </label>
+                </td>
                 <td>
                     <div class="action-buttons">
                         <button class="btn-modern btn-view" onclick="adminPanel.viewBookingDetails('${booking.id}')" title="Zobrazit detail">
@@ -655,6 +668,68 @@ class AdminPanel {
                             }
                         </div>
                     </div>
+
+                    ${
+                      booking.guestNames && booking.guestNames.length > 0
+                        ? `
+                    <div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+                            <strong style="color: var(--gray-600); font-size: 0.9rem;">Jména hostů:</strong>
+                            <button
+                                onclick="adminPanel.copyGuestNames('${booking.id}')"
+                                style="padding: 0.4rem 0.8rem; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: 500; display: flex; align-items: center; gap: 0.4rem;"
+                                onmouseover="this.style.background='#059669'"
+                                onmouseout="this.style.background='#10b981'"
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path>
+                                </svg>
+                                Kopírovat
+                            </button>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem;">
+                            ${
+                              booking.guestNames.filter((g) => g.personType === 'adult').length > 0
+                                ? `
+                            <div>
+                                <div style="font-weight: 600; color: #4b5563; font-size: 0.85rem; margin-bottom: 0.5rem;">Dospělí:</div>
+                                <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+                                    ${booking.guestNames
+                                      .filter((g) => g.personType === 'adult')
+                                      .map(
+                                        (guest) =>
+                                          `<div style="color: #6b7280; font-size: 0.9rem;">${this.escapeHtml(guest.firstName)} ${this.escapeHtml(guest.lastName)}</div>`
+                                      )
+                                      .join('')}
+                                </div>
+                            </div>
+                            `
+                                : ''
+                            }
+                            ${
+                              booking.guestNames.filter((g) => g.personType === 'child').length > 0
+                                ? `
+                            <div>
+                                <div style="font-weight: 600; color: #4b5563; font-size: 0.85rem; margin-bottom: 0.5rem;">Děti:</div>
+                                <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+                                    ${booking.guestNames
+                                      .filter((g) => g.personType === 'child')
+                                      .map(
+                                        (guest) =>
+                                          `<div style="color: #6b7280; font-size: 0.9rem;">${this.escapeHtml(guest.firstName)} ${this.escapeHtml(guest.lastName)}</div>`
+                                      )
+                                      .join('')}
+                                </div>
+                            </div>
+                            `
+                                : ''
+                            }
+                        </div>
+                    </div>
+                    `
+                        : ''
+                    }
 
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
                         <div>
@@ -931,6 +1006,38 @@ class AdminPanel {
         this.showToast(`Chyba: ${error.message}`, 'error');
       }
     });
+  }
+
+  async togglePaidStatus(bookingId, paid) {
+    // Validate session before admin operation
+    if (!this.validateSession()) {
+      return;
+    }
+
+    try {
+      const booking = await dataManager.getBooking(bookingId);
+      if (!booking) {
+        this.showToast('Rezervace nenalezena', 'error');
+        return;
+      }
+
+      // Update paid status
+      booking.paid = paid;
+      await dataManager.updateBooking(bookingId, booking);
+
+      // Reload bookings table to reflect changes
+      await this.loadBookings();
+
+      this.showToast(
+        paid ? 'Rezervace označena jako zaplacená' : 'Rezervace označena jako nezaplacená',
+        'success'
+      );
+    } catch (error) {
+      console.error('Chyba při změně stavu platby:', error);
+      this.showToast(`Chyba: ${error.message}`, 'error');
+      // Reload to show original state on error
+      await this.loadBookings();
+    }
   }
 
   async loadBlockedDates() {
@@ -1973,6 +2080,32 @@ class AdminPanel {
         }
       }
     });
+  }
+
+  /**
+   * Copy guest names to clipboard
+   * @param {string} bookingId - Booking ID to copy guest names from
+   */
+  async copyGuestNames(bookingId) {
+    try {
+      const booking = await dataManager.getBooking(bookingId);
+      if (!booking || !booking.guestNames || booking.guestNames.length === 0) {
+        this.showToast('Žádná jména hostů k zkopírování', 'warning');
+        return;
+      }
+
+      // Format: "FirstName LastName\n" for each guest
+      const guestNamesText = booking.guestNames
+        .map((guest) => `${guest.firstName} ${guest.lastName}`)
+        .join('\n');
+
+      // Copy to clipboard
+      await navigator.clipboard.writeText(guestNamesText);
+      this.showToast(`Zkopírováno ${booking.guestNames.length} jmen hostů`, 'success');
+    } catch (error) {
+      console.error('Chyba při kopírování jmen hostů:', error);
+      this.showToast('Nepodařilo se zkopírovat jména hostů', 'error');
+    }
   }
 }
 

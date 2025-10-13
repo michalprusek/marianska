@@ -9,6 +9,8 @@ services:
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
       - PORT=3000

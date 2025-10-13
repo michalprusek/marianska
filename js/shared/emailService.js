@@ -194,7 +194,9 @@ Osob: ${booking.adults} dospělých, ${booking.children || 0} dětí${booking.no
     // Substitute all variables
     let result = template;
     for (const [variable, value] of Object.entries(variables)) {
-      result = result.replace(new RegExp(variable, 'g'), value);
+      // Escape special regex characters in variable name
+      const escapedVariable = variable.replace(/[{}]/gu, '\\$&');
+      result = result.replace(new RegExp(escapedVariable, 'gu'), value);
     }
 
     return result;

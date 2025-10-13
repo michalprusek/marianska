@@ -289,6 +289,27 @@ class BookingFormModule {
       this.app.tempReservations &&
       this.app.tempReservations.length > 0
     ) {
+      // Calculate total guests for validation
+      let totalAdults = 0;
+      let totalChildren = 0;
+
+      this.app.tempReservations.forEach((reservation) => {
+        totalAdults += reservation.guests.adults || 0;
+        totalChildren += reservation.guests.children || 0;
+      });
+
+      // Validate guest names if there are any guests
+      if (totalAdults + totalChildren > 0) {
+        const validation = this.validateGuestNames(totalAdults, totalChildren);
+        if (!validation.valid) {
+          this.app.showNotification(validation.error, 'error');
+          return;
+        }
+      }
+
+      // Collect guest names
+      const guestNames = this.collectGuestNames();
+
       // Create bookings for all temporary reservations
       let successCount = 0;
       let errorCount = 0;
@@ -319,6 +340,7 @@ class BookingFormModule {
             christmasCode, // Include Christmas access code
             isBulkBooking: true,
             sessionId: this.app.sessionId, // Include sessionId to exclude user's own proposals
+            guestNames, // Include guest names
           };
 
           try {
@@ -354,6 +376,7 @@ class BookingFormModule {
             christmasCode, // Include Christmas access code
             roomGuests: { [tempReservation.roomId]: tempReservation.guests },
             sessionId: this.app.sessionId, // Include sessionId to exclude user's own proposals
+            guestNames, // Include guest names
           };
 
           try {
@@ -479,6 +502,18 @@ class BookingFormModule {
       totalToddlers += guests.toddlers;
     }
 
+    // Validate guest names if there are any guests
+    if (totalAdults + totalChildren > 0) {
+      const validation = this.validateGuestNames(totalAdults, totalChildren);
+      if (!validation.valid) {
+        this.app.showNotification(validation.error, 'error');
+        return;
+      }
+    }
+
+    // Collect guest names
+    const guestNames = this.collectGuestNames();
+
     // Create booking
     const booking = {
       name,
@@ -500,6 +535,7 @@ class BookingFormModule {
       notes,
       payFromBenefit,
       roomGuests: Object.fromEntries(this.app.roomGuests),
+      guestNames, // Include guest names
     };
 
     try {
@@ -759,5 +795,231 @@ class BookingFormModule {
     }
 
     inputElement.value = value;
+  }
+
+  /**
+   * Generate guest names input fields dynamically based on guest counts
+   * @param {number} adults - Number of adults
+   * @param {number} children - Number of children
+   */
+  generateGuestNamesInputs(adults, children) {
+    const guestNamesSection = document.getElementById('guestNamesSection');
+    const adultsNamesList = document.getElementById('adultsNamesList');
+    const childrenNamesList = document.getElementById('childrenNamesList');
+    const childrenContainer = document.getElementById('childrenNamesContainer');
+
+    if (!guestNamesSection || !adultsNamesList || !childrenNamesList) {
+      return;
+    }
+
+    // Clear existing inputs
+    adultsNamesList.textContent = '';
+    childrenNamesList.textContent = '';
+
+    // Show/hide section based on guest counts
+    if (adults + children > 0) {
+      guestNamesSection.style.display = 'block';
+    } else {
+      guestNamesSection.style.display = 'none';
+      return;
+    }
+
+    // Generate adult name inputs using safe DOM methods
+    for (let i = 1; i <= adults; i++) {
+      const guestDiv = document.createElement('div');
+      guestDiv.className = 'guest-name-row';
+      guestDiv.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;';
+
+      // First name input
+      const firstNameGroup = document.createElement('div');
+      firstNameGroup.className = 'input-group';
+
+      const firstNameLabel = document.createElement('label');
+      firstNameLabel.setAttribute('for', `adultFirstName${i}`);
+      firstNameLabel.textContent = `Křestní jméno ${i}. dospělého *`;
+      firstNameGroup.appendChild(firstNameLabel);
+
+      const firstNameInput = document.createElement('input');
+      firstNameInput.type = 'text';
+      firstNameInput.id = `adultFirstName${i}`;
+      firstNameInput.name = `adultFirstName${i}`;
+      firstNameInput.required = true;
+      firstNameInput.minLength = 2;
+      firstNameInput.maxLength = 50; // SECURITY FIX: Add max length validation
+      firstNameInput.placeholder = 'např. Jan';
+      firstNameInput.setAttribute('data-guest-type', 'adult');
+      firstNameInput.setAttribute('data-guest-index', i);
+      firstNameGroup.appendChild(firstNameInput);
+
+      // Last name input
+      const lastNameGroup = document.createElement('div');
+      lastNameGroup.className = 'input-group';
+
+      const lastNameLabel = document.createElement('label');
+      lastNameLabel.setAttribute('for', `adultLastName${i}`);
+      lastNameLabel.textContent = `Příjmení ${i}. dospělého *`;
+      lastNameGroup.appendChild(lastNameLabel);
+
+      const lastNameInput = document.createElement('input');
+      lastNameInput.type = 'text';
+      lastNameInput.id = `adultLastName${i}`;
+      lastNameInput.name = `adultLastName${i}`;
+      lastNameInput.required = true;
+      lastNameInput.minLength = 2;
+      lastNameInput.maxLength = 50; // SECURITY FIX: Add max length validation
+      lastNameInput.placeholder = 'např. Novák';
+      lastNameInput.setAttribute('data-guest-type', 'adult');
+      lastNameInput.setAttribute('data-guest-index', i);
+      lastNameGroup.appendChild(lastNameInput);
+
+      guestDiv.appendChild(firstNameGroup);
+      guestDiv.appendChild(lastNameGroup);
+      adultsNamesList.appendChild(guestDiv);
+    }
+
+    // Generate children name inputs
+    if (children > 0) {
+      childrenContainer.style.display = 'block';
+      for (let i = 1; i <= children; i++) {
+        const guestDiv = document.createElement('div');
+        guestDiv.className = 'guest-name-row';
+        guestDiv.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;';
+
+        // First name input
+        const firstNameGroup = document.createElement('div');
+        firstNameGroup.className = 'input-group';
+
+        const firstNameLabel = document.createElement('label');
+        firstNameLabel.setAttribute('for', `childFirstName${i}`);
+        firstNameLabel.textContent = `Křestní jméno ${i}. dítěte *`;
+        firstNameGroup.appendChild(firstNameLabel);
+
+        const firstNameInput = document.createElement('input');
+        firstNameInput.type = 'text';
+        firstNameInput.id = `childFirstName${i}`;
+        firstNameInput.name = `childFirstName${i}`;
+        firstNameInput.required = true;
+        firstNameInput.minLength = 2;
+        firstNameInput.maxLength = 50; // SECURITY FIX: Add max length validation
+        firstNameInput.placeholder = 'např. Anna';
+        firstNameInput.setAttribute('data-guest-type', 'child');
+        firstNameInput.setAttribute('data-guest-index', i);
+        firstNameGroup.appendChild(firstNameInput);
+
+        // Last name input
+        const lastNameGroup = document.createElement('div');
+        lastNameGroup.className = 'input-group';
+
+        const lastNameLabel = document.createElement('label');
+        lastNameLabel.setAttribute('for', `childLastName${i}`);
+        lastNameLabel.textContent = `Příjmení ${i}. dítěte *`;
+        lastNameGroup.appendChild(lastNameLabel);
+
+        const lastNameInput = document.createElement('input');
+        lastNameInput.type = 'text';
+        lastNameInput.id = `childLastName${i}`;
+        lastNameInput.name = `childLastName${i}`;
+        lastNameInput.required = true;
+        lastNameInput.minLength = 2;
+        lastNameInput.maxLength = 50; // SECURITY FIX: Add max length validation
+        lastNameInput.placeholder = 'např. Nováková';
+        lastNameInput.setAttribute('data-guest-type', 'child');
+        lastNameInput.setAttribute('data-guest-index', i);
+        lastNameGroup.appendChild(lastNameInput);
+
+        guestDiv.appendChild(firstNameGroup);
+        guestDiv.appendChild(lastNameGroup);
+        childrenNamesList.appendChild(guestDiv);
+      }
+    } else {
+      childrenContainer.style.display = 'none';
+    }
+  }
+
+  /**
+   * Collect guest names from the generated form inputs
+   * @returns {Array<Object>} Array of guest name objects
+   */
+  collectGuestNames() {
+    const guestNames = [];
+
+    // Collect adult names
+    const adultFirstNames = document.querySelectorAll('input[data-guest-type="adult"][id^="adultFirstName"]');
+    const adultLastNames = document.querySelectorAll('input[data-guest-type="adult"][id^="adultLastName"]');
+
+    for (let i = 0; i < adultFirstNames.length; i++) {
+      const firstName = adultFirstNames[i].value.trim();
+      const lastName = adultLastNames[i].value.trim();
+      if (firstName && lastName) {
+        guestNames.push({
+          personType: 'adult',
+          firstName,
+          lastName,
+        });
+      }
+    }
+
+    // Collect children names
+    const childFirstNames = document.querySelectorAll('input[data-guest-type="child"][id^="childFirstName"]');
+    const childLastNames = document.querySelectorAll('input[data-guest-type="child"][id^="childLastName"]');
+
+    for (let i = 0; i < childFirstNames.length; i++) {
+      const firstName = childFirstNames[i].value.trim();
+      const lastName = childLastNames[i].value.trim();
+      if (firstName && lastName) {
+        guestNames.push({
+          personType: 'child',
+          firstName,
+          lastName,
+        });
+      }
+    }
+
+    return guestNames;
+  }
+
+  /**
+   * Validate guest names input fields
+   * @param {number} expectedAdults - Expected number of adults
+   * @param {number} expectedChildren - Expected number of children
+   * @returns {Object} Validation result with valid flag and error message
+   */
+  validateGuestNames(expectedAdults, expectedChildren) {
+    const guestNames = this.collectGuestNames();
+    const adultNames = guestNames.filter((g) => g.personType === 'adult');
+    const childNames = guestNames.filter((g) => g.personType === 'child');
+
+    // Check counts
+    if (adultNames.length !== expectedAdults) {
+      return {
+        valid: false,
+        error: `Vyplňte jména všech ${expectedAdults} dospělých`,
+      };
+    }
+
+    if (childNames.length !== expectedChildren) {
+      return {
+        valid: false,
+        error: `Vyplňte jména všech ${expectedChildren} dětí`,
+      };
+    }
+
+    // Check each name for minimum length
+    for (const guest of guestNames) {
+      if (guest.firstName.length < 2) {
+        return {
+          valid: false,
+          error: 'Všechna křestní jména musí mít alespoň 2 znaky',
+        };
+      }
+      if (guest.lastName.length < 2) {
+        return {
+          valid: false,
+          error: 'Všechna příjmení musí mít alespoň 2 znaky',
+        };
+      }
+    }
+
+    return { valid: true, guestNames };
   }
 }

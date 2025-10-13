@@ -247,6 +247,42 @@ class DateUtils {
     }
     return 'occupied'; // Both nights occupied
   }
+
+  /**
+   * Calculate days until booking start date (3-day edit deadline enforcement)
+   * Uses UTC to avoid timezone edge cases
+   *
+   * @param {string|Date} startDate - Booking start date
+   * @returns {number} Days until start (negative if booking has started)
+   *
+   * @example
+   * // Today: 2025-10-13, Start: 2025-10-16
+   * calculateDaysUntilStart('2025-10-16') // → 3 (editable)
+   *
+   * @example
+   * // Today: 2025-10-13, Start: 2025-10-15
+   * calculateDaysUntilStart('2025-10-15') // → 2 (locked)
+   */
+  static calculateDaysUntilStart(startDate) {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    const bookingStart =
+      typeof startDate === 'string' ? new Date(startDate + 'T00:00:00Z') : new Date(startDate);
+    bookingStart.setUTCHours(0, 0, 0, 0);
+
+    return Math.floor((bookingStart - today) / (1000 * 60 * 60 * 24));
+  }
+
+  /**
+   * Check if booking is within edit deadline
+   * @param {string|Date} startDate - Booking start date
+   * @param {number} deadlineDays - Number of days before start (default: 3)
+   * @returns {boolean} True if edit deadline has passed (booking is locked)
+   */
+  static isEditDeadlinePassed(startDate, deadlineDays = 3) {
+    return this.calculateDaysUntilStart(startDate) < deadlineDays;
+  }
 }
 
 // Export for Node.js (server-side)

@@ -132,14 +132,14 @@ class AccessLogger {
     // Extract parts between brackets and quotes, split by spaces
     // Example: [2025-10-09T14:03:42.190Z] 147.231.12.83 prusemic@cvut.cz POST /api/queue/batch 200 21ms "Mozilla..."
     const match = logEntry.match(
-      /^\[(.*?)\]\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\d+)\s+\d+ms\s+"(.*)"/
+      /^\[(?<timestamp>.*?)\]\s+(?<ip>\S+)\s+(?<user>\S+)\s+(?<method>\S+)\s+(?<url>\S+)\s+(?<status>\d+)\s+\d+ms\s+"(?<userAgent>.*)"/u
     );
 
     if (!match) {
       return logEntry; // Fallback to full string comparison
     }
 
-    const [, , ip, user, method, url, status, userAgent] = match;
+    const { ip, user, method, url, status, userAgent } = match.groups;
 
     // Signature excludes timestamp and response time
     return `${ip}|${user}|${method}|${url}|${status}|${userAgent}`;

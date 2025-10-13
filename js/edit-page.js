@@ -43,13 +43,19 @@ class EditPage {
 
       this.currentBooking = await response.json();
 
-      // Check 3-day edit deadline
-      this.isEditLocked = this.checkEditDeadline();
-
-      if (this.isEditLocked) {
-        this.displayEditDeadlineWarning();
+      // Check if booking is paid - takes priority over deadline
+      if (this.currentBooking.paid) {
+        this.isEditLocked = true;
+        this.displayPaidBookingWarning();
       } else {
-        await this.initializeEditForm();
+        // Check 3-day edit deadline
+        this.isEditLocked = this.checkEditDeadline();
+
+        if (this.isEditLocked) {
+          this.displayEditDeadlineWarning();
+        } else {
+          await this.initializeEditForm();
+        }
       }
 
       // Hide loading, show form
@@ -61,18 +67,11 @@ class EditPage {
   }
 
   /**
-   * Calculate days until booking start using UTC to avoid timezone edge cases
+   * Calculate days until booking start using DateUtils (SSOT)
    * @returns {number} Days until start (negative if booking has started)
    */
   calculateDaysUntilStart() {
-    // FIX: Use UTC to avoid timezone edge cases (consistent with server)
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-
-    const startDate = new Date(this.currentBooking.startDate);
-    startDate.setUTCHours(0, 0, 0, 0);
-
-    return Math.floor((startDate - today) / (1000 * 60 * 60 * 24));
+    return DateUtils.calculateDaysUntilStart(this.currentBooking.startDate);
   }
 
   checkEditDeadline() {
@@ -104,6 +103,20 @@ class EditPage {
     document.getElementById('deadlineMessage').innerHTML = `
       Úpravy a zrušení rezervace jsou možné pouze <strong>3 dny před začátkem pobytu</strong>.<br><br>
       ${message}
+    `;
+
+    document.getElementById('editDeadlineWarning').style.display = 'block';
+
+    // Show booking details in read-only mode
+    document.getElementById('editFormContainer').style.display = 'block';
+    this.displayReadOnlyBooking();
+  }
+
+  displayPaidBookingWarning() {
+    document.getElementById('deadlineMessage').innerHTML = `
+      <strong>💳 Tato rezervace byla zaplacena.</strong><br><br>
+      Úpravy a zrušení zaplacených rezervací nejsou možné prostřednictvím editačního odkazu.<br><br>
+      Pro změny nebo zrušení rezervace prosím kontaktujte správce systému (administrátora).
     `;
 
     document.getElementById('editDeadlineWarning').style.display = 'block';
@@ -154,7 +167,15 @@ class EditPage {
     // Disable all buttons except cancel
     document.getElementById('editSubmitButton').disabled = true;
     document.getElementById('deleteBookingButton').disabled = true;
-    document.querySelector('.edit-tab-btn[data-tab="dates"]').disabled = true;
+
+    // Disable tab switching in read-only mode
+    const tabButtons = document.querySelectorAll('.edit-tab-btn');
+    tabButtons.forEach((btn) => {
+      btn.disabled = true;
+      btn.style.cursor = 'not-allowed';
+      btn.style.opacity = '0.6';
+      btn.onclick = null;
+    });
 
     // Hide calendar
     document.getElementById('editCalendarContainer').innerHTML = `
@@ -165,8 +186,9 @@ class EditPage {
       </div>
     `;
 
-    // Switch to billing tab by default
-    this.switchTab('billing');
+    // Show billing tab by default (without tab switching functionality)
+    document.getElementById('editDatesTab').style.display = 'none';
+    document.getElementById('editBillingTab').style.display = 'block';
   }
 
   async initializeEditForm() {

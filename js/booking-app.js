@@ -980,6 +980,18 @@ class BookingApp {
 
     this.bookingForm.checkAndShowChristmasCodeField(allDates, hasBulkBooking);
 
+    // Calculate total guests for all reservations and generate guest name inputs
+    let totalAdults = 0;
+    let totalChildren = 0;
+
+    this.tempReservations.forEach((reservation) => {
+      totalAdults += reservation.guests.adults || 0;
+      totalChildren += reservation.guests.children || 0;
+    });
+
+    // Generate guest names input fields
+    this.bookingForm.generateGuestNamesInputs(totalAdults, totalChildren);
+
     // Show the modal
     modal.classList.add('active');
 
