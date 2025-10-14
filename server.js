@@ -771,6 +771,7 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
           guestType: bookingData.guestType,
           adults: bookingData.adults,
           children: bookingData.children || 0,
+          toddlers: bookingData.toddlers || 0,
           nights,
           settings,
         });
@@ -1165,6 +1166,7 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
         guestType: bookingData.guestType,
         adults: bookingData.adults,
         children: bookingData.children || 0,
+        toddlers: bookingData.toddlers || 0,
         nights,
         settings,
       });

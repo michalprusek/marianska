@@ -1999,11 +1999,20 @@ class EditBookingComponent {
         return false;
       }
 
+      // Use per-room dates if available, otherwise fall back to global dates
+      let compareStartDate = b.startDate;
+      let compareEndDate = b.endDate;
+
+      if (b.perRoomDates && b.perRoomDates[roomId]) {
+        compareStartDate = b.perRoomDates[roomId].startDate;
+        compareEndDate = b.perRoomDates[roomId].endDate;
+      }
+
       const hasDateOverlap = BookingLogic.checkDateOverlap(
         this.tempRoomStartDate,
         this.tempRoomEndDate,
-        b.startDate,
-        b.endDate
+        compareStartDate,
+        compareEndDate
       );
 
       const hasRoomOverlap = b.rooms.includes(roomId);
@@ -2310,11 +2319,20 @@ class EditBookingComponent {
           return false;
         }
 
+        // Use per-room dates if available, otherwise fall back to global dates
+        let compareStartDate = b.startDate;
+        let compareEndDate = b.endDate;
+
+        if (b.perRoomDates && b.perRoomDates[roomId]) {
+          compareStartDate = b.perRoomDates[roomId].startDate;
+          compareEndDate = b.perRoomDates[roomId].endDate;
+        }
+
         const hasDateOverlap = BookingLogic.checkDateOverlap(
           this.tempRoomStartDate,
           this.tempRoomEndDate,
-          b.startDate,
-          b.endDate
+          compareStartDate,
+          compareEndDate
         );
 
         const hasRoomOverlap = b.rooms.includes(roomId);

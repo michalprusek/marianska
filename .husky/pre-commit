@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Colors for output
 RED='\033[0;31m'
@@ -87,11 +87,15 @@ BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
   echo "${YELLOW}⚠️  Warning: Committing directly to $BRANCH branch${NC}"
   echo "Consider creating a feature branch instead."
-  read -p "Are you sure you want to continue? (y/n) " -n 1 -r
-  echo
-  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "${RED}Commit cancelled.${NC}"
-    exit 1
+
+  # Skip interactive prompt in non-interactive environments (CI, Claude Code, etc.)
+  if [ -t 0 ]; then
+    read -p "Are you sure you want to continue? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      echo "${RED}Commit cancelled.${NC}"
+      exit 1
+    fi
   fi
 fi
 

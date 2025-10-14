@@ -263,6 +263,19 @@ class BookingFormModule {
       return;
     }
 
+    // Validate phone using ValidationUtils
+    const phoneCountryCode = document.getElementById('phonePrefix')?.value || '+420';
+    if (!ValidationUtils.validatePhoneNumber(phoneNumber, phoneCountryCode)) {
+      const errorMsg = ValidationUtils.getValidationError(
+        'phoneNumber',
+        phoneNumber,
+        this.app.currentLanguage,
+        phoneCountryCode
+      );
+      this.app.showNotification(errorMsg, 'error');
+      return;
+    }
+
     // Validate Christmas access code if required
     if (this.app.tempReservations && this.app.tempReservations.length > 0) {
       // Collect all dates from temporary reservations
@@ -283,8 +296,22 @@ class BookingFormModule {
         }
       });
 
-      // Check if Christmas code is required
-      const { showCodeField } = await this.checkAndShowChristmasCodeField(allDates, hasBulkBooking);
+      // Check if Christmas code is required and if bulk is blocked
+      const { showCodeField, blockBulk } = await this.checkAndShowChristmasCodeField(
+        allDates,
+        hasBulkBooking
+      );
+
+      // Block bulk bookings if required (after Oct 1 for Christmas period)
+      if (blockBulk) {
+        this.app.showNotification(
+          this.app.currentLanguage === 'cs'
+            ? 'Hromadné rezervace celé chaty nejsou po 1. říjnu povoleny pro vánoční období. Rezervujte jednotlivé pokoje.'
+            : 'Bulk bookings for the entire chalet are not allowed after October 1st for the Christmas period. Please book individual rooms.',
+          'error'
+        );
+        return;
+      }
 
       if (showCodeField && !christmasCode) {
         this.app.showNotification(
