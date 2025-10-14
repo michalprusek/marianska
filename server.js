@@ -216,8 +216,8 @@ const writeLimiter = rateLimit({
 // Stricter rate limit for booking creation
 const bookingLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // max 10 bookings per hour
-  message: 'Překročen limit pro vytváření rezervací. Zkuste to prosím za hodinu.',
+  max: 20, // max 20 bookings per hour
+  message: 'Překročili jste limit 20 rezervací za hodinu. Zkuste to prosím později.',
   ...rateLimitConfig,
 });
 
@@ -752,14 +752,29 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
       // Calculate price using shared PriceCalculator
       const nights = DateUtils.getDaysBetween(bookingData.startDate, bookingData.endDate);
       // settings already defined earlier in the function (line 489)
-      bookingData.totalPrice = PriceCalculator.calculatePriceFromRooms({
-        rooms: bookingData.rooms,
-        guestType: bookingData.guestType,
-        adults: bookingData.adults,
-        children: bookingData.children || 0,
-        nights,
-        settings,
-      });
+
+      // CRITICAL FIX: Use correct price calculation based on booking type
+      if (bookingData.isBulkBooking) {
+        // Bulk booking: Use bulk pricing structure (flat base + per-person charges)
+        bookingData.totalPrice = PriceCalculator.calculateBulkPrice({
+          guestType: bookingData.guestType,
+          adults: bookingData.adults,
+          children: bookingData.children || 0,
+          toddlers: bookingData.toddlers || 0,
+          nights,
+          settings,
+        });
+      } else {
+        // Individual room booking: Use per-room pricing structure
+        bookingData.totalPrice = PriceCalculator.calculatePriceFromRooms({
+          rooms: bookingData.rooms,
+          guestType: bookingData.guestType,
+          adults: bookingData.adults,
+          children: bookingData.children || 0,
+          nights,
+          settings,
+        });
+      }
 
       // Generate secure IDs
       bookingData.id = IdGenerator.generateBookingId();
@@ -897,6 +912,17 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
             'Úpravy rezervace jsou možné pouze 3 dny před začátkem pobytu. Pro změny kontaktujte administrátora.',
           daysUntilStart,
           editDeadlinePassed: true,
+        });
+      }
+    }
+
+    // SECURITY: Prevent modification of rooms list in edit mode (users can only change dates/guests)
+    if (!isAdmin && bookingData.rooms) {
+      const originalRooms = existingBooking.rooms.sort().join(',');
+      const newRooms = bookingData.rooms.sort().join(',');
+      if (originalRooms !== newRooms) {
+        return res.status(400).json({
+          error: 'V editaci nelze měnit seznam pokojů. Můžete měnit pouze termíny a počty hostů.',
         });
       }
     }
@@ -1120,14 +1146,29 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
     // Recalculate price using shared PriceCalculator
     const nights = DateUtils.getDaysBetween(bookingData.startDate, bookingData.endDate);
     // settings already declared above for Christmas check
-    bookingData.totalPrice = PriceCalculator.calculatePriceFromRooms({
-      rooms: bookingData.rooms,
-      guestType: bookingData.guestType,
-      adults: bookingData.adults,
-      children: bookingData.children || 0,
-      nights,
-      settings,
-    });
+
+    // CRITICAL FIX: Use correct price calculation based on booking type
+    if (bookingData.isBulkBooking) {
+      // Bulk booking: Use bulk pricing structure (flat base + per-person charges)
+      bookingData.totalPrice = PriceCalculator.calculateBulkPrice({
+        guestType: bookingData.guestType,
+        adults: bookingData.adults,
+        children: bookingData.children || 0,
+        toddlers: bookingData.toddlers || 0,
+        nights,
+        settings,
+      });
+    } else {
+      // Individual room booking: Use per-room pricing structure
+      bookingData.totalPrice = PriceCalculator.calculatePriceFromRooms({
+        rooms: bookingData.rooms,
+        guestType: bookingData.guestType,
+        adults: bookingData.adults,
+        children: bookingData.children || 0,
+        nights,
+        settings,
+      });
+    }
 
     // Update the booking
     db.updateBooking(bookingId, bookingData);
@@ -1473,10 +1514,13 @@ app.post('/api/contact', contactLimiter, (req, res) => {
       bookingId: contactData.bookingId || 'none',
     });
 
+    // Load settings for contact email
+    const settings = db.getSettings();
+
     // Send email (non-blocking)
     // Don't wait for email - respond to user immediately
     emailService
-      .sendContactMessage(contactData)
+      .sendContactMessage(contactData, { settings })
       .then((result) => {
         if (result.success) {
           logger.info('Contact message sent', {

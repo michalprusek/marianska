@@ -20,7 +20,7 @@ class PriceCalculator {
    * @param {Object} options - Pricing options
    * @param {string} options.guestType - 'utia' or 'external'
    * @param {number} options.adults - Number of adults
-   * @param {number} options.children - Number of children (3-18 years)
+   * @param {number} options.children - Number of children (3-17 years)
    * @param {number} options.toddlers - Number of toddlers (0-3 years, free)
    * @param {number} options.nights - Number of nights
    * @param {number} options.roomsCount - Number of rooms
@@ -103,7 +103,7 @@ class PriceCalculator {
    * @param {Object} options - Bulk pricing options
    * @param {string} options.guestType - 'utia' or 'external'
    * @param {number} options.adults - Number of adults
-   * @param {number} options.children - Number of children (3-18 years)
+   * @param {number} options.children - Number of children (3-17 years)
    * @param {number} options.toddlers - Number of toddlers (0-3 years, free)
    * @param {number} options.nights - Number of nights
    * @param {Object} options.settings - Settings object with bulkPrices configuration

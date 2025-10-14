@@ -16,6 +16,14 @@
  * - User: 3-day deadline, token-based auth, read-only mode
  */
 
+// Notification timeout constants (milliseconds)
+const NOTIFICATION_TIMEOUT = {
+  ERROR: 5000,
+  WARNING: 4000,
+  SUCCESS: 2000,
+  INFO: 3000,
+};
+
 // eslint-disable-next-line no-unused-vars
 class EditBookingComponent {
   /**
@@ -45,6 +53,7 @@ class EditBookingComponent {
     this.editCalendar = null;
     this.isEditLocked = false;
     this.isBulkBooking = false; // True if booking contains all rooms
+    this.originalRooms = []; // Store original rooms that cannot be changed
 
     // Per-room editing state
     this.perRoomDates = new Map(); // roomId -> {startDate, endDate}
@@ -75,6 +84,9 @@ class EditBookingComponent {
     this.originalStartDate = booking.startDate;
     this.originalEndDate = booking.endDate;
 
+    // ⚠️ CRITICAL: Store original rooms - users CANNOT add/remove rooms in edit mode
+    this.originalRooms = [...(booking.rooms || [])];
+
     // Current edit dates (will be changed by user)
     this.editStartDate = booking.startDate;
     this.editEndDate = booking.endDate;
@@ -95,9 +107,10 @@ class EditBookingComponent {
         if (roomGuests) {
           this.editSelectedRooms.set(roomId, {
             guestType: roomGuests.guestType || defaultGuestType,
-            adults: roomGuests.adults || 1,
-            children: roomGuests.children || 0,
-            toddlers: roomGuests.toddlers || 0,
+            // FIX: Respect 0 as valid value (don't use || operator for numbers)
+            adults: roomGuests.adults === undefined ? 1 : roomGuests.adults,
+            children: roomGuests.children === undefined ? 0 : roomGuests.children,
+            toddlers: roomGuests.toddlers === undefined ? 0 : roomGuests.toddlers,
           });
         } else {
           // Fallback for rooms without stored data (shouldn't happen with complete check)
@@ -230,6 +243,301 @@ class EditBookingComponent {
     document.getElementById('editNotes').value = this.currentBooking.notes || '';
     document.getElementById('editPayFromBenefit').checked =
       this.currentBooking.payFromBenefit || false;
+
+    // Populate guest names section
+    this.populateGuestNames();
+  }
+
+  /**
+   * Generate guest names input fields dynamically based on total guest counts
+   * @param {number} adults - Total number of adults across all rooms
+   * @param {number} children - Total number of children across all rooms
+   */
+  generateGuestNamesInputs(adults, children) {
+    const guestNamesSection = document.getElementById('editGuestNamesSection');
+    const adultsNamesList = document.getElementById('editAdultsNamesList');
+    const childrenNamesList = document.getElementById('editChildrenNamesList');
+    const childrenContainer = document.getElementById('editChildrenNamesContainer');
+
+    if (!guestNamesSection || !adultsNamesList || !childrenNamesList) {
+      return;
+    }
+
+    // Clear existing inputs to prevent HTML5 validation errors on hidden fields
+    adultsNamesList.textContent = '';
+    childrenNamesList.textContent = '';
+
+    // Show/hide section based on guest counts
+    // CRITICAL FIX: Always show section if there are ANY guests across all rooms
+    // This prevents HTML5 "invalid form control is not focusable" errors
+    if (adults + children > 0) {
+      guestNamesSection.style.display = 'block';
+    } else {
+      // Hide section and ensure no required fields remain in DOM
+      guestNamesSection.style.display = 'none';
+      // Clear children container visibility as well
+      if (childrenContainer) {
+        childrenContainer.style.display = 'none';
+      }
+      return;
+    }
+
+    // Generate adult name inputs using safe DOM methods
+    for (let i = 1; i <= adults; i++) {
+      const guestDiv = document.createElement('div');
+      guestDiv.className = 'guest-name-row';
+      guestDiv.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;';
+
+      // First name input
+      const firstNameGroup = document.createElement('div');
+      firstNameGroup.className = 'input-group';
+
+      const firstNameLabel = document.createElement('label');
+      firstNameLabel.setAttribute('for', `editAdultFirstName${i}`);
+      firstNameLabel.textContent = `Křestní jméno ${i}. dospělého *`;
+      firstNameGroup.appendChild(firstNameLabel);
+
+      const firstNameInput = document.createElement('input');
+      firstNameInput.type = 'text';
+      firstNameInput.id = `editAdultFirstName${i}`;
+      firstNameInput.name = `editAdultFirstName${i}`;
+      // Note: removed required=true to prevent HTML5 validation errors when field is in hidden tab
+      // Validation is handled by validateGuestNames() method instead
+      firstNameInput.minLength = 2;
+      firstNameInput.maxLength = 50;
+      firstNameInput.placeholder = 'např. Jan';
+      firstNameInput.setAttribute('data-guest-type', 'adult');
+      firstNameInput.setAttribute('data-guest-index', i);
+      firstNameGroup.appendChild(firstNameInput);
+
+      // Last name input
+      const lastNameGroup = document.createElement('div');
+      lastNameGroup.className = 'input-group';
+
+      const lastNameLabel = document.createElement('label');
+      lastNameLabel.setAttribute('for', `editAdultLastName${i}`);
+      lastNameLabel.textContent = `Příjmení ${i}. dospělého *`;
+      lastNameGroup.appendChild(lastNameLabel);
+
+      const lastNameInput = document.createElement('input');
+      lastNameInput.type = 'text';
+      lastNameInput.id = `editAdultLastName${i}`;
+      lastNameInput.name = `editAdultLastName${i}`;
+      // Note: removed required=true to prevent HTML5 validation errors when field is in hidden tab
+      // Validation is handled by validateGuestNames() method instead
+      lastNameInput.minLength = 2;
+      lastNameInput.maxLength = 50;
+      lastNameInput.placeholder = 'např. Novák';
+      lastNameInput.setAttribute('data-guest-type', 'adult');
+      lastNameInput.setAttribute('data-guest-index', i);
+      lastNameGroup.appendChild(lastNameInput);
+
+      guestDiv.appendChild(firstNameGroup);
+      guestDiv.appendChild(lastNameGroup);
+      adultsNamesList.appendChild(guestDiv);
+    }
+
+    // Generate children name inputs
+    if (children > 0) {
+      childrenContainer.style.display = 'block';
+      for (let i = 1; i <= children; i++) {
+        const guestDiv = document.createElement('div');
+        guestDiv.className = 'guest-name-row';
+        guestDiv.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;';
+
+        // First name input
+        const firstNameGroup = document.createElement('div');
+        firstNameGroup.className = 'input-group';
+
+        const firstNameLabel = document.createElement('label');
+        firstNameLabel.setAttribute('for', `editChildFirstName${i}`);
+        firstNameLabel.textContent = `Křestní jméno ${i}. dítěte *`;
+        firstNameGroup.appendChild(firstNameLabel);
+
+        const firstNameInput = document.createElement('input');
+        firstNameInput.type = 'text';
+        firstNameInput.id = `editChildFirstName${i}`;
+        firstNameInput.name = `editChildFirstName${i}`;
+        // Note: removed required=true to prevent HTML5 validation errors when field is in hidden tab
+        // Validation is handled by validateGuestNames() method instead
+        firstNameInput.minLength = 2;
+        firstNameInput.maxLength = 50;
+        firstNameInput.placeholder = 'např. Anna';
+        firstNameInput.setAttribute('data-guest-type', 'child');
+        firstNameInput.setAttribute('data-guest-index', i);
+        firstNameGroup.appendChild(firstNameInput);
+
+        // Last name input
+        const lastNameGroup = document.createElement('div');
+        lastNameGroup.className = 'input-group';
+
+        const lastNameLabel = document.createElement('label');
+        lastNameLabel.setAttribute('for', `editChildLastName${i}`);
+        lastNameLabel.textContent = `Příjmení ${i}. dítěte *`;
+        lastNameGroup.appendChild(lastNameLabel);
+
+        const lastNameInput = document.createElement('input');
+        lastNameInput.type = 'text';
+        lastNameInput.id = `editChildLastName${i}`;
+        lastNameInput.name = `editChildLastName${i}`;
+        // Note: removed required=true to prevent HTML5 validation errors when field is in hidden tab
+        // Validation is handled by validateGuestNames() method instead
+        lastNameInput.minLength = 2;
+        lastNameInput.maxLength = 50;
+        lastNameInput.placeholder = 'např. Nováková';
+        lastNameInput.setAttribute('data-guest-type', 'child');
+        lastNameInput.setAttribute('data-guest-index', i);
+        lastNameGroup.appendChild(lastNameInput);
+
+        guestDiv.appendChild(firstNameGroup);
+        guestDiv.appendChild(lastNameGroup);
+        childrenNamesList.appendChild(guestDiv);
+      }
+    } else {
+      childrenContainer.style.display = 'none';
+    }
+  }
+
+  /**
+   * Populate guest names from existing booking data
+   */
+  populateGuestNames() {
+    // Calculate total guests from per-room configuration
+    let totalAdults = 0;
+    let totalChildren = 0;
+
+    for (const roomData of this.editSelectedRooms.values()) {
+      totalAdults += roomData.adults || 0;
+      totalChildren += roomData.children || 0;
+    }
+
+    // Generate input fields
+    this.generateGuestNamesInputs(totalAdults, totalChildren);
+
+    // Populate existing names if available
+    if (this.currentBooking.guestNames && Array.isArray(this.currentBooking.guestNames)) {
+      const adultNames = this.currentBooking.guestNames.filter((g) => g.personType === 'adult');
+      const childNames = this.currentBooking.guestNames.filter((g) => g.personType === 'child');
+
+      // Populate adult names
+      adultNames.forEach((guest, index) => {
+        const firstNameInput = document.getElementById(`editAdultFirstName${index + 1}`);
+        const lastNameInput = document.getElementById(`editAdultLastName${index + 1}`);
+        if (firstNameInput) {
+          firstNameInput.value = guest.firstName || '';
+        }
+        if (lastNameInput) {
+          lastNameInput.value = guest.lastName || '';
+        }
+      });
+
+      // Populate child names
+      childNames.forEach((guest, index) => {
+        const firstNameInput = document.getElementById(`editChildFirstName${index + 1}`);
+        const lastNameInput = document.getElementById(`editChildLastName${index + 1}`);
+        if (firstNameInput) {
+          firstNameInput.value = guest.firstName || '';
+        }
+        if (lastNameInput) {
+          lastNameInput.value = guest.lastName || '';
+        }
+      });
+    }
+  }
+
+  /**
+   * Collect guest names from the generated form inputs
+   * @returns {Array<Object>} Array of guest name objects
+   */
+  collectGuestNames() {
+    const guestNames = [];
+
+    // Collect adult names
+    const adultFirstNames = document.querySelectorAll(
+      'input[data-guest-type="adult"][id^="editAdultFirstName"]'
+    );
+    const adultLastNames = document.querySelectorAll(
+      'input[data-guest-type="adult"][id^="editAdultLastName"]'
+    );
+
+    for (let i = 0; i < adultFirstNames.length; i++) {
+      const firstName = adultFirstNames[i].value.trim();
+      const lastName = adultLastNames[i].value.trim();
+      if (firstName && lastName) {
+        guestNames.push({
+          personType: 'adult',
+          firstName,
+          lastName,
+        });
+      }
+    }
+
+    // Collect children names
+    const childFirstNames = document.querySelectorAll(
+      'input[data-guest-type="child"][id^="editChildFirstName"]'
+    );
+    const childLastNames = document.querySelectorAll(
+      'input[data-guest-type="child"][id^="editChildLastName"]'
+    );
+
+    for (let i = 0; i < childFirstNames.length; i++) {
+      const firstName = childFirstNames[i].value.trim();
+      const lastName = childLastNames[i].value.trim();
+      if (firstName && lastName) {
+        guestNames.push({
+          personType: 'child',
+          firstName,
+          lastName,
+        });
+      }
+    }
+
+    return guestNames;
+  }
+
+  /**
+   * Validate guest names input fields
+   * @param {number} expectedAdults - Expected number of adults
+   * @param {number} expectedChildren - Expected number of children
+   * @returns {Object} Validation result with valid flag and error message
+   */
+  validateGuestNames(expectedAdults, expectedChildren) {
+    const guestNames = this.collectGuestNames();
+    const adultNames = guestNames.filter((g) => g.personType === 'adult');
+    const childNames = guestNames.filter((g) => g.personType === 'child');
+
+    // Check counts
+    if (adultNames.length !== expectedAdults) {
+      return {
+        valid: false,
+        error: `Vyplňte jména všech ${expectedAdults} dospělých v záložce "Fakturační údaje"`,
+      };
+    }
+
+    if (childNames.length !== expectedChildren) {
+      return {
+        valid: false,
+        error: `Vyplňte jména všech ${expectedChildren} dětí v záložce "Fakturační údaje"`,
+      };
+    }
+
+    // Check each name for minimum length
+    for (const guest of guestNames) {
+      if (guest.firstName.length < 2) {
+        return {
+          valid: false,
+          error: 'Všechna křestní jména musí mít alespoň 2 znaky (záložka "Fakturační údaje")',
+        };
+      }
+      if (guest.lastName.length < 2) {
+        return {
+          valid: false,
+          error: 'Všechna příjmení musí mít alespoň 2 znaky (záložka "Fakturační údaje")',
+        };
+      }
+    }
+
+    return { valid: true, guestNames };
   }
 
   /**
@@ -377,13 +685,13 @@ class EditBookingComponent {
             </select>
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-top: 0.5rem;">
               <div>
-                <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem; color: #4b5563; font-weight: 500; height: 2.25rem; line-height: 1.2;">Dospělí (16+):</label>
+                <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem; color: #4b5563; font-weight: 500; height: 2.25rem; line-height: 1.2;">Dospělí (18+):</label>
                 <input type="number" min="1" value="${roomData.adults}"
                   onchange="${onChangePrefix}.editComponent.updateRoomGuests('${room.id}', 'adults', parseInt(this.value))"
                   style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
               </div>
               <div>
-                <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem; color: #4b5563; font-weight: 500; height: 2.25rem; line-height: 1.2;">Děti (3-18 let):</label>
+                <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem; color: #4b5563; font-weight: 500; height: 2.25rem; line-height: 1.2;">Děti (3-17 let):</label>
                 <input type="number" min="0" value="${roomData.children}"
                   onchange="${onChangePrefix}.editComponent.updateRoomGuests('${room.id}', 'children', parseInt(this.value))"
                   style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
@@ -407,6 +715,7 @@ class EditBookingComponent {
 
   /**
    * Toggle room selection
+   * ⚠️ EDIT MODE RESTRICTION: Users can ONLY edit rooms that were in the original booking
    */
   toggleRoom(roomId) {
     // Prevent room toggle for bulk bookings
@@ -420,6 +729,34 @@ class EditBookingComponent {
       return;
     }
 
+    // ⚠️ NEW: Prevent adding or removing rooms in edit mode
+    // Users can only edit dates/guests for rooms that are already in the booking
+    if (!this.originalRooms.includes(roomId)) {
+      this.showNotification(
+        '⚠️ V editaci nelze přidávat nové pokoje. ' +
+          'Můžete měnit pouze termíny a počty hostů u již rezervovaných pokojů.',
+        'warning',
+        4000
+      );
+      // Revert checkbox state using requestAnimationFrame for smoother UX
+      requestAnimationFrame(() => this.renderPerRoomList());
+      return;
+    }
+
+    // ⚠️ NEW: Prevent removing rooms that are in the original booking
+    if (this.editSelectedRooms.has(roomId) && this.originalRooms.includes(roomId)) {
+      this.showNotification(
+        '⚠️ V editaci nelze odebírat pokoje z rezervace. ' +
+          'Můžete měnit pouze termíny a počty hostů.',
+        'warning',
+        4000
+      );
+      // Revert checkbox state using requestAnimationFrame for smoother UX
+      requestAnimationFrame(() => this.renderPerRoomList());
+      return;
+    }
+
+    // This code should now be unreachable due to above restrictions
     if (this.editSelectedRooms.has(roomId)) {
       // Uncheck - remove room
       this.editSelectedRooms.delete(roomId);
@@ -486,7 +823,11 @@ class EditBookingComponent {
     // Ensure value is a valid number
     const numValue = parseInt(value, 10);
     if (isNaN(numValue) || numValue < 0) {
-      this.showNotification('Počet hostů musí být kladné číslo', 'warning', 3000);
+      this.showNotification(
+        'Počet hostů musí být kladné číslo',
+        'warning',
+        NOTIFICATION_TIMEOUT.INFO
+      );
       // Revert input to old value
       this.revertInputValue(roomId, field, oldValue);
       return;
@@ -494,7 +835,11 @@ class EditBookingComponent {
 
     // Minimum constraint: at least 1 adult
     if (field === 'adults' && numValue < 1) {
-      this.showNotification('Musí být alespoň 1 dospělý v pokoji', 'warning', 3000);
+      this.showNotification(
+        'Musí být alespoň 1 dospělý v pokoji',
+        'warning',
+        NOTIFICATION_TIMEOUT.INFO
+      );
       // Revert input to old value
       this.revertInputValue(roomId, field, oldValue);
       return;
@@ -529,8 +874,10 @@ class EditBookingComponent {
 
     // All validations passed - update value
     roomData[field] = numValue;
-    // Only update price, don't re-render list (which would lose calendar state and buttons)
+    // Update price
     this.updateTotalPrice();
+    // Update guest names fields to match new guest counts
+    this.populateGuestNames();
   }
 
   /**
@@ -548,10 +895,10 @@ class EditBookingComponent {
       return;
     }
 
-    // Try to find and update the input directly
-    setTimeout(() => {
+    // Re-render list using requestAnimationFrame for smoother UX
+    requestAnimationFrame(() => {
       this.renderPerRoomList();
-    }, 100);
+    });
   }
 
   /**
@@ -695,6 +1042,21 @@ class EditBookingComponent {
       }
     }
 
+    // Validate guest names
+    let totalAdults = 0;
+    let totalChildren = 0;
+    for (const roomData of this.editSelectedRooms.values()) {
+      totalAdults += roomData.adults || 0;
+      totalChildren += roomData.children || 0;
+    }
+
+    if (totalAdults + totalChildren > 0) {
+      const validation = this.validateGuestNames(totalAdults, totalChildren);
+      if (!validation.valid) {
+        throw new Error(validation.error);
+      }
+    }
+
     return true;
   }
 
@@ -797,6 +1159,9 @@ class EditBookingComponent {
     }
     formData.totalPrice = totalPrice;
 
+    // Include guest names
+    formData.guestNames = this.collectGuestNames();
+
     return formData;
   }
 
@@ -878,6 +1243,7 @@ class EditBookingComponent {
   /**
    * Render room list with per-room date editing and guest configuration
    * For bulk bookings, shows summary view instead of individual rooms
+   * ⚠️ EDIT MODE: Only shows rooms from original booking (cannot add/remove)
    */
   renderPerRoomList() {
     const roomsList = document.getElementById('editRoomsList');
@@ -885,7 +1251,7 @@ class EditBookingComponent {
       return;
     }
 
-    roomsList.innerHTML = '';
+    roomsList.textContent = '';
 
     // Show bulk booking badge if applicable
     if (this.isBulkBooking) {
@@ -927,8 +1293,30 @@ class EditBookingComponent {
 
     const onChangePrefix = this.mode === 'admin' ? 'adminPanel' : 'editPage';
 
-    // Show ALL rooms with checkboxes and per-room configuration
-    for (const room of this.settings.rooms) {
+    // ⚠️ EDIT MODE RESTRICTION: Only show rooms from original booking
+    // Filter rooms to show ONLY those in the original booking
+    const roomsToShow = this.settings.rooms.filter((r) => this.originalRooms.includes(r.id));
+
+    // Show informational notice about edit restrictions
+    if (roomsToShow.length < this.settings.rooms.length) {
+      const notice = document.createElement('div');
+      notice.style.cssText = `
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background: #e0f2fe;
+        border: 2px solid #0284c7;
+        border-radius: 8px;
+        color: #075985;
+        font-weight: 500;
+      `;
+      notice.textContent =
+        'ℹ️ Režim editace: Zobrazeny jsou pouze pokoje z původní rezervace. ' +
+        'V editaci nelze přidávat ani odebírat pokoje.';
+      roomsList.appendChild(notice);
+    }
+
+    // Show ONLY rooms from original booking with per-room configuration
+    for (const room of roomsToShow) {
       const isSelected = this.editSelectedRooms.has(room.id);
       const dates = this.perRoomDates.get(room.id);
       const isEditing = this.currentEditingRoom === room.id;
@@ -1004,13 +1392,13 @@ class EditBookingComponent {
             </select>
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;">
               <div>
-                <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem; color: #4b5563; font-weight: 500;">Dospělí (16+):</label>
+                <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem; color: #4b5563; font-weight: 500;">Dospělí (18+):</label>
                 <input type="number" min="1" max="${room.beds}" value="${roomData.adults}"
                   onchange="${onChangePrefix}.editComponent.updateRoomGuests('${room.id}', 'adults', parseInt(this.value))"
                   style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
               </div>
               <div>
-                <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem; color: #4b5563; font-weight: 500;">Děti (3-18 let):</label>
+                <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem; color: #4b5563; font-weight: 500;">Děti (3-17 let):</label>
                 <input type="number" min="0" max="${room.beds}" value="${roomData.children}"
                   onchange="${onChangePrefix}.editComponent.updateRoomGuests('${room.id}', 'children', parseInt(this.value))"
                   style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
@@ -1156,7 +1544,7 @@ class EditBookingComponent {
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;">
           <div>
             <label style="font-size: 0.75rem; display: block; margin-bottom: 0.5rem; color: #6b21a8; font-weight: 600;">
-              Dospělí (16+):
+              Dospělí (18+):
             </label>
             <input
               type="number"
@@ -1178,7 +1566,7 @@ class EditBookingComponent {
           </div>
           <div>
             <label style="font-size: 0.75rem; display: block; margin-bottom: 0.5rem; color: #6b21a8; font-weight: 600;">
-              Děti (3-18 let):
+              Děti (3-17 let):
             </label>
             <input
               type="number"
@@ -1261,14 +1649,22 @@ class EditBookingComponent {
     // Validate input
     const numValue = parseInt(newTotal, 10);
     if (isNaN(numValue) || numValue < 0) {
-      this.showNotification('Počet hostů musí být kladné číslo', 'warning', 3000);
+      this.showNotification(
+        'Počet hostů musí být kladné číslo',
+        'warning',
+        NOTIFICATION_TIMEOUT.INFO
+      );
       this.renderPerRoomList();
       return;
     }
 
     // Minimum constraint: at least 1 adult total
     if (field === 'adults' && numValue < 1) {
-      this.showNotification('Musí být alespoň 1 dospělý v celé rezervaci', 'warning', 3000);
+      this.showNotification(
+        'Musí být alespoň 1 dospělý v celé rezervaci',
+        'warning',
+        NOTIFICATION_TIMEOUT.INFO
+      );
       this.renderPerRoomList();
       return;
     }
@@ -1369,6 +1765,9 @@ class EditBookingComponent {
 
     // Update price
     this.updateTotalPrice();
+
+    // Update guest names fields to match new guest counts
+    this.populateGuestNames();
   }
 
   /**
@@ -1585,7 +1984,11 @@ class EditBookingComponent {
    */
   async saveRoomDates(roomId) {
     if (!this.tempRoomStartDate || !this.tempRoomEndDate) {
-      this.showNotification('Vyberte prosím kompletní termín (začátek i konec)', 'warning', 3000);
+      this.showNotification(
+        'Vyberte prosím kompletní termín (začátek i konec)',
+        'warning',
+        NOTIFICATION_TIMEOUT.INFO
+      );
       return;
     }
 
@@ -1687,10 +2090,18 @@ class EditBookingComponent {
       // Close calendar and reset state
       this.cancelRoomEdit();
 
-      this.showNotification('Termín byl dočasně rezervován', 'success', 2000);
+      this.showNotification(
+        'Termín byl dočasně rezervován',
+        'success',
+        NOTIFICATION_TIMEOUT.SUCCESS
+      );
     } catch (error) {
       console.error('Error creating proposed booking:', error);
-      this.showNotification(error.message || 'Chyba při rezervaci termínu', 'error', 4000);
+      this.showNotification(
+        error.message || 'Chyba při rezervaci termínu',
+        'error',
+        NOTIFICATION_TIMEOUT.ERROR
+      );
     }
   }
 
@@ -1881,7 +2292,11 @@ class EditBookingComponent {
    */
   async saveBulkDates() {
     if (!this.tempRoomStartDate || !this.tempRoomEndDate) {
-      this.showNotification('Vyberte prosím kompletní termín (začátek i konec)', 'warning', 3000);
+      this.showNotification(
+        'Vyberte prosím kompletní termín (začátek i konec)',
+        'warning',
+        NOTIFICATION_TIMEOUT.INFO
+      );
       return;
     }
 
@@ -1993,10 +2408,18 @@ class EditBookingComponent {
       // Close calendar
       this.cancelBulkEdit();
 
-      this.showNotification('Termín byl dočasně rezervován pro všechny pokoje', 'success', 2000);
+      this.showNotification(
+        'Termín byl dočasně rezervován pro všechny pokoje',
+        'success',
+        NOTIFICATION_TIMEOUT.SUCCESS
+      );
     } catch (error) {
       console.error('Error creating bulk proposed booking:', error);
-      this.showNotification(error.message || 'Chyba při rezervaci termínu', 'error', 4000);
+      this.showNotification(
+        error.message || 'Chyba při rezervaci termínu',
+        'error',
+        NOTIFICATION_TIMEOUT.ERROR
+      );
     }
   }
 

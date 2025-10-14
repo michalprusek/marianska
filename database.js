@@ -559,9 +559,19 @@ class DatabaseManager {
 
             // Use per-room guest data if available
             if (data.perRoomGuests && data.perRoomGuests[roomId]) {
-              roomAdults = data.perRoomGuests[roomId].adults || 1;
-              roomChildren = data.perRoomGuests[roomId].children || 0;
-              roomToddlers = data.perRoomGuests[roomId].toddlers || 0;
+              // FIX: Respect 0 as valid value (don't use || operator for numbers)
+              roomAdults =
+                data.perRoomGuests[roomId].adults === undefined
+                  ? 1
+                  : data.perRoomGuests[roomId].adults;
+              roomChildren =
+                data.perRoomGuests[roomId].children === undefined
+                  ? 0
+                  : data.perRoomGuests[roomId].children;
+              roomToddlers =
+                data.perRoomGuests[roomId].toddlers === undefined
+                  ? 0
+                  : data.perRoomGuests[roomId].toddlers;
               roomGuestType = data.perRoomGuests[roomId].guestType || data.guestType;
             }
 
@@ -645,9 +655,19 @@ class DatabaseManager {
 
             // Use per-room guest data if available
             if (data.perRoomGuests && data.perRoomGuests[roomId]) {
-              roomAdults = data.perRoomGuests[roomId].adults || 1;
-              roomChildren = data.perRoomGuests[roomId].children || 0;
-              roomToddlers = data.perRoomGuests[roomId].toddlers || 0;
+              // FIX: Respect 0 as valid value (don't use || operator for numbers)
+              roomAdults =
+                data.perRoomGuests[roomId].adults === undefined
+                  ? 1
+                  : data.perRoomGuests[roomId].adults;
+              roomChildren =
+                data.perRoomGuests[roomId].children === undefined
+                  ? 0
+                  : data.perRoomGuests[roomId].children;
+              roomToddlers =
+                data.perRoomGuests[roomId].toddlers === undefined
+                  ? 0
+                  : data.perRoomGuests[roomId].toddlers;
               roomGuestType = data.perRoomGuests[roomId].guestType || data.guestType;
             }
 
@@ -708,9 +728,10 @@ class DatabaseManager {
         }
         // Include per-room guest data
         perRoomGuests[row.room_id] = {
-          adults: row.adults || 1,
-          children: row.children || 0,
-          toddlers: row.toddlers || 0,
+          // FIX: Respect 0 as valid value (don't use || operator for numbers)
+          adults: row.adults !== null && row.adults !== undefined ? row.adults : 1,
+          children: row.children !== null && row.children !== undefined ? row.children : 0,
+          toddlers: row.toddlers !== null && row.toddlers !== undefined ? row.toddlers : 0,
           guestType: row.guest_type || booking.guest_type,
         };
       });
@@ -777,9 +798,10 @@ class DatabaseManager {
         }
         // Include per-room guest data
         perRoomGuests[row.room_id] = {
-          adults: row.adults || 1,
-          children: row.children || 0,
-          toddlers: row.toddlers || 0,
+          // FIX: Respect 0 as valid value (don't use || operator for numbers)
+          adults: row.adults === null || row.adults === undefined ? 1 : row.adults,
+          children: row.children === null || row.children === undefined ? 0 : row.children,
+          toddlers: row.toddlers === null || row.toddlers === undefined ? 0 : row.toddlers,
           guestType: row.guest_type || booking.guest_type,
         };
       });
@@ -863,10 +885,15 @@ class DatabaseManager {
             perRoomDates[roomId] = { startDate, endDate };
           }
           // Include per-room guest data
+          // FIX: Respect 0 as valid value (don't use || operator for numbers)
+          const adultsNum = parseInt(adults, 10);
+          const childrenNum = parseInt(children, 10);
+          const toddlersNum = parseInt(toddlers, 10);
+
           perRoomGuests[roomId] = {
-            adults: parseInt(adults, 10) || 1,
-            children: parseInt(children, 10) || 0,
-            toddlers: parseInt(toddlers, 10) || 0,
+            adults: isNaN(adultsNum) ? 1 : adultsNum,
+            children: isNaN(childrenNum) ? 0 : childrenNum,
+            toddlers: isNaN(toddlersNum) ? 0 : toddlersNum,
             guestType: guestType || booking.guest_type,
           };
         });
@@ -1149,6 +1176,12 @@ class DatabaseManager {
       settings.emailTemplate = JSON.parse(emailTemplateJson);
     }
 
+    // Get contact email
+    const contactEmail = this.getSetting('contactEmail');
+    if (contactEmail) {
+      settings.contactEmail = contactEmail;
+    }
+
     return settings;
   }
 
@@ -1218,6 +1251,11 @@ class DatabaseManager {
       // Handle email template updates
       if (updatedSettings.emailTemplate) {
         this.setSetting('emailTemplate', JSON.stringify(updatedSettings.emailTemplate));
+      }
+
+      // Handle contact email updates
+      if (updatedSettings.contactEmail) {
+        this.setSetting('contactEmail', updatedSettings.contactEmail);
       }
     });
 

@@ -111,6 +111,9 @@ class AdminPanel {
     document
       .getElementById('emailTemplateForm')
       .addEventListener('submit', (e) => this.handleEmailTemplate(e));
+    document
+      .getElementById('contactEmailForm')
+      .addEventListener('submit', (e) => this.handleContactEmail(e));
 
     // Modal close
     document.querySelectorAll('.modal-close').forEach((btn) => {
@@ -1901,6 +1904,12 @@ class AdminPanel {
     document.getElementById('emailTemplate').value =
       emailSettings.template || document.getElementById('emailTemplate').value;
 
+    // Load contact email setting
+    const contactEmailInput = document.getElementById('contactEmail');
+    if (contactEmailInput) {
+      contactEmailInput.value = settings.contactEmail || 'chata@utia.cas.cz';
+    }
+
     // Initialize character counter
     this.updateEmailTemplateCharCount();
 
@@ -1959,6 +1968,34 @@ class AdminPanel {
       );
     } catch (error) {
       console.error('Chyba při ukládání email šablony:', error);
+      this.showToast(`Chyba: ${error.message}`, 'error');
+    }
+  }
+
+  async handleContactEmail(e) {
+    e.preventDefault();
+
+    // Validate session before admin operation
+    if (!this.validateSession()) {
+      return;
+    }
+
+    try {
+      const contactEmail = document.getElementById('contactEmail').value.trim();
+
+      // Validate email format using ValidationUtils
+      if (!ValidationUtils.validateEmail(contactEmail)) {
+        this.showToast('Neplatný formát emailové adresy', 'error');
+        return;
+      }
+
+      const settings = await dataManager.getSettings();
+      settings.contactEmail = contactEmail;
+
+      await dataManager.updateSettings(settings);
+      this.showSuccessMessage('Kontaktní email byl úspěšně uložen');
+    } catch (error) {
+      console.error('Chyba při ukládání kontaktního emailu:', error);
       this.showToast(`Chyba: ${error.message}`, 'error');
     }
   }

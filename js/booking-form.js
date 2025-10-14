@@ -328,45 +328,42 @@ class BookingFormModule {
       let successCount = 0;
       let errorCount = 0;
 
-      for (const tempReservation of this.app.tempReservations) {
-        // Handle bulk booking differently
-        if (tempReservation.isBulkBooking) {
-          const booking = {
-            name,
-            email,
-            phone,
-            company,
-            address,
-            city,
-            zip,
-            ico,
-            dic,
-            startDate: tempReservation.startDate,
-            endDate: tempReservation.endDate,
-            rooms: tempReservation.roomIds, // Use all room IDs for bulk booking
-            guestType: tempReservation.guestType,
-            adults: tempReservation.guests.adults,
-            children: tempReservation.guests.children,
-            toddlers: tempReservation.guests.toddlers,
-            totalPrice: tempReservation.totalPrice,
-            notes: notes || 'Hromadná rezervace celé chaty',
-            payFromBenefit,
-            christmasCode, // Include Christmas access code
-            isBulkBooking: true,
-            sessionId: this.app.sessionId, // Include sessionId to exclude user's own proposals
-            guestNames, // Include guest names
-          };
+      // FIX: When creating multiple separate per-room bookings, we need to merge them into ONE booking
+      // BUT only if all rooms have the SAME date range - otherwise we can't consolidate
+      if (
+        this.app.tempReservations.length > 1 &&
+        !this.app.tempReservations.some((r) => r.isBulkBooking)
+      ) {
+        // Check if all temp reservations have the same start and end dates
+        const firstReservation = this.app.tempReservations[0];
+        const allSameDates = this.app.tempReservations.every(
+          (r) =>
+            r.startDate === firstReservation.startDate && r.endDate === firstReservation.endDate
+        );
 
-          try {
-            // eslint-disable-next-line no-await-in-loop -- Sequential processing required: each booking must check room availability before creating
-            await dataManager.createBooking(booking);
-            successCount += 1;
-          } catch (error) {
-            console.error('Error creating bulk booking', error);
-            errorCount += 1;
+        if (allSameDates) {
+          // Multiple rooms with SAME date range - create a SINGLE consolidated booking
+          const allRoomIds = [];
+          let totalAdultsLocal = 0;
+          let totalChildrenLocal = 0;
+          let totalToddlersLocal = 0;
+          let totalPriceLocal = 0;
+          const guestTypesSet = new Set();
+          const roomGuestsMap = {};
+
+          for (const tempReservation of this.app.tempReservations) {
+            allRoomIds.push(tempReservation.roomId);
+            totalAdultsLocal += tempReservation.guests.adults || 0;
+            totalChildrenLocal += tempReservation.guests.children || 0;
+            totalToddlersLocal += tempReservation.guests.toddlers || 0;
+            totalPriceLocal += tempReservation.totalPrice || 0;
+            guestTypesSet.add(tempReservation.guestType);
+            roomGuestsMap[tempReservation.roomId] = tempReservation.guests;
           }
-        } else {
-          // Regular single room booking
+
+          // Determine guest type (prefer 'utia' if mixed)
+          const finalGuestType = guestTypesSet.has('utia') ? 'utia' : 'external';
+
           const booking = {
             name,
             email,
@@ -377,30 +374,91 @@ class BookingFormModule {
             zip,
             ico,
             dic,
-            startDate: tempReservation.startDate,
-            endDate: tempReservation.endDate,
-            rooms: [tempReservation.roomId],
-            guestType: tempReservation.guestType,
-            adults: tempReservation.guests.adults,
-            children: tempReservation.guests.children,
-            toddlers: tempReservation.guests.toddlers,
-            totalPrice: tempReservation.totalPrice,
+            startDate: firstReservation.startDate,
+            endDate: firstReservation.endDate,
+            rooms: allRoomIds,
+            guestType: finalGuestType,
+            adults: totalAdultsLocal,
+            children: totalChildrenLocal,
+            toddlers: totalToddlersLocal,
+            totalPrice: totalPriceLocal,
             notes,
             payFromBenefit,
-            christmasCode, // Include Christmas access code
-            roomGuests: { [tempReservation.roomId]: tempReservation.guests },
-            sessionId: this.app.sessionId, // Include sessionId to exclude user's own proposals
-            guestNames, // Include guest names
+            christmasCode,
+            roomGuests: roomGuestsMap,
+            sessionId: this.app.sessionId,
+            guestNames, // Include guest names - now matches total guest count
           };
 
           try {
-            // eslint-disable-next-line no-await-in-loop -- Sequential processing required: each booking must check room availability before creating
             await dataManager.createBooking(booking);
-            successCount += 1;
+            successCount = 1;
           } catch (error) {
-            console.error('Error creating booking for room', tempReservation.roomName, error);
-            errorCount += 1;
+            console.error('Error creating consolidated booking', error);
+            errorCount = 1;
           }
+        } else {
+          // Multiple rooms with DIFFERENT date ranges - create separate bookings
+          // Distribute guest names among bookings based on guest counts
+          let guestNameIndex = 0;
+          const formData = {
+            name,
+            email,
+            phone,
+            company,
+            address,
+            city,
+            zip,
+            ico,
+            dic,
+            notes,
+            payFromBenefit,
+            christmasCode,
+          };
+
+          for (const tempReservation of this.app.tempReservations) {
+            const bookingGuestCount =
+              (tempReservation.guests.adults || 0) + (tempReservation.guests.children || 0);
+            const bookingGuestNames = guestNames.slice(
+              guestNameIndex,
+              guestNameIndex + bookingGuestCount
+            );
+            guestNameIndex += bookingGuestCount;
+
+            // eslint-disable-next-line no-await-in-loop -- Sequential processing required: each booking must check room availability before creating
+            const result = await this.processTempReservation(
+              tempReservation,
+              formData,
+              bookingGuestNames
+            );
+            // Use ternary to avoid max-depth violation
+            successCount += result.success ? 1 : 0;
+            errorCount += result.success ? 0 : 1;
+          }
+        }
+      } else {
+        // Single booking or bulk booking - handle normally
+        const formData = {
+          name,
+          email,
+          phone,
+          company,
+          address,
+          city,
+          zip,
+          ico,
+          dic,
+          notes,
+          payFromBenefit,
+          christmasCode,
+        };
+
+        for (const tempReservation of this.app.tempReservations) {
+          // eslint-disable-next-line no-await-in-loop -- Sequential processing required: each booking must check room availability before creating
+          const result = await this.processTempReservation(tempReservation, formData, guestNames);
+          // Use ternary to avoid max-depth violation
+          successCount += result.success ? 1 : 0;
+          errorCount += result.success ? 0 : 1;
         }
       }
 
@@ -969,16 +1027,35 @@ class BookingFormModule {
 
   /**
    * Collect guest names from the generated form inputs
+   * FIX: Only collect from visible/active form containers to avoid collecting from multiple modals
    * @returns {Array<Object>} Array of guest name objects
    */
   collectGuestNames() {
     const guestNames = [];
 
-    // Collect adult names
-    const adultFirstNames = document.querySelectorAll(
+    // Determine which form container is active/visible
+    // Priority: bookingFormModal (for regular bookings) > finalBookingModal (for temp reservations finalization)
+    let formContainer = null;
+
+    const bookingFormModal = document.getElementById('bookingFormModal');
+    const finalBookingModal = document.getElementById('finalBookingModal');
+
+    if (bookingFormModal && bookingFormModal.classList.contains('active')) {
+      formContainer = bookingFormModal;
+    } else if (finalBookingModal && finalBookingModal.classList.contains('active')) {
+      formContainer = finalBookingModal;
+    }
+
+    // Fall back to document if no modal is active (shouldn't happen but safe fallback)
+    if (!formContainer) {
+      formContainer = document;
+    }
+
+    // Collect adult names - ONLY from the active form container
+    const adultFirstNames = formContainer.querySelectorAll(
       'input[data-guest-type="adult"][id^="adultFirstName"]'
     );
-    const adultLastNames = document.querySelectorAll(
+    const adultLastNames = formContainer.querySelectorAll(
       'input[data-guest-type="adult"][id^="adultLastName"]'
     );
 
@@ -994,11 +1071,11 @@ class BookingFormModule {
       }
     }
 
-    // Collect children names
-    const childFirstNames = document.querySelectorAll(
+    // Collect children names - ONLY from the active form container
+    const childFirstNames = formContainer.querySelectorAll(
       'input[data-guest-type="child"][id^="childFirstName"]'
     );
-    const childLastNames = document.querySelectorAll(
+    const childLastNames = formContainer.querySelectorAll(
       'input[data-guest-type="child"][id^="childLastName"]'
     );
 
@@ -1060,5 +1137,71 @@ class BookingFormModule {
     }
 
     return { valid: true, guestNames };
+  }
+
+  /**
+   * Helper method to attempt booking creation with error handling
+   * Reduces nesting depth by extracting try-catch logic
+   * @param {Object} booking - Booking data
+   * @param {string} roomName - Room name for error logging
+   * @returns {Promise<{success: boolean, error?: Error}>} Result object
+   */
+  async attemptBookingCreation(booking, roomName = '') {
+    try {
+      await dataManager.createBooking(booking);
+      return { success: true };
+    } catch (error) {
+      const errorMsg = roomName
+        ? `Error creating booking for room ${roomName}`
+        : 'Error creating booking';
+      console.error(errorMsg, error);
+      return { success: false, error };
+    }
+  }
+
+  /**
+   * Process a single temp reservation (bulk or single room)
+   * Reduces nesting depth by extracting if/else logic
+   * @param {Object} tempReservation - Temporary reservation data
+   * @param {Object} formData - Form data (name, email, etc.)
+   * @param {Array} guestNames - Guest names array
+   * @returns {Promise<{success: boolean}>} Result object
+   */
+  processTempReservation(tempReservation, formData, guestNames) {
+    if (tempReservation.isBulkBooking) {
+      const booking = {
+        ...formData,
+        startDate: tempReservation.startDate,
+        endDate: tempReservation.endDate,
+        rooms: tempReservation.roomIds,
+        guestType: tempReservation.guestType,
+        adults: tempReservation.guests.adults,
+        children: tempReservation.guests.children,
+        toddlers: tempReservation.guests.toddlers,
+        totalPrice: tempReservation.totalPrice,
+        notes: formData.notes || 'Hromadná rezervace celé chaty',
+        isBulkBooking: true,
+        sessionId: this.app.sessionId,
+        guestNames,
+      };
+      return this.attemptBookingCreation(booking, 'bulk');
+    }
+
+    // Single room booking
+    const booking = {
+      ...formData,
+      startDate: tempReservation.startDate,
+      endDate: tempReservation.endDate,
+      rooms: [tempReservation.roomId],
+      guestType: tempReservation.guestType,
+      adults: tempReservation.guests.adults,
+      children: tempReservation.guests.children,
+      toddlers: tempReservation.guests.toddlers,
+      totalPrice: tempReservation.totalPrice,
+      roomGuests: { [tempReservation.roomId]: tempReservation.guests },
+      sessionId: this.app.sessionId,
+      guestNames,
+    };
+    return this.attemptBookingCreation(booking, tempReservation.roomName);
   }
 }

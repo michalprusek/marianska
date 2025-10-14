@@ -501,13 +501,13 @@ const calendar = new BaseCalendar({
 ÚTIA zaměstnanci:
 - Základní cena: 298 Kč/noc za pokoj
 - Příplatek za dospělého: 49 Kč
-- Příplatek za dítě (3-18 let): 24 Kč
+- Příplatek za dítě (3-17 let): 24 Kč
 - Děti do 3 let: zdarma
 
 Externí hosté:
 - Základní cena: 499 Kč/noc za pokoj
 - Příplatek za dospělého: 99 Kč
-- Příplatek za dítě (3-18 let): 49 Kč
+- Příplatek za dítě (3-17 let): 49 Kč
 - Děti do 3 let: zdarma
 ```
 
@@ -517,13 +517,13 @@ Externí hosté:
 🏢 Zaměstnanci ÚTIA:
 - Základní cena za celou chatu: 2 000 Kč/noc
 - Příplatek za dospělého: 100 Kč
-- Příplatek za dítě (3-18 let): 0 Kč
+- Příplatek za dítě (3-17 let): 0 Kč
 - Děti do 3 let: zdarma
 
 👥 Externí hosté:
 - Základní cena za celou chatu: 2 000 Kč/noc
 - Příplatek za dospělého: 250 Kč
-- Příplatek za dítě (3-18 let): 50 Kč
+- Příplatek za dítě (3-17 let): 50 Kč
 - Děti do 3 let: zdarma
 ```
 
