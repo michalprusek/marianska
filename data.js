@@ -348,15 +348,16 @@ class DataManager {
           timestamp: new Date().toISOString(),
         });
 
-        // Handle rate limiting specifically
+        // Handle rate limiting specifically - always use server's message
         if (response.status === 429) {
           throw new Error(
             errorData.error ||
-              'Překročili jste limit 20 rezervací za hodinu. Zkuste to prosím později.'
+              errorData.message ||
+              'Překročili jste limit. Zkuste to prosím později.'
           );
         }
 
-        throw new Error(errorData.error || `Server error: ${response.status}`);
+        throw new Error(errorData.error || errorData.message || `Server error: ${response.status}`);
       }
 
       const result = await response.json();

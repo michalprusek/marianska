@@ -916,6 +916,17 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
       }
     }
 
+    // SECURITY: Prevent modification of rooms list in edit mode (users can only change dates/guests)
+    if (!isAdmin && bookingData.rooms) {
+      const originalRooms = existingBooking.rooms.sort().join(',');
+      const newRooms = bookingData.rooms.sort().join(',');
+      if (originalRooms !== newRooms) {
+        return res.status(400).json({
+          error: 'V editaci nelze měnit seznam pokojů. Můžete měnit pouze termíny a počty hostů.',
+        });
+      }
+    }
+
     // P1 FIX: Add validation for all fields (same as POST)
     if (bookingData.email && !ValidationUtils.validateEmail(bookingData.email)) {
       return res.status(400).json({

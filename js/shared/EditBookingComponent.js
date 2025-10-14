@@ -16,6 +16,14 @@
  * - User: 3-day deadline, token-based auth, read-only mode
  */
 
+// Notification timeout constants (milliseconds)
+const NOTIFICATION_TIMEOUT = {
+  ERROR: 5000,
+  WARNING: 4000,
+  SUCCESS: 2000,
+  INFO: 3000,
+};
+
 // eslint-disable-next-line no-unused-vars
 class EditBookingComponent {
   /**
@@ -730,8 +738,8 @@ class EditBookingComponent {
         'warning',
         4000
       );
-      // Revert checkbox state
-      setTimeout(() => this.renderPerRoomList(), 100);
+      // Revert checkbox state using requestAnimationFrame for smoother UX
+      requestAnimationFrame(() => this.renderPerRoomList());
       return;
     }
 
@@ -743,8 +751,8 @@ class EditBookingComponent {
         'warning',
         4000
       );
-      // Revert checkbox state
-      setTimeout(() => this.renderPerRoomList(), 100);
+      // Revert checkbox state using requestAnimationFrame for smoother UX
+      requestAnimationFrame(() => this.renderPerRoomList());
       return;
     }
 
@@ -815,7 +823,11 @@ class EditBookingComponent {
     // Ensure value is a valid number
     const numValue = parseInt(value, 10);
     if (isNaN(numValue) || numValue < 0) {
-      this.showNotification('Počet hostů musí být kladné číslo', 'warning', 3000);
+      this.showNotification(
+        'Počet hostů musí být kladné číslo',
+        'warning',
+        NOTIFICATION_TIMEOUT.INFO
+      );
       // Revert input to old value
       this.revertInputValue(roomId, field, oldValue);
       return;
@@ -823,7 +835,11 @@ class EditBookingComponent {
 
     // Minimum constraint: at least 1 adult
     if (field === 'adults' && numValue < 1) {
-      this.showNotification('Musí být alespoň 1 dospělý v pokoji', 'warning', 3000);
+      this.showNotification(
+        'Musí být alespoň 1 dospělý v pokoji',
+        'warning',
+        NOTIFICATION_TIMEOUT.INFO
+      );
       // Revert input to old value
       this.revertInputValue(roomId, field, oldValue);
       return;
@@ -879,10 +895,10 @@ class EditBookingComponent {
       return;
     }
 
-    // Try to find and update the input directly
-    setTimeout(() => {
+    // Re-render list using requestAnimationFrame for smoother UX
+    requestAnimationFrame(() => {
       this.renderPerRoomList();
-    }, 100);
+    });
   }
 
   /**
@@ -1633,14 +1649,22 @@ class EditBookingComponent {
     // Validate input
     const numValue = parseInt(newTotal, 10);
     if (isNaN(numValue) || numValue < 0) {
-      this.showNotification('Počet hostů musí být kladné číslo', 'warning', 3000);
+      this.showNotification(
+        'Počet hostů musí být kladné číslo',
+        'warning',
+        NOTIFICATION_TIMEOUT.INFO
+      );
       this.renderPerRoomList();
       return;
     }
 
     // Minimum constraint: at least 1 adult total
     if (field === 'adults' && numValue < 1) {
-      this.showNotification('Musí být alespoň 1 dospělý v celé rezervaci', 'warning', 3000);
+      this.showNotification(
+        'Musí být alespoň 1 dospělý v celé rezervaci',
+        'warning',
+        NOTIFICATION_TIMEOUT.INFO
+      );
       this.renderPerRoomList();
       return;
     }
@@ -1960,7 +1984,11 @@ class EditBookingComponent {
    */
   async saveRoomDates(roomId) {
     if (!this.tempRoomStartDate || !this.tempRoomEndDate) {
-      this.showNotification('Vyberte prosím kompletní termín (začátek i konec)', 'warning', 3000);
+      this.showNotification(
+        'Vyberte prosím kompletní termín (začátek i konec)',
+        'warning',
+        NOTIFICATION_TIMEOUT.INFO
+      );
       return;
     }
 
@@ -2062,10 +2090,18 @@ class EditBookingComponent {
       // Close calendar and reset state
       this.cancelRoomEdit();
 
-      this.showNotification('Termín byl dočasně rezervován', 'success', 2000);
+      this.showNotification(
+        'Termín byl dočasně rezervován',
+        'success',
+        NOTIFICATION_TIMEOUT.SUCCESS
+      );
     } catch (error) {
       console.error('Error creating proposed booking:', error);
-      this.showNotification(error.message || 'Chyba při rezervaci termínu', 'error', 4000);
+      this.showNotification(
+        error.message || 'Chyba při rezervaci termínu',
+        'error',
+        NOTIFICATION_TIMEOUT.ERROR
+      );
     }
   }
 
@@ -2256,7 +2292,11 @@ class EditBookingComponent {
    */
   async saveBulkDates() {
     if (!this.tempRoomStartDate || !this.tempRoomEndDate) {
-      this.showNotification('Vyberte prosím kompletní termín (začátek i konec)', 'warning', 3000);
+      this.showNotification(
+        'Vyberte prosím kompletní termín (začátek i konec)',
+        'warning',
+        NOTIFICATION_TIMEOUT.INFO
+      );
       return;
     }
 
@@ -2368,10 +2408,18 @@ class EditBookingComponent {
       // Close calendar
       this.cancelBulkEdit();
 
-      this.showNotification('Termín byl dočasně rezervován pro všechny pokoje', 'success', 2000);
+      this.showNotification(
+        'Termín byl dočasně rezervován pro všechny pokoje',
+        'success',
+        NOTIFICATION_TIMEOUT.SUCCESS
+      );
     } catch (error) {
       console.error('Error creating bulk proposed booking:', error);
-      this.showNotification(error.message || 'Chyba při rezervaci termínu', 'error', 4000);
+      this.showNotification(
+        error.message || 'Chyba při rezervaci termínu',
+        'error',
+        NOTIFICATION_TIMEOUT.ERROR
+      );
     }
   }
 

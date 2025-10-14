@@ -33,7 +33,20 @@ if (allSameDates) {
 }
 ```
 
-### 2. Distribuce jmen hostů
+### 2. Oprava věkového rozsahu dětí
+
+**Změna definice:**
+
+- **Původně:** Děti 3-18 let
+- **Nově:** Děti 3-17 let (18+ jsou dospělí)
+
+**Dopad:**
+
+- Konzistentnější kategorizace (18 let = plnoletost)
+- Sjednocení s běžnou praxí v ubytovacích zařízeních
+- Žádný vliv na ceny (stejná cenová kategorie)
+
+### 3. Distribuce jmen hostů
 
 **Nová funkce pro různé termíny:**
 
