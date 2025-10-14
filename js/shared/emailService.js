@@ -106,11 +106,10 @@ class EmailService {
    * Generate HTML email template for booking confirmation
    * @param {Object} booking - Booking data
    * @param {string} editUrl - URL for editing the booking
-   * @param {Object} _settings - System settings (reserved for future custom templates)
+   * @param {Object} settings - System settings
    * @returns {string} HTML email content
    */
-  // eslint-disable-next-line no-unused-vars
-  generateBookingConfirmationHtml(booking, editUrl, _settings = {}) {
+  generateBookingConfirmationHtml(booking, editUrl, settings = {}) {
     // Parse date strings to Date objects for formatting
     const startDate = DateUtils.parseDate(booking.startDate);
     const endDate = DateUtils.parseDate(booking.endDate);
@@ -121,6 +120,9 @@ class EmailService {
     const roomList = this.formatRoomList(booking.rooms);
     const priceFormatted = this.formatPrice(booking.totalPrice);
     const guestTypeText = booking.guestType === 'utia' ? 'Zaměstnanec ÚTIA' : 'Externí host';
+
+    // Get contact email from settings or use default
+    const contactEmail = settings.contactEmail || 'chata@utia.cas.cz';
 
     // Simplified HTML for SMTP size limit (hermes.utia.cas.cz has ~1KB limit)
     return `<!DOCTYPE html>
@@ -152,7 +154,7 @@ Osob: ${booking.adults} dospělých, ${booking.children || 0} dětí${booking.no
 <p><b>Důležité:</b> Uschovejte si tento odkaz!</p>
 </div>
 <div class="f">
-<p>Kontakt: chata@utia.cas.cz | ${this.config.appUrl}<br>
+<p>Kontakt: ${contactEmail} | ${this.config.appUrl}<br>
 ---<br>Automatická zpráva</p>
 </div>
 </body></html>`.trim();
@@ -238,6 +240,9 @@ Osob: ${booking.adults} dospělých, ${booking.children || 0} dětí${booking.no
     const priceFormatted = this.formatPrice(booking.totalPrice);
     const guestTypeText = booking.guestType === 'utia' ? 'Zaměstnanec ÚTIA' : 'Externí host';
 
+    // Get contact email from settings or use default
+    const contactEmail = settings.contactEmail || 'chata@utia.cas.cz';
+
     return `CHATA MARIÁNSKÁ - Potvrzení rezervace ${booking.id}
 
 Dobrý den ${booking.name},
@@ -257,7 +262,7 @@ ${editUrl}
 
 DŮLEŽITÉ: Uschovejte si tento email a odkaz výše pro případné úpravy.
 
-Kontakt: chata@utia.cas.cz | ${this.config.appUrl}
+Kontakt: ${contactEmail} | ${this.config.appUrl}
 
 ---
 Automatická zpráva - neodpovídejte
@@ -381,13 +386,18 @@ Automatická zpráva - neodpovídejte
    * @param {string} contactData.senderEmail - Email of the sender
    * @param {string} contactData.message - Message content (max 500 chars)
    * @param {string} [contactData.bookingId] - Optional booking reference
+   * @param {Object} options - Additional options
+   * @param {Object} [options.settings] - System settings (for contact email)
    * @returns {Promise<Object>} Email sending result
    */
-  async sendContactMessage(contactData) {
+  async sendContactMessage(contactData, options = {}) {
     try {
       if (!contactData || !contactData.senderEmail || !contactData.message) {
         throw new Error('Invalid contact data: missing required fields (senderEmail, message)');
       }
+
+      // Get contact email from settings or use default
+      const contactEmail = options.settings?.contactEmail || 'chata@utia.cas.cz';
 
       // Generate email content
       const textContent = this.generateContactMessageText(contactData);
@@ -395,7 +405,7 @@ Automatická zpráva - neodpovídejte
       // Email options
       const mailOptions = {
         from: this.config.from,
-        to: 'chata@utia.cas.cz', // Admin contact email
+        to: contactEmail, // Admin contact email from settings
         replyTo: contactData.senderEmail, // Allow admin to reply directly
         subject: contactData.bookingId
           ? `Dotaz k rezervaci ${contactData.bookingId}`
@@ -408,6 +418,7 @@ Automatická zpráva - neodpovídejte
         from: contactData.senderEmail,
         senderName: contactData.senderName,
         bookingId: contactData.bookingId || 'none',
+        to: contactEmail,
       });
 
       // Send email
@@ -416,6 +427,7 @@ Automatická zpráva - neodpovídejte
       logger.info('Contact message email sent successfully', {
         messageId: info.messageId,
         from: contactData.senderEmail,
+        to: contactEmail,
         accepted: info.accepted,
       });
 

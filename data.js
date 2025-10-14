@@ -347,6 +347,15 @@ class DataManager {
           },
           timestamp: new Date().toISOString(),
         });
+
+        // Handle rate limiting specifically
+        if (response.status === 429) {
+          throw new Error(
+            errorData.error ||
+              'Překročili jste limit 20 rezervací za hodinu. Zkuste to prosím později.'
+          );
+        }
+
         throw new Error(errorData.error || `Server error: ${response.status}`);
       }
 

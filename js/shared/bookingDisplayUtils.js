@@ -67,14 +67,21 @@ class BookingDisplayUtils {
       // Check for per-room guests (new format)
       const roomGuests = booking.perRoomGuests?.[roomId];
 
-      // For bulk bookings, show maximum capacity per room
+      // Initialize guest variables
       let adults;
       let children;
       let toddlers;
       let guestType;
 
-      if (isBulkBooking && rooms) {
-        // BULK BOOKING: Show maximum room capacity (beds count)
+      if (roomGuests) {
+        // PRIORITY: Use actual per-room guest data if available
+        // This applies to both individual and bulk bookings with perRoomGuests
+        adults = roomGuests.adults || 0;
+        children = roomGuests.children || 0;
+        toddlers = roomGuests.toddlers || 0;
+        guestType = roomGuests.guestType || booking.guestType;
+      } else if (isBulkBooking && rooms) {
+        // FALLBACK: For bulk bookings without perRoomGuests, show maximum room capacity
         const room = rooms.find((r) => r.id === roomId);
         if (room) {
           adults = room.beds || 2; // Use bed count as adult capacity
@@ -90,12 +97,6 @@ class BookingDisplayUtils {
           // eslint-disable-next-line prefer-destructuring
           guestType = booking.guestType;
         }
-      } else if (roomGuests) {
-        // INDIVIDUAL BOOKING: Per-room data available
-        adults = roomGuests.adults || 0;
-        children = roomGuests.children || 0;
-        toddlers = roomGuests.toddlers || 0;
-        guestType = roomGuests.guestType || booking.guestType;
       } else {
         // Legacy booking - distribute totals evenly across rooms
         const roomCount = booking.rooms.length;
@@ -134,7 +135,7 @@ class BookingDisplayUtils {
    * Format guest counts for display with proper Czech/English pluralization
    *
    * @param {number} adults - Number of adults
-   * @param {number} children - Number of children (3-18 years)
+   * @param {number} children - Number of children (3-17 years)
    * @param {number} toddlers - Number of toddlers (0-3 years)
    * @param {string} language - 'cs' or 'en'
    * @returns {string} Formatted guest count string

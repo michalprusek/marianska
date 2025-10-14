@@ -87,7 +87,10 @@
           <p id="deadlineMessage">
             Úpravy a zrušení rezervace jsou možné pouze <strong>3 dny před začátkem pobytu</strong>.
           </p>
-          <p>💡 Pro změny kontaktujte administrátora: <strong>chata@utia.cas.cz</strong></p>
+          <p>
+            💡 Pro změny kontaktujte administrátora:
+            <strong><span id="contactEmailDisplay">chata@utia.cas.cz</span></strong>
+          </p>
         </div>
       </div>
 
@@ -365,6 +368,40 @@
                     <span>Platba z benefitů</span>
                   </label>
                 </div>
+
+                <!-- Guest Names Section -->
+                <div
+                  id="editGuestNamesSection"
+                  class="input-group full-width"
+                  style="
+                    display: none;
+                    margin-top: 1.5rem;
+                    padding: 1.5rem;
+                    background: #f0fdf4;
+                    border: 2px solid #10b981;
+                    border-radius: 8px;
+                  "
+                >
+                  <h3 style="margin: 0 0 1rem 0; color: #047857">👥 Jména ubytovaných osob</h3>
+
+                  <!-- Adults Names -->
+                  <div
+                    id="editAdultsNamesContainer"
+                    style="margin-bottom: 1.5rem"
+                  >
+                    <h4 style="margin: 0 0 0.75rem 0; color: #059669">Dospělí (18+ let)</h4>
+                    <div id="editAdultsNamesList"></div>
+                  </div>
+
+                  <!-- Children Names -->
+                  <div
+                    id="editChildrenNamesContainer"
+                    style="display: none"
+                  >
+                    <h4 style="margin: 0 0 0.75rem 0; color: #059669">Děti (3-17 let)</h4>
+                    <div id="editChildrenNamesList"></div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -449,6 +486,16 @@
         }
         100% {
           transform: rotate(360deg);
+        }
+      }
+
+      @keyframes highlightPulse {
+        0%,
+        100% {
+          box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+        }
+        50% {
+          box-shadow: 0 0 20px 10px rgba(239, 68, 68, 0.5);
         }
       }
 

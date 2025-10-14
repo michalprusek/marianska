@@ -43,6 +43,16 @@ class EditPage {
 
       this.currentBooking = await response.json();
 
+      // Load settings to get contact email
+      const settings = await dataManager.getSettings();
+      const contactEmail = settings.contactEmail || 'chata@utia.cas.cz';
+
+      // Update contact email display
+      const contactEmailDisplay = document.getElementById('contactEmailDisplay');
+      if (contactEmailDisplay) {
+        contactEmailDisplay.textContent = contactEmail;
+      }
+
       // Check if booking is paid - takes priority over deadline
       if (this.currentBooking.paid) {
         this.isEditLocked = true;
@@ -244,6 +254,13 @@ class EditPage {
         this.editComponent.switchTab('billing');
       } else if (
         error.message &&
+        (error.message.includes('jména') || error.message.includes('jméno'))
+      ) {
+        // Guest names validation error - switch to billing tab and highlight section
+        this.editComponent.switchTab('billing');
+        this.highlightGuestNamesSection();
+      } else if (
+        error.message &&
         (error.message.includes('termín') || error.message.includes('pokoj'))
       ) {
         this.editComponent.switchTab('dates');
@@ -429,6 +446,29 @@ class EditPage {
     setTimeout(() => {
       successMessage.style.display = 'none';
     }, 5000);
+  }
+
+  /**
+   * Highlight guest names section to draw user's attention
+   */
+  highlightGuestNamesSection() {
+    const guestNamesSection = document.getElementById('editGuestNamesSection');
+    if (!guestNamesSection) {
+      return;
+    }
+
+    // Scroll to the section
+    guestNamesSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // Add highlight animation
+    guestNamesSection.style.animation = 'highlightPulse 2s ease-in-out 3';
+    guestNamesSection.style.border = '3px solid #ef4444';
+
+    // Remove highlight after animation
+    setTimeout(() => {
+      guestNamesSection.style.animation = '';
+      guestNamesSection.style.border = '2px solid #10b981';
+    }, 6000);
   }
 
   showNotification(message, type = 'info', duration = 5000) {
