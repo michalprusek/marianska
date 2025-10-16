@@ -472,12 +472,13 @@ class AdminPanel {
                 <td>${this.escapeHtml(booking.id)}</td>
                 <td>${this.escapeHtml(booking.name)}</td>
                 <td>${this.escapeHtml(booking.email)}</td>
-                <td>${this.escapeHtml(booking.phone)}</td>
+                <td style="text-align: center;">
+                    ${booking.payFromBenefit ? '<span style="display: inline-flex; align-items: center; justify-content: center; padding: 0.3rem 0.6rem; background: #17a2b8; color: white; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">💳 Ano</span>' : '<span style="color: #6b7280; font-size: 0.85rem;">Ne</span>'}
+                </td>
                 <td>${dateRangeDisplay}</td>
                 <td>${booking.rooms.map((roomId) => this.createRoomBadge(roomId, true)).join('')}</td>
                 <td>
                     ${booking.totalPrice} Kč
-                    ${booking.payFromBenefit ? '<span style="margin-left: 0.5rem; padding: 0.15rem 0.5rem; background: #17a2b8; color: white; border-radius: 3px; font-size: 0.75rem; font-weight: 600;">💳 Benefit</span>' : ''}
                 </td>
                 <td style="text-align: center;">
                     <label style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; cursor: pointer; user-select: none;">
@@ -630,6 +631,12 @@ class AdminPanel {
                                     .map((roomId) => {
                                       const guests = booking.perRoomGuests[roomId];
                                       if (guests) {
+                                        // Skip rooms with no guests (0 adults AND 0 children)
+                                        const hasGuests = guests.adults > 0 || guests.children > 0;
+                                        if (!hasGuests) {
+                                          return ''; // Don't display empty rooms
+                                        }
+
                                         const guestType = guests.guestType || booking.guestType;
                                         return `
                                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
@@ -885,23 +892,45 @@ class AdminPanel {
 
       // Check if we're creating new booking or updating existing
       if (bookingId) {
-        // Update existing booking
-        await dataManager.updateBooking(bookingId, formData);
+        // Update existing booking via API (triggers email notification)
+        const sessionToken = localStorage.getItem('adminSessionToken');
+        const response = await fetch(`/api/booking/${bookingId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-session-token': sessionToken,
+          },
+          body: JSON.stringify(formData),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Nepodařilo se upravit rezervaci');
+        }
+
+        // Sync with server to get updated data
+        await dataManager.syncWithServer();
+
         this.showSuccessMessage('Rezervace byla úspěšně upravena');
       } else {
-        // Create new booking - use admin-specific creation
-        const newBooking = {
-          ...formData,
-          id: IdGenerator.generateBookingId(),
-          editToken: IdGenerator.generateEditToken(),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
+        // Create new booking via API (triggers email notification)
+        const sessionToken = localStorage.getItem('adminSessionToken');
+        const response = await fetch('/api/booking', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-session-token': sessionToken,
+          },
+          body: JSON.stringify(formData),
+        });
 
-        // Save directly to data since we're admin
-        const data = await dataManager.getData();
-        data.bookings.push(newBooking);
-        await dataManager.saveData(data);
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Nepodařilo se vytvořit rezervaci');
+        }
+
+        // Sync with server to get updated data
+        await dataManager.syncWithServer();
 
         this.showSuccessMessage('Rezervace byla úspěšně vytvořena');
       }
@@ -919,7 +948,23 @@ class AdminPanel {
    */
   async handleEditBookingDelete(bookingId) {
     try {
-      await dataManager.deleteBooking(bookingId);
+      // Delete via API (triggers email notification)
+      const sessionToken = localStorage.getItem('adminSessionToken');
+      const response = await fetch(`/api/booking/${bookingId}`, {
+        method: 'DELETE',
+        headers: {
+          'x-session-token': sessionToken,
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Nepodařilo se smazat rezervaci');
+      }
+
+      // Sync with server to get updated data
+      await dataManager.syncWithServer();
+
       this.showSuccessMessage('Rezervace byla smazána');
       document.getElementById('editBookingModal').classList.remove('active');
       await this.loadBookings();
@@ -1001,7 +1046,23 @@ class AdminPanel {
       }
 
       try {
-        await dataManager.deleteBooking(bookingId);
+        // Delete via API (triggers email notification)
+        const sessionToken = localStorage.getItem('adminSessionToken');
+        const response = await fetch(`/api/booking/${bookingId}`, {
+          method: 'DELETE',
+          headers: {
+            'x-session-token': sessionToken,
+          },
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Nepodařilo se smazat rezervaci');
+        }
+
+        // Sync with server to get updated data
+        await dataManager.syncWithServer();
+
         await this.loadBookings();
         this.showSuccessMessage('Rezervace byla smazána');
       } catch (error) {
@@ -1024,9 +1085,27 @@ class AdminPanel {
         return;
       }
 
-      // Update paid status
-      booking.paid = paid;
-      await dataManager.updateBooking(bookingId, booking);
+      // Update paid status on server via API (triggers email notification)
+      const sessionToken = localStorage.getItem('adminSessionToken');
+      const response = await fetch(`/api/booking/${bookingId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-session-token': sessionToken,
+        },
+        body: JSON.stringify({
+          ...booking,
+          paid,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Nepodařilo se aktualizovat stav platby');
+      }
+
+      // Sync with server to get updated data
+      await dataManager.syncWithServer();
 
       // Reload bookings table to reflect changes
       await this.loadBookings();

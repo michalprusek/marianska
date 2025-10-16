@@ -1309,16 +1309,26 @@ Chata Mariánská`;
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Contact message failed:', errorData);
-        return false;
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Contact message failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+          payload: { bookingId, fromEmail, messageLength: message?.length || 0 },
+        });
+        // Return error message instead of false so UI can display it
+        throw new Error(
+          errorData.error ||
+            `Nepodařilo se odeslat zprávu (${response.status}): ${response.statusText}`
+        );
       }
 
       const result = await response.json();
       return result.success;
     } catch (error) {
       console.error('Error sending contact message:', error);
-      return false;
+      // Re-throw to let UI handle the error message
+      throw error;
     }
   }
 

@@ -103,6 +103,99 @@ class EmailService {
   }
 
   /**
+   * Format booking details (dates, guests, price, rooms) - helper for email templates
+   * @param {Object} booking - Booking data
+   * @param {Object} settings - System settings
+   * @returns {Object} Formatted booking details
+   * @private
+   */
+  formatBookingDetails(booking, settings = {}) {
+    const startDate = DateUtils.parseDate(booking.startDate);
+    const endDate = DateUtils.parseDate(booking.endDate);
+    const startDateFormatted = DateUtils.formatDateDisplay(startDate, 'cs');
+    const endDateFormatted = DateUtils.formatDateDisplay(endDate, 'cs');
+    const nights = DateUtils.getDaysBetween(booking.startDate, booking.endDate);
+    const roomList = this.formatRoomList(booking.rooms);
+    const priceFormatted = this.formatPrice(booking.totalPrice);
+    const guestTypeText = booking.guestType === 'utia' ? 'Zaměstnanec ÚTIA' : 'Externí host';
+    const contactEmail = settings.contactEmail || 'chata@utia.cas.cz';
+
+    return {
+      startDate: booking.startDate,
+      endDate: booking.endDate,
+      startDateFormatted,
+      endDateFormatted,
+      nights,
+      roomList,
+      priceFormatted,
+      guestTypeText,
+      contactEmail,
+      adults: booking.adults,
+      children: booking.children || 0,
+      toddlers: booking.toddlers || 0,
+      notes: booking.notes,
+    };
+  }
+
+  /**
+   * Generate current timestamp in Czech format
+   * @returns {string} Formatted timestamp
+   * @private
+   */
+  generateTimestamp() {
+    return new Date().toLocaleString('cs-CZ', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  /**
+   * Send email with unified error handling and logging
+   * @param {Object} mailOptions - nodemailer mail options
+   * @param {Object} logContext - Logging context (bookingId, etc.)
+   * @returns {Promise<Object>} Email sending result
+   * @private
+   */
+  async sendEmail(mailOptions, logContext = {}) {
+    try {
+      logger.info(`Sending email: ${logContext.type || 'unknown'}`, {
+        to: mailOptions.to,
+        from: mailOptions.from,
+        ...logContext,
+      });
+
+      const info = await this.transporter.sendMail(mailOptions);
+
+      logger.info(`Email sent successfully: ${logContext.type || 'unknown'}`, {
+        messageId: info.messageId,
+        accepted: info.accepted,
+        ...logContext,
+      });
+
+      return {
+        success: true,
+        messageId: info.messageId,
+        accepted: info.accepted,
+        rejected: info.rejected,
+      };
+    } catch (error) {
+      logger.error(`Failed to send email: ${logContext.type || 'unknown'}`, {
+        error: error.message,
+        stack: error.stack,
+        ...logContext,
+      });
+
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
    * Generate HTML email template for booking confirmation
    * @param {Object} booking - Booking data
    * @param {string} editUrl - URL for editing the booking
@@ -110,19 +203,7 @@ class EmailService {
    * @returns {string} HTML email content
    */
   generateBookingConfirmationHtml(booking, editUrl, settings = {}) {
-    // Parse date strings to Date objects for formatting
-    const startDate = DateUtils.parseDate(booking.startDate);
-    const endDate = DateUtils.parseDate(booking.endDate);
-
-    const startDateFormatted = DateUtils.formatDateDisplay(startDate, 'cs');
-    const endDateFormatted = DateUtils.formatDateDisplay(endDate, 'cs');
-    const nights = DateUtils.getDaysBetween(booking.startDate, booking.endDate);
-    const roomList = this.formatRoomList(booking.rooms);
-    const priceFormatted = this.formatPrice(booking.totalPrice);
-    const guestTypeText = booking.guestType === 'utia' ? 'Zaměstnanec ÚTIA' : 'Externí host';
-
-    // Get contact email from settings or use default
-    const contactEmail = settings.contactEmail || 'chata@utia.cas.cz';
+    const details = this.formatBookingDetails(booking, settings);
 
     // Simplified HTML for SMTP size limit (hermes.utia.cas.cz has ~1KB limit)
     return `<!DOCTYPE html>
@@ -140,13 +221,13 @@ body{font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;mar
 <p>Děkujeme za Vaši rezervaci!</p>
 <div class="d">
 <p><b>Rezervace ${booking.id}</b></p>
-<p>Příjezd: ${startDateFormatted} (${booking.startDate})<br>
-Odjezd: ${endDateFormatted} (${booking.endDate})<br>
-Nocí: ${nights} | Pokoje: ${roomList}<br>
-Typ: ${guestTypeText}<br>
-Osob: ${booking.adults} dospělých, ${booking.children || 0} dětí${booking.notes ? `<br>Poznámka: ${booking.notes}` : ''}</p>
+<p>Příjezd: ${details.startDateFormatted} (${details.startDate})<br>
+Odjezd: ${details.endDateFormatted} (${details.endDate})<br>
+Nocí: ${details.nights} | Pokoje: ${details.roomList}<br>
+Typ: ${details.guestTypeText}<br>
+Osob: ${details.adults} dospělých, ${details.children} dětí${details.notes ? `<br>Poznámka: ${details.notes}` : ''}</p>
 </div>
-<div class="p">Cena: ${priceFormatted}</div>
+<div class="p">Cena: ${details.priceFormatted}</div>
 <div class="e">
 <p><b>Editace nebo zrušení rezervace:</b></p>
 <a href="${editUrl}" class="b">Upravit rezervaci</a>
@@ -154,7 +235,7 @@ Osob: ${booking.adults} dospělých, ${booking.children || 0} dětí${booking.no
 <p><b>Důležité:</b> Uschovejte si tento odkaz!</p>
 </div>
 <div class="f">
-<p>Kontakt: ${contactEmail} | ${this.config.appUrl}<br>
+<p>Kontakt: ${details.contactEmail} | ${this.config.appUrl}<br>
 ---<br>Automatická zpráva</p>
 </div>
 </body></html>`.trim();
@@ -230,18 +311,7 @@ Osob: ${booking.adults} dospělých, ${booking.children || 0} dětí${booking.no
     }
 
     // Fallback to default template
-    const startDate = DateUtils.parseDate(booking.startDate);
-    const endDate = DateUtils.parseDate(booking.endDate);
-
-    const startDateFormatted = DateUtils.formatDateDisplay(startDate, 'cs');
-    const endDateFormatted = DateUtils.formatDateDisplay(endDate, 'cs');
-    const nights = DateUtils.getDaysBetween(booking.startDate, booking.endDate);
-    const roomList = this.formatRoomList(booking.rooms);
-    const priceFormatted = this.formatPrice(booking.totalPrice);
-    const guestTypeText = booking.guestType === 'utia' ? 'Zaměstnanec ÚTIA' : 'Externí host';
-
-    // Get contact email from settings or use default
-    const contactEmail = settings.contactEmail || 'chata@utia.cas.cz';
+    const details = this.formatBookingDetails(booking, settings);
 
     return `CHATA MARIÁNSKÁ - Potvrzení rezervace ${booking.id}
 
@@ -250,19 +320,19 @@ Dobrý den ${booking.name},
 Děkujeme za Vaši rezervaci v Chatě Mariánská!
 
 DETAIL REZERVACE:
-Příjezd: ${startDateFormatted} (${booking.startDate})
-Odjezd: ${endDateFormatted} (${booking.endDate})
-Nocí: ${nights} | Pokoje: ${roomList}
-Typ: ${guestTypeText}
-Osob: ${booking.adults} dospělých, ${booking.children || 0} dětí
-Cena: ${priceFormatted}${booking.notes ? `\nPoznámka: ${booking.notes}` : ''}
+Příjezd: ${details.startDateFormatted} (${details.startDate})
+Odjezd: ${details.endDateFormatted} (${details.endDate})
+Nocí: ${details.nights} | Pokoje: ${details.roomList}
+Typ: ${details.guestTypeText}
+Osob: ${details.adults} dospělých, ${details.children} dětí
+Cena: ${details.priceFormatted}${details.notes ? `\nPoznámka: ${details.notes}` : ''}
 
 EDITACE/ZRUŠENÍ REZERVACE:
 ${editUrl}
 
 DŮLEŽITÉ: Uschovejte si tento email a odkaz výše pro případné úpravy.
 
-Kontakt: ${contactEmail} | ${this.config.appUrl}
+Kontakt: ${details.contactEmail} | ${this.config.appUrl}
 
 ---
 Automatická zpráva - neodpovídejte
@@ -275,73 +345,44 @@ Automatická zpráva - neodpovídejte
    * @param {Object} options - Additional options
    * @returns {Promise<Object>} Email sending result
    */
-  async sendBookingConfirmation(booking, options = {}) {
-    try {
-      if (!booking || !booking.email || !booking.editToken) {
-        throw new Error('Invalid booking data: missing email or editToken');
-      }
-
-      // Generate edit URL
-      const editUrl = `${this.config.appUrl}/edit.html?token=${booking.editToken}`;
-
-      // Generate email content
-      // HTML version generated but not used due to SMTP size limits (see mailOptions below)
-      // eslint-disable-next-line no-unused-vars
-      const htmlContent = this.generateBookingConfirmationHtml(booking, editUrl, options.settings);
-      const textContent = this.generateBookingConfirmationText(booking, editUrl, options.settings);
-
-      // Get custom subject from settings or use default
-      const emailSubject =
-        options.settings?.emailTemplate?.subject ||
-        `Potvrzení rezervace - Chata Mariánská (${booking.id})`;
-
-      // Email options
-      // NOTE: hermes.utia.cas.cz SMTP has ~1KB size limit
-      // HTML version causes timeout - use plain text only
-      const mailOptions = {
-        from: this.config.from,
-        to: booking.email,
-        subject: emailSubject,
-        text: textContent,
-        // html: htmlContent, // DISABLED: causes timeout on hermes.utia.cas.cz
-        encoding: 'utf-8',
-      };
-
-      logger.info('Sending booking confirmation email', {
-        bookingId: booking.id,
-        to: booking.email,
-        from: this.config.from,
-      });
-
-      // Send email
-      const info = await this.transporter.sendMail(mailOptions);
-
-      logger.info('Booking confirmation email sent successfully', {
-        bookingId: booking.id,
-        messageId: info.messageId,
-        accepted: info.accepted,
-        rejected: info.rejected,
-      });
-
-      return {
-        success: true,
-        messageId: info.messageId,
-        accepted: info.accepted,
-        rejected: info.rejected,
-      };
-    } catch (error) {
-      logger.error('Failed to send booking confirmation email:', {
-        bookingId: booking?.id,
-        email: booking?.email,
-        error: error.message,
-        stack: error.stack,
-      });
-
+  sendBookingConfirmation(booking, options = {}) {
+    if (!booking || !booking.email || !booking.editToken) {
       return {
         success: false,
-        error: error.message,
+        error: 'Invalid booking data: missing email or editToken',
       };
     }
+
+    // Generate edit URL
+    const editUrl = `${this.config.appUrl}/edit.html?token=${booking.editToken}`;
+
+    // Generate email content
+    // HTML version generated but not used due to SMTP size limits (see mailOptions below)
+    // eslint-disable-next-line no-unused-vars
+    const htmlContent = this.generateBookingConfirmationHtml(booking, editUrl, options.settings);
+    const textContent = this.generateBookingConfirmationText(booking, editUrl, options.settings);
+
+    // Get custom subject from settings or use default
+    const emailSubject =
+      options.settings?.emailTemplate?.subject ||
+      `Potvrzení rezervace - Chata Mariánská (${booking.id})`;
+
+    // Email options
+    // NOTE: hermes.utia.cas.cz SMTP has ~1KB size limit
+    // HTML version causes timeout - use plain text only
+    const mailOptions = {
+      from: this.config.from,
+      to: booking.email,
+      subject: emailSubject,
+      text: textContent,
+      // html: htmlContent, // DISABLED: causes timeout on hermes.utia.cas.cz
+      encoding: 'utf-8',
+    };
+
+    return this.sendEmail(mailOptions, {
+      type: 'booking_confirmation',
+      bookingId: booking.id,
+    });
   }
 
   /**
@@ -349,34 +390,16 @@ Automatická zpráva - neodpovídejte
    * @param {string} recipientEmail - Test recipient email
    * @returns {Promise<Object>} Test result
    */
-  async sendTestEmail(recipientEmail) {
-    try {
-      const mailOptions = {
-        from: this.config.from,
-        to: recipientEmail,
-        subject: 'Test Email - Chata Mariánská Booking System',
-        text: 'This is a test email from the Chata Mariánská booking system. If you receive this, the email configuration is working correctly.',
-        html: '<p>This is a test email from the <strong>Chata Mariánská</strong> booking system.</p><p>If you receive this, the email configuration is working correctly.</p>',
-      };
+  sendTestEmail(recipientEmail) {
+    const mailOptions = {
+      from: this.config.from,
+      to: recipientEmail,
+      subject: 'Test Email - Chata Mariánská Booking System',
+      text: 'This is a test email from the Chata Mariánská booking system. If you receive this, the email configuration is working correctly.',
+      html: '<p>This is a test email from the <strong>Chata Mariánská</strong> booking system.</p><p>If you receive this, the email configuration is working correctly.</p>',
+    };
 
-      const info = await this.transporter.sendMail(mailOptions);
-
-      logger.info('Test email sent successfully', {
-        to: recipientEmail,
-        messageId: info.messageId,
-      });
-
-      return {
-        success: true,
-        messageId: info.messageId,
-      };
-    } catch (error) {
-      logger.error('Failed to send test email:', error);
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
+    return this.sendEmail(mailOptions, { type: 'test_email' });
   }
 
   /**
@@ -390,65 +413,37 @@ Automatická zpráva - neodpovídejte
    * @param {Object} [options.settings] - System settings (for contact email)
    * @returns {Promise<Object>} Email sending result
    */
-  async sendContactMessage(contactData, options = {}) {
-    try {
-      if (!contactData || !contactData.senderEmail || !contactData.message) {
-        throw new Error('Invalid contact data: missing required fields (senderEmail, message)');
-      }
-
-      // Get contact email from settings or use default
-      const contactEmail = options.settings?.contactEmail || 'chata@utia.cas.cz';
-
-      // Generate email content
-      const textContent = this.generateContactMessageText(contactData);
-
-      // Email options
-      const mailOptions = {
-        from: this.config.from,
-        to: contactEmail, // Admin contact email from settings
-        replyTo: contactData.senderEmail, // Allow admin to reply directly
-        subject: contactData.bookingId
-          ? `Dotaz k rezervaci ${contactData.bookingId}`
-          : `Kontakt z webu - ${contactData.senderName || 'Host'}`,
-        text: textContent,
-        encoding: 'utf-8',
-      };
-
-      logger.info('Sending contact message email', {
-        from: contactData.senderEmail,
-        senderName: contactData.senderName,
-        bookingId: contactData.bookingId || 'none',
-        to: contactEmail,
-      });
-
-      // Send email
-      const info = await this.transporter.sendMail(mailOptions);
-
-      logger.info('Contact message email sent successfully', {
-        messageId: info.messageId,
-        from: contactData.senderEmail,
-        to: contactEmail,
-        accepted: info.accepted,
-      });
-
-      return {
-        success: true,
-        messageId: info.messageId,
-        accepted: info.accepted,
-        rejected: info.rejected,
-      };
-    } catch (error) {
-      logger.error('Failed to send contact message email:', {
-        senderEmail: contactData?.senderEmail,
-        error: error.message,
-        stack: error.stack,
-      });
-
+  sendContactMessage(contactData, options = {}) {
+    if (!contactData || !contactData.senderEmail || !contactData.message) {
       return {
         success: false,
-        error: error.message,
+        error: 'Invalid contact data: missing required fields (senderEmail, message)',
       };
     }
+
+    // Get contact email from settings or use default
+    const contactEmail = options.settings?.contactEmail || 'chata@utia.cas.cz';
+
+    // Generate email content
+    const textContent = this.generateContactMessageText(contactData);
+
+    // Email options
+    const mailOptions = {
+      from: this.config.from,
+      to: contactEmail, // Admin contact email from settings
+      replyTo: contactData.senderEmail, // Allow admin to reply directly
+      subject: contactData.bookingId
+        ? `Dotaz k rezervaci ${contactData.bookingId}`
+        : `Kontakt z webu - ${contactData.senderName || 'Host'}`,
+      text: textContent,
+      encoding: 'utf-8',
+    };
+
+    return this.sendEmail(mailOptions, {
+      type: 'contact_message',
+      from: contactData.senderEmail,
+      bookingId: contactData.bookingId,
+    });
   }
 
   /**
@@ -458,14 +453,7 @@ Automatická zpráva - neodpovídejte
    */
   generateContactMessageText(contactData) {
     const bookingRef = contactData.bookingId ? `\nČíslo rezervace: ${contactData.bookingId}` : '';
-
-    const timestamp = new Date().toLocaleString('cs-CZ', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    const timestamp = this.generateTimestamp();
 
     return `CHATA MARIÁNSKÁ - Zpráva od hosta
 
@@ -480,6 +468,266 @@ Odesláno z: ${this.config.appUrl}
 Čas odeslání: ${timestamp}
 Pro odpověď použijte Reply nebo přímo email: ${contactData.senderEmail}
     `.trim();
+  }
+
+  /**
+   * Send custom email from admin to booking owner
+   * @param {Object} emailData - Email data
+   * @param {string} emailData.bookingId - Booking ID
+   * @param {string} emailData.bookingOwnerEmail - Booking owner's email
+   * @param {string} emailData.bookingOwnerName - Booking owner's name
+   * @param {string} emailData.senderEmail - Admin's email address
+   * @param {string} emailData.subject - Email subject
+   * @param {string} emailData.message - Message content
+   * @returns {Promise<Object>} Email sending result
+   */
+  sendCustomEmailToBooker(emailData) {
+    if (!emailData || !emailData.bookingOwnerEmail || !emailData.message) {
+      return {
+        success: false,
+        error: 'Invalid email data: missing required fields (bookingOwnerEmail, message)',
+      };
+    }
+
+    // Generate email content
+    const textContent = this.generateCustomEmailToBookerText(emailData);
+
+    // Email options
+    const mailOptions = {
+      from: this.config.from,
+      to: emailData.bookingOwnerEmail, // Send TO booking owner
+      replyTo: emailData.senderEmail || this.config.from, // Allow booker to reply to admin
+      subject: emailData.subject || 'Zpráva ohledně Vaší rezervace - Chata Mariánská',
+      text: textContent,
+      encoding: 'utf-8',
+    };
+
+    return this.sendEmail(mailOptions, {
+      type: 'custom_email_to_booker',
+      bookingId: emailData.bookingId,
+    });
+  }
+
+  /**
+   * Generate plain text template for custom email to booker
+   * @param {Object} emailData - Email data
+   * @returns {string} Plain text email content
+   */
+  generateCustomEmailToBookerText(emailData) {
+    const timestamp = this.generateTimestamp();
+
+    return `CHATA MARIÁNSKÁ - Zpráva ohledně Vaší rezervace
+
+Píše Vám uživatel: ${emailData.senderEmail || 'neuvedeno'}
+
+Dobrý den ${emailData.bookingOwnerName || ''},
+
+${emailData.message}
+
+---
+Rezervace: ${emailData.bookingId || 'neuvedeno'}
+Odesláno: ${timestamp}
+Web: ${this.config.appUrl}
+    `.trim();
+  }
+
+  /**
+   * Generate plain text template for booking modification notification
+   * @param {Object} booking - Updated booking data
+   * @param {Object} changes - Object describing what changed
+   * @param {Object} settings - System settings
+   * @param {boolean} modifiedByAdmin - Whether change was made by admin
+   * @returns {string} Plain text email content
+   */
+  generateBookingModificationText(booking, changes, settings = {}, modifiedByAdmin = false) {
+    const details = this.formatBookingDetails(booking, settings);
+    const editUrl = `${this.config.appUrl}/edit.html?token=${booking.editToken}`;
+
+    // Build change summary
+    let changeSummary = '';
+    if (changes.dates) {
+      changeSummary += '\n- Změna termínu rezervace';
+    }
+    if (changes.guests) {
+      changeSummary += '\n- Změna počtu hostů';
+    }
+    if (changes.rooms) {
+      changeSummary += '\n- Změna vybraných pokojů';
+    }
+    if (changes.status) {
+      changeSummary += `\n- Změna stavu: ${changes.status}`;
+    }
+    if (changes.payment) {
+      const paymentStatus = booking.paid ? 'ZAPLACENO ✓' : 'NEZAPLACENO';
+      changeSummary += `\n- Platba: ${paymentStatus}`;
+    }
+    if (changes.paymentMethod) {
+      const paymentMethod = booking.payFromBenefit ? 'Z benefitů' : 'Standardní';
+      changeSummary += `\n- Způsob platby: ${paymentMethod}`;
+    }
+    if (changes.notes) {
+      changeSummary += '\n- Aktualizace poznámky';
+    }
+    if (changes.other) {
+      changeSummary += '\n- Další změny v údajích';
+    }
+
+    const modifiedByText = modifiedByAdmin
+      ? '\n⚠️ Tato rezervace byla změněna administrátorem systému.'
+      : '';
+
+    return `CHATA MARIÁNSKÁ - Změna rezervace ${booking.id}
+
+Dobrý den ${booking.name},
+
+Vaše rezervace byla aktualizována.${modifiedByText}
+
+PROVEDENÉ ZMĚNY:${changeSummary}
+
+AKTUÁLNÍ STAV REZERVACE:
+Příjezd: ${details.startDateFormatted} (${details.startDate})
+Odjezd: ${details.endDateFormatted} (${details.endDate})
+Nocí: ${details.nights} | Pokoje: ${details.roomList}
+Typ: ${details.guestTypeText}
+Osob: ${details.adults} dospělých, ${details.children} dětí
+Cena: ${details.priceFormatted}${details.notes ? `\nPoznámka: ${details.notes}` : ''}
+
+EDITACE/ZRUŠENÍ REZERVACE:
+${editUrl}
+
+DŮLEŽITÉ: Uschovejte si tento email a odkaz výše pro případné další úpravy.
+
+Kontakt: ${details.contactEmail} | ${this.config.appUrl}
+
+---
+Automatická zpráva - neodpovídejte
+    `.trim();
+  }
+
+  /**
+   * Send booking modification notification email
+   * @param {Object} booking - Updated booking data
+   * @param {Object} changes - Object describing what changed
+   * @param {Object} options - Additional options
+   * @param {boolean} options.modifiedByAdmin - Whether change was made by admin
+   * @returns {Promise<Object>} Email sending result
+   */
+  sendBookingModification(booking, changes, options = {}) {
+    if (!booking || !booking.email || !booking.editToken) {
+      return {
+        success: false,
+        error: 'Invalid booking data: missing email or editToken',
+      };
+    }
+
+    if (!changes || Object.keys(changes).length === 0) {
+      return {
+        success: false,
+        error: 'No changes specified for modification email',
+      };
+    }
+
+    const textContent = this.generateBookingModificationText(
+      booking,
+      changes,
+      options.settings,
+      options.modifiedByAdmin || false
+    );
+
+    const emailSubject = `Změna rezervace - Chata Mariánská (${booking.id})`;
+
+    const mailOptions = {
+      from: this.config.from,
+      to: booking.email,
+      subject: emailSubject,
+      text: textContent,
+      encoding: 'utf-8',
+    };
+
+    return this.sendEmail(mailOptions, {
+      type: 'booking_modification',
+      bookingId: booking.id,
+      modifiedByAdmin: options.modifiedByAdmin || false,
+      changes: Object.keys(changes),
+    });
+  }
+
+  /**
+   * Generate plain text template for booking deletion notification
+   * @param {Object} booking - Deleted booking data
+   * @param {Object} settings - System settings
+   * @param {boolean} deletedByAdmin - Whether deletion was performed by admin
+   * @returns {string} Plain text email content
+   */
+  generateBookingDeletionText(booking, settings = {}, deletedByAdmin = false) {
+    const details = this.formatBookingDetails(booking, settings);
+
+    const deletedByText = deletedByAdmin
+      ? '\n⚠️ Tato rezervace byla zrušena administrátorem systému.'
+      : '\nVaše rezervace byla úspěšně zrušena na Vaši žádost.';
+
+    const timestamp = this.generateTimestamp();
+
+    return `CHATA MARIÁNSKÁ - Zrušení rezervace ${booking.id}
+
+Dobrý den ${booking.name},
+${deletedByText}
+
+ZRUŠENÁ REZERVACE:
+Příjezd: ${details.startDateFormatted} (${details.startDate})
+Odjezd: ${details.endDateFormatted} (${details.endDate})
+Nocí: ${details.nights} | Pokoje: ${details.roomList}
+Typ: ${details.guestTypeText}
+Osob: ${details.adults} dospělých, ${details.children} dětí
+Cena: ${details.priceFormatted}${details.notes ? `\nPoznámka: ${details.notes}` : ''}
+
+Čas zrušení: ${timestamp}
+
+Pokud máte jakékoliv dotazy, neváhejte nás kontaktovat.
+
+Kontakt: ${details.contactEmail} | ${this.config.appUrl}
+
+---
+Automatická zpráva - neodpovídejte
+    `.trim();
+  }
+
+  /**
+   * Send booking deletion notification email
+   * @param {Object} booking - Deleted booking data
+   * @param {Object} options - Additional options
+   * @param {boolean} options.deletedByAdmin - Whether deletion was performed by admin
+   * @returns {Promise<Object>} Email sending result
+   */
+  sendBookingDeletion(booking, options = {}) {
+    if (!booking || !booking.email) {
+      return {
+        success: false,
+        error: 'Invalid booking data: missing email',
+      };
+    }
+
+    const textContent = this.generateBookingDeletionText(
+      booking,
+      options.settings,
+      options.deletedByAdmin || false
+    );
+
+    const emailSubject = `Zrušení rezervace - Chata Mariánská (${booking.id})`;
+
+    const mailOptions = {
+      from: this.config.from,
+      to: booking.email,
+      subject: emailSubject,
+      text: textContent,
+      encoding: 'utf-8',
+    };
+
+    return this.sendEmail(mailOptions, {
+      type: 'booking_deletion',
+      bookingId: booking.id,
+      deletedByAdmin: options.deletedByAdmin || false,
+    });
   }
 }
 

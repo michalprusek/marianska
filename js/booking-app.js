@@ -94,6 +94,93 @@ class BookingApp {
         this.dragEndDate = null;
       }
     });
+
+    // Start periodic check for expired proposed bookings (every 30 seconds)
+    this.startProposedBookingCleanupMonitor();
+
+    // Cleanup proposed bookings when user leaves the page (if they didn't finalize)
+    window.addEventListener('beforeunload', () => {
+      this.cleanup();
+    });
+  }
+
+  /**
+   * Cleanup method called when page is being unloaded
+   * Ensures proper cleanup of intervals and proposed bookings
+   */
+  cleanup() {
+    // Stop cleanup interval
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+  }
+
+  /**
+   * Start periodic monitoring for expired proposed bookings
+   * Checks every 30 seconds and removes expired proposals from UI + calendar
+   */
+  startProposedBookingCleanupMonitor() {
+    // Check immediately on init
+    this.checkAndCleanExpiredProposedBookings();
+
+    // Then check every 30 seconds
+    this.cleanupInterval = setInterval(async () => {
+      await this.checkAndCleanExpiredProposedBookings();
+    }, 30000); // 30 seconds (sync with dataManager auto-sync)
+  }
+
+  /**
+   * Check for expired proposed bookings and remove them from UI + calendar
+   * This ensures that when server deletes expired proposals, the UI reflects the change
+   */
+  async checkAndCleanExpiredProposedBookings() {
+    if (!this.tempReservations || this.tempReservations.length === 0) {
+      return; // No temp reservations to check
+    }
+
+    try {
+      // Fetch active proposed bookings from server
+      const response = await fetch(
+        `${dataManager.apiUrl}/proposed-bookings/session/${this.sessionId}`
+      );
+
+      if (!response.ok) {
+        return; // Failed to fetch - skip cleanup
+      }
+
+      const activeProposalIds = (await response.json()).map((pb) => pb.proposal_id);
+
+      // Find expired proposals (those that exist in UI but not in server response)
+      const expiredProposals = this.tempReservations.filter(
+        (tempRes) => tempRes.proposalId && !activeProposalIds.includes(tempRes.proposalId)
+      );
+
+      if (expiredProposals.length > 0) {
+        // Remove expired proposals from temp reservations
+        this.tempReservations = this.tempReservations.filter((tempRes) =>
+          activeProposalIds.includes(tempRes.proposalId)
+        );
+
+        // Invalidate proposed bookings cache to force fresh fetch
+        dataManager.invalidateProposedBookingsCache();
+
+        // Update UI and calendar
+        await this.displayTempReservations();
+
+        // Show notification to user
+        this.showNotification(
+          this.currentLanguage === 'cs'
+            ? `${expiredProposals.length} navrhovaná rezervace vypršela a byla odstraněna`
+            : `${expiredProposals.length} proposed reservation(s) expired and were removed`,
+          'info',
+          5000
+        );
+      }
+    } catch (error) {
+      console.error('Error checking for expired proposed bookings:', error);
+      // Silent fail - will retry on next interval
+    }
   }
 
   async loadSessionProposedBookings() {

@@ -172,6 +172,93 @@ class ChristmasUtils {
     return false;
   }
 
+  /**
+   * Validate Christmas room limit for ÚTIA employees
+   *
+   * Official ÚTIA rules (implemented 2025-10-16):
+   * 1. Before Sept 30: ÚTIA employees can book:
+   *    - 1 room: Always allowed
+   *    - 2 rooms: Only if both fully occupied by family (guestType === 'utia')
+   *    - 3+ rooms: Not allowed
+   * 2. After Oct 1: No room limit (subject to availability and access code)
+   *
+   * @param {Object} bookingData - Booking data with rooms, guestType
+   * @param {Date|string} currentDate - Current date (usually today)
+   * @param {string} christmasPeriodStart - First day of Christmas period (YYYY-MM-DD)
+   * @returns {Object} { valid: boolean, error?: string, warning?: string }
+   *
+   * @example
+   * // Before Oct 1, ÚTIA employee, 1 room
+   * validateChristmasRoomLimit({ rooms: ['12'], guestType: 'utia' }, new Date('2025-09-15'), '2025-12-23')
+   * // => { valid: true }
+   *
+   * // Before Oct 1, ÚTIA employee, 2 rooms
+   * validateChristmasRoomLimit({ rooms: ['12', '13'], guestType: 'utia' }, new Date('2025-09-15'), '2025-12-23')
+   * // => { valid: true, warning: '...' }
+   *
+   * // Before Oct 1, ÚTIA employee, 3 rooms
+   * validateChristmasRoomLimit({ rooms: ['12', '13', '14'], guestType: 'utia' }, new Date('2025-09-15'), '2025-12-23')
+   * // => { valid: false, error: '...' }
+   *
+   * // After Oct 1, any number of rooms
+   * validateChristmasRoomLimit({ rooms: ['12', '13', '14'], guestType: 'utia' }, new Date('2025-10-15'), '2025-12-23')
+   * // => { valid: true }
+   */
+  static validateChristmasRoomLimit(bookingData, currentDate, christmasPeriodStart) {
+    // No Christmas period configured - no restrictions
+    if (!christmasPeriodStart) {
+      return { valid: true };
+    }
+
+    // Check if before Oct 1 of Christmas year
+    const { codeRequired } = this.checkChristmasAccessRequirement(
+      currentDate,
+      christmasPeriodStart,
+      false
+    );
+
+    // After Oct 1: No room limit
+    if (!codeRequired) {
+      return { valid: true };
+    }
+
+    // Before Oct 1: Apply ÚTIA rules
+    const roomCount = bookingData.rooms ? bookingData.rooms.length : 0;
+    const isUtia = bookingData.guestType === 'utia';
+
+    // External guests: No special restrictions (they can book with code)
+    if (!isUtia) {
+      return { valid: true };
+    }
+
+    // ÚTIA employee rules:
+    if (roomCount === 0) {
+      return { valid: false, error: 'Musíte vybrat alespoň jeden pokoj' };
+    }
+
+    if (roomCount === 1) {
+      // 1 room: Always allowed for ÚTIA employees
+      return { valid: true };
+    }
+
+    if (roomCount === 2) {
+      // 2 rooms: Allowed, but with warning about family occupancy rule
+      return {
+        valid: true,
+        warning:
+          'Pamatujte: Dva pokoje lze rezervovat pouze pokud budou oba plně obsazeny příslušníky Vaší rodiny (osoby oprávněné využívat zlevněnou cenu za ubytování).',
+      };
+    }
+
+    // 3+ rooms: Not allowed for ÚTIA employees before Oct 1
+    return {
+      valid: false,
+      error:
+        'Zaměstnanci ÚTIA mohou do 30. září rezervovat maximálně 2 pokoje. ' +
+        'Více pokojů můžete rezervovat od 1. října (podle dostupnosti).',
+    };
+  }
+
   // ========== PRIVATE HELPER METHODS ==========
 
   /**

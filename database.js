@@ -210,6 +210,9 @@ class DatabaseManager {
     // Add paid status column to bookings table if it doesn't exist
     addColumnIfNotExists('bookings', 'paid', 'INTEGER', 0);
 
+    // Add pay_from_benefit column to bookings table if it doesn't exist
+    addColumnIfNotExists('bookings', 'pay_from_benefit', 'INTEGER', 0);
+
     // Create proposed booking rooms table
     this.db.exec(`
             CREATE TABLE IF NOT EXISTS proposed_booking_rooms (
@@ -349,11 +352,11 @@ class DatabaseManager {
                 INSERT INTO bookings (
                     id, name, email, phone, company, address, city, zip, ico, dic,
                     start_date, end_date, guest_type, adults, children, toddlers,
-                    total_price, notes, paid, edit_token, created_at, updated_at
+                    total_price, notes, paid, pay_from_benefit, edit_token, created_at, updated_at
                 ) VALUES (
                     @id, @name, @email, @phone, @company, @address, @city, @zip, @ico, @dic,
                     @start_date, @end_date, @guest_type, @adults, @children, @toddlers,
-                    @total_price, @notes, @paid, @edit_token, @created_at, @updated_at
+                    @total_price, @notes, @paid, @pay_from_benefit, @edit_token, @created_at, @updated_at
                 )
             `),
 
@@ -366,7 +369,7 @@ class DatabaseManager {
                     guest_type = @guest_type, adults = @adults,
                     children = @children, toddlers = @toddlers,
                     total_price = @total_price, notes = @notes,
-                    paid = @paid,
+                    paid = @paid, pay_from_benefit = @pay_from_benefit,
                     updated_at = @updated_at
                 WHERE id = @id
             `),
@@ -534,6 +537,7 @@ class DatabaseManager {
         total_price: data.totalPrice,
         notes: data.notes || null,
         paid: data.paid ? 1 : 0,
+        pay_from_benefit: data.payFromBenefit ? 1 : 0,
         edit_token: data.editToken,
         created_at: data.createdAt,
         updated_at: data.updatedAt,
@@ -631,6 +635,7 @@ class DatabaseManager {
         total_price: data.totalPrice,
         notes: data.notes || null,
         paid: data.paid ? 1 : 0,
+        pay_from_benefit: data.payFromBenefit ? 1 : 0,
         updated_at: new Date().toISOString(),
       });
 
@@ -838,6 +843,7 @@ class DatabaseManager {
         totalPrice: booking.total_price,
         notes: booking.notes,
         paid: Boolean(booking.paid),
+        payFromBenefit: Boolean(booking.pay_from_benefit),
         editToken: booking.edit_token,
         createdAt: booking.created_at,
         updatedAt: booking.updated_at,
@@ -930,6 +936,7 @@ class DatabaseManager {
         totalPrice: booking.total_price,
         notes: booking.notes,
         paid: Boolean(booking.paid),
+        payFromBenefit: Boolean(booking.pay_from_benefit),
         editToken: booking.edit_token,
         createdAt: booking.created_at,
         updatedAt: booking.updated_at,

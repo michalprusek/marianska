@@ -587,6 +587,26 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
         // Valid code - reset rate limit for this IP
         resetChristmasCodeAttempts(clientIp);
       }
+
+      // NEW 2025-10-16: Validate Christmas room limit for ÚTIA employees
+      const roomLimitValidation = ChristmasUtils.validateChristmasRoomLimit(
+        bookingData,
+        today,
+        christmasPeriodStart
+      );
+
+      if (!roomLimitValidation.valid) {
+        return res.status(403).json({ error: roomLimitValidation.error });
+      }
+
+      // If there's a warning (e.g., 2 rooms), log it but allow booking
+      if (roomLimitValidation.warning) {
+        logger.info('Christmas room limit warning', {
+          email: bookingData.email,
+          rooms: bookingData.rooms,
+          warning: roomLimitValidation.warning,
+        });
+      }
     }
 
     // Check room availability
@@ -1124,6 +1144,27 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
         // Valid code - reset rate limit for this IP
         resetChristmasCodeAttempts(clientIp);
       }
+
+      // NEW 2025-10-16: Validate Christmas room limit for ÚTIA employees
+      const roomLimitValidation = ChristmasUtils.validateChristmasRoomLimit(
+        bookingData,
+        today,
+        christmasPeriodStart
+      );
+
+      if (!roomLimitValidation.valid) {
+        return res.status(403).json({ error: roomLimitValidation.error });
+      }
+
+      // If there's a warning (e.g., 2 rooms), log it but allow booking
+      if (roomLimitValidation.warning) {
+        logger.info('Christmas room limit warning (edit)', {
+          bookingId,
+          email: bookingData.email,
+          rooms: bookingData.rooms,
+          warning: roomLimitValidation.warning,
+        });
+      }
     }
 
     // Check room availability using unified BookingLogic (excluding current booking)
@@ -1144,50 +1185,133 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
       });
     }
 
-    // Recalculate price using shared PriceCalculator
-    const nights = DateUtils.getDaysBetween(bookingData.startDate, bookingData.endDate);
-    // settings already declared above for Christmas check
+    // Detect if only payment-related fields are changing
+    const priceAffectingFieldsChanged =
+      bookingData.startDate !== existingBooking.startDate ||
+      bookingData.endDate !== existingBooking.endDate ||
+      bookingData.adults !== existingBooking.adults ||
+      bookingData.children !== existingBooking.children ||
+      bookingData.toddlers !== existingBooking.toddlers ||
+      bookingData.guestType !== existingBooking.guestType ||
+      JSON.stringify(bookingData.rooms?.sort()) !== JSON.stringify(existingBooking.rooms?.sort());
 
-    // CRITICAL FIX: Use correct price calculation based on booking type
-    if (bookingData.isBulkBooking) {
-      // Bulk booking: Use bulk pricing structure (flat base + per-person charges)
-      bookingData.totalPrice = PriceCalculator.calculateBulkPrice({
-        guestType: bookingData.guestType,
-        adults: bookingData.adults,
-        children: bookingData.children || 0,
-        toddlers: bookingData.toddlers || 0,
-        nights,
-        settings,
-      });
+    // Only recalculate price if price-affecting fields changed
+    if (priceAffectingFieldsChanged) {
+      // Recalculate price using shared PriceCalculator
+      const nights = DateUtils.getDaysBetween(bookingData.startDate, bookingData.endDate);
+      // settings already declared above for Christmas check
+
+      // CRITICAL FIX: Use correct price calculation based on booking type
+      if (bookingData.isBulkBooking) {
+        // Bulk booking: Use bulk pricing structure (flat base + per-person charges)
+        bookingData.totalPrice = PriceCalculator.calculateBulkPrice({
+          guestType: bookingData.guestType,
+          adults: bookingData.adults,
+          children: bookingData.children || 0,
+          toddlers: bookingData.toddlers || 0,
+          nights,
+          settings,
+        });
+      } else {
+        // Individual room booking: Use per-room pricing structure
+        bookingData.totalPrice = PriceCalculator.calculatePriceFromRooms({
+          rooms: bookingData.rooms,
+          guestType: bookingData.guestType,
+          adults: bookingData.adults,
+          children: bookingData.children || 0,
+          toddlers: bookingData.toddlers || 0,
+          nights,
+          settings,
+        });
+      }
     } else {
-      // Individual room booking: Use per-room pricing structure
-      bookingData.totalPrice = PriceCalculator.calculatePriceFromRooms({
-        rooms: bookingData.rooms,
-        guestType: bookingData.guestType,
-        adults: bookingData.adults,
-        children: bookingData.children || 0,
-        toddlers: bookingData.toddlers || 0,
-        nights,
-        settings,
-      });
+      // Preserve original price when only payment/notes/other fields change
+      bookingData.totalPrice = existingBooking.totalPrice;
+    }
+
+    // Detect what changed for email notification
+    const changes = {};
+
+    // Date changes
+    if (
+      bookingData.startDate !== existingBooking.startDate ||
+      bookingData.endDate !== existingBooking.endDate
+    ) {
+      changes.dates = true;
+    }
+
+    // Guest count changes
+    if (
+      bookingData.adults !== existingBooking.adults ||
+      bookingData.children !== existingBooking.children ||
+      bookingData.toddlers !== existingBooking.toddlers
+    ) {
+      changes.guests = true;
+    }
+
+    // Room changes (admin only, but include in detection)
+    if (
+      bookingData.rooms &&
+      JSON.stringify(bookingData.rooms.sort()) !== JSON.stringify(existingBooking.rooms.sort())
+    ) {
+      changes.rooms = true;
+    }
+
+    // Payment status changes
+    if (bookingData.paid !== existingBooking.paid) {
+      changes.payment = true;
+    }
+
+    // Payment method changes (benefit vs standard)
+    if (bookingData.payFromBenefit !== existingBooking.payFromBenefit) {
+      changes.paymentMethod = true;
+    }
+
+    // Notes changes
+    if (bookingData.notes !== existingBooking.notes) {
+      changes.notes = true;
+    }
+
+    // Other field changes (name, email, phone, etc.)
+    const otherFields = [
+      'name',
+      'email',
+      'phone',
+      'company',
+      'address',
+      'city',
+      'zip',
+      'ico',
+      'dic',
+    ];
+    for (const field of otherFields) {
+      if (bookingData[field] !== undefined && bookingData[field] !== existingBooking[field]) {
+        changes.other = true;
+        break;
+      }
     }
 
     // Update the booking
     db.updateBooking(bookingId, bookingData);
     const updatedBooking = db.getBooking(bookingId);
 
-    // Send updated booking confirmation email (non-blocking)
+    // Send modification email instead of confirmation (non-blocking)
     // Don't wait for email - respond to user immediately
     emailService
-      .sendBookingConfirmation(updatedBooking, { settings })
+      .sendBookingModification(updatedBooking, changes, {
+        settings,
+        modifiedByAdmin: isAdmin,
+      })
       .then((result) => {
         if (result.success) {
-          logger.info('Updated booking confirmation email sent', {
+          logger.info('Booking modification email sent', {
             bookingId: updatedBooking.id,
             email: updatedBooking.email,
+            modifiedByAdmin: isAdmin,
+            changes: Object.keys(changes),
           });
         } else {
-          logger.warn('Failed to send updated booking confirmation email', {
+          logger.warn('Failed to send booking modification email', {
             bookingId: updatedBooking.id,
             email: updatedBooking.email,
             error: result.error,
@@ -1195,7 +1319,7 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
         }
       })
       .catch((err) => {
-        logger.error('Error sending updated booking confirmation email:', {
+        logger.error('Error sending booking modification email:', {
           bookingId: updatedBooking.id,
           error: err.message,
         });
@@ -1261,7 +1385,40 @@ app.delete('/api/booking/:id', writeLimiter, (req, res) => {
       }
     }
 
+    // Load settings for email notification
+    const settings = db.getSettings();
+
+    // Delete the booking from database
     db.deleteBooking(bookingId);
+
+    // Send deletion notification email (non-blocking)
+    // Don't wait for email - respond to user immediately
+    emailService
+      .sendBookingDeletion(existingBooking, {
+        settings,
+        deletedByAdmin: isAdmin,
+      })
+      .then((result) => {
+        if (result.success) {
+          logger.info('Booking deletion email sent', {
+            bookingId: existingBooking.id,
+            email: existingBooking.email,
+            deletedByAdmin: isAdmin,
+          });
+        } else {
+          logger.warn('Failed to send booking deletion email', {
+            bookingId: existingBooking.id,
+            email: existingBooking.email,
+            error: result.error,
+          });
+        }
+      })
+      .catch((err) => {
+        logger.error('Error sending booking deletion email:', {
+          bookingId: existingBooking.id,
+          error: err.message,
+        });
+      });
 
     return res.json({ success: true });
   } catch (error) {
@@ -1511,37 +1668,86 @@ app.post('/api/contact', contactLimiter, (req, res) => {
       bookingId: bookingId ? sanitizeInput(bookingId, 20) : null,
     };
 
-    logger.info('Sending contact message', {
-      from: contactData.senderEmail,
-      bookingId: contactData.bookingId || 'none',
-    });
-
     // Load settings for contact email
     const settings = db.getSettings();
 
-    // Send email (non-blocking)
-    // Don't wait for email - respond to user immediately
-    emailService
-      .sendContactMessage(contactData, { settings })
-      .then((result) => {
-        if (result.success) {
-          logger.info('Contact message sent', {
-            from: contactData.senderEmail,
-            messageId: result.messageId,
-          });
-        } else {
-          logger.error('Failed to send contact message', {
-            from: contactData.senderEmail,
-            error: result.error,
-          });
-        }
-      })
-      .catch((error) => {
-        logger.error('Error sending contact message', {
-          from: contactData.senderEmail,
-          error: error.message,
-        });
+    // If bookingId is provided, send email to booking owner; otherwise send to admin
+    if (contactData.bookingId) {
+      // Fetch booking to get owner's email
+      const booking = db.getBooking(contactData.bookingId);
+
+      if (!booking) {
+        return res.status(404).json({ error: 'Rezervace nenalezena' });
+      }
+
+      logger.info('Sending contact message to booking owner', {
+        from: contactData.senderEmail,
+        bookingId: contactData.bookingId,
+        to: booking.email,
       });
+
+      // Send email to booking owner using sendCustomEmailToBooker
+      const emailData = {
+        bookingId: booking.id,
+        bookingOwnerEmail: booking.email,
+        bookingOwnerName: booking.name,
+        senderEmail: contactData.senderEmail,
+        subject: 'Zpráva ohledně Vaší rezervace - Chata Mariánská',
+        message: contactData.message,
+      };
+
+      emailService
+        .sendCustomEmailToBooker(emailData, { settings })
+        .then((result) => {
+          if (result.success) {
+            logger.info('Contact message sent to booking owner', {
+              from: contactData.senderEmail,
+              to: booking.email,
+              messageId: result.messageId,
+            });
+          } else {
+            logger.error('Failed to send contact message to booking owner', {
+              from: contactData.senderEmail,
+              to: booking.email,
+              error: result.error,
+            });
+          }
+        })
+        .catch((error) => {
+          logger.error('Error sending contact message to booking owner', {
+            from: contactData.senderEmail,
+            to: booking.email,
+            error: error.message,
+          });
+        });
+    } else {
+      // No bookingId - send to admin (original behavior)
+      logger.info('Sending contact message to admin', {
+        from: contactData.senderEmail,
+      });
+
+      emailService
+        .sendContactMessage(contactData, { settings })
+        .then((result) => {
+          if (result.success) {
+            logger.info('Contact message sent to admin', {
+              from: contactData.senderEmail,
+              messageId: result.messageId,
+            });
+          } else {
+            logger.error('Failed to send contact message to admin', {
+              from: contactData.senderEmail,
+              error: result.error,
+            });
+          }
+        })
+        .catch((error) => {
+          logger.error('Error sending contact message to admin', {
+            from: contactData.senderEmail,
+            error: error.message,
+          });
+        });
+    }
 
     // Respond immediately (don't wait for email)
     return res.json({

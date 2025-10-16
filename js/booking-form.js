@@ -322,6 +322,38 @@ class BookingFormModule {
         );
         return;
       }
+
+      // NEW 2025-10-16: Validate Christmas room limit for temp reservations
+      const settings = await dataManager.getSettings();
+      const christmasPeriodStart = settings.christmasPeriod?.start;
+
+      // Collect all room IDs from temp reservations
+      const allRoomIds = [];
+      const guestTypeTemp = this.app.tempReservations[0]?.guestType || 'utia';
+
+      this.app.tempReservations.forEach((res) => {
+        if (res.isBulkBooking && res.roomIds) {
+          allRoomIds.push(...res.roomIds);
+        } else if (res.roomId) {
+          allRoomIds.push(res.roomId);
+        }
+      });
+
+      const roomLimitCheck = ChristmasUtils.validateChristmasRoomLimit(
+        { rooms: allRoomIds, guestType: guestTypeTemp },
+        new Date(),
+        christmasPeriodStart
+      );
+
+      if (!roomLimitCheck.valid) {
+        this.app.showNotification(roomLimitCheck.error, 'error');
+        return;
+      }
+
+      if (roomLimitCheck.warning) {
+        // Show warning but allow to continue
+        this.app.showNotification(roomLimitCheck.warning, 'warning');
+      }
     }
 
     // Check if we're finalizing temporary reservations
@@ -612,6 +644,26 @@ class BookingFormModule {
 
     // Collect guest names
     const guestNames = this.collectGuestNames();
+
+    // NEW 2025-10-16: Validate Christmas room limit for regular booking flow
+    const settings = await dataManager.getSettings();
+    const christmasPeriodStart = settings.christmasPeriod?.start;
+
+    const roomLimitCheck = ChristmasUtils.validateChristmasRoomLimit(
+      { rooms: roomsData, guestType },
+      new Date(),
+      christmasPeriodStart
+    );
+
+    if (!roomLimitCheck.valid) {
+      this.app.showNotification(roomLimitCheck.error, 'error');
+      return;
+    }
+
+    if (roomLimitCheck.warning) {
+      // Show warning but allow to continue
+      this.app.showNotification(roomLimitCheck.warning, 'warning');
+    }
 
     // Create booking
     const booking = {
@@ -1206,6 +1258,7 @@ class BookingFormModule {
         children: tempReservation.guests.children,
         toddlers: tempReservation.guests.toddlers,
         totalPrice: tempReservation.totalPrice,
+        perRoomGuests: tempReservation.perRoomGuests, // FIX 2025-10-16: Pass through smart room allocation
         notes: formData.notes || 'Hromadná rezervace celé chaty',
         isBulkBooking: true,
         sessionId: this.app.sessionId,

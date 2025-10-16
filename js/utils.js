@@ -60,8 +60,8 @@ class UtilsModule {
                         }
 
 
-                        <!-- Contact Form Section -->
-                        <div class="detail-section" style="border-top: 2px solid var(--gray-200); padding-top: 1.5rem;">
+                        <!-- Public Contact Form Section (for everyone) -->
+                        <div class="detail-section public-contact-section" style="border-top: 2px solid var(--gray-200); padding-top: 1.5rem;">
                             <h3 style="color: var(--primary-600); margin-bottom: 1rem;">
                                 <span style="margin-right: 0.5rem;">✉️</span>
                                 ${this.app.currentLanguage === 'cs' ? 'Kontaktovat vlastníka rezervace' : 'Contact Booking Owner'}
@@ -74,14 +74,14 @@ class UtilsModule {
                                 }
                             </p>
 
-                            <form id="contactOwnerForm" onsubmit="return false;">
+                            <form id="publicContactForm" onsubmit="return false;">
                                 <div style="margin-bottom: 1rem;">
                                     <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--gray-700);">
                                         ${this.app.currentLanguage === 'cs' ? 'Váš email:' : 'Your email:'}
                                     </label>
                                     <input
                                         type="email"
-                                        id="contactEmail"
+                                        id="publicContactEmail"
                                         required
                                         style="width: 100%; padding: 0.75rem; border: 1px solid var(--gray-300); border-radius: var(--radius-md); font-size: 0.95rem;"
                                         placeholder="${this.app.currentLanguage === 'cs' ? 'vas@email.cz' : 'your@email.com'}"
@@ -93,14 +93,14 @@ class UtilsModule {
                                         <label style="font-weight: 600; color: var(--gray-700);">
                                             ${this.app.currentLanguage === 'cs' ? 'Zpráva:' : 'Message:'}
                                         </label>
-                                        <span id="charCounter" style="font-size: 0.85rem; color: var(--gray-500);">0/500</span>
+                                        <span id="publicCharCounter" style="font-size: 0.85rem; color: var(--gray-500);">0/500</span>
                                     </div>
                                     <textarea
-                                        id="contactMessage"
+                                        id="publicContactMessage"
                                         required
                                         rows="4"
                                         maxlength="500"
-                                        oninput="document.getElementById('charCounter').textContent = this.value.length + '/500'; document.getElementById('charCounter').style.color = this.value.length >= 500 ? 'var(--danger-600)' : 'var(--gray-500)';"
+                                        oninput="document.getElementById('publicCharCounter').textContent = this.value.length + '/500'; document.getElementById('publicCharCounter').style.color = this.value.length >= 500 ? 'var(--danger-600)' : 'var(--gray-500)';"
                                         style="width: 100%; padding: 0.75rem; border: 1px solid var(--gray-300); border-radius: var(--radius-md); font-size: 0.95rem; resize: vertical; min-height: 100px;"
                                         placeholder="${
                                           this.app.currentLanguage === 'cs'
@@ -120,7 +120,7 @@ class UtilsModule {
                                     </button>
                                     <button
                                         type="submit"
-                                        onclick="window.app.utils.sendContactMessage('${booking.id}', document.getElementById('contactEmail').value, document.getElementById('contactMessage').value, this.closest('.modal'))"
+                                        onclick="window.app.utils.sendContactMessage('${booking.id}', document.getElementById('publicContactEmail').value, document.getElementById('publicContactMessage').value, this.closest('.modal'))"
                                         style="padding: 0.75rem 1.5rem; background: var(--primary-600); color: white; border: none; border-radius: var(--radius-md); cursor: pointer; font-weight: 500;"
                                     >
                                         <span style="margin-right: 0.5rem;">📤</span>
@@ -135,6 +135,7 @@ class UtilsModule {
         `;
 
     document.body.appendChild(modal);
+
     requestAnimationFrame(() => {
       modal.classList.add('active');
     });
@@ -156,14 +157,33 @@ class UtilsModule {
       return;
     }
 
+    // Validate message length (must be between 10 and 500 characters)
+    if (message.length < 10) {
+      this.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? 'Zpráva musí mít alespoň 10 znaků'
+          : 'Message must be at least 10 characters',
+        'error'
+      );
+      return;
+    }
+
+    if (message.length > 500) {
+      this.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? 'Zpráva je příliš dlouhá (max 500 znaků)'
+          : 'Message is too long (max 500 characters)',
+        'error'
+      );
+      return;
+    }
+
     // Disable the button during sending
     const submitButton = modalElement.querySelector('button[type="submit"]');
     const originalText = submitButton.innerHTML;
     submitButton.disabled = true;
-    submitButton.innerHTML = `
-            <span style="margin-right: 0.5rem;">⏳</span>
-            ${this.app.currentLanguage === 'cs' ? 'Odesílám...' : 'Sending...'}
-        `;
+    submitButton.textContent =
+      this.app.currentLanguage === 'cs' ? '⏳ Odesílám...' : '⏳ Sending...';
 
     try {
       const success = await dataManager.sendContactMessage(bookingId, fromEmail, message);
@@ -178,17 +198,17 @@ class UtilsModule {
 
         // Close the modal
         modalElement.remove();
-      } else {
-        throw new Error('Failed to send message');
       }
     } catch (error) {
       console.error('Error sending contact message:', error);
-      this.showNotification(
-        this.app.currentLanguage === 'cs'
+      // Use the actual error message from server if available
+      const errorMessage =
+        error.message ||
+        (this.app.currentLanguage === 'cs'
           ? 'Chyba při odesílání zprávy. Zkuste to prosím znovu.'
-          : 'Error sending message. Please try again.',
-        'error'
-      );
+          : 'Error sending message. Please try again.');
+
+      this.showNotification(errorMessage, 'error');
 
       // Re-enable the button
       submitButton.disabled = false;

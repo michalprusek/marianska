@@ -116,6 +116,13 @@ const translations = {
     christmasInfo:
       'Rezervace během vánočních prázdnin podléhají speciálním pravidlům. Zaměstnanci ÚTIA mohou rezervovat max. 1-2 pokoje do 30.9. příslušného roku.',
 
+    // Christmas room limit validation messages (NEW 2025-10-16)
+    christmasNoRoomSelected: 'Musíte vybrat alespoň jeden pokoj',
+    christmasTwoRoomsWarning:
+      'Pamatujte: Dva pokoje lze rezervovat pouze pokud budou oba plně obsazeny příslušníky Vaší rodiny (osoby oprávněné využívat zlevněnou cenu za ubytování).',
+    christmasMaxTwoRoomsError:
+      'Zaměstnanci ÚTIA mohou do 30. září rezervovat maximálně 2 pokoje. Více pokojů můžete rezervovat od 1. října (podle dostupnosti).',
+
     // Status
     available: 'Volný',
     booked: 'Obsazený',
@@ -572,6 +579,13 @@ const translations = {
     christmasTitle: '🎄 Christmas Period',
     christmasInfo:
       'Bookings during Christmas holidays are subject to special rules. ÚTIA employees can book max. 1-2 rooms until September 30th of the respective year.',
+
+    // Christmas room limit validation messages (NEW 2025-10-16)
+    christmasNoRoomSelected: 'You must select at least one room',
+    christmasTwoRoomsWarning:
+      'Remember: Two rooms can be reserved only if both will be fully occupied by members of your family (persons eligible for discounted ÚTIA pricing).',
+    christmasMaxTwoRoomsError:
+      'ÚTIA employees can reserve a maximum of 2 rooms until September 30. More rooms can be reserved from October 1 (based on availability).',
 
     // Status
     available: 'Available',

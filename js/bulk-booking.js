@@ -465,6 +465,59 @@ class BulkBookingModule {
       children * bulkPrices[`${priceGuestKey}Child`];
     const totalPrice = pricePerNight * nights;
 
+    // FIX 2025-10-16: Create smart per-room guest allocation
+    // This ensures guests are distributed intelligently across rooms by capacity
+    const perRoomGuests = {};
+
+    // Get room capacities (sorted by capacity desc, then by room ID)
+    const roomsWithCapacity = allRooms
+      .map((room) => ({
+        id: room.id,
+        capacity: room.beds || 2,
+      }))
+      .sort((a, b) => {
+        if (b.capacity !== a.capacity) {
+          return b.capacity - a.capacity; // Larger rooms first
+        }
+        return a.id.localeCompare(b.id); // Then by room ID
+      });
+
+    // Allocate guests to rooms based on capacity
+    let remainingAdults = adults;
+    let remainingChildren = children;
+
+    for (const room of roomsWithCapacity) {
+      if (remainingAdults === 0 && remainingChildren === 0) {
+        // No more guests - leave room empty
+        perRoomGuests[room.id] = {
+          adults: 0,
+          children: 0,
+          toddlers: 0,
+          guestType,
+        };
+        continue;
+      }
+
+      // Calculate how many guests to put in this room (up to capacity)
+      const availableSpace = room.capacity;
+      const guestsToAllocate = Math.min(availableSpace, remainingAdults + remainingChildren);
+
+      // Prioritize adults first, then children
+      const adultsInRoom = Math.min(remainingAdults, guestsToAllocate);
+      const childrenInRoom = Math.min(remainingChildren, guestsToAllocate - adultsInRoom);
+
+      perRoomGuests[room.id] = {
+        adults: adultsInRoom,
+        children: childrenInRoom,
+        toddlers: 0,
+        guestType,
+      };
+
+      // Update remaining counts
+      remainingAdults -= adultsInRoom;
+      remainingChildren -= childrenInRoom;
+    }
+
     // Create proposed booking in database for all rooms
     try {
       const proposalId = await dataManager.createProposedBooking(
@@ -487,6 +540,7 @@ class BulkBookingModule {
         guests: { adults, children, toddlers: 0 },
         guestType,
         totalPrice,
+        perRoomGuests, // FIX 2025-10-16: Include smart room allocation
         // CRITICAL FIX 2025-10-07: Use IdGenerator (SSOT) for temp IDs
         id: `temp-bulk-${IdGenerator.generateToken(9)}`,
         proposalId, // Store the proposal ID for cleanup
@@ -562,6 +616,10 @@ class BulkBookingModule {
     const allRoomsForBooking = await dataManager.getRooms();
     const roomIds = allRoomsForBooking.map((r) => r.id);
 
+    // Get guest type from radio buttons (if available) or default to external
+    const guestTypeInput = document.querySelector('input[name="bulkGuestType"]:checked');
+    const guestType = guestTypeInput ? guestTypeInput.value : 'external';
+
     // Get date range
     const sortedDates = Array.from(this.bulkSelectedDates).sort();
     const startDate = sortedDates[0];
@@ -570,25 +628,65 @@ class BulkBookingModule {
     // Christmas validation already performed in confirmBulkDates() - no need to duplicate
     // (uses ChristmasUtils.checkChristmasAccessRequirement for consistent logic)
 
-    // FIX: Create per-room guest data for bulk bookings
+    // FIX: Create per-room guest data for bulk bookings with smart allocation
     // This ensures correct guest counts are preserved when editing
     const perRoomGuests = {};
-    const roomCount = roomIds.length;
 
-    // Distribute guests intelligently across rooms
-    const adultsPerRoom = Math.floor(adults / roomCount);
-    const adultsRemainder = adults % roomCount;
-    const childrenPerRoom = Math.floor(children / roomCount);
-    const childrenRemainder = children % roomCount;
+    // Smart room allocation algorithm:
+    // 1. Get room capacities from settings
+    // 2. Fill rooms efficiently based on capacity
+    // 3. Leave rooms empty if not enough guests
 
-    roomIds.forEach((roomId, index) => {
-      perRoomGuests[roomId] = {
-        adults: adultsPerRoom + (index < adultsRemainder ? 1 : 0),
-        children: childrenPerRoom + (index < childrenRemainder ? 1 : 0),
+    // Get room capacities (sorted by capacity desc, then by room ID)
+    const roomsWithCapacity = allRoomsForBooking
+      .map((room) => ({
+        id: room.id,
+        capacity: room.beds || 2,
+      }))
+      .sort((a, b) => {
+        if (b.capacity !== a.capacity) {
+          return b.capacity - a.capacity; // Larger rooms first
+        }
+        return a.id.localeCompare(b.id); // Then by room ID
+      });
+
+    // Total guests to allocate
+    const totalGuests = adults + children;
+    let remainingAdults = adults;
+    let remainingChildren = children;
+
+    // Allocate guests to rooms
+    for (const room of roomsWithCapacity) {
+      if (totalGuests === 0 || (remainingAdults === 0 && remainingChildren === 0)) {
+        // No more guests - leave room empty
+        perRoomGuests[room.id] = {
+          adults: 0,
+          children: 0,
+          toddlers: 0,
+          guestType,
+        };
+        continue;
+      }
+
+      // Calculate how many guests to put in this room (up to capacity)
+      const availableSpace = room.capacity;
+      const guestsToAllocate = Math.min(availableSpace, remainingAdults + remainingChildren);
+
+      // Prioritize adults first, then children
+      const adultsInRoom = Math.min(remainingAdults, guestsToAllocate);
+      const childrenInRoom = Math.min(remainingChildren, guestsToAllocate - adultsInRoom);
+
+      perRoomGuests[room.id] = {
+        adults: adultsInRoom,
+        children: childrenInRoom,
         toddlers: 0,
-        guestType: 'external', // Bulk bookings are always external
+        guestType,
       };
-    });
+
+      // Update remaining counts
+      remainingAdults -= adultsInRoom;
+      remainingChildren -= childrenInRoom;
+    }
 
     // Create booking
     const booking = {

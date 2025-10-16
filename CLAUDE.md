@@ -112,17 +112,21 @@ npm run dev         # Start development server with auto-reload
 - Dokumentace: `logs/README.md`
 - **Formát**: `[timestamp] IP user METHOD /path STATUS time "User-Agent"`
 
-**9. EmailService** (`js/shared/emailService.js`) - **NOVÝ 2025-10-13**: Odesílání emailů:
+**9. EmailService** (`js/shared/emailService.js`) - **AKTUALIZOVÁNO 2025-10-16**: Kompletní email notifikace:
 
-- Automatické odesílání potvrzení po vytvoření rezervace
-- HTML a plain text formáty (profesionální design)
-- Edit link v emailu pro úpravu/zrušení rezervace
-- SMTP komunikace přes nodemailer
-- Připojení na `hermes.utia.cas.cz:25` (bez autentizace)
-- Testovací endpoint `/api/admin/test-email` pro admin
+- **Vytvoření rezervace**: Automatické potvrzení s edit linkem
+- **Změna rezervace**: Email s popisem změn (termín, hosté, platba, status)
+  - Rozpozná změny: datum, počet hostů, pokoje, platbu, benefit, poznámky
+  - Indikace, zda změnil admin nebo uživatel
+- **Zrušení rezervace**: Email s detaily zrušené rezervace
+  - Rozlišení zrušení adminem vs. uživatelem
+- **Kontaktní formulář**: Obousměrná komunikace admin ↔ host
+- SMTP komunikace přes nodemailer (`hermes.utia.cas.cz:25`, bez autentizace)
+- Plain text formát (HTML disabled kvůli SMTP size limitu)
 - Non-blocking odeslání (neblokuje response)
+- Testovací endpoint `/api/admin/test-email` pro admin
 - Kompletní error handling a logging
-- **Template features**: Booking details, price, edit button, contact info
+- **Všechny změny = automatický email**, včetně změn statusu platby
 
 #### ❌ NIKDY NEDĚLEJTE:
 
@@ -189,8 +193,23 @@ const { codeRequired, bulkBlocked } = ChristmasUtils.checkChristmasAccessRequire
 
 // ✅ Použijte EmailService pro odesílání emailů (server-side)
 const emailService = new EmailService();
-// Odeslání potvrzení o rezervaci (non-blocking)
+
+// Odeslání potvrzení o NOVÉ rezervaci (non-blocking)
 await emailService.sendBookingConfirmation(booking, { settings });
+
+// Odeslání notifikace o ZMĚNĚ rezervace (non-blocking)
+const changes = { dates: true, payment: true }; // Co se změnilo
+await emailService.sendBookingModification(booking, changes, {
+  settings,
+  modifiedByAdmin: true,
+});
+
+// Odeslání notifikace o ZRUŠENÍ rezervace (non-blocking)
+await emailService.sendBookingDeletion(booking, {
+  settings,
+  deletedByAdmin: true,
+});
+
 // Test email (admin panel)
 await emailService.sendTestEmail(recipientEmail);
 ```
@@ -560,6 +579,53 @@ Externí hosté:
 - **Client-side**: `checkChristmasAccessRequirement()` v `data.js:665`
 - **Bulk booking validation**: `confirmBulkDates()` v `bulk-booking.js:358`
 - **Form UI**: Dynamické zobrazení pole pro kód v `booking-form.js:38`
+
+#### Pravidla pro počet pokojů pro zaměstnance ÚTIA (NOVÉ 2025-10-16):
+
+**Oficiální pravidla ÚTIA pro vánoční období:**
+
+**Před 1. říjnem** (≤ 30.9. roku prvního dne vánočního období):
+
+- **1 pokoj**: ✅ Vždy povolen pro zaměstnance ÚTIA
+- **2 pokoje**: ✅ Povoleno, ale s upozorněním:
+  - _"Pamatujte: Dva pokoje lze rezervovat pouze pokud budou oba plně obsazeny příslušníky Vaší rodiny (osoby oprávněné využívat zlevněnou cenu za ubytování)."_
+  - Systém věří uživateli, nekontroluje rodinné vztahy
+- **3+ pokoje**: ❌ BLOKOVÁNO
+  - Chyba: _"Zaměstnanci ÚTIA mohou do 30. září rezervovat maximálně 2 pokoje. Více pokojů můžete rezervovat od 1. října (podle dostupnosti)."_
+
+**Po 1. říjnu** (> 30.9. roku prvního dne vánočního období):
+
+- **Bez omezení** - Zaměstnanci mohou rezervovat libovolný počet pokojů (podle dostupnosti)
+- Externí hosté: Žádná speciální omezení (platí obecná pravidla přístupových kódů)
+
+**Implementační detaily:**
+
+- **Shared utility**: `ChristmasUtils.validateChristmasRoomLimit()` v `js/shared/christmasUtils.js:207-260`
+- **Server-side validation**:
+  - POST `/api/booking` v `server.js:591-609`
+  - PUT `/api/booking/:id` v `server.js:1148-1167`
+- **Client-side validation**:
+  - Temp reservations: `booking-form.js:326-356`
+  - Regular flow: `booking-form.js:648-666`
+- **Translations**: `translations.js:119-124` (CS), `translations.js:583-588` (EN)
+
+**Příklad použití:**
+
+```javascript
+const roomLimitCheck = ChristmasUtils.validateChristmasRoomLimit(
+  { rooms: ['12', '13'], guestType: 'utia' },
+  new Date(),
+  christmasPeriodStart
+);
+
+if (!roomLimitCheck.valid) {
+  showError(roomLimitCheck.error);
+}
+
+if (roomLimitCheck.warning) {
+  showWarning(roomLimitCheck.warning);
+}
+```
 
 ### Kapacita pokojů
 

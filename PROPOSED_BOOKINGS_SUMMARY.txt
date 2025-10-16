@@ -1,0 +1,206 @@
+PROPOSED BOOKINGS SYSTEM - QUICK REFERENCE
+============================================
+
+WHAT IS IT?
+-----------
+A temporary reservation system that blocks room availability for 15 minutes 
+while a user fills out a booking form, preventing race conditions where 
+multiple users book the same room simultaneously.
+
+KEY TIMELINE
+-----------
+14:30:00 - User selects dates/rooms in calendar
+         → POST /api/proposed-bookings (creates proposed booking)
+         → Proposal ID: PROP1a2b3c4d5
+         → Expires at: 14:45:00 (NOW + 15 minutes)
+         → Calendar shows YELLOW (proposed)
+         → Other users see room as unavailable
+
+14:35:00 - User A fills booking form
+         - Meanwhile, User B tries same room
+         - Server blocks: "Room is proposed, wait for confirmation"
+         
+14:42:00 - User A submits booking form
+         → DELETE /api/proposed-booking/PROP1a2b3c4d5 (removes proposal)
+         → POST /api/booking (creates permanent booking)
+         → Calendar shows RED (booked)
+         
+14:50:00 - (if User A never submitted, auto-cleanup runs)
+         → Expired proposal deleted automatically
+         → Calendar reverts to GREEN
+
+CREATION POINTS (Where Proposed Bookings Start)
+-------------------------------------------------
+1. CLIENT: dataManager.createProposedBooking()  [in data.js]
+   → Called from BaseCalendar when user confirms date/room selection
+   → POST /api/proposed-bookings
+
+2. SERVER: POST /api/proposed-booking [in server.js, line 1926]
+   → Creates record in database
+   → Returns proposalId
+
+3. DATABASE: db.createProposedBooking() [in database.js, line 1580]
+   → Inserts into proposed_bookings table
+   → Sets expires_at = NOW + 15 minutes
+   → Inserts room associations
+
+DELETION POINTS (Where Proposed Bookings End)
+----------------------------------------------
+1. MANUAL (User Completes Booking):
+   → dataManager.deleteProposedBooking(proposalId)
+   → DELETE /api/proposed-booking/:proposalId
+   → Called from booking-form.js when user submits
+
+2. AUTOMATIC (After 15 minutes):
+   → Server runs cleanup every 60 seconds
+   → DELETE FROM proposed_bookings WHERE expires_at < NOW
+   → Called from server.js cleanup interval
+
+3. MANUAL (User Cancels):
+   → dataManager.deleteProposedBooking(proposalId)
+   → User can cancel during form filling
+
+DISPLAY (How Users See Proposed Bookings)
+------------------------------------------
+Calendar Cell Colors:
+  🟢 GREEN  = Available (no proposed bookings)
+  🟡 YELLOW = Proposed (user has hold for 15 min)
+  🔴 RED    = Booked (permanent reservation)
+  ⬜ GRAY   = Blocked (admin blocked this date)
+  🟠 ORANGE = Edge (one night occupied)
+
+Hover Text: "Navržená rezervace - čeká na potvrzení"
+           (Proposed reservation - waiting for confirmation)
+
+REFRESH (How Calendar Updates)
+-------------------------------
+Auto-Sync:
+  - Every 30 seconds: Client syncs with server
+  - Every 60 seconds: Server cleans up expired proposals
+  - On visibility change: Calendar updates when tab regains focus
+
+Debouncing:
+  - Max 1 calendar re-render per 10 seconds
+  - Batches multiple changes into single update
+  - Prevents 100+ re-renders when many proposals expire
+
+DATABASE SCHEMA
+---------------
+proposed_bookings table:
+  proposal_id    - PRIMARY KEY (PROP + random string)
+  session_id     - User session identifier
+  start_date     - Booking start (YYYY-MM-DD)
+  end_date       - Booking end (YYYY-MM-DD)
+  created_at     - Creation timestamp
+  expires_at     - Expiration timestamp (NOW + 15 min) ← CRITICAL
+  adults         - Number of adults
+  children       - Number of children
+  toddlers       - Number of toddlers
+  guest_type     - 'utia' or 'external'
+  total_price    - Estimated price
+
+proposed_booking_rooms table:
+  proposal_id    - Foreign key to proposed_bookings
+  room_id        - Room identifier (12, 13, 14, etc.)
+
+EXPIRATION MECHANISM
+--------------------
+Set at Creation:
+  expiresAt = NOW + 15 * 60 * 1000 milliseconds
+  Example: 14:30:00 + 15 min = 14:45:00
+
+Checked During Availability:
+  SELECT * FROM proposed_bookings 
+  WHERE expires_at > NOW  ← Only non-expired proposals block availability
+
+Cleaned Up:
+  DELETE FROM proposed_bookings 
+  WHERE expires_at < NOW  ← Runs every 60 seconds
+
+KEY ARCHITECTURAL PRINCIPLES
+------------------------------
+1. Session Isolation
+   - One proposed booking per session at a time
+   - New proposal deletes old one for same session
+
+2. Database-Backed
+   - Survives server restarts
+   - All instances see same state
+
+3. Inclusive Date Model
+   - Proposed booking 2025-10-06 to 2025-10-08 blocks ALL three days
+   - Including checkout day (2025-10-08)
+
+4. Race Condition Prevention
+   - User A's proposal blocks User B's concurrent request
+   - Forced serialization through database transactions
+
+5. Debounced Updates
+   - Prevents excessive calendar re-renders
+   - Batches multiple changes
+
+COMMON SCENARIOS
+----------------
+Scenario 1: User Completes Booking
+  1. User selects dates/rooms → Proposed booking created
+  2. User fills form (up to 15 min)
+  3. User clicks "Confirm" → Proposed booking deleted
+  4. Permanent booking created → Calendar shows RED
+
+Scenario 2: User Abandons Booking
+  1. User selects dates/rooms → Proposed booking created
+  2. User leaves without completing form
+  3. After 15 minutes → Auto-cleanup deletes proposal
+  4. Room becomes available again → Calendar shows GREEN
+
+Scenario 3: Concurrent Booking Attempt
+  1. User A selects room 12 → Proposed booking A created
+  2. User B tries same room → Server blocks (proposed A active)
+  3. User B sees: "Room is proposed, wait for confirmation"
+  4. User A completes within 15 min → Room A becomes RED
+  5. User B can now book different room
+
+DEBUGGING CHECKLIST
+-------------------
+□ Check if proposed_bookings table has records:
+  SELECT * FROM proposed_bookings WHERE expires_at > NOW
+
+□ Check if cleanup is working:
+  Look for "Cleaned up X expired proposed bookings" in logs
+
+□ Check if client cache is fresh:
+  proposedBookingsCache timestamp < 30 seconds old
+
+□ Check if calendar shows YELLOW cells:
+  availability.status === 'proposed'
+
+□ Check if user session exists:
+  dataManager.sessionId exists and is unique per browser tab
+
+PERFORMANCE METRICS
+-------------------
+- Proposed booking creation: < 100ms (database transaction)
+- Calendar render: < 500ms (even with 100 proposals)
+- Server cleanup: < 50ms (delete query)
+- Client sync: < 200ms (fetch + parse)
+- Debounce throttle: 10 seconds minimum between renders
+
+FILE LOCATIONS (Quick Reference)
+---------------------------------
+Client-Side:
+  /data.js - DataManager.createProposedBooking(), deleteProposedBooking()
+  /js/booking-form.js - User completes booking, deletes proposal
+  /js/shared/BaseCalendar.js - Displays YELLOW cells
+
+Server-Side:
+  /server.js - POST/DELETE endpoints, cleanup interval
+  /database.js - createProposedBooking(), deleteExpiredProposedBookings()
+
+Database:
+  proposed_bookings table
+  proposed_booking_rooms table
+
+RELATED DOCUMENTATION
+---------------------
+See: /CLAUDE.md - "Night-Based Availability Model" section
+     Explains: How proposed bookings integrate with availability checking
