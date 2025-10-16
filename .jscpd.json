@@ -16,7 +16,8 @@
     "**/tests/**/*.test.js",
     "**/tests/**/*.spec.js",
     "**/tests/helpers/**",
-    "**/tests/e2e/**"
+    "**/tests/e2e/**",
+    "**/test-*.js"
   ],
   "format": ["javascript", "markup", "css", "json"],
   "absolute": true,

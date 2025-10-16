@@ -15,6 +15,7 @@ export default [
       '.playwright-mcp/**',
       'report/**',
       'jscpd-report.json/**',
+      'test-*.js', // Ignore standalone test files
     ],
   },
   js.configs.recommended,
