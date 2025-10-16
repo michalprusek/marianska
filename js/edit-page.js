@@ -69,7 +69,10 @@ class EditPage {
       }
 
       // Hide loading, show form
-      document.getElementById('loadingState').style.display = 'none';
+      const loadingState = document.getElementById('loadingState');
+      if (loadingState) {
+        loadingState.style.display = 'none';
+      }
     } catch (error) {
       console.error('Error loading booking:', error);
       this.showError(error.message || 'Nepodařilo se načíst rezervaci');
@@ -110,35 +113,56 @@ class EditPage {
       message = `⏰ Do začátku zbývá: <strong>${daysUntilStart} ${dayWord}</strong>`;
     }
 
-    document.getElementById('deadlineMessage').innerHTML = `
-      Úpravy a zrušení rezervace jsou možné pouze <strong>3 dny před začátkem pobytu</strong>.<br><br>
-      ${message}
-    `;
+    const deadlineMessage = document.getElementById('deadlineMessage');
+    if (deadlineMessage) {
+      deadlineMessage.innerHTML = `
+        Úpravy a zrušení rezervace jsou možné pouze <strong>3 dny před začátkem pobytu</strong>.<br><br>
+        ${message}
+      `;
+    }
 
-    document.getElementById('editDeadlineWarning').style.display = 'block';
+    const editDeadlineWarning = document.getElementById('editDeadlineWarning');
+    if (editDeadlineWarning) {
+      editDeadlineWarning.style.display = 'block';
+    }
 
     // Show booking details in read-only mode
-    document.getElementById('editFormContainer').style.display = 'block';
+    const editFormContainer = document.getElementById('editFormContainer');
+    if (editFormContainer) {
+      editFormContainer.style.display = 'block';
+    }
     this.displayReadOnlyBooking();
   }
 
   displayPaidBookingWarning() {
-    document.getElementById('deadlineMessage').innerHTML = `
-      <strong>💳 Tato rezervace byla zaplacena.</strong><br><br>
-      Úpravy a zrušení zaplacených rezervací nejsou možné prostřednictvím editačního odkazu.<br><br>
-      Pro změny nebo zrušení rezervace prosím kontaktujte správce systému (administrátora).
-    `;
+    const deadlineMessage = document.getElementById('deadlineMessage');
+    if (deadlineMessage) {
+      deadlineMessage.innerHTML = `
+        <strong>💳 Tato rezervace byla zaplacena.</strong><br><br>
+        Úpravy a zrušení zaplacených rezervací nejsou možné prostřednictvím editačního odkazu.<br><br>
+        Pro změny nebo zrušení rezervace prosím kontaktujte správce systému (administrátora).
+      `;
+    }
 
-    document.getElementById('editDeadlineWarning').style.display = 'block';
+    const editDeadlineWarning = document.getElementById('editDeadlineWarning');
+    if (editDeadlineWarning) {
+      editDeadlineWarning.style.display = 'block';
+    }
 
     // Show booking details in read-only mode
-    document.getElementById('editFormContainer').style.display = 'block';
+    const editFormContainer = document.getElementById('editFormContainer');
+    if (editFormContainer) {
+      editFormContainer.style.display = 'block';
+    }
     this.displayReadOnlyBooking();
   }
 
   displayReadOnlyBooking() {
     // Display booking details but disable all inputs
-    document.getElementById('bookingIdDisplay').textContent = this.currentBooking.id;
+    const bookingIdDisplay = document.getElementById('bookingIdDisplay');
+    if (bookingIdDisplay) {
+      bookingIdDisplay.textContent = this.currentBooking.id;
+    }
 
     // Populate billing info in read-only mode
     const fields = [
@@ -171,12 +195,20 @@ class EditPage {
       'cs'
     );
 
-    document.getElementById('editSelectedDates').textContent =
-      `${startDateFormatted} - ${endDateFormatted}`;
+    const editSelectedDates = document.getElementById('editSelectedDates');
+    if (editSelectedDates) {
+      editSelectedDates.textContent = `${startDateFormatted} - ${endDateFormatted}`;
+    }
 
     // Disable all buttons except cancel
-    document.getElementById('editSubmitButton').disabled = true;
-    document.getElementById('deleteBookingButton').disabled = true;
+    const editSubmitButton = document.getElementById('editSubmitButton');
+    if (editSubmitButton) {
+      editSubmitButton.disabled = true;
+    }
+    const deleteBookingButton = document.getElementById('deleteBookingButton');
+    if (deleteBookingButton) {
+      deleteBookingButton.disabled = true;
+    }
 
     // Disable tab switching in read-only mode
     const tabButtons = document.querySelectorAll('.edit-tab-btn');
@@ -189,21 +221,33 @@ class EditPage {
     });
 
     // Hide calendar
-    document.getElementById('editCalendarContainer').innerHTML = `
-      <div style="padding: 2rem; text-align: center; background: #f3f4f6; border-radius: 8px;">
-        <p style="color: #6b7280;">📅 Termín: ${this.currentBooking.startDate} - ${this.currentBooking.endDate}</p>
-        <p style="color: #6b7280;">🏠 Pokoje: ${this.currentBooking.rooms.join(', ')}</p>
-        <p style="color: #6b7280; margin-top: 1rem;">Úpravy termínu a pokojů nejsou možné.</p>
-      </div>
-    `;
+    const editCalendarContainer = document.getElementById('editCalendarContainer');
+    if (editCalendarContainer) {
+      editCalendarContainer.innerHTML = `
+        <div style="padding: 2rem; text-align: center; background: #f3f4f6; border-radius: 8px;">
+          <p style="color: #6b7280;">📅 Termín: ${this.currentBooking.startDate} - ${this.currentBooking.endDate}</p>
+          <p style="color: #6b7280;">🏠 Pokoje: ${this.currentBooking.rooms.join(', ')}</p>
+          <p style="color: #6b7280; margin-top: 1rem;">Úpravy termínu a pokojů nejsou možné.</p>
+        </div>
+      `;
+    }
 
     // Show billing tab by default (without tab switching functionality)
-    document.getElementById('editDatesTab').style.display = 'none';
-    document.getElementById('editBillingTab').style.display = 'block';
+    const editDatesTab = document.getElementById('editDatesTab');
+    if (editDatesTab) {
+      editDatesTab.style.display = 'none';
+    }
+    const editBillingTab = document.getElementById('editBillingTab');
+    if (editBillingTab) {
+      editBillingTab.style.display = 'block';
+    }
   }
 
   async initializeEditForm() {
-    document.getElementById('bookingIdDisplay').textContent = this.currentBooking.id;
+    const bookingIdDisplay = document.getElementById('bookingIdDisplay');
+    if (bookingIdDisplay) {
+      bookingIdDisplay.textContent = this.currentBooking.id;
+    }
 
     // Load settings first (needed for component)
     const settings = await dataManager.getSettings();
@@ -223,12 +267,16 @@ class EditPage {
     await this.editComponent.loadBooking(this.currentBooking, settings);
 
     // Setup event listeners
-    document
-      .getElementById('editBookingForm')
-      .addEventListener('submit', (e) => this.handleSubmit(e));
+    const editBookingForm = document.getElementById('editBookingForm');
+    if (editBookingForm) {
+      editBookingForm.addEventListener('submit', (e) => this.handleSubmit(e));
+    }
 
     // Show form
-    document.getElementById('editFormContainer').style.display = 'block';
+    const editFormContainerShow = document.getElementById('editFormContainer');
+    if (editFormContainerShow) {
+      editFormContainerShow.style.display = 'block';
+    }
   }
 
   async handleSubmit(e) {
@@ -432,20 +480,34 @@ class EditPage {
   }
 
   showError(message) {
-    document.getElementById('loadingState').style.display = 'none';
-    document.getElementById('editFormContainer').style.display = 'none';
-    document.getElementById('errorMessage').textContent = message;
-    document.getElementById('errorState').style.display = 'block';
+    const loadingState = document.getElementById('loadingState');
+    if (loadingState) {
+      loadingState.style.display = 'none';
+    }
+    const editFormContainer = document.getElementById('editFormContainer');
+    if (editFormContainer) {
+      editFormContainer.style.display = 'none';
+    }
+    const errorMessage = document.getElementById('errorMessage');
+    if (errorMessage) {
+      errorMessage.textContent = message;
+    }
+    const errorState = document.getElementById('errorState');
+    if (errorState) {
+      errorState.style.display = 'block';
+    }
   }
 
   showSuccess(message) {
     const successMessage = document.getElementById('successMessage');
-    successMessage.textContent = message;
-    successMessage.style.display = 'block';
+    if (successMessage) {
+      successMessage.textContent = message;
+      successMessage.style.display = 'block';
 
-    setTimeout(() => {
-      successMessage.style.display = 'none';
-    }, 5000);
+      setTimeout(() => {
+        successMessage.style.display = 'none';
+      }, 5000);
+    }
   }
 
   /**

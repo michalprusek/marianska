@@ -311,7 +311,10 @@ class BookingApp {
     if (roomInfoBtn) {
       roomInfoBtn.addEventListener('click', async () => {
         await this.loadRoomInfo();
-        document.getElementById('roomInfoModal').classList.add('active');
+        const modal = document.getElementById('roomInfoModal');
+        if (modal) {
+          modal.classList.add('active');
+        }
       });
     }
 
@@ -332,11 +335,14 @@ class BookingApp {
         langManager.switchLanguage(lang);
         // Update app's current language
         this.currentLanguage = lang;
+        // Update ARIA state for accessibility
+        languageSwitch.setAttribute('aria-checked', e.target.checked ? 'true' : 'false');
         // Refresh dynamic content (room info, calendar)
         this.refreshDynamicContent();
       });
       // Set initial state
       languageSwitch.checked = this.currentLanguage === 'en';
+      languageSwitch.setAttribute('aria-checked', this.currentLanguage === 'en' ? 'true' : 'false');
     }
 
     // Single room booking modal events

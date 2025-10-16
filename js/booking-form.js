@@ -8,6 +8,11 @@ class BookingFormModule {
     const step1 = document.getElementById('bookingStep1');
     const step2 = document.getElementById('bookingStep2');
 
+    if (!step1 || !step2) {
+      console.warn('Booking form steps not found');
+      return;
+    }
+
     if (!this.app.selectedDates.size || !this.app.selectedRooms.size) {
       this.app.showNotification(
         this.app.currentLanguage === 'cs'
@@ -30,6 +35,11 @@ class BookingFormModule {
   hideBookingForm() {
     const step1 = document.getElementById('bookingStep1');
     const step2 = document.getElementById('bookingStep2');
+
+    if (!step1 || !step2) {
+      console.warn('Booking form steps not found');
+      return;
+    }
 
     step2.style.display = 'none';
     step1.style.display = 'block';
@@ -212,11 +222,11 @@ class BookingFormModule {
 
   async submitBooking() {
     // Get form values
-    const name = document.getElementById('name').value.trim();
-    const email = document.getElementById('email').value.trim();
+    const name = document.getElementById('name')?.value.trim() || '';
+    const email = document.getElementById('email')?.value.trim() || '';
     // Combine phone prefix with number (remove spaces from number)
     const phonePrefix = document.getElementById('phonePrefix')?.value || '+420';
-    const phoneNumber = document.getElementById('phone').value.trim().replace(/\s/gu, '');
+    const phoneNumber = document.getElementById('phone')?.value.trim().replace(/\s/gu, '') || '';
     const phone = phonePrefix + phoneNumber;
     const company = document.getElementById('company')?.value.trim() || '';
     const address = document.getElementById('address')?.value.trim() || '';
@@ -224,7 +234,7 @@ class BookingFormModule {
     const zip = document.getElementById('zip')?.value.trim() || '';
     const ico = document.getElementById('ico')?.value.trim() || '';
     const dic = document.getElementById('dic')?.value.trim() || '';
-    const notes = document.getElementById('notes').value.trim();
+    const notes = document.getElementById('notes')?.value.trim() || '';
     // Check both possible Christmas code inputs (main form and final booking form)
     const christmasCode =
       document.getElementById('christmasCode')?.value.trim() ||
@@ -829,6 +839,11 @@ class BookingFormModule {
 
   hideBookingModal() {
     const modal = document.getElementById('bookingModal');
+    if (!modal) {
+      console.warn('Booking modal not found');
+      return;
+    }
+
     modal.classList.remove('show');
     setTimeout(() => {
       modal.style.display = 'none';

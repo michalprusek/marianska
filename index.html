@@ -36,10 +36,16 @@
             <!-- Language Switch -->
             <div class="language-switch">
               <span class="lang-label">CZ</span>
-              <label class="switch">
+              <label
+                class="switch"
+                for="languageSwitch"
+                aria-label="Switch language"
+              >
                 <input
                   type="checkbox"
                   id="languageSwitch"
+                  role="switch"
+                  aria-checked="false"
                 />
                 <span class="slider"></span>
               </label>
