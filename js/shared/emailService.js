@@ -153,10 +153,62 @@ class EmailService {
   }
 
   /**
+   * Validate email format
+   * @param {string} email - Email address to validate
+   * @returns {boolean} True if email is valid
+   * @private
+   */
+  isValidEmail(email) {
+    if (!email || typeof email !== 'string') {
+      return false;
+    }
+    // RFC 5322 simplified validation + max length check
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email) && email.length <= 254;
+  }
+
+  /**
+   * Validate and throw error if email is invalid
+   * @param {string} email - Email address to validate
+   * @param {string} field - Field name for error message
+   * @throws {Error} If email is invalid
+   * @private
+   */
+  validateEmailOrThrow(email, field = 'email') {
+    if (!this.isValidEmail(email)) {
+      throw new Error(`Invalid ${field} format: ${email}`);
+    }
+  }
+
+  /**
+   * Create standard mail options with common fields
+   * @param {string} to - Recipient email
+   * @param {string} subject - Email subject
+   * @param {string} text - Email body (plain text)
+   * @param {Object} extraOptions - Additional options (replyTo, html, etc.)
+   * @returns {Object} Mail options for nodemailer
+   * @private
+   */
+  createMailOptions(to, subject, text, extraOptions = {}) {
+    return {
+      from: this.config.from,
+      to,
+      subject,
+      text,
+      encoding: 'utf-8',
+      ...extraOptions,
+    };
+  }
+
+  /**
    * Send email with unified error handling and logging
    * @param {Object} mailOptions - nodemailer mail options
    * @param {Object} logContext - Logging context (bookingId, etc.)
    * @returns {Promise<Object>} Email sending result
+   *   - {boolean} success - True if email sent successfully
+   *   - {string} [messageId] - SMTP message ID (on success)
+   *   - {Array} [accepted] - Accepted recipients (on success)
+   *   - {Array} [rejected] - Rejected recipients (on success)
+   * @throws {Error} If email sending fails
    * @private
    */
   async sendEmail(mailOptions, logContext = {}) {
@@ -188,10 +240,9 @@ class EmailService {
         ...logContext,
       });
 
-      return {
-        success: false,
-        error: error.message,
-      };
+      // Throw error instead of returning { success: false }
+      // This forces calling code to explicitly handle email failures
+      throw new Error(`Email delivery failed: ${error.message}`);
     }
   }
 
@@ -344,40 +395,25 @@ Automatická zpráva - neodpovídejte
    * @param {Object} booking - Booking data
    * @param {Object} options - Additional options
    * @returns {Promise<Object>} Email sending result
+   *   - {boolean} success - True if email sent successfully
+   *   - {string} [messageId] - SMTP message ID (on success)
+   * @throws {Error} If email validation fails or sending fails
    */
   sendBookingConfirmation(booking, options = {}) {
+    // Validate input data
     if (!booking || !booking.email || !booking.editToken) {
-      return {
-        success: false,
-        error: 'Invalid booking data: missing email or editToken',
-      };
+      throw new Error('Invalid booking data: missing email or editToken');
     }
 
-    // Generate edit URL
+    this.validateEmailOrThrow(booking.email);
+
     const editUrl = `${this.config.appUrl}/edit.html?token=${booking.editToken}`;
-
-    // Generate email content
-    // HTML version generated but not used due to SMTP size limits (see mailOptions below)
-    // eslint-disable-next-line no-unused-vars
-    const htmlContent = this.generateBookingConfirmationHtml(booking, editUrl, options.settings);
     const textContent = this.generateBookingConfirmationText(booking, editUrl, options.settings);
-
-    // Get custom subject from settings or use default
     const emailSubject =
       options.settings?.emailTemplate?.subject ||
       `Potvrzení rezervace - Chata Mariánská (${booking.id})`;
 
-    // Email options
-    // NOTE: hermes.utia.cas.cz SMTP has ~1KB size limit
-    // HTML version causes timeout - use plain text only
-    const mailOptions = {
-      from: this.config.from,
-      to: booking.email,
-      subject: emailSubject,
-      text: textContent,
-      // html: htmlContent, // DISABLED: causes timeout on hermes.utia.cas.cz
-      encoding: 'utf-8',
-    };
+    const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent);
 
     return this.sendEmail(mailOptions, {
       type: 'booking_confirmation',
@@ -389,15 +425,19 @@ Automatická zpráva - neodpovídejte
    * Send test email to verify configuration
    * @param {string} recipientEmail - Test recipient email
    * @returns {Promise<Object>} Test result
+   * @throws {Error} If email validation fails or sending fails
    */
   sendTestEmail(recipientEmail) {
-    const mailOptions = {
-      from: this.config.from,
-      to: recipientEmail,
-      subject: 'Test Email - Chata Mariánská Booking System',
-      text: 'This is a test email from the Chata Mariánská booking system. If you receive this, the email configuration is working correctly.',
-      html: '<p>This is a test email from the <strong>Chata Mariánská</strong> booking system.</p><p>If you receive this, the email configuration is working correctly.</p>',
-    };
+    this.validateEmailOrThrow(recipientEmail);
+
+    const mailOptions = this.createMailOptions(
+      recipientEmail,
+      'Test Email - Chata Mariánská Booking System',
+      'This is a test email from the Chata Mariánská booking system. If you receive this, the email configuration is working correctly.',
+      {
+        html: '<p>This is a test email from the <strong>Chata Mariánská</strong> booking system.</p><p>If you receive this, the email configuration is working correctly.</p>',
+      }
+    );
 
     return this.sendEmail(mailOptions, { type: 'test_email' });
   }
@@ -412,32 +452,24 @@ Automatická zpráva - neodpovídejte
    * @param {Object} options - Additional options
    * @param {Object} [options.settings] - System settings (for contact email)
    * @returns {Promise<Object>} Email sending result
+   * @throws {Error} If validation fails or sending fails
    */
   sendContactMessage(contactData, options = {}) {
     if (!contactData || !contactData.senderEmail || !contactData.message) {
-      return {
-        success: false,
-        error: 'Invalid contact data: missing required fields (senderEmail, message)',
-      };
+      throw new Error('Invalid contact data: missing required fields (senderEmail, message)');
     }
 
-    // Get contact email from settings or use default
+    this.validateEmailOrThrow(contactData.senderEmail, 'sender email');
+
     const contactEmail = options.settings?.contactEmail || 'chata@utia.cas.cz';
-
-    // Generate email content
     const textContent = this.generateContactMessageText(contactData);
+    const subject = contactData.bookingId
+      ? `Dotaz k rezervaci ${contactData.bookingId}`
+      : `Kontakt z webu - ${contactData.senderName || 'Host'}`;
 
-    // Email options
-    const mailOptions = {
-      from: this.config.from,
-      to: contactEmail, // Admin contact email from settings
-      replyTo: contactData.senderEmail, // Allow admin to reply directly
-      subject: contactData.bookingId
-        ? `Dotaz k rezervaci ${contactData.bookingId}`
-        : `Kontakt z webu - ${contactData.senderName || 'Host'}`,
-      text: textContent,
-      encoding: 'utf-8',
-    };
+    const mailOptions = this.createMailOptions(contactEmail, subject, textContent, {
+      replyTo: contactData.senderEmail,
+    });
 
     return this.sendEmail(mailOptions, {
       type: 'contact_message',
@@ -480,27 +512,21 @@ Pro odpověď použijte Reply nebo přímo email: ${contactData.senderEmail}
    * @param {string} emailData.subject - Email subject
    * @param {string} emailData.message - Message content
    * @returns {Promise<Object>} Email sending result
+   * @throws {Error} If validation fails or sending fails
    */
   sendCustomEmailToBooker(emailData) {
     if (!emailData || !emailData.bookingOwnerEmail || !emailData.message) {
-      return {
-        success: false,
-        error: 'Invalid email data: missing required fields (bookingOwnerEmail, message)',
-      };
+      throw new Error('Invalid email data: missing required fields (bookingOwnerEmail, message)');
     }
 
-    // Generate email content
-    const textContent = this.generateCustomEmailToBookerText(emailData);
+    this.validateEmailOrThrow(emailData.bookingOwnerEmail, 'booking owner email');
 
-    // Email options
-    const mailOptions = {
-      from: this.config.from,
-      to: emailData.bookingOwnerEmail, // Send TO booking owner
-      replyTo: emailData.senderEmail || this.config.from, // Allow booker to reply to admin
-      subject: emailData.subject || 'Zpráva ohledně Vaší rezervace - Chata Mariánská',
-      text: textContent,
-      encoding: 'utf-8',
-    };
+    const textContent = this.generateCustomEmailToBookerText(emailData);
+    const subject = emailData.subject || 'Zpráva ohledně Vaší rezervace - Chata Mariánská';
+
+    const mailOptions = this.createMailOptions(emailData.bookingOwnerEmail, subject, textContent, {
+      replyTo: emailData.senderEmail || this.config.from,
+    });
 
     return this.sendEmail(mailOptions, {
       type: 'custom_email_to_booker',
@@ -611,20 +637,17 @@ Automatická zpráva - neodpovídejte
    * @param {Object} options - Additional options
    * @param {boolean} options.modifiedByAdmin - Whether change was made by admin
    * @returns {Promise<Object>} Email sending result
+   * @throws {Error} If validation fails or sending fails
    */
   sendBookingModification(booking, changes, options = {}) {
     if (!booking || !booking.email || !booking.editToken) {
-      return {
-        success: false,
-        error: 'Invalid booking data: missing email or editToken',
-      };
+      throw new Error('Invalid booking data: missing email or editToken');
     }
 
+    this.validateEmailOrThrow(booking.email);
+
     if (!changes || Object.keys(changes).length === 0) {
-      return {
-        success: false,
-        error: 'No changes specified for modification email',
-      };
+      throw new Error('No changes specified for modification email');
     }
 
     const textContent = this.generateBookingModificationText(
@@ -633,16 +656,9 @@ Automatická zpráva - neodpovídejte
       options.settings,
       options.modifiedByAdmin || false
     );
-
     const emailSubject = `Změna rezervace - Chata Mariánská (${booking.id})`;
 
-    const mailOptions = {
-      from: this.config.from,
-      to: booking.email,
-      subject: emailSubject,
-      text: textContent,
-      encoding: 'utf-8',
-    };
+    const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent);
 
     return this.sendEmail(mailOptions, {
       type: 'booking_modification',
@@ -698,30 +714,23 @@ Automatická zpráva - neodpovídejte
    * @param {Object} options - Additional options
    * @param {boolean} options.deletedByAdmin - Whether deletion was performed by admin
    * @returns {Promise<Object>} Email sending result
+   * @throws {Error} If validation fails or sending fails
    */
   sendBookingDeletion(booking, options = {}) {
     if (!booking || !booking.email) {
-      return {
-        success: false,
-        error: 'Invalid booking data: missing email',
-      };
+      throw new Error('Invalid booking data: missing email');
     }
+
+    this.validateEmailOrThrow(booking.email);
 
     const textContent = this.generateBookingDeletionText(
       booking,
       options.settings,
       options.deletedByAdmin || false
     );
-
     const emailSubject = `Zrušení rezervace - Chata Mariánská (${booking.id})`;
 
-    const mailOptions = {
-      from: this.config.from,
-      to: booking.email,
-      subject: emailSubject,
-      text: textContent,
-      encoding: 'utf-8',
-    };
+    const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent);
 
     return this.sendEmail(mailOptions, {
       type: 'booking_deletion',

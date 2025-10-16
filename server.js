@@ -476,7 +476,7 @@ app.post('/api/data', writeLimiter, requireApiKeyOrSession, (req, res) => {
 });
 
 // Public endpoint for creating bookings with rate limiting
-app.post('/api/booking', bookingLimiter, (req, res) => {
+app.post('/api/booking', bookingLimiter, async (req, res) => {
   try {
     const bookingData = req.body;
 
@@ -812,38 +812,40 @@ app.post('/api/booking', bookingLimiter, (req, res) => {
     // Execute transaction atomically
     const booking = transaction();
 
-    // Send booking confirmation email (non-blocking)
-    // Don't wait for email - respond to user immediately
-    emailService
-      .sendBookingConfirmation(booking, { settings })
-      .then((result) => {
-        if (result.success) {
-          logger.info('Booking confirmation email sent', {
-            bookingId: booking.id,
-            email: booking.email,
-            messageId: result.messageId,
-          });
-        } else {
-          logger.error('Failed to send booking confirmation email', {
-            bookingId: booking.id,
-            email: booking.email,
-            error: result.error,
-          });
-        }
-      })
-      .catch((error) => {
-        logger.error('Error sending booking confirmation email', {
-          bookingId: booking.id,
-          email: booking.email,
-          error: error.message,
-        });
+    // Send booking confirmation email (await result to ensure email is sent)
+    try {
+      const emailResult = await emailService.sendBookingConfirmation(booking, { settings });
+      logger.info('Booking confirmation email sent', {
+        bookingId: booking.id,
+        email: booking.email,
+        messageId: emailResult.messageId,
       });
 
-    return res.json({
-      success: true,
-      booking,
-      editToken: booking.editToken,
-    });
+      return res.json({
+        success: true,
+        booking,
+        editToken: booking.editToken,
+      });
+    } catch (emailError) {
+      // Email failed - log error and return warning to user
+      logger.error('Failed to send booking confirmation email', {
+        bookingId: booking.id,
+        email: booking.email,
+        error: emailError.message,
+      });
+
+      // Return success with warning about email failure
+      const editUrl = `${process.env.APP_URL || 'http://chata.utia.cas.cz'}/edit.html?token=${booking.editToken}`;
+      return res.json({
+        success: true,
+        booking,
+        editToken: booking.editToken,
+        warning: `Rezervace byla úspěšně vytvořena, ale nepodařilo se odeslat potvrzovací email. Uložte si tento odkaz pro editaci: ${
+          editUrl
+        }`,
+        emailSent: false,
+      });
+    }
   } catch (error) {
     // P1 FIX: Properly log error with stack trace for debugging
     logger.error('creating booking:', {
@@ -889,7 +891,7 @@ app.get('/api/booking-by-token', readLimiter, (req, res) => {
 });
 
 // Update booking - requires edit token or API key
-app.put('/api/booking/:id', writeLimiter, (req, res) => {
+app.put('/api/booking/:id', writeLimiter, async (req, res) => {
   try {
     const bookingId = req.params.id;
     const bookingData = req.body;
@@ -1295,40 +1297,40 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
     db.updateBooking(bookingId, bookingData);
     const updatedBooking = db.getBooking(bookingId);
 
-    // Send modification email instead of confirmation (non-blocking)
-    // Don't wait for email - respond to user immediately
-    emailService
-      .sendBookingModification(updatedBooking, changes, {
+    // Send modification email (await result to ensure delivery)
+    try {
+      const emailResult = await emailService.sendBookingModification(updatedBooking, changes, {
         settings,
         modifiedByAdmin: isAdmin,
-      })
-      .then((result) => {
-        if (result.success) {
-          logger.info('Booking modification email sent', {
-            bookingId: updatedBooking.id,
-            email: updatedBooking.email,
-            modifiedByAdmin: isAdmin,
-            changes: Object.keys(changes),
-          });
-        } else {
-          logger.warn('Failed to send booking modification email', {
-            bookingId: updatedBooking.id,
-            email: updatedBooking.email,
-            error: result.error,
-          });
-        }
-      })
-      .catch((err) => {
-        logger.error('Error sending booking modification email:', {
-          bookingId: updatedBooking.id,
-          error: err.message,
-        });
+      });
+      logger.info('Booking modification email sent', {
+        bookingId: updatedBooking.id,
+        email: updatedBooking.email,
+        modifiedByAdmin: isAdmin,
+        changes: Object.keys(changes),
+        messageId: emailResult.messageId,
       });
 
-    return res.json({
-      success: true,
-      booking: updatedBooking,
-    });
+      return res.json({
+        success: true,
+        booking: updatedBooking,
+      });
+    } catch (emailError) {
+      // Email failed - log error but still return success (booking was updated)
+      logger.error('Failed to send booking modification email', {
+        bookingId: updatedBooking.id,
+        email: updatedBooking.email,
+        error: emailError.message,
+      });
+
+      return res.json({
+        success: true,
+        booking: updatedBooking,
+        warning:
+          'Rezervace byla úspěšně aktualizována, ale nepodařilo se odeslat notifikační email.',
+        emailSent: false,
+      });
+    }
   } catch (error) {
     logger.error('updating booking:', error);
     return res.status(500).json({ error: 'Nepodařilo se aktualizovat rezervaci' });
@@ -1336,7 +1338,7 @@ app.put('/api/booking/:id', writeLimiter, (req, res) => {
 });
 
 // Delete booking - requires API key or edit token
-app.delete('/api/booking/:id', writeLimiter, (req, res) => {
+app.delete('/api/booking/:id', writeLimiter, async (req, res) => {
   try {
     const bookingId = req.params.id;
     const editToken = req.headers['x-edit-token'];
@@ -1391,36 +1393,34 @@ app.delete('/api/booking/:id', writeLimiter, (req, res) => {
     // Delete the booking from database
     db.deleteBooking(bookingId);
 
-    // Send deletion notification email (non-blocking)
-    // Don't wait for email - respond to user immediately
-    emailService
-      .sendBookingDeletion(existingBooking, {
+    // Send deletion notification email (await result)
+    try {
+      const emailResult = await emailService.sendBookingDeletion(existingBooking, {
         settings,
         deletedByAdmin: isAdmin,
-      })
-      .then((result) => {
-        if (result.success) {
-          logger.info('Booking deletion email sent', {
-            bookingId: existingBooking.id,
-            email: existingBooking.email,
-            deletedByAdmin: isAdmin,
-          });
-        } else {
-          logger.warn('Failed to send booking deletion email', {
-            bookingId: existingBooking.id,
-            email: existingBooking.email,
-            error: result.error,
-          });
-        }
-      })
-      .catch((err) => {
-        logger.error('Error sending booking deletion email:', {
-          bookingId: existingBooking.id,
-          error: err.message,
-        });
+      });
+      logger.info('Booking deletion email sent', {
+        bookingId: existingBooking.id,
+        email: existingBooking.email,
+        deletedByAdmin: isAdmin,
+        messageId: emailResult.messageId,
       });
 
-    return res.json({ success: true });
+      return res.json({ success: true });
+    } catch (emailError) {
+      // Email failed - log error but still return success (booking was deleted)
+      logger.error('Failed to send booking deletion email', {
+        bookingId: existingBooking.id,
+        email: existingBooking.email,
+        error: emailError.message,
+      });
+
+      return res.json({
+        success: true,
+        warning: 'Rezervace byla zrušena, ale nepodařilo se odeslat notifikační email.',
+        emailSent: false,
+      });
+    }
   } catch (error) {
     logger.error('deleting booking:', error);
     return res.status(500).json({ error: 'Nepodařilo se smazat rezervaci' });
