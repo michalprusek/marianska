@@ -445,10 +445,12 @@ class UtilsModule {
       const rooms = await dataManager.getRooms();
       const room = rooms.find((r) => r.id === currentRoomId);
       const roomType = room?.type || 'small';
-      baseRoomPrice = priceConfig[roomType]?.base || priceConfig.small.base;
-    } else if (priceConfig?.base) {
-      // LEGACY: Flat pricing model
-      baseRoomPrice = priceConfig.base;
+      const roomPriceConfig = priceConfig[roomType] || priceConfig.small;
+      // Calculate base room price: price with 1 person minus adult surcharge
+      baseRoomPrice = roomPriceConfig.base - roomPriceConfig.adult;
+    } else if (priceConfig?.base && priceConfig?.adult) {
+      // LEGACY: Flat pricing model - also subtract adult surcharge
+      baseRoomPrice = priceConfig.base - priceConfig.adult;
     }
 
     // Always update base price display

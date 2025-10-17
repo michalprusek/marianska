@@ -199,7 +199,7 @@ class BulkBookingModule {
         nightsMultiplier.textContent = '× 0';
       }
       // Safe access to langManager with fallback
-      const perNightText = this.app.langManager ? this.app.langManager.t('perNight') : '/noc';
+      const perNightText = langManager ? langManager.t('perNight') : '/noc';
       const basePriceEl = document.getElementById('bulkBasePrice');
       if (basePriceEl) {
         basePriceEl.textContent = `0 Kč${perNightText}`;
@@ -256,7 +256,7 @@ class BulkBookingModule {
     const totalPrice = pricePerNight * nights;
 
     // Get translation for "per night" with safe access
-    const perNightText = this.app.langManager ? this.app.langManager.t('perNight') : '/noc';
+    const perNightText = langManager ? langManager.t('perNight') : '/noc';
 
     // Update display elements
     const basePriceEl = document.getElementById('bulkBasePrice');

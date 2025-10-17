@@ -1,0 +1,463 @@
+/**
+ * Mobile Responsiveness Improvements
+ * Date: 2025-10-17
+ * Purpose: Quick wins to enhance mobile UX
+ *
+ * IMPORTANT: Add this file to index.html AFTER styles-unified.css
+ * <link rel="stylesheet" href="css/mobile-improvements.css">
+ */
+
+/* ===== PRIORITY 1: CRITICAL FIXES ===== */
+
+/* Fix 1: Improve Room Indicator Readability */
+@media (max-width: 768px) {
+  .room-indicator {
+    font-size: 0.6rem !important; /* Increased from 0.55rem */
+    padding: 0.15rem 0.3rem !important;
+    min-width: 16px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.01em !important;
+  }
+}
+
+/* Fix 2: Larger Modal Close Button */
+@media (max-width: 768px) {
+  .modal-close {
+    width: 44px !important;
+    height: 44px !important;
+    font-size: 1.5rem !important;
+    top: 0.75rem !important;
+    right: 0.75rem !important;
+    z-index: 1000 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    border-radius: 50% !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+  }
+
+  .modal-close:hover {
+    background: rgba(255, 255, 255, 1) !important;
+    transform: scale(1.05) !important;
+  }
+}
+
+/* Fix 3: Better Touch Feedback for Interactive Elements */
+@media (hover: none) and (pointer: coarse) {
+  /* Buttons */
+  .btn:active {
+    transform: scale(0.97) !important;
+    transition: transform 0.1s ease !important;
+  }
+
+  /* Calendar days */
+  .calendar-day:active {
+    transform: scale(0.95) !important;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+    transition:
+      transform 0.1s ease,
+      box-shadow 0.1s ease !important;
+  }
+
+  /* Navigation buttons */
+  .nav-btn:active,
+  .legend-toggle-btn:active {
+    transform: scale(0.9) !important;
+    transition: transform 0.1s ease !important;
+  }
+
+  /* Counter buttons */
+  .counter-btn:active {
+    transform: scale(0.85) !important;
+    background: rgba(0, 122, 255, 0.1) !important;
+  }
+
+  /* Mini calendar days */
+  .mini-calendar-day:active {
+    transform: scale(0.93) !important;
+    background: rgba(0, 122, 255, 0.1) !important;
+  }
+}
+
+/* Fix 4: Improve Mini Calendar Day Size */
+@media (max-width: 768px) {
+  .mini-calendar-day {
+    height: 42px !important; /* Increased from 38px */
+    min-width: 42px !important;
+    font-size: 0.8rem !important;
+    font-weight: 600 !important;
+  }
+
+  .mini-calendar-day-header {
+    font-size: 0.7rem !important;
+    font-weight: 700 !important;
+    padding: 0.3rem !important;
+  }
+}
+
+/* Fix 5: Better Calendar Day Number Visibility */
+@media (max-width: 768px) {
+  .calendar-day-number {
+    font-size: 0.8rem !important; /* Increased from 0.75rem */
+    font-weight: 700 !important;
+    margin-bottom: 0.15rem !important;
+  }
+
+  .calendar-day {
+    min-height: 54px !important; /* Increased from 50px */
+    padding: 0.2rem !important;
+  }
+}
+
+/* Fix 6: Improve Header Button Accessibility */
+@media (max-width: 768px) {
+  /* Keep language labels visible */
+  .language-switch .lang-label {
+    display: inline !important;
+    font-size: 0.85rem !important;
+    font-weight: 600 !important;
+  }
+
+  /* Add better spacing for header buttons */
+  .nav .btn {
+    min-width: 44px !important;
+    padding: 0.5rem 0.75rem !important;
+  }
+
+  /* Ensure SVG icons are visible */
+  .nav .btn svg {
+    margin: 0 !important;
+    width: 22px !important;
+    height: 22px !important;
+    flex-shrink: 0 !important;
+  }
+}
+
+/* ===== PRIORITY 2: UX ENHANCEMENTS ===== */
+
+/* Enhancement 1: Better Modal Scrolling */
+@media (max-width: 768px) {
+  .modal-content {
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior: contain !important;
+    /* REMOVED: position: relative !important; - Breaks stacking context */
+  }
+
+  /* Ensure modal content has proper padding for close button */
+  .modal-content > h2 {
+    padding-right: 60px !important;
+    padding-top: 0.5rem !important;
+  }
+}
+
+/* Enhancement 2: Improve Form Input Visibility */
+@media (max-width: 768px) {
+  .input-group input,
+  .input-group textarea,
+  .input-group select {
+    font-size: 16px !important; /* Prevents iOS zoom on focus */
+    padding: 0.85rem !important;
+    border-width: 2px !important;
+  }
+
+  .input-group input:focus,
+  .input-group textarea:focus,
+  .input-group select:focus {
+    border-color: #007aff !important;
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1) !important;
+  }
+}
+
+/* Enhancement 3: Better Guest Counter Visual Feedback */
+@media (max-width: 768px) {
+  .counter-value {
+    font-size: 1.2rem !important;
+    min-width: 50px !important;
+    font-weight: 700 !important;
+    color: var(--primary-600) !important;
+  }
+
+  .counter-controls {
+    border: 2px solid #e2e8f0 !important;
+    border-radius: 10px !important;
+  }
+
+  .counter-controls button {
+    font-weight: 700 !important;
+    color: var(--primary-600) !important;
+  }
+}
+
+/* Enhancement 4: Improve Price Display */
+@media (max-width: 768px) {
+  .price-summary {
+    position: relative !important;
+  }
+
+  #totalPrice,
+  #bulkTotalPrice,
+  #tempReservationsTotalPrice {
+    font-size: 1.5rem !important;
+    font-weight: 800 !important;
+    color: var(--primary-600) !important;
+  }
+}
+
+/* Enhancement 5: Better Toast Notifications */
+@media (max-width: 768px) {
+  #notificationContainer,
+  .toast-container {
+    bottom: 1rem !important;
+    left: 1rem !important;
+    right: 1rem !important;
+    max-width: calc(100vw - 2rem) !important;
+  }
+
+  .toast,
+  .notification {
+    font-size: 0.95rem !important;
+    padding: 1rem !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2) !important;
+  }
+}
+
+/* Enhancement 6: Improve Legend Visibility */
+@media (max-width: 768px) {
+  .legend-toggle-btn {
+    font-size: 0.95rem !important;
+    padding: 1rem !important;
+    font-weight: 600 !important;
+  }
+
+  .legend-item {
+    padding: 0.75rem !important;
+    border-radius: 8px !important;
+    background: white !important;
+    margin-bottom: 0.5rem !important;
+  }
+
+  .legend-text strong {
+    font-size: 0.9rem !important;
+    font-weight: 700 !important;
+  }
+
+  .legend-text p {
+    font-size: 0.8rem !important;
+    line-height: 1.4 !important;
+    margin-top: 0.25rem !important;
+  }
+}
+
+/* ===== PRIORITY 3: EDGE CASE FIXES ===== */
+
+/* Fix for very small devices (360px and below) */
+@media (max-width: 360px) {
+  /* Stack phone input vertically */
+  .phone-input-container {
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+  }
+
+  .phone-prefix-select {
+    width: 100% !important;
+  }
+
+  .phone-number-input {
+    width: 100% !important;
+  }
+
+  /* Reduce calendar day height further */
+  .calendar-day {
+    min-height: 48px !important;
+    padding: 0.15rem !important;
+  }
+
+  /* Smaller buttons on ultra-small screens */
+  .btn {
+    font-size: 0.85rem !important;
+    padding: 0.65rem 0.85rem !important;
+  }
+
+  /* Reduce modal header font */
+  .modal h2 {
+    font-size: 1.1rem !important;
+  }
+}
+
+/* Fix for landscape orientation on mobile */
+@media (max-width: 896px) and (orientation: landscape) {
+  /* Make modals scrollable in landscape */
+  .modal-content {
+    max-height: 95vh !important;
+    overflow-y: auto !important;
+  }
+
+  /* Reduce header height in landscape */
+  .header-content {
+    padding: 0.5rem !important;
+    gap: 0.5rem !important;
+  }
+
+  /* Compact calendar in landscape */
+  .calendar-day {
+    min-height: 40px !important;
+    padding: 0.1rem !important;
+  }
+
+  .calendar-day-number {
+    font-size: 0.7rem !important;
+  }
+
+  .room-indicator {
+    font-size: 0.5rem !important;
+    padding: 0.1rem 0.2rem !important;
+  }
+}
+
+/* ===== ACCESSIBILITY IMPROVEMENTS ===== */
+
+/* Better focus indicators for keyboard navigation */
+@media (max-width: 768px) {
+  .btn:focus-visible,
+  .calendar-day:focus-visible,
+  .nav-btn:focus-visible {
+    outline: 3px solid #007aff !important;
+    outline-offset: 3px !important;
+    border-radius: 8px !important;
+  }
+
+  .input-group input:focus-visible,
+  .input-group textarea:focus-visible,
+  .input-group select:focus-visible {
+    outline: 3px solid #007aff !important;
+    outline-offset: 2px !important;
+  }
+}
+
+/* Improve contrast for better readability */
+@media (max-width: 768px) {
+  .calendar-day {
+    border-width: 1.5px !important;
+  }
+
+  .calendar-day.occupied {
+    border-color: rgba(239, 68, 68, 0.3) !important;
+  }
+
+  .calendar-day.available {
+    border-color: rgba(16, 185, 129, 0.3) !important;
+  }
+
+  .calendar-day.proposed {
+    border-color: rgba(234, 179, 8, 0.4) !important;
+  }
+}
+
+/* ===== LOADING STATES & TRANSITIONS ===== */
+
+/* Smooth transitions for mobile interactions */
+@media (max-width: 768px) {
+  .btn,
+  .calendar-day,
+  .mini-calendar-day,
+  .nav-btn,
+  .counter-btn {
+    transition: all 0.2s ease !important;
+  }
+
+  /* Add loading state for buttons */
+  .btn:disabled {
+    opacity: 0.6 !important;
+    cursor: not-allowed !important;
+  }
+
+  /* Add spinner animation */
+  @keyframes mobile-spinner {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .loading::after {
+    content: '' !important;
+    width: 20px !important;
+    height: 20px !important;
+    border: 3px solid rgba(255, 255, 255, 0.3) !important;
+    border-top-color: white !important;
+    border-radius: 50% !important;
+    animation: mobile-spinner 0.6s linear infinite !important;
+  }
+}
+
+/* ===== PERFORMANCE OPTIMIZATIONS ===== */
+
+/* Reduce animations on slower devices */
+@media (max-width: 768px) and (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Hardware acceleration for smooth scrolling */
+@media (max-width: 768px) {
+  .modal-content,
+  .calendar-section,
+  .booking-right-column {
+    transform: translateZ(0) !important;
+    -webkit-transform: translateZ(0) !important;
+    will-change: scroll-position !important;
+  }
+}
+
+/* ===== PRINT STYLES (Bonus) ===== */
+
+@media print {
+  /* Hide non-essential elements when printing */
+  .header,
+  .nav,
+  .legend-toggle-container,
+  .modal-close,
+  .booking-actions {
+    display: none !important;
+  }
+
+  /* Optimize calendar for printing */
+  .calendar-grid {
+    page-break-inside: avoid !important;
+  }
+}
+
+/* ===== END OF MOBILE IMPROVEMENTS ===== */
+
+/**
+ * Usage Instructions:
+ *
+ * 1. Add this file to index.html:
+ *    <link rel="stylesheet" href="css/mobile-improvements.css">
+ *
+ * 2. Test on multiple devices:
+ *    - iPhone SE (375px)
+ *    - iPhone 12 (390px)
+ *    - Samsung Galaxy (360px)
+ *    - iPad Mini (768px)
+ *
+ * 3. Use Chrome DevTools Device Mode for quick testing
+ *
+ * 4. Check all user flows:
+ *    - Calendar navigation
+ *    - Room booking
+ *    - Form submission
+ *    - Modal interactions
+ *
+ * 5. Monitor performance:
+ *    - No horizontal scroll
+ *    - Smooth scrolling
+ *    - Quick touch response
+ *    - No layout shift
+ */

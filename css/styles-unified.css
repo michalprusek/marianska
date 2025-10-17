@@ -675,6 +675,11 @@ input:checked + .slider:before {
   margin-bottom: 2px;
 }
 
+/* Weekday name (Po, Út, etc.) - hidden on desktop, shown on mobile */
+.calendar-day-weekday {
+  display: none;
+}
+
 .calendar-week {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -1333,6 +1338,7 @@ input:checked + .slider:before {
     0 0 100px rgba(0, 0, 0, 0.3);
   border: 1px solid var(--gray-200);
   position: relative;
+  z-index: 10001; /* CRITICAL FIX: Ensure modal content is above backdrop */
   transform: scale(0.8) translateY(40px);
   transition: all var(--transition-normal);
   color: var(--gray-900);
@@ -1707,6 +1713,13 @@ input:checked + .slider:before {
   overflow-y: auto;
   overflow-x: hidden;
   max-height: calc(88vh - 120px); /* Subtract header height */
+}
+
+/* Edit page dates layout - same as booking-modal-content but with fixed right column */
+.edit-dates-layout {
+  display: grid;
+  grid-template-columns: 1fr 450px;
+  gap: 2rem;
 }
 
 .booking-left-column {
@@ -2816,13 +2829,22 @@ input:checked + .slider:before {
   }
 
   .booking-modal-content {
+    grid-template-columns: 1fr !important; /* CRITICAL FIX: Single column on mobile */
+    gap: 1rem !important; /* Reduce gap from 2rem to 1rem */
+    padding: 1rem !important; /* Reduce padding from 2rem to 1rem */
     height: calc(100vh - 60px);
     overflow-y: auto;
   }
 
+  .booking-left-column,
+  .booking-right-column {
+    width: 100%;
+    min-width: 0; /* CRITICAL: Allow grid children to shrink below content size */
+  }
+
   .interactive-calendar {
-    max-height: 380px;
-    min-height: 300px;
+    max-height: 280px !important; /* Reduce from 380px for mobile screens */
+    min-height: 240px !important; /* Add minimum height */
   }
 
   .mini-calendar-week {
@@ -3584,16 +3606,20 @@ input:checked + .slider:before {
   }
 
   .calendar-header {
-    flex-wrap: wrap;
-    gap: var(--space-3);
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-2);
     padding: var(--space-2) 0;
+    flex-wrap: nowrap;
   }
 
   .month-title {
-    flex: 1 1 100%;
+    flex: 1;
     text-align: center;
-    order: -1;
     font-size: 1.1rem;
+    order: 0;
   }
 
   .nav-btn {
@@ -3603,14 +3629,35 @@ input:checked + .slider:before {
     touch-action: manipulation;
   }
 
-  /* Calendar grid - mobile optimized */
+  /* Calendar grid - mobile optimized - VERTICAL STACK */
   .calendar-grid {
-    gap: 1px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
     margin: 0;
+    padding: 0;
   }
 
+  /* CRITICAL: Stack days vertically instead of horizontal grid */
   .calendar-week {
-    gap: 1px;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.75rem;
+    width: 100%;
+  }
+
+  /* Hide ENTIRE weekday header row (Po Út St Čt... at top) */
+  .calendar-week:first-child {
+    display: none !important;
+  }
+
+  /* Show weekday name inside each day card (Po 6, Út 7, etc.) */
+  .calendar-day-weekday {
+    display: inline-block !important;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--gray-600);
+    margin-right: 0.5rem;
   }
 
   .weekday-header {
@@ -3620,25 +3667,57 @@ input:checked + .slider:before {
     text-transform: uppercase;
   }
 
+  /* Full-width day cards */
   .calendar-day {
-    min-height: 50px;
-    padding: 0.15rem;
-    font-size: 0.75rem;
-    border-width: 1px;
+    width: 100%;
+    min-height: auto;
+    padding: 1rem;
+    font-size: 0.875rem;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    background: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Day header - larger, more readable */
+  .calendar-day-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--gray-200);
   }
 
   .calendar-day-number {
-    font-size: 0.75rem;
-    margin-bottom: 0.1rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 0;
+    color: var(--gray-800);
+  }
+
+  /* Room indicators - larger touch targets */
+  .calendar-day-rooms {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    margin-top: 0.5rem;
   }
 
   .room-indicator {
-    font-size: 0.55rem;
-    padding: 0.1rem 0.2rem;
-    min-width: 14px;
-    height: 10px;
-    line-height: 10px;
-    margin: 0.05rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 0.75rem 0.5rem;
+    min-width: 44px;
+    min-height: 44px;
+    height: auto;
+    line-height: 1.2;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    text-align: center;
   }
 
   .calendar-day.occupied,
@@ -3696,6 +3775,13 @@ input:checked + .slider:before {
   .modal {
     padding: 0;
     align-items: stretch;
+    z-index: 10000 !important; /* CRITICAL FIX: Ensure modal is above all content on mobile */
+  }
+
+  .modal.active {
+    display: flex !important; /* CRITICAL FIX: Ensure modal is visible when active */
+    opacity: 1 !important;
+    visibility: visible !important;
   }
 
   .modal-content {
@@ -3744,9 +3830,9 @@ input:checked + .slider:before {
   }
 
   .booking-modal-content {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important; /* FIX: Override later rules */
     padding: var(--space-3);
-    gap: var(--space-4);
+    gap: var(--space-4) !important; /* FIX: Override later rules */
     max-height: none;
     overflow: visible;
   }
@@ -3754,6 +3840,7 @@ input:checked + .slider:before {
   .booking-left-column,
   .booking-right-column {
     width: 100%;
+    min-width: 0; /* CRITICAL: Allow grid children to shrink below content size */
   }
 
   .booking-right-column {
@@ -4034,6 +4121,47 @@ input:checked + .slider:before {
     max-height: 400px;
     overflow-y: auto;
   }
+
+  /* Edit tabs mobile optimization */
+  .edit-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+  }
+
+  .edit-tabs::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+
+  .edit-tab-btn {
+    flex-shrink: 0;
+    min-width: max-content;
+    padding: 0.65rem 1.2rem !important;
+    font-size: 0.9rem !important;
+    white-space: nowrap;
+  }
+
+  /* Edit dates layout - single column on mobile */
+  .edit-dates-layout {
+    grid-template-columns: 1fr !important; /* CRITICAL FIX: Single column on mobile */
+    gap: 1rem !important; /* Reduce gap from 2rem to 1rem */
+  }
+
+  /* Edit form mobile spacing */
+  #editFormContainer .modal-content {
+    padding: 1rem !important;
+  }
+
+  #editFormContainer h2 {
+    font-size: 1.2rem !important;
+    margin-bottom: 1rem !important;
+  }
+
+  #editFormContainer h3 {
+    font-size: 1rem !important;
+    margin-bottom: 0.75rem !important;
+  }
 }
 
 /* Small Phones (480px and below) */
@@ -4139,8 +4267,15 @@ input:checked + .slider:before {
   }
 
   .booking-modal-content {
+    grid-template-columns: 1fr !important; /* CRITICAL FIX: Must be single column on small screens */
     padding: var(--space-2);
-    gap: var(--space-3);
+    gap: var(--space-3) !important; /* FIX: Override */
+  }
+
+  .booking-left-column,
+  .booking-right-column {
+    width: 100%;
+    min-width: 0; /* CRITICAL: Allow grid children to shrink below content size */
   }
 
   .booking-actions {
