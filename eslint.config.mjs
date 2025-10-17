@@ -15,7 +15,8 @@ export default [
       '.playwright-mcp/**',
       'report/**',
       'jscpd-report.json/**',
-      'test-*.js', // Ignore standalone test files
+      'test-*.js', // Ignore standalone test files in root
+      'tests/**/*.js', // Ignore all test files in tests directory
     ],
   },
   js.configs.recommended,
@@ -398,6 +399,7 @@ export default [
       globals: {
         module: 'readonly',
         dataManager: 'readonly',
+        langManager: 'readonly',
         CalendarUtils: 'readonly',
         BookingLogic: 'readonly',
         ValidationUtils: 'readonly',
@@ -504,6 +506,7 @@ export default [
         WorkerGlobalScope: 'readonly',
         dataManager: 'readonly',
         translations: 'readonly',
+        langManager: 'readonly',
         ValidationUtils: 'readonly',
         BookingLogic: 'readonly',
         DataManager: 'readonly',
@@ -573,6 +576,7 @@ export default [
         console: 'readonly',
         fetch: 'readonly',
         dataManager: 'readonly',
+        langManager: 'readonly',
         CalendarUtils: 'readonly',
       },
     },

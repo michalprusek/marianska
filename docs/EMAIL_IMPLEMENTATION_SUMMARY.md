@@ -44,6 +44,7 @@ A new SSOT (Single Source of Truth) module for all email-related operations:
 ### 3. Configuration
 
 **Environment Variables** (`.env` and `.env.example`):
+
 ```bash
 SMTP_HOST=hermes.utia.cas.cz
 SMTP_PORT=25
@@ -53,6 +54,7 @@ APP_URL=http://chata.utia.cas.cz
 ```
 
 **Dependencies Added**:
+
 - `nodemailer@^7.0.9` - SMTP email sending library
 
 ### 4. Testing Tools
@@ -147,6 +149,7 @@ APP_URL=http://chata.utia.cas.cz
 ### 1. Booking Creation Flow (`server.js:680-714`)
 
 After successful booking creation:
+
 ```javascript
 emailService
   .sendBookingConfirmation(booking, { settings })
@@ -162,6 +165,7 @@ emailService
 ### 2. Admin Test Endpoint (`server.js:1128-1163`)
 
 Admins can test email configuration:
+
 ```bash
 POST /api/admin/test-email
 {
@@ -170,6 +174,7 @@ POST /api/admin/test-email
 ```
 
 Response:
+
 ```json
 {
   "success": true,
@@ -185,15 +190,19 @@ Response:
 ### Production Testing Steps
 
 1. **Verify SMTP Connection**:
+
    ```bash
    node test-email-demo.js
    ```
+
    Should show: "✅ SMTP connection verified successfully"
 
 2. **Test with Real Email** (requires valid UTIA email):
+
    ```bash
    node test-email.js your-email@utia.cas.cz
    ```
+
    - Tests SMTP connection
    - Sends test email
    - Sends sample booking confirmation
@@ -228,6 +237,7 @@ docker-compose logs web | grep Email
 ```
 
 Expected output:
+
 ```
 {"level":"INFO","component":"EmailService","message":"Email transporter initialized",...}
 {"level":"INFO","component":"EmailService","message":"SMTP connection verified successfully"}
@@ -237,11 +247,13 @@ Expected output:
 ### Booking Creation Logs
 
 After creating a booking:
+
 ```
 {"level":"INFO","component":"EmailService","message":"Booking confirmation email sent","bookingId":"BK...","email":"..."}
 ```
 
 Or on error:
+
 ```
 {"level":"ERROR","component":"EmailService","message":"Failed to send booking confirmation email","error":"..."}
 ```
@@ -251,6 +263,7 @@ Or on error:
 ## 📝 Documentation Updates
 
 Updated files:
+
 1. **CLAUDE.md**:
    - Added EmailService to shared components section (#9)
    - Added usage examples
@@ -310,6 +323,7 @@ Future improvements that could be made:
 
 **Problem**: Emails not being sent
 **Solution**:
+
 1. Check Docker logs: `docker-compose logs web | grep Email`
 2. Verify SMTP connection: `node test-email-demo.js`
 3. Check recipient email exists in UTIA system
@@ -317,12 +331,14 @@ Future improvements that could be made:
 
 **Problem**: SMTP connection failed
 **Solution**:
+
 1. Verify `hermes.utia.cas.cz` is reachable: `telnet hermes 25`
 2. Check firewall rules
 3. Verify environment variables in `.env`
 
 **Problem**: Email template looks wrong
 **Solution**:
+
 1. Run `node test-email-demo.js` to see generated template
 2. Check email client supports HTML
 3. Review EmailService template generation code

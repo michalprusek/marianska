@@ -625,23 +625,25 @@ input:checked + .slider:before {
   height: 48px;
   border: none;
   border-radius: var(--radius-lg);
-  background: var(--surface-3);
-  color: var(--neutral-70);
+  background: #1a1a1a;
+  color: #ffffff;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: var(--transition-normal);
-  box-shadow: var(--elevation-1);
+  box-shadow: var(--elevation-2);
   position: relative;
   z-index: 100;
   pointer-events: all;
+  font-weight: 600;
 }
 
 .nav-btn:hover {
-  background: var(--primary-500);
-  color: var(--neutral-0);
+  background: #000000;
+  color: #ffffff;
   transform: scale(1.1);
+  box-shadow: var(--elevation-3);
 }
 
 .nav-btn:active {
@@ -686,7 +688,9 @@ input:checked + .slider:before {
   padding: 6px 4px;
   border-radius: var(--radius-md);
   cursor: default;
-  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
   position: relative;
   min-height: 90px;
   background: var(--surface-1);
@@ -752,13 +756,13 @@ input:checked + .slider:before {
 
 .room-indicator {
   font-size: 0.75rem;
-  padding: 3px 1px;
+  padding: 3px 2px;
   text-align: center;
   border-radius: 4px;
   cursor: pointer;
   transition: var(--transition-fast);
   font-weight: 700;
-  min-width: 26px;
+  min-width: 32px;
   height: 22px;
   line-height: 16px;
   display: flex;
@@ -885,7 +889,9 @@ input:checked + .slider:before {
 .calendar-day:not(.disabled):not(.other-month):hover {
   background: rgba(33, 150, 243, 0.1);
   /* Removed transform to prevent layout shift */
-  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 /* ===== BOOKING SECTION ===== */
@@ -1486,7 +1492,7 @@ input:checked + .slider:before {
   margin: 0;
   line-height: 1;
   height: 14px;
-  min-width: 14px;
+  min-width: 18px;
   border-radius: 2px;
   display: inline-flex;
   align-items: center;
@@ -2792,7 +2798,7 @@ input:checked + .slider:before {
   #singleRoomBookingModal .room-indicator {
     font-size: 0.55rem;
     height: 12px;
-    min-width: 12px;
+    min-width: 16px;
   }
 
   /* Compact modal responsive */
@@ -2917,7 +2923,7 @@ input:checked + .slider:before {
   #singleRoomBookingModal .room-indicator {
     font-size: 0.5rem;
     height: 10px;
-    min-width: 10px;
+    min-width: 14px;
     padding: 0 1px;
   }
 
@@ -3416,5 +3422,985 @@ input:checked + .slider:before {
 
   .guest-names-column-header {
     font-size: var(--text-base);
+  }
+}
+
+/* ===== COMPREHENSIVE MOBILE ENHANCEMENTS (Added 2025-10-17) ===== */
+/* Enhanced mobile responsiveness for all screen sizes */
+
+/* Mobile-First Base Adjustments */
+@media (max-width: 1200px) {
+  .header-content {
+    max-width: 100%;
+    padding-left: var(--space-5);
+    padding-right: var(--space-5);
+  }
+
+  .main-content {
+    max-width: 100%;
+    padding: var(--space-5);
+  }
+
+  .calendar-section,
+  .booking-card {
+    padding: var(--space-5);
+  }
+}
+
+/* Tablet Landscape (1024px and below) */
+@media (max-width: 1024px) {
+  /* Header optimizations */
+  .logo {
+    font-size: 1.3rem;
+  }
+
+  .nav {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .btn {
+    padding: var(--space-2) var(--space-4);
+    font-size: 0.9rem;
+    min-height: 38px;
+  }
+
+  /* Calendar grid improvements */
+  .calendar-week {
+    gap: 2px;
+  }
+
+  .calendar-day {
+    min-height: 70px;
+    padding: var(--space-2);
+  }
+
+  .calendar-day-number {
+    font-size: 0.9rem;
+  }
+
+  .room-indicator {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.25rem;
+  }
+
+  /* Booking modal adjustments */
+  .compact-booking-modal {
+    width: 96vw;
+  }
+
+  .booking-modal-content {
+    padding: 1.5rem;
+  }
+
+  /* Form improvements */
+  .input-group label {
+    font-size: 0.9rem;
+  }
+
+  .input-group input,
+  .input-group textarea,
+  .input-group select {
+    font-size: 0.95rem;
+    padding: var(--space-3);
+  }
+}
+
+/* Tablet Portrait & Large Phones (768px and below) */
+@media (max-width: 768px) {
+  /* === LAYOUT === */
+  html {
+    font-size: 15px;
+  }
+
+  body {
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .app-container {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  /* === HEADER === */
+  .header {
+    position: -webkit-sticky;
+    position: sticky;
+  }
+
+  .header-content {
+    flex-direction: column;
+    align-items: stretch;
+    padding: var(--space-3);
+    gap: var(--space-3);
+  }
+
+  .logo {
+    font-size: 1.2rem;
+    text-align: center;
+  }
+
+  .nav {
+    width: 100%;
+    justify-content: space-around;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .nav .btn {
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .btn-text {
+    display: none;
+  }
+
+  .nav .btn svg {
+    margin: 0;
+  }
+
+  /* Language switch */
+  .language-switch {
+    order: -1;
+    align-self: center;
+  }
+
+  /* === MAIN CONTENT === */
+  .main-content {
+    padding: var(--space-3);
+    gap: var(--space-4);
+  }
+
+  /* === CALENDAR SECTION === */
+  .calendar-section {
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+  }
+
+  .calendar-header {
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+  }
+
+  .month-title {
+    flex: 1 1 100%;
+    text-align: center;
+    order: -1;
+    font-size: 1.1rem;
+  }
+
+  .nav-btn {
+    width: 44px;
+    height: 44px;
+    padding: var(--space-2);
+    touch-action: manipulation;
+  }
+
+  /* Calendar grid - mobile optimized */
+  .calendar-grid {
+    gap: 1px;
+    margin: 0;
+  }
+
+  .calendar-week {
+    gap: 1px;
+  }
+
+  .weekday-header {
+    font-size: 0.7rem;
+    padding: var(--space-1);
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .calendar-day {
+    min-height: 50px;
+    padding: 0.15rem;
+    font-size: 0.75rem;
+    border-width: 1px;
+  }
+
+  .calendar-day-number {
+    font-size: 0.75rem;
+    margin-bottom: 0.1rem;
+  }
+
+  .room-indicator {
+    font-size: 0.55rem;
+    padding: 0.1rem 0.2rem;
+    min-width: 14px;
+    height: 10px;
+    line-height: 10px;
+    margin: 0.05rem;
+  }
+
+  .calendar-day.occupied,
+  .calendar-day.booked {
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  /* === LEGEND === */
+  .legend-toggle-container {
+    padding: var(--space-2) 0;
+  }
+
+  .legend-toggle-btn {
+    width: 100%;
+    padding: var(--space-3);
+    font-size: 0.9rem;
+    text-align: left;
+  }
+
+  .calendar-legend {
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+  }
+
+  .legend-section {
+    margin-bottom: var(--space-3);
+  }
+
+  .legend-items {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+
+  .legend-item {
+    padding: var(--space-2);
+  }
+
+  .legend-color {
+    width: 28px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+
+  .legend-text {
+    font-size: 0.85rem;
+    line-height: 1.3;
+  }
+
+  .legend-text p {
+    font-size: 0.75rem;
+  }
+
+  /* === MODALS === */
+  .modal {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .modal-content {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    max-height: 100vh;
+    margin: 0;
+    border-radius: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modal-close {
+    top: var(--space-2);
+    right: var(--space-2);
+    width: 36px;
+    height: 36px;
+    font-size: 1.3rem;
+    z-index: 100;
+  }
+
+  .modal h2 {
+    font-size: 1.2rem;
+    padding-right: 40px;
+  }
+
+  /* Booking modal mobile optimization */
+  .compact-booking-modal {
+    width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
+    padding: 0;
+  }
+
+  .booking-modal-header {
+    padding: var(--space-3);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .booking-modal-header h2 {
+    font-size: 1.1rem;
+    line-height: 1.3;
+  }
+
+  .booking-modal-content {
+    grid-template-columns: 1fr;
+    padding: var(--space-3);
+    gap: var(--space-4);
+    max-height: none;
+    overflow: visible;
+  }
+
+  .booking-left-column,
+  .booking-right-column {
+    width: 100%;
+  }
+
+  .booking-right-column {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .booking-actions {
+    position: sticky;
+    bottom: 0;
+    padding: var(--space-3);
+    background: white;
+    border-top: 2px solid var(--gray-200);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .booking-actions > div {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .booking-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Interactive calendar in modals */
+  .interactive-calendar {
+    max-height: none;
+    min-height: auto;
+    padding: var(--space-2);
+  }
+
+  .mini-calendar-week {
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.15rem;
+    max-width: 100%;
+  }
+
+  .mini-calendar-day-header {
+    font-size: 0.65rem;
+    padding: 0.2rem;
+  }
+
+  .mini-calendar-day {
+    width: 100%;
+    height: 38px;
+    font-size: 0.75rem;
+  }
+
+  /* === FORMS === */
+  .form-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+
+  .input-group {
+    margin-bottom: 0;
+  }
+
+  .input-group label {
+    font-size: 0.9rem;
+    margin-bottom: var(--space-1);
+  }
+
+  .input-group input,
+  .input-group textarea,
+  .input-group select {
+    font-size: 1rem;
+    padding: var(--space-3);
+    border-width: 2px;
+    min-height: 44px;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  .input-group textarea {
+    min-height: 100px;
+  }
+
+  /* Phone input */
+  .phone-input-container {
+    display: flex;
+    gap: var(--space-2);
+  }
+
+  .phone-prefix-select {
+    width: 110px;
+    flex-shrink: 0;
+  }
+
+  .phone-number-input {
+    flex: 1;
+  }
+
+  /* Guest counters */
+  .guest-counters {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+
+  .counter-item {
+    width: 100%;
+  }
+
+  .counter-controls {
+    padding: var(--space-2);
+  }
+
+  .counter-controls button {
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 1.3rem;
+  }
+
+  .counter-value {
+    font-size: 1.1rem;
+    min-width: 44px;
+  }
+
+  /* Room info modal */
+  .room-info-modal {
+    padding: var(--space-3);
+  }
+
+  #roomCapacityGrid {
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+
+  #priceListContent,
+  #bulkPriceListContent {
+    font-size: 0.9rem;
+  }
+
+  /* === BUTTONS === */
+  .btn {
+    padding: var(--space-3) var(--space-4);
+    min-height: 44px;
+    font-size: 0.95rem;
+    border-radius: var(--radius-md);
+    touch-action: manipulation;
+  }
+
+  .btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+    gap: var(--space-2);
+  }
+
+  .modal-actions .btn {
+    width: 100%;
+  }
+
+  /* === TOAST NOTIFICATIONS === */
+  #notificationContainer,
+  .toast-container {
+    bottom: var(--space-3);
+    left: var(--space-3);
+    right: var(--space-3);
+    width: auto;
+  }
+
+  .notification,
+  .toast {
+    min-width: auto;
+    max-width: none;
+    width: 100%;
+    padding: var(--space-3);
+    font-size: 0.9rem;
+  }
+
+  .toast-message {
+    font-size: 0.9rem;
+  }
+
+  /* === ADMIN PANEL === */
+  .admin-tabs {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: var(--space-2);
+  }
+
+  .tab-button {
+    padding: var(--space-2) var(--space-3);
+    font-size: 0.85rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .tab-content {
+    padding: var(--space-3);
+  }
+
+  /* Bookings table */
+  .bookings-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+
+  .bookings-table thead {
+    display: none;
+  }
+
+  .bookings-table tbody {
+    display: block;
+  }
+
+  .bookings-table tr {
+    display: block;
+    margin-bottom: var(--space-4);
+    padding: var(--space-3);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    background: white;
+  }
+
+  .bookings-table td {
+    display: block;
+    text-align: left;
+    padding: var(--space-2) 0;
+    border: none;
+    border-bottom: 1px solid var(--gray-100);
+  }
+
+  .bookings-table td:last-child {
+    border-bottom: none;
+  }
+
+  .bookings-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    display: inline-block;
+    width: 120px;
+    color: var(--gray-600);
+  }
+
+  .action-buttons {
+    flex-wrap: wrap;
+    margin-top: var(--space-2);
+  }
+
+  .action-buttons .btn-modern {
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: center;
+  }
+
+  /* Blocked dates grid */
+  .blocked-dates-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Form grids in admin */
+  #blockDateForm > div:first-child {
+    grid-template-columns: 1fr;
+  }
+
+  #roomConfigForm > div {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+
+  /* Edit booking modal */
+  #editDatesTab > div:nth-child(2) {
+    grid-template-columns: 1fr !important;
+  }
+
+  #editRoomsList {
+    max-height: 400px;
+    overflow-y: auto;
+  }
+}
+
+/* Small Phones (480px and below) */
+@media (max-width: 480px) {
+  html {
+    font-size: 14px;
+  }
+
+  /* === HEADER === */
+  .header-content {
+    padding: var(--space-2);
+    gap: var(--space-2);
+  }
+
+  .logo {
+    font-size: 1rem;
+  }
+
+  .nav {
+    gap: 0.25rem;
+  }
+
+  .nav .btn {
+    padding: var(--space-2);
+    min-width: 42px;
+    min-height: 42px;
+    border-radius: var(--radius-sm);
+  }
+
+  .nav .btn svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .language-switch {
+    transform: scale(0.9);
+  }
+
+  /* === MAIN CONTENT === */
+  .main-content {
+    padding: var(--space-2);
+  }
+
+  .calendar-section,
+  .booking-card {
+    padding: var(--space-2);
+  }
+
+  /* === CALENDAR === */
+  .calendar-header {
+    gap: var(--space-2);
+  }
+
+  .month-title {
+    font-size: 1rem;
+  }
+
+  .nav-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .nav-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .calendar-day {
+    min-height: 44px;
+    padding: 0.1rem;
+  }
+
+  .calendar-day-number {
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+
+  .room-indicator {
+    font-size: 0.5rem;
+    padding: 0.05rem 0.15rem;
+    min-width: 12px;
+    height: 9px;
+    line-height: 9px;
+  }
+
+  /* === MODALS === */
+  .modal-close {
+    width: 32px;
+    height: 32px;
+    font-size: 1.2rem;
+  }
+
+  .modal h2 {
+    font-size: 1.1rem;
+  }
+
+  .booking-modal-header {
+    padding: var(--space-2);
+  }
+
+  .booking-modal-header h2 {
+    font-size: 1rem;
+  }
+
+  .booking-modal-content {
+    padding: var(--space-2);
+    gap: var(--space-3);
+  }
+
+  .booking-actions {
+    padding: var(--space-2);
+  }
+
+  /* Mini calendar ultra compact */
+  .mini-calendar-day {
+    height: 36px;
+    font-size: 0.7rem;
+  }
+
+  .mini-calendar-day-header {
+    font-size: 0.6rem;
+  }
+
+  /* === FORMS === */
+  .form-grid {
+    gap: var(--space-2);
+  }
+
+  .input-group label {
+    font-size: 0.85rem;
+  }
+
+  .input-group input,
+  .input-group textarea,
+  .input-group select {
+    font-size: 0.95rem;
+    padding: var(--space-2);
+  }
+
+  .guest-counters {
+    gap: var(--space-2);
+  }
+
+  /* === BUTTONS === */
+  .btn {
+    padding: var(--space-2) var(--space-3);
+    min-height: 42px;
+    font-size: 0.9rem;
+  }
+
+  /* === LEGEND === */
+  .legend-toggle-btn {
+    padding: var(--space-2);
+    font-size: 0.85rem;
+  }
+
+  .legend-color {
+    width: 24px;
+    height: 18px;
+  }
+
+  .legend-text {
+    font-size: 0.8rem;
+  }
+
+  .legend-text strong {
+    font-size: 0.85rem;
+  }
+
+  .legend-text p {
+    font-size: 0.7rem;
+  }
+
+  /* === ADMIN PANEL === */
+  .admin-tabs {
+    font-size: 0.8rem;
+  }
+
+  .tab-button {
+    padding: var(--space-1) var(--space-2);
+    font-size: 0.75rem;
+  }
+
+  .tab-content {
+    padding: var(--space-2);
+  }
+
+  .tab-content h2,
+  .tab-content h3 {
+    font-size: 1rem;
+  }
+
+  .bookings-table td::before {
+    width: 100px;
+    font-size: 0.8rem;
+  }
+
+  /* Room config */
+  #roomConfigForm > div {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: var(--space-2);
+  }
+
+  /* Price config */
+  #priceConfigForm > div > div h4,
+  #priceConfigForm > div > div h5 {
+    font-size: 0.9rem;
+  }
+
+  #priceConfigForm input[type='number'] {
+    width: 70px;
+    font-size: 0.85rem;
+  }
+}
+
+/* Ultra Small Devices (360px and below) */
+@media (max-width: 360px) {
+  html {
+    font-size: 13px;
+  }
+
+  .header-content {
+    padding: var(--space-1);
+  }
+
+  .main-content {
+    padding: var(--space-1);
+  }
+
+  .calendar-section,
+  .booking-card {
+    padding: var(--space-1);
+  }
+
+  .calendar-day {
+    min-height: 40px;
+  }
+
+  .calendar-day-number {
+    font-size: 0.65rem;
+  }
+
+  .room-indicator {
+    font-size: 0.45rem;
+    min-width: 11px;
+    height: 8px;
+  }
+
+  .mini-calendar-day {
+    height: 34px;
+    font-size: 0.65rem;
+  }
+
+  .btn {
+    min-height: 40px;
+    font-size: 0.85rem;
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .legend-text {
+    font-size: 0.75rem;
+  }
+
+  .legend-text p {
+    font-size: 0.65rem;
+  }
+}
+
+/* ===== CALENDAR NAVIGATION BUTTONS (Added 2025-10-17) ===== */
+/* Black background with white arrows, hover effects */
+
+.calendar-nav-btn {
+  transition: all 0.2s ease;
+}
+
+.calendar-nav-btn:hover {
+  background: #374151 !important;
+  transform: scale(1.05);
+}
+
+.calendar-nav-btn:active {
+  background: #111827 !important;
+  transform: scale(0.98);
+}
+
+.calendar-nav-btn:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Touch-specific enhancements */
+@media (hover: none) and (pointer: coarse) {
+  /* Increase touch targets */
+  .btn,
+  button,
+  a,
+  .calendar-day,
+  .mini-calendar-day,
+  .room-indicator,
+  .nav-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Remove hover effects that don't work on touch */
+  .btn:hover,
+  .calendar-day:hover,
+  .modal-close:hover {
+    transform: none;
+  }
+
+  /* Add active/pressed states for better touch feedback */
+  .btn:active,
+  .calendar-day:active {
+    transform: scale(0.98);
+    opacity: 0.9;
+  }
+
+  /* Improve scrolling */
+  .modal-content,
+  .booking-modal-content,
+  .interactive-calendar,
+  .admin-tabs {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
+  /* Optimize tap highlights */
+  * {
+    -webkit-tap-highlight-color: rgba(59, 130, 246, 0.3);
+  }
+}
+
+/* Landscape mobile orientation */
+@media (max-width: 896px) and (orientation: landscape) {
+  .modal-content {
+    max-height: 95vh;
+    overflow-y: auto;
+  }
+
+  .booking-modal-content {
+    grid-template-columns: 1fr 1fr;
+    max-height: calc(95vh - 100px);
+  }
+
+  .interactive-calendar {
+    max-height: 70vh;
+  }
+
+  .header-content {
+    padding: var(--space-2) var(--space-4);
+  }
+
+  .calendar-section {
+    padding: var(--space-3);
+  }
+}
+
+/* High DPI / Retina displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .calendar-day,
+  .mini-calendar-day,
+  .room-indicator {
+    border-width: 0.5px;
+  }
+
+  .btn {
+    border-width: 1.5px;
   }
 }

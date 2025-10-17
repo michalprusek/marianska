@@ -52,7 +52,7 @@ class AdminPanel {
             font-size: 0.95rem;
             box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
             text-shadow: 0 1px 2px rgba(0,0,0,0.2);
-        ">${roomId}</span>`;
+        ">P${roomId}</span>`;
   }
 
   async init() {
@@ -1653,7 +1653,7 @@ class AdminPanel {
 
         return {
           id,
-          name: `Pokoj ${id}`,
+          name: `${langManager.t('room')} ${id}`,
           type: existingRoom?.type || 'standard',
           beds,
         };
@@ -1693,54 +1693,72 @@ class AdminPanel {
 
   async loadPriceConfig() {
     const settings = await dataManager.getSettings();
-    const defaultPrices = {
-      utia: { base: 298, adult: 49, child: 24 },
-      external: { base: 499, adult: 99, child: 49 },
-    };
+    // NEW (2025-10-17): Room-size-based pricing defaults
+    const defaultPrices = PriceCalculator.getDefaultPrices();
     const prices = settings.prices || defaultPrices;
 
-    // Handle both old structure (small/large) and new structure (direct base/adult/child)
-    let utiaPrice;
-    let externalPrice;
+    // Load UTIA Small room prices
+    const utiaSmallBaseEl = document.getElementById('utia_small_base');
+    const utiaSmallAdultEl = document.getElementById('utia_small_adult');
+    const utiaSmallChildEl = document.getElementById('utia_small_child');
 
-    if (prices.utia && prices.utia.small) {
-      // Old structure - use small room prices as base
-      utiaPrice = prices.utia.small;
-      externalPrice = prices.external.small;
-    } else {
-      // New structure
-      utiaPrice = prices.utia || defaultPrices.utia;
-      externalPrice = prices.external || defaultPrices.external;
+    if (utiaSmallBaseEl) {
+      utiaSmallBaseEl.value = prices.utia?.small?.base || defaultPrices.utia.small.base;
     }
-
-    // Load UTIA prices with fallbacks
-    const utiaBaseEl = document.getElementById('utia_base');
-    const utiaAdultEl = document.getElementById('utia_adult');
-    const utiaChildEl = document.getElementById('utia_child');
-
-    if (utiaBaseEl) {
-      utiaBaseEl.value = utiaPrice.base || defaultPrices.utia.base;
+    if (utiaSmallAdultEl) {
+      utiaSmallAdultEl.value = prices.utia?.small?.adult || defaultPrices.utia.small.adult;
     }
-    if (utiaAdultEl) {
-      utiaAdultEl.value = utiaPrice.adult || defaultPrices.utia.adult;
-    }
-    if (utiaChildEl) {
-      utiaChildEl.value = utiaPrice.child || defaultPrices.utia.child;
+    if (utiaSmallChildEl) {
+      utiaSmallChildEl.value = prices.utia?.small?.child || defaultPrices.utia.small.child;
     }
 
-    // Load external prices with fallbacks
-    const externalBaseEl = document.getElementById('external_base');
-    const externalAdultEl = document.getElementById('external_adult');
-    const externalChildEl = document.getElementById('external_child');
+    // Load UTIA Large room prices
+    const utiaLargeBaseEl = document.getElementById('utia_large_base');
+    const utiaLargeAdultEl = document.getElementById('utia_large_adult');
+    const utiaLargeChildEl = document.getElementById('utia_large_child');
 
-    if (externalBaseEl) {
-      externalBaseEl.value = externalPrice.base || defaultPrices.external.base;
+    if (utiaLargeBaseEl) {
+      utiaLargeBaseEl.value = prices.utia?.large?.base || defaultPrices.utia.large.base;
     }
-    if (externalAdultEl) {
-      externalAdultEl.value = externalPrice.adult || defaultPrices.external.adult;
+    if (utiaLargeAdultEl) {
+      utiaLargeAdultEl.value = prices.utia?.large?.adult || defaultPrices.utia.large.adult;
     }
-    if (externalChildEl) {
-      externalChildEl.value = externalPrice.child || defaultPrices.external.child;
+    if (utiaLargeChildEl) {
+      utiaLargeChildEl.value = prices.utia?.large?.child || defaultPrices.utia.large.child;
+    }
+
+    // Load External Small room prices
+    const externalSmallBaseEl = document.getElementById('external_small_base');
+    const externalSmallAdultEl = document.getElementById('external_small_adult');
+    const externalSmallChildEl = document.getElementById('external_small_child');
+
+    if (externalSmallBaseEl) {
+      externalSmallBaseEl.value = prices.external?.small?.base || defaultPrices.external.small.base;
+    }
+    if (externalSmallAdultEl) {
+      externalSmallAdultEl.value =
+        prices.external?.small?.adult || defaultPrices.external.small.adult;
+    }
+    if (externalSmallChildEl) {
+      externalSmallChildEl.value =
+        prices.external?.small?.child || defaultPrices.external.small.child;
+    }
+
+    // Load External Large room prices
+    const externalLargeBaseEl = document.getElementById('external_large_base');
+    const externalLargeAdultEl = document.getElementById('external_large_adult');
+    const externalLargeChildEl = document.getElementById('external_large_child');
+
+    if (externalLargeBaseEl) {
+      externalLargeBaseEl.value = prices.external?.large?.base || defaultPrices.external.large.base;
+    }
+    if (externalLargeAdultEl) {
+      externalLargeAdultEl.value =
+        prices.external?.large?.adult || defaultPrices.external.large.adult;
+    }
+    if (externalLargeChildEl) {
+      externalLargeChildEl.value =
+        prices.external?.large?.child || defaultPrices.external.large.child;
     }
   }
 
@@ -1753,16 +1771,31 @@ class AdminPanel {
     }
 
     try {
+      // NEW (2025-10-17): Room-size-based pricing structure
       const prices = {
         utia: {
-          base: parseInt(document.getElementById('utia_base').value, 10),
-          adult: parseInt(document.getElementById('utia_adult').value, 10),
-          child: parseInt(document.getElementById('utia_child').value, 10),
+          small: {
+            base: parseInt(document.getElementById('utia_small_base').value, 10),
+            adult: parseInt(document.getElementById('utia_small_adult').value, 10),
+            child: parseInt(document.getElementById('utia_small_child').value, 10),
+          },
+          large: {
+            base: parseInt(document.getElementById('utia_large_base').value, 10),
+            adult: parseInt(document.getElementById('utia_large_adult').value, 10),
+            child: parseInt(document.getElementById('utia_large_child').value, 10),
+          },
         },
         external: {
-          base: parseInt(document.getElementById('external_base').value, 10),
-          adult: parseInt(document.getElementById('external_adult').value, 10),
-          child: parseInt(document.getElementById('external_child').value, 10),
+          small: {
+            base: parseInt(document.getElementById('external_small_base').value, 10),
+            adult: parseInt(document.getElementById('external_small_adult').value, 10),
+            child: parseInt(document.getElementById('external_small_child').value, 10),
+          },
+          large: {
+            base: parseInt(document.getElementById('external_large_base').value, 10),
+            adult: parseInt(document.getElementById('external_large_adult').value, 10),
+            child: parseInt(document.getElementById('external_large_child').value, 10),
+          },
         },
       };
 

@@ -5,6 +5,115 @@ class SingleRoomBookingModule {
     this.airbnbCalendar = null;
   }
 
+  /**
+   * Save selected date range to localStorage for prefilling next time
+   * @param {string} startDate - Start date in YYYY-MM-DD format
+   * @param {string} endDate - End date in YYYY-MM-DD format
+   */
+  saveLastSelectedDateRange(startDate, endDate) {
+    try {
+      const dateRange = {
+        startDate,
+        endDate,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem('lastSelectedDateRange', JSON.stringify(dateRange));
+    } catch (error) {
+      console.warn('Failed to save last selected date range:', error);
+      // Non-critical error - continue without saving
+    }
+  }
+
+  /**
+   * Load last selected date range from localStorage
+   * @returns {Object|null} - Object with startDate and endDate, or null if not found/invalid
+   */
+  loadLastSelectedDateRange() {
+    try {
+      const stored = localStorage.getItem('lastSelectedDateRange');
+      if (!stored) {
+        return null;
+      }
+
+      const dateRange = JSON.parse(stored);
+
+      // Validate structure
+      if (!dateRange.startDate || !dateRange.endDate || !dateRange.timestamp) {
+        return null;
+      }
+
+      // Check if dates are in the past (don't prefill past dates)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const startDate = new Date(`${dateRange.startDate}T12:00:00`);
+
+      if (startDate < today) {
+        // Dates are in the past, clear them
+        localStorage.removeItem('lastSelectedDateRange');
+        return null;
+      }
+
+      // Optional: Check if dates are too old (e.g., > 30 days)
+      const daysSinceStored = (Date.now() - dateRange.timestamp) / (1000 * 60 * 60 * 24);
+      if (daysSinceStored > 30) {
+        // Too old, clear
+        localStorage.removeItem('lastSelectedDateRange');
+        return null;
+      }
+
+      return {
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+      };
+    } catch (error) {
+      console.warn('Failed to load last selected date range:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Check if a date range is available for a specific room
+   * @param {string} startDate - Start date in YYYY-MM-DD format
+   * @param {string} endDate - End date in YYYY-MM-DD format
+   * @param {string} roomId - Room ID to check
+   * @returns {Promise<boolean>} - True if range is available, false otherwise
+   */
+  async isDateRangeAvailableForRoom(startDate, endDate, roomId) {
+    try {
+      // CRITICAL FIX 2025-10-17: Invalidate proposed bookings cache to ensure fresh data
+      dataManager.invalidateProposedBookingsCache();
+
+      const start = new Date(`${startDate}T12:00:00`);
+      const end = new Date(`${endDate}T12:00:00`);
+      const current = new Date(start);
+
+      // Check each day in the range
+      // eslint-disable-next-line no-unmodified-loop-condition -- current is modified inside loop body with setDate
+      while (current <= end) {
+        // CRITICAL FIX 2025-10-17: Pass empty string '' to NOT exclude any sessions
+        // This ensures we check ALL proposed bookings (including own session)
+        const availability = await dataManager.getRoomAvailability(current, roomId, '');
+
+        // CRITICAL FIX 2025-10-17: Check for 'proposed' status too!
+        // If any day is blocked, occupied, or already proposed, the range is not available
+        if (
+          availability.status === 'blocked' ||
+          availability.status === 'occupied' ||
+          availability.status === 'proposed'
+        ) {
+          return false;
+        }
+
+        current.setDate(current.getDate() + 1);
+      }
+
+      return true;
+    } catch (error) {
+      console.warn('Failed to check date range availability:', error);
+      return false;
+    }
+  }
+
   async showRoomBookingModal(roomId) {
     const modal = document.getElementById('singleRoomBookingModal');
     const modalTitle = document.getElementById('roomBookingTitle');
@@ -24,6 +133,32 @@ class SingleRoomBookingModule {
     this.app.selectedRooms.clear();
     this.app.roomGuests.clear();
     this.app.roomGuestTypes.clear();
+
+    // NEW 2025-10-17: Load last selected date range and prefill if available
+    const lastDateRange = this.loadLastSelectedDateRange();
+    if (lastDateRange) {
+      // Validate that dates are still available for this room
+      const isRangeAvailable = await this.isDateRangeAvailableForRoom(
+        lastDateRange.startDate,
+        lastDateRange.endDate,
+        roomId
+      );
+
+      if (isRangeAvailable) {
+        // Prefill the date range
+        const start = new Date(`${lastDateRange.startDate}T12:00:00`);
+        const end = new Date(`${lastDateRange.endDate}T12:00:00`);
+        const current = new Date(start);
+
+        // Add all dates in range to selectedDates
+        // eslint-disable-next-line no-unmodified-loop-condition -- current is modified inside loop body with setDate
+        while (current <= end) {
+          const dateStr = DateUtils.formatDate(current);
+          this.app.selectedDates.add(dateStr);
+          current.setDate(current.getDate() + 1);
+        }
+      }
+    }
 
     // Set default guest configuration - ensure it respects room capacity
     const defaultGuests = { adults: 1, children: 0, toddlers: 0 };
@@ -208,6 +343,18 @@ class SingleRoomBookingModule {
       toddlers: 0,
     };
 
+    // NEW 2025-10-17: Validate that there is at least 1 person (adult OR child)
+    const totalGuests = (guests.adults || 0) + (guests.children || 0);
+    if (totalGuests === 0) {
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? 'Musíte zadat alespoň 1 osobu (dospělého nebo dítě) na pokoji'
+          : 'You must specify at least 1 person (adult or child) in the room',
+        'warning'
+      );
+      return;
+    }
+
     // Get guest type
     const guestTypeInput = document.querySelector('input[name="singleRoomGuestType"]:checked');
     const guestType = guestTypeInput ? guestTypeInput.value : 'utia';
@@ -222,10 +369,7 @@ class SingleRoomBookingModule {
     const room = rooms.find((r) => r.id === this.app.currentBookingRoom);
 
     if (!room) {
-      this.app.showNotification(
-        this.app.currentLanguage === 'cs' ? 'Chyba: Pokoj nebyl nalezen' : 'Error: Room not found',
-        'error'
-      );
+      this.app.showNotification(langManager.t('roomNotFoundError'), 'error');
       return;
     }
 
@@ -236,7 +380,7 @@ class SingleRoomBookingModule {
       guests.children,
       guests.toddlers,
       nights,
-      1
+      [this.app.currentBookingRoom] // Pass room ID array for room-size-based pricing
     );
 
     // Create proposed booking in database
@@ -249,6 +393,10 @@ class SingleRoomBookingModule {
         guestType,
         price
       );
+
+      // CRITICAL FIX 2025-10-17: Save selected date range to localStorage AFTER successful creation
+      // This ensures dates are only saved if the proposed booking was created successfully
+      this.saveLastSelectedDateRange(startDate, endDate);
 
       // Create temporary booking object with proposal ID
       const tempBooking = {

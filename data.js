@@ -243,9 +243,16 @@ class DataManager {
           { id: '43', name: 'Pokoj 43', type: 'small', beds: 2 },
           { id: '44', name: 'Pokoj 44', type: 'large', beds: 4 },
         ],
+        // NEW (2025-10-17): Room-size-based pricing
         prices: {
-          utia: { base: 298, adult: 49, child: 24 },
-          external: { base: 499, adult: 99, child: 49 },
+          utia: {
+            small: { base: 300, adult: 50, child: 25 },
+            large: { base: 400, adult: 50, child: 25 },
+          },
+          external: {
+            small: { base: 500, adult: 100, child: 50 },
+            large: { base: 600, adult: 100, child: 50 },
+          },
         },
         bulkPrices: {
           basePrice: 2000,
@@ -1193,19 +1200,22 @@ class DataManager {
   // Price calculation
   // Delegate to PriceCalculator for SSOT compliance
   // eslint-disable-next-line max-params -- Legacy method signature maintained for backward compatibility
-  calculatePrice(guestType, adults, children, toddlers, nights, roomsCount = 1) {
-    const options = { guestType, adults, children, toddlers, nights, roomsCount };
-    return this.calculatePriceFromOptions(options);
+  calculatePrice(guestType, adults, children, toddlers, nights, roomsCountOrRooms = 1) {
+    // FIX 2025-10-17: Support both old API (roomsCount) and new API (rooms array)
+    let rooms = [];
+    if (Array.isArray(roomsCountOrRooms)) {
+      // New API: rooms array passed directly
+      rooms = roomsCountOrRooms;
+    } else {
+      // Old API: roomsCount number - cannot determine room sizes, use default
+      // This means price calculation will use legacy flat pricing model
+      rooms = [];
+    }
+
+    return this.calculatePriceFromOptions({ guestType, adults, children, toddlers, nights, rooms });
   }
 
-  async calculatePriceFromOptions({
-    guestType,
-    adults,
-    children,
-    toddlers,
-    nights,
-    roomsCount = 1,
-  }) {
+  async calculatePriceFromOptions({ guestType, adults, children, toddlers, nights, rooms = [] }) {
     const settings = await this.getSettings();
     return PriceCalculator.calculatePrice({
       guestType,
@@ -1213,7 +1223,7 @@ class DataManager {
       children,
       toddlers,
       nights,
-      roomsCount,
+      rooms, // Pass rooms array for room-size-based pricing
       settings,
     });
   }

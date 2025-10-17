@@ -331,7 +331,7 @@ class CalendarModule {
       roomEl.style.cursor = 'not-allowed';
     }
 
-    roomEl.textContent = room.id;
+    roomEl.textContent = `P${room.id}`;
 
     return roomEl;
   }

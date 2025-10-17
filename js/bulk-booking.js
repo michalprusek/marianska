@@ -198,9 +198,11 @@ class BulkBookingModule {
       if (nightsMultiplier) {
         nightsMultiplier.textContent = '× 0';
       }
+      // Safe access to langManager with fallback
+      const perNightText = this.app.langManager ? this.app.langManager.t('perNight') : '/noc';
       const basePriceEl = document.getElementById('bulkBasePrice');
       if (basePriceEl) {
-        basePriceEl.textContent = '0 Kč/noc';
+        basePriceEl.textContent = `0 Kč${perNightText}`;
       }
       const perNightTotal = document.getElementById('bulkPricePerNightAmount');
       if (perNightTotal) {
@@ -208,11 +210,11 @@ class BulkBookingModule {
       }
       const adultsEl = document.getElementById('bulkAdultsSurcharge');
       if (adultsEl) {
-        adultsEl.textContent = '0 Kč/noc';
+        adultsEl.textContent = `0 Kč${perNightText}`;
       }
       const childrenEl = document.getElementById('bulkChildrenSurcharge');
       if (childrenEl) {
-        childrenEl.textContent = '0 Kč/noc';
+        childrenEl.textContent = `0 Kč${perNightText}`;
       }
       return;
     }
@@ -253,16 +255,19 @@ class BulkBookingModule {
     const pricePerNight = totalBasePricePerNight + adultSurcharge + childrenSurcharge;
     const totalPrice = pricePerNight * nights;
 
+    // Get translation for "per night" with safe access
+    const perNightText = this.app.langManager ? this.app.langManager.t('perNight') : '/noc';
+
     // Update display elements
     const basePriceEl = document.getElementById('bulkBasePrice');
     if (basePriceEl) {
-      basePriceEl.textContent = `${totalBasePricePerNight.toLocaleString('cs-CZ')} Kč/noc`;
+      basePriceEl.textContent = `${totalBasePricePerNight.toLocaleString('cs-CZ')} Kč${perNightText}`;
     }
 
     const adultsEl = document.getElementById('bulkAdultsSurcharge');
     if (adultsEl) {
       if (adults > 0 && adultSurcharge > 0) {
-        adultsEl.textContent = `+${adultSurcharge.toLocaleString('cs-CZ')} Kč/noc`;
+        adultsEl.textContent = `+${adultSurcharge.toLocaleString('cs-CZ')} Kč${perNightText}`;
         adultsEl.parentElement.style.display = 'flex';
       } else {
         adultsEl.parentElement.style.display = 'none';
@@ -272,7 +277,7 @@ class BulkBookingModule {
     const childrenEl = document.getElementById('bulkChildrenSurcharge');
     if (childrenEl) {
       if (children > 0 && childrenSurcharge > 0) {
-        childrenEl.textContent = `+${childrenSurcharge.toLocaleString('cs-CZ')} Kč/noc`;
+        childrenEl.textContent = `+${childrenSurcharge.toLocaleString('cs-CZ')} Kč${perNightText}`;
         childrenEl.parentElement.style.display = 'flex';
       } else {
         childrenEl.parentElement.style.display = 'none';
@@ -335,9 +340,8 @@ class BulkBookingModule {
     let value = parseInt(element.textContent, 10) || 0;
     value = Math.max(0, value + change);
 
-    if (type === 'adults') {
-      value = Math.max(1, value);
-    }
+    // NEW 2025-10-17: Allow temporarily setting 0 adults/children
+    // Validation will happen at proposal creation time
 
     element.textContent = value;
     this.updateBulkCapacityCheck();
@@ -420,9 +424,10 @@ class BulkBookingModule {
 
         if (availability.status === 'blocked') {
           this.app.showNotification(
-            this.app.currentLanguage === 'cs'
-              ? `Pokoj ${room.name} je blokován dne ${dateStr}. Pro hromadnou rezervaci musí být všechny pokoje volné.`
-              : `Room ${room.name} is blocked on ${dateStr}. All rooms must be available for bulk booking.`,
+            langManager
+              .t('roomBlockedOnDate')
+              .replace('{roomName}', room.name)
+              .replace('{date}', dateStr),
             'error'
           );
           return;
@@ -433,6 +438,18 @@ class BulkBookingModule {
     // Get guest configuration
     const adults = parseInt(document.getElementById('bulkAdults')?.textContent, 10) || 1;
     const children = parseInt(document.getElementById('bulkChildren')?.textContent, 10) || 0;
+
+    // NEW 2025-10-17: Validate that there is at least 1 person (adult OR child)
+    const totalGuests = (adults || 0) + (children || 0);
+    if (totalGuests === 0) {
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? 'Musíte zadat alespoň 1 osobu (dospělého nebo dítě) pro hromadnou rezervaci'
+          : 'You must specify at least 1 person (adult or child) for bulk booking',
+        'warning'
+      );
+      return;
+    }
 
     // Get guest type
     const guestTypeInput = document.querySelector('input[name="bulkGuestType"]:checked');

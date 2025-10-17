@@ -142,16 +142,16 @@ class BaseCalendar {
     const monthName = CalendarUtils.getMonthName(calendarData.month, language);
 
     return `
-      <div class="calendar-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <button class="nav-btn calendar-nav-btn" data-direction="-1" style="padding: 0.5rem; background: white; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer;">
+      <div class="calendar-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 2rem;">
+        <button class="nav-btn calendar-nav-btn" data-direction="-1" style="padding: 0.75rem; background: #1f2937; border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; min-width: 44px; min-height: 44px;">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M12.5 15L7.5 10L12.5 5" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
-        <h3 class="calendar-title" style="margin: 0; font-weight: 600;">${monthName} ${calendarData.year}</h3>
-        <button class="nav-btn calendar-nav-btn" data-direction="1" style="padding: 0.5rem; background: white; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer;">
+        <h3 class="calendar-title" style="margin: 0; font-weight: 600; flex: 1; text-align: center;">${monthName} ${calendarData.year}</h3>
+        <button class="nav-btn calendar-nav-btn" data-direction="1" style="padding: 0.75rem; background: #1f2937; border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; min-width: 44px; min-height: 44px;">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M7.5 15L12.5 10L7.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M7.5 15L12.5 10L7.5 5" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
       </div>
@@ -159,7 +159,7 @@ class BaseCalendar {
         ${CalendarUtils.getWeekdayHeaders(language)
           .map(
             (day) =>
-              `<div class="weekday-header" style="text-align: center; font-weight: 600; color: #666; font-size: 0.875rem; padding: 0.5rem 0.75rem;">${day}</div>`
+              `<div class="weekday-header" style="text-align: center; font-weight: 600; color: #666; font-size: 0.875rem; padding: 0.75rem; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${day}</div>`
           )
           .join('')}
       </div>

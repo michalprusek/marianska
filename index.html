@@ -135,6 +135,9 @@
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
+                stroke-width="3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
               >
                 <path d="M15 18l-6-6 6-6" />
               </svg>
@@ -154,6 +157,9 @@
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
+                stroke-width="3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
               >
                 <path d="M9 18l6-6-6-6" />
               </svg>
@@ -519,11 +525,10 @@
             <h3 data-translate="billingDetails">Fakturační údaje</h3>
 
             <div class="input-group">
-              <label for="finalBookingCompany">Firma *</label>
+              <label for="finalBookingCompany">Firma</label>
               <input
                 type="text"
                 id="finalBookingCompany"
-                required
                 minlength="2"
               />
             </div>
@@ -643,7 +648,7 @@
                     padding-bottom: 0.5rem;
                   "
                 >
-                  Děti (3-12 let)
+                  Děti (3-17 let)
                 </h4>
                 <div
                   id="childrenNamesList"
@@ -822,33 +827,45 @@
 
             <div class="form-grid">
               <div class="input-group">
-                <label for="name">Jméno a příjmení *</label>
+                <label
+                  for="name"
+                  data-translate="fullName"
+                  >Jméno a příjmení *</label
+                >
                 <input
                   type="text"
                   id="name"
                   name="name"
                   required
                   minlength="3"
-                  placeholder="např. Jan Novák"
+                  data-translate-placeholder="namePlaceholder"
                   title="Zadejte celé jméno (min. 3 znaky)"
                 />
               </div>
 
               <div class="input-group">
-                <label for="email">Email *</label>
+                <label
+                  for="email"
+                  data-translate="email"
+                  >Email *</label
+                >
                 <input
                   type="email"
                   id="email"
                   name="email"
                   required
-                  placeholder="vas@email.cz"
+                  data-translate-placeholder="emailPlaceholder"
                   pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
                   title="Zadejte platnou emailovou adresu"
                 />
               </div>
 
               <div class="input-group">
-                <label for="phone">Telefon *</label>
+                <label
+                  for="phone"
+                  data-translate="phone"
+                  >Telefon *</label
+                >
                 <div class="phone-input-container">
                   <select
                     id="phonePrefix"
@@ -871,7 +888,7 @@
                     name="phone"
                     class="phone-number-input"
                     required
-                    placeholder="123456789"
+                    data-translate-placeholder="phonePlaceholder"
                     pattern="[0-9\s]{9,13}"
                     title="Zadejte 9 číslic telefonního čísla"
                   />
@@ -879,86 +896,114 @@
               </div>
 
               <div class="input-group">
-                <label for="company">Firma *</label>
+                <label
+                  for="company"
+                  data-translate="company"
+                  >Firma</label
+                >
                 <input
                   type="text"
                   id="company"
                   name="company"
-                  required
                   minlength="2"
-                  placeholder="např. ÚTIA AV ČR"
+                  data-translate-placeholder="companyPlaceholder"
                   title="Zadejte název firmy"
                 />
               </div>
 
               <div class="input-group full-width">
-                <label for="address">Adresa *</label>
+                <label
+                  for="address"
+                  data-translate="address"
+                  >Adresa *</label
+                >
                 <input
                   type="text"
                   id="address"
                   name="address"
                   required
                   minlength="5"
-                  placeholder="např. Hlavní 123"
+                  data-translate-placeholder="addressPlaceholder"
                   title="Zadejte ulici a číslo popisné"
                 />
               </div>
 
               <div class="input-group">
-                <label for="city">Město *</label>
+                <label
+                  for="city"
+                  data-translate="city"
+                  >Město *</label
+                >
                 <input
                   type="text"
                   id="city"
                   name="city"
                   required
                   minlength="2"
-                  placeholder="např. Praha"
+                  data-translate-placeholder="cityPlaceholder"
                   title="Zadejte název města"
                 />
               </div>
 
               <div class="input-group">
-                <label for="zip">PSČ *</label>
+                <label
+                  for="zip"
+                  data-translate="zip"
+                  >PSČ *</label
+                >
                 <input
                   type="text"
                   id="zip"
                   name="zip"
                   required
                   pattern="[0-9]{5}"
-                  placeholder="12345"
+                  data-translate-placeholder="zipPlaceholder"
                   maxlength="5"
                   title="PSČ musí obsahovat přesně 5 číslic"
                 />
               </div>
 
               <div class="input-group">
-                <label for="ico">IČO</label>
+                <label
+                  for="ico"
+                  data-translate="ico"
+                  >IČO</label
+                >
                 <input
                   type="text"
                   id="ico"
                   name="ico"
                   pattern="[0-9]{8}"
-                  placeholder="12345678"
+                  data-translate-placeholder="icoPlaceholder"
                   maxlength="8"
                   title="IČO musí obsahovat 8 číslic (nepovinné)"
                 />
               </div>
 
               <div class="input-group">
-                <label for="dic">DIČ</label>
+                <label
+                  for="dic"
+                  data-translate="dic"
+                  >DIČ</label
+                >
                 <input
                   type="text"
                   id="dic"
                   name="dic"
                   pattern="(CZ)?[0-9]{8,10}"
-                  placeholder="CZ12345678"
+                  data-translate-placeholder="dicPlaceholder"
                   title="DIČ ve formátu CZ12345678"
                 />
               </div>
             </div>
 
             <div class="input-group full-width">
-              <label for="notes">Poznámky</label>
+              <label
+                for="notes"
+                data-translate="notes"
+              >
+                Poznámky
+              </label>
               <textarea
                 id="notes"
                 name="notes"
@@ -1013,7 +1058,7 @@
                     padding-bottom: 0.5rem;
                   "
                 >
-                  Děti (3-12 let)
+                  Děti (3-17 let)
                 </h4>
                 <div
                   id="bookingFormChildrenNamesList"
@@ -1114,7 +1159,7 @@
           <div class="booking-modal-content">
             <!-- Left Column: Calendar -->
             <div class="booking-left-column">
-              <h3>Vyberte termín pobytu</h3>
+              <h3 data-translate="selectStayPeriod">Vyberte termín pobytu</h3>
 
               <!-- Interactive Calendar -->
               <div
@@ -1141,14 +1186,24 @@
                 >
                   <div style="display: flex; justify-content: space-between; align-items: center">
                     <div>
-                      <div style="font-size: 0.9rem; color: #666">Vybraný termín:</div>
+                      <div
+                        style="font-size: 0.9rem; color: #666"
+                        data-translate="selectedPeriodLabel"
+                      >
+                        Vybraný termín:
+                      </div>
                       <div
                         id="selectedDateRange"
                         style="font-weight: 600; color: #333"
                       ></div>
                     </div>
                     <div style="text-align: right">
-                      <div style="font-size: 0.9rem; color: #666">Počet nocí:</div>
+                      <div
+                        style="font-size: 0.9rem; color: #666"
+                        data-translate="nightsCountLabel"
+                      >
+                        Počet nocí:
+                      </div>
                       <div
                         id="nightsCount"
                         style="font-weight: 600; color: #2563eb; font-size: 1.2rem"
@@ -1159,7 +1214,7 @@
                   </div>
                 </div>
 
-                <h3>Typ hosta a počet osob</h3>
+                <h3 data-translate="guestTypeAndCount">Typ hosta a počet osob</h3>
 
                 <!-- Guest Type -->
                 <div
@@ -1188,7 +1243,7 @@
                       checked
                       style="margin-right: 0.5rem"
                     />
-                    <span>Zaměstnanec ÚTIA</span>
+                    <span data-translate="employeeLabel">Zaměstnanec ÚTIA</span>
                   </label>
                   <label
                     style="
@@ -1207,7 +1262,7 @@
                       value="external"
                       style="margin-right: 0.5rem"
                     />
-                    <span>Externí host</span>
+                    <span data-translate="externalLabel">Externí host</span>
                   </label>
                 </div>
 
@@ -1220,6 +1275,7 @@
                     <label
                       class="counter-label"
                       style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
+                      data-translate="adultsLabel"
                       >Dospělí</label
                     >
                     <div
@@ -1270,7 +1326,8 @@
                     <label
                       class="counter-label"
                       style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
-                      >Děti (3-12)</label
+                      data-translate="childrenLabel"
+                      >Děti (3-17)</label
                     >
                     <div
                       class="counter-controls"
@@ -1381,7 +1438,9 @@
                     display: none;
                   "
                 >
-                  <span style="color: #856404; font-size: 0.9rem"
+                  <span
+                    style="color: #856404; font-size: 0.9rem"
+                    data-translate="capacityExceededRoom"
                     >⚠️ Překročena kapacita pokoje</span
                   >
                 </div>
@@ -1791,7 +1850,7 @@
                       checked
                       style="margin-right: 0.5rem"
                     />
-                    <span>Zaměstnanec ÚTIA</span>
+                    <span data-translate="employeeLabel">Zaměstnanec ÚTIA</span>
                   </label>
                   <label
                     style="
@@ -1810,7 +1869,7 @@
                       value="external"
                       style="margin-right: 0.5rem"
                     />
-                    <span>Externí host</span>
+                    <span data-translate="externalLabel">Externí host</span>
                   </label>
                 </div>
 
@@ -1823,6 +1882,7 @@
                     <label
                       class="counter-label"
                       style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
+                      data-translate="adultsLabel"
                       >Dospělí</label
                     >
                     <div
@@ -1873,7 +1933,8 @@
                     <label
                       class="counter-label"
                       style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
-                      >Děti (3-12)</label
+                      data-translate="childrenLabel"
+                      >Děti (3-17)</label
                     >
                     <div
                       class="counter-controls"
@@ -1933,7 +1994,9 @@
                     display: none;
                   "
                 >
-                  <span style="color: #991b1b; font-size: 0.9rem"
+                  <span
+                    style="color: #991b1b; font-size: 0.9rem"
+                    data-translate="bulkCapacityExceededCottage"
                     >⚠️ Překročena kapacita chaty (maximum 26 lůžek)</span
                   >
                 </div>
@@ -1943,7 +2006,12 @@
                   class="price-summary"
                   style="padding-top: 1rem; margin-top: 1rem"
                 >
-                  <h4 style="margin-bottom: 0.75rem; color: #333">Souhrn ceny</h4>
+                  <h4
+                    style="margin-bottom: 0.75rem; color: #333"
+                    data-translate="priceSummary"
+                  >
+                    Souhrn ceny
+                  </h4>
                   <div
                     id="bulkPriceBreakdown"
                     style="
@@ -2043,7 +2111,7 @@
                         font-weight: 500;
                       "
                     >
-                      <span>Počet nocí:</span>
+                      <span data-translate="nightsCountLabel">Počet nocí:</span>
                       <span id="bulkNightsMultiplier">× 0</span>
                     </div>
 
@@ -2087,6 +2155,7 @@
               type="button"
               class="btn btn-secondary"
               onclick="closeBulkModal()"
+              data-translate="cancelButton"
             >
               Zrušit
             </button>
@@ -2095,6 +2164,7 @@
               class="btn btn-primary"
               onclick="addBulkBooking()"
               disabled
+              data-translate="createReservationButton"
             >
               Vytvořit rezervaci
             </button>

@@ -208,7 +208,7 @@ const readLimiter = rateLimit({
 // Write endpoints (POST/PUT/DELETE) - stricter limit
 const writeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+  max: 500,
   message: 'Příliš mnoho požadavků z této IP adresy, zkuste to prosím později.',
   ...rateLimitConfig,
 });
@@ -216,8 +216,8 @@ const writeLimiter = rateLimit({
 // Stricter rate limit for booking creation
 const bookingLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 20, // max 20 bookings per hour
-  message: 'Překročili jste limit 20 rezervací za hodinu. Zkuste to prosím později.',
+  max: 500, // max 500 bookings per hour
+  message: 'Překročili jste limit 500 rezervací za hodinu. Zkuste to prosím později.',
   ...rateLimitConfig,
 });
 
@@ -233,7 +233,7 @@ const adminLoginLimiter = rateLimit({
 // Rate limit for test email sending (defense against abuse)
 const testEmailLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // max 10 test emails per hour
+  max: 500, // max 500 test emails per hour
   message: 'Překročen limit pro odesílání testovacích emailů. Zkuste to za hodinu.',
   ...rateLimitConfig,
 });
@@ -241,7 +241,7 @@ const testEmailLimiter = rateLimit({
 // Rate limit for contact form (defense against spam)
 const contactLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5, // max 5 contact messages per hour
+  max: 500, // max 500 contact messages per hour
   message: 'Překročen limit pro odesílání zpráv. Zkuste to za hodinu.',
   ...rateLimitConfig,
 });
@@ -1635,7 +1635,7 @@ app.post('/api/admin/test-email', testEmailLimiter, requireSession, async (req, 
 });
 
 // Contact form endpoint - public with rate limiting
-app.post('/api/contact', contactLimiter, (req, res) => {
+app.post('/api/contact', contactLimiter, async (req, res) => {
   try {
     const { senderName, senderEmail, message, bookingId } = req.body;
 
@@ -1686,7 +1686,7 @@ app.post('/api/contact', contactLimiter, (req, res) => {
         to: booking.email,
       });
 
-      // Send email to booking owner using sendCustomEmailToBooker
+      // Send email to booking owner using sendCustomEmailToBooker (await for delivery)
       const emailData = {
         bookingId: booking.id,
         bookingOwnerEmail: booking.email,
@@ -1696,64 +1696,59 @@ app.post('/api/contact', contactLimiter, (req, res) => {
         message: contactData.message,
       };
 
-      emailService
-        .sendCustomEmailToBooker(emailData, { settings })
-        .then((result) => {
-          if (result.success) {
-            logger.info('Contact message sent to booking owner', {
-              from: contactData.senderEmail,
-              to: booking.email,
-              messageId: result.messageId,
-            });
-          } else {
-            logger.error('Failed to send contact message to booking owner', {
-              from: contactData.senderEmail,
-              to: booking.email,
-              error: result.error,
-            });
-          }
-        })
-        .catch((error) => {
-          logger.error('Error sending contact message to booking owner', {
-            from: contactData.senderEmail,
-            to: booking.email,
-            error: error.message,
-          });
+      try {
+        const result = await emailService.sendCustomEmailToBooker(emailData, { settings });
+        logger.info('Contact message sent to booking owner', {
+          from: contactData.senderEmail,
+          to: booking.email,
+          messageId: result.messageId,
         });
+
+        return res.json({
+          success: true,
+          message: 'Zpráva byla odeslána. Odpovíme co nejdříve.',
+        });
+      } catch (emailError) {
+        logger.error('Error sending contact message to booking owner', {
+          from: contactData.senderEmail,
+          to: booking.email,
+          error: emailError.message,
+        });
+
+        return res.status(500).json({
+          error: 'Nepodařilo se odeslat zprávu. Zkuste to prosím později.',
+          emailSent: false,
+        });
+      }
     } else {
       // No bookingId - send to admin (original behavior)
       logger.info('Sending contact message to admin', {
         from: contactData.senderEmail,
       });
 
-      emailService
-        .sendContactMessage(contactData, { settings })
-        .then((result) => {
-          if (result.success) {
-            logger.info('Contact message sent to admin', {
-              from: contactData.senderEmail,
-              messageId: result.messageId,
-            });
-          } else {
-            logger.error('Failed to send contact message to admin', {
-              from: contactData.senderEmail,
-              error: result.error,
-            });
-          }
-        })
-        .catch((error) => {
-          logger.error('Error sending contact message to admin', {
-            from: contactData.senderEmail,
-            error: error.message,
-          });
+      try {
+        const result = await emailService.sendContactMessage(contactData, { settings });
+        logger.info('Contact message sent to admin', {
+          from: contactData.senderEmail,
+          messageId: result.messageId,
         });
-    }
 
-    // Respond immediately (don't wait for email)
-    return res.json({
-      success: true,
-      message: 'Zpráva byla odeslána. Odpovíme co nejdříve.',
-    });
+        return res.json({
+          success: true,
+          message: 'Zpráva byla odeslána. Odpovíme co nejdříve.',
+        });
+      } catch (emailError) {
+        logger.error('Error sending contact message to admin', {
+          from: contactData.senderEmail,
+          error: emailError.message,
+        });
+
+        return res.status(500).json({
+          error: 'Nepodařilo se odeslat zprávu. Zkuste to prosím později.',
+          emailSent: false,
+        });
+      }
+    }
   } catch (error) {
     logger.error('Contact form error:', error);
     return res.status(500).json({ error: 'Nepodařilo se odeslat zprávu' });

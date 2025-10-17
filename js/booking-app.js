@@ -1,5 +1,3 @@
-/* global langManager */
-
 // Main BookingApp class - orchestrates all modules
 class BookingApp {
   constructor() {
@@ -509,10 +507,8 @@ class BookingApp {
     // Calculate new value
     const newValue = guests[type] + change;
 
-    // Check minimum values
-    if (type === 'adults' && newValue < 1) {
-      return; // Must have at least 1 adult
-    }
+    // Check minimum values - allow temporarily setting 0 adults/children
+    // Validation will happen at proposal creation time
     if (newValue < 0) {
       return; // Can't have negative values
     }
@@ -1153,11 +1149,70 @@ class BookingApp {
       }
     }
 
-    // Update price list
+    // Update price list - NEW (2025-10-17): Room-size-based pricing display
     const priceListContent = document.getElementById('priceListContent');
     if (priceListContent) {
       const t = (key) => langManager.t(key);
-      priceListContent.innerHTML = `
+
+      // Check if prices have room-size structure (new model) or flat structure (legacy)
+      const hasRoomSizes = prices.utia?.small && prices.utia?.large;
+
+      if (hasRoomSizes) {
+        // NEW: Room-size-based pricing display
+        priceListContent.innerHTML = `
+                <div style="display: grid; gap: 1rem;">
+                    <div style="background: var(--info-50); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--info-200);">
+                        <h4 style="color: var(--info-800); margin-bottom: 0.75rem;">${t('utiaEmployees')}</h4>
+
+                        <div style="margin-bottom: 0.75rem; padding: 0.5rem; background: white; border-radius: 6px;">
+                            <strong style="color: var(--gray-700);">${this.currentLanguage === 'cs' ? 'Malé pokoje' : 'Small rooms'} (12, 13, 22, 23, 42, 43):</strong>
+                            <ul style="list-style: none; padding: 0; margin: 0; margin-top: 0.25rem;">
+                                <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceBasePrice')}: <strong>${prices.utia.small.base} Kč${t('perNight')}</strong></li>
+                                <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceAdultSurcharge')}: <strong>${prices.utia.small.adult} Kč</strong></li>
+                                <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceChildSurcharge')}: <strong>${prices.utia.small.child} Kč</strong></li>
+                            </ul>
+                        </div>
+
+                        <div style="padding: 0.5rem; background: white; border-radius: 6px;">
+                            <strong style="color: var(--gray-700);">${this.currentLanguage === 'cs' ? 'Velké pokoje' : 'Large rooms'} (14, 24, 44):</strong>
+                            <ul style="list-style: none; padding: 0; margin: 0; margin-top: 0.25rem;">
+                                <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceBasePrice')}: <strong>${prices.utia.large.base} Kč${t('perNight')}</strong></li>
+                                <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceAdultSurcharge')}: <strong>${prices.utia.large.adult} Kč</strong></li>
+                                <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceChildSurcharge')}: <strong>${prices.utia.large.child} Kč</strong></li>
+                            </ul>
+                        </div>
+
+                        <div style="padding: 0.25rem 0; margin-top: 0.5rem; color: var(--success-600); font-size: 0.9rem;"><strong>${t('regularPriceToddlersFree')}</strong></div>
+                    </div>
+
+                    <div style="background: var(--warning-50); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--warning-200);">
+                        <h4 style="color: var(--warning-800); margin-bottom: 0.75rem;">${t('externalGuests')}</h4>
+
+                        <div style="margin-bottom: 0.75rem; padding: 0.5rem; background: white; border-radius: 6px;">
+                            <strong style="color: var(--gray-700);">${this.currentLanguage === 'cs' ? 'Malé pokoje' : 'Small rooms'} (12, 13, 22, 23, 42, 43):</strong>
+                            <ul style="list-style: none; padding: 0; margin: 0; margin-top: 0.25rem;">
+                                <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceBasePrice')}: <strong>${prices.external.small.base} Kč${t('perNight')}</strong></li>
+                                <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceAdultSurcharge')}: <strong>${prices.external.small.adult} Kč</strong></li>
+                                <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceChildSurcharge')}: <strong>${prices.external.small.child} Kč</strong></li>
+                            </ul>
+                        </div>
+
+                        <div style="padding: 0.5rem; background: white; border-radius: 6px;">
+                            <strong style="color: var(--gray-700);">${this.currentLanguage === 'cs' ? 'Velké pokoje' : 'Large rooms'} (14, 24, 44):</strong>
+                            <ul style="list-style: none; padding: 0; margin: 0; margin-top: 0.25rem;">
+                                <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceBasePrice')}: <strong>${prices.external.large.base} Kč${t('perNight')}</strong></li>
+                                <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceAdultSurcharge')}: <strong>${prices.external.large.adult} Kč</strong></li>
+                                <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceChildSurcharge')}: <strong>${prices.external.large.child} Kč</strong></li>
+                            </ul>
+                        </div>
+
+                        <div style="padding: 0.25rem 0; margin-top: 0.5rem; color: var(--success-600); font-size: 0.9rem;"><strong>${t('regularPriceToddlersFree')}</strong></div>
+                    </div>
+                </div>
+            `;
+      } else {
+        // LEGACY: Flat pricing display (backward compatibility)
+        priceListContent.innerHTML = `
                 <div style="display: grid; gap: 1rem;">
                     <div style="background: var(--info-50); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--info-200);">
                         <h4 style="color: var(--info-800); margin-bottom: 0.5rem;">${t('utiaEmployees')}</h4>
@@ -1180,6 +1235,7 @@ class BookingApp {
                     </div>
                 </div>
             `;
+      }
     }
 
     // Update bulk booking price list

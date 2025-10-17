@@ -111,11 +111,12 @@ class CalendarUtils {
    * Get weekday headers in specified language
    * @param {string} language - Language code ('cs' or 'en')
    * @returns {string[]} Array of weekday abbreviations
+   * NOTE: Both languages use 2-character abbreviations for consistent calendar width
    */
   static getWeekdayHeaders(language = 'cs') {
     return language === 'cs'
       ? ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne']
-      : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      : ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
   }
 
   /**
