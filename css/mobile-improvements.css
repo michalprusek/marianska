@@ -5,6 +5,16 @@
  *
  * IMPORTANT: Add this file to index.html AFTER styles-unified.css
  * <link rel="stylesheet" href="css/mobile-improvements.css">
+ *
+ * ⚠️ TECHNICAL DEBT WARNING:
+ * This file uses !important overrides extensively (463 lines).
+ * This is a TEMPORARY solution for quick mobile improvements.
+ *
+ * Future refactoring needed:
+ * - Refactor styles-unified.css to mobile-first approach
+ * - Remove all !important declarations
+ * - Consolidate into single CSS file
+ * - See docs/CSS_REFACTORING_PLAN.md for details
  */
 
 /* ===== PRIORITY 1: CRITICAL FIXES ===== */

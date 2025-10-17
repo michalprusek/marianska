@@ -128,6 +128,38 @@ Jednotný kalendářní komponent s 4 režimy:
 
 **Code reduction:** Eliminováno >1000 řádků duplikátů díky SSOT refactoringu
 
+### CSS & Styling
+
+**Struktura:**
+
+- `css/styles-unified.css` - Hlavní stylesheet (desktop-first)
+- `css/mobile-improvements.css` - Mobilní vylepšení (TEMPORARY)
+
+**⚠️ TECHNICAL DEBT - Mobile CSS:**
+
+`mobile-improvements.css` používá `!important` overrides (463 řádků) jako dočasné řešení pro rychlá mobilní vylepšení.
+
+**KRITICKÉ:** Tento soubor MUSÍ být načten PO `styles-unified.css`:
+
+```html
+<link
+  rel="stylesheet"
+  href="css/styles-unified.css"
+/>
+<link
+  rel="stylesheet"
+  href="css/mobile-improvements.css"
+/>
+<!-- MUST be after -->
+```
+
+**Budoucí refactoring (TODO):**
+
+- Refaktorovat `styles-unified.css` na mobile-first přístup
+- Odstranit všechny `!important` deklarace
+- Konsolidovat do jednoho CSS souboru
+- Viz `@docs/CSS_REFACTORING_PLAN.md` pro detaily
+
 ## Business pravidla
 
 ### Cenová politika
