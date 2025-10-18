@@ -629,12 +629,16 @@ if (roomLimitCheck.warning) {
 
 ### Kapacita pokojů
 
-```
-Patro 1: Pokoje 12 (2 lůžka), 13 (3 lůžka), 14 (4 lůžka)
-Patro 2: Pokoje 22 (2 lůžka), 23 (3 lůžka), 24 (4 lůžka)
-Patro 3: Pokoje 42 (2 lůžka), 43 (2 lůžka), 44 (4 lůžka)
-Celkem: 26 lůžek
-```
+9 pokojů, 26 lůžek celkem:
+
+**Dolní patro (pokoje 12, 13, 14):**
+
+- Patro 1: 12 (2 lůžka), 13 (3 lůžka), 14 (4 lůžka)
+
+**Horní patro (pokoje 22, 23, 24, 42, 43, 44):**
+
+- Patro 2: 22 (2 lůžka), 23 (3 lůžka), 24 (4 lůžka)
+- Patro 3: 42 (2 lůžka), 43 (2 lůžka), 44 (4 lůžka)
 
 ## Bezpečnostní opatření
 

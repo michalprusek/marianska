@@ -1105,42 +1105,69 @@ class BookingApp {
       external: { base: 499, adult: 99, child: 49 },
     };
 
-    // Update room capacity grid
+    // Update room capacity grid with floor information
     const capacityGrid = document.getElementById('roomCapacityGrid');
     if (capacityGrid) {
       capacityGrid.innerHTML = '';
       let totalBeds = 0;
 
-      rooms.forEach((room) => {
-        const roomDiv = document.createElement('div');
-        roomDiv.style.textAlign = 'center';
+      // Get translation function
+      const t = (key) => langManager.t(key);
 
-        const roomColor = '#28a745';
-        const roomBorder = '#1e7e34';
+      // Separate rooms by floor
+      const lowerFloorRooms = ['12', '13', '14'];
+      const upperFloorRooms = ['22', '23', '24', '42', '43', '44'];
 
-        let bedsLabel;
-        if (this.currentLanguage === 'cs') {
-          if (room.beds === 1) {
-            bedsLabel = 'lůžko';
-          } else if (room.beds < 5) {
-            bedsLabel = 'lůžka';
+      // Create floor sections
+      const createFloorSection = (title, roomIds) => {
+        const section = document.createElement('div');
+        section.style.cssText = 'grid-column: 1 / -1; margin-top: 1rem; margin-bottom: 0.5rem;';
+        section.innerHTML = `
+          <h4 style="color: var(--primary-color); margin: 0; padding: 0.5rem; background: var(--gray-100); border-radius: 6px; text-align: center; font-size: 1rem;">
+            ${title}
+          </h4>
+        `;
+        capacityGrid.appendChild(section);
+
+        // Add rooms for this floor
+        const floorRooms = rooms.filter((room) => roomIds.includes(room.id));
+        floorRooms.forEach((room) => {
+          const roomDiv = document.createElement('div');
+          roomDiv.style.textAlign = 'center';
+
+          const roomColor = '#28a745';
+          const roomBorder = '#1e7e34';
+
+          let bedsLabel;
+          if (this.currentLanguage === 'cs') {
+            if (room.beds === 1) {
+              bedsLabel = 'lůžko';
+            } else if (room.beds < 5) {
+              bedsLabel = 'lůžka';
+            } else {
+              bedsLabel = 'lůžek';
+            }
           } else {
-            bedsLabel = 'lůžek';
+            bedsLabel = room.beds === 1 ? 'bed' : 'beds';
           }
-        } else {
-          bedsLabel = room.beds === 1 ? 'bed' : 'beds';
-        }
 
-        roomDiv.innerHTML = `
-                    <div style="background: white; padding: 0.75rem; border-radius: var(--radius-lg); box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
-                        <span style="display: block; background: ${roomColor}; color: white; padding: 0.75rem; border: 2px solid ${roomBorder}; border-radius: var(--radius-md); font-size: 1.3rem; font-weight: 700; margin-bottom: 0.5rem; box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3); text-align: center;">${room.id}</span>
-                        <span style="font-size: 0.95rem; color: var(--gray-800); display: block; text-align: center; margin-top: 0.5rem;" class="room-beds" data-beds="${room.beds}">${room.beds} ${bedsLabel}</span>
-                    </div>
-                `;
+          roomDiv.innerHTML = `
+            <div style="background: white; padding: 0.75rem; border-radius: var(--radius-lg); box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
+              <span style="display: block; background: ${roomColor}; color: white; padding: 0.75rem; border: 2px solid ${roomBorder}; border-radius: var(--radius-md); font-size: 1.3rem; font-weight: 700; margin-bottom: 0.5rem; box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3); text-align: center;">${room.id}</span>
+              <span style="font-size: 0.95rem; color: var(--gray-800); display: block; text-align: center; margin-top: 0.5rem;" class="room-beds" data-beds="${room.beds}">${room.beds} ${bedsLabel}</span>
+            </div>
+          `;
 
-        capacityGrid.appendChild(roomDiv);
-        totalBeds += room.beds;
-      });
+          capacityGrid.appendChild(roomDiv);
+          totalBeds += room.beds;
+        });
+      };
+
+      // Create lower floor section
+      createFloorSection(t('lowerFloorRooms'), lowerFloorRooms);
+
+      // Create upper floor section
+      createFloorSection(t('upperFloorRooms'), upperFloorRooms);
 
       // Update total capacity text
       const totalCapacityText = document.getElementById('totalCapacityText');
