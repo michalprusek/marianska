@@ -103,6 +103,25 @@ class EmailService {
   }
 
   /**
+   * Decode HTML entities for plain text email display
+   * @param {string} text - Text with HTML entities
+   * @returns {string} Decoded text
+   * @private
+   */
+  decodeHtmlEntities(text) {
+    if (!text || typeof text !== 'string') {
+      return text;
+    }
+    return text
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#x27;/g, "'")
+      .replace(/&#x2F;/g, '/');
+  }
+
+  /**
    * Format booking details (dates, guests, price, rooms) - helper for email templates
    * @param {Object} booking - Booking data
    * @param {Object} settings - System settings
@@ -120,6 +139,13 @@ class EmailService {
     const guestTypeText = booking.guestType === 'utia' ? 'Zaměstnanec ÚTIA' : 'Externí host';
     const contactEmail = settings.contactEmail || 'chata@utia.cas.cz';
 
+    // Decode HTML entities in text fields for plain text emails
+    const name = this.decodeHtmlEntities(booking.name);
+    const notes = this.decodeHtmlEntities(booking.notes);
+    const company = this.decodeHtmlEntities(booking.company);
+    const address = this.decodeHtmlEntities(booking.address);
+    const city = this.decodeHtmlEntities(booking.city);
+
     return {
       startDate: booking.startDate,
       endDate: booking.endDate,
@@ -133,7 +159,11 @@ class EmailService {
       adults: booking.adults,
       children: booking.children || 0,
       toddlers: booking.toddlers || 0,
-      notes: booking.notes,
+      notes,
+      name,
+      company,
+      address,
+      city,
     };
   }
 
@@ -247,6 +277,56 @@ class EmailService {
   }
 
   /**
+   * Send email with retry on failure (1 retry after 1 minute)
+   * @param {Object} mailOptions - nodemailer mail options
+   * @param {Object} logContext - Logging context (bookingId, etc.)
+   * @returns {Promise<Object>} Email sending result
+   * @throws {Error} If email sending fails after retry
+   * @private
+   */
+  async sendEmailWithRetry(mailOptions, logContext = {}) {
+    try {
+      // First attempt
+      return await this.sendEmail(mailOptions, logContext);
+    } catch (firstError) {
+      // First attempt failed - log and schedule retry
+      logger.warn(`Email sending failed, retrying in 1 minute: ${logContext.type || 'unknown'}`, {
+        to: mailOptions.to,
+        error: firstError.message,
+        ...logContext,
+      });
+
+      // Wait 1 minute (60000ms)
+      await new Promise((resolve) => {
+        setTimeout(resolve, 60000);
+      });
+
+      // Retry attempt
+      try {
+        logger.info(`Retrying email send (2nd attempt): ${logContext.type || 'unknown'}`, {
+          to: mailOptions.to,
+          ...logContext,
+        });
+
+        return await this.sendEmail(mailOptions, { ...logContext, retryAttempt: 2 });
+      } catch (retryError) {
+        // Both attempts failed
+        logger.error(`Email sending failed after retry: ${logContext.type || 'unknown'}`, {
+          to: mailOptions.to,
+          firstError: firstError.message,
+          retryError: retryError.message,
+          ...logContext,
+        });
+
+        // Throw with both error messages
+        throw new Error(
+          `Email delivery failed after retry. First: ${firstError.message}, Retry: ${retryError.message}`
+        );
+      }
+    }
+  }
+
+  /**
    * Generate HTML email template for booking confirmation
    * @param {Object} booking - Booking data
    * @param {string} editUrl - URL for editing the booking
@@ -268,7 +348,7 @@ body{font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;mar
 .f{color:#777;font-size:12px;margin-top:20px;border-top:1px solid #eee;padding-top:15px}
 </style></head><body>
 <div class="h"><h2>Chata Mariánská - Potvrzení rezervace</h2></div>
-<p>Dobrý den <b>${booking.name}</b>,</p>
+<p>Dobrý den <b>${details.name}</b>,</p>
 <p>Děkujeme za Vaši rezervaci!</p>
 <div class="d">
 <p><b>Rezervace ${booking.id}</b></p>
@@ -366,7 +446,7 @@ Osob: ${details.adults} dospělých, ${details.children} dětí${details.notes ?
 
     return `CHATA MARIÁNSKÁ - Potvrzení rezervace ${booking.id}
 
-Dobrý den ${booking.name},
+Dobrý den ${details.name},
 
 Děkujeme za Vaši rezervaci v Chatě Mariánská!
 
@@ -415,7 +495,7 @@ Automatická zpráva - neodpovídejte
 
     const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent);
 
-    return this.sendEmail(mailOptions, {
+    return this.sendEmailWithRetry(mailOptions, {
       type: 'booking_confirmation',
       bookingId: booking.id,
     });
@@ -439,7 +519,7 @@ Automatická zpráva - neodpovídejte
       }
     );
 
-    return this.sendEmail(mailOptions, { type: 'test_email' });
+    return this.sendEmailWithRetry(mailOptions, { type: 'test_email' });
   }
 
   /**
@@ -471,7 +551,7 @@ Automatická zpráva - neodpovídejte
       replyTo: contactData.senderEmail,
     });
 
-    return this.sendEmail(mailOptions, {
+    return this.sendEmailWithRetry(mailOptions, {
       type: 'contact_message',
       from: contactData.senderEmail,
       bookingId: contactData.bookingId,
@@ -528,7 +608,7 @@ Pro odpověď použijte Reply nebo přímo email: ${contactData.senderEmail}
       replyTo: emailData.senderEmail || this.config.from,
     });
 
-    return this.sendEmail(mailOptions, {
+    return this.sendEmailWithRetry(mailOptions, {
       type: 'custom_email_to_booker',
       bookingId: emailData.bookingId,
     });
@@ -604,7 +684,7 @@ Web: ${this.config.appUrl}
 
     return `CHATA MARIÁNSKÁ - Změna rezervace ${booking.id}
 
-Dobrý den ${booking.name},
+Dobrý den ${details.name},
 
 Vaše rezervace byla aktualizována.${modifiedByText}
 
@@ -660,7 +740,7 @@ Automatická zpráva - neodpovídejte
 
     const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent);
 
-    return this.sendEmail(mailOptions, {
+    return this.sendEmailWithRetry(mailOptions, {
       type: 'booking_modification',
       bookingId: booking.id,
       modifiedByAdmin: options.modifiedByAdmin || false,
@@ -686,7 +766,7 @@ Automatická zpráva - neodpovídejte
 
     return `CHATA MARIÁNSKÁ - Zrušení rezervace ${booking.id}
 
-Dobrý den ${booking.name},
+Dobrý den ${details.name},
 ${deletedByText}
 
 ZRUŠENÁ REZERVACE:
@@ -732,7 +812,7 @@ Automatická zpráva - neodpovídejte
 
     const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent);
 
-    return this.sendEmail(mailOptions, {
+    return this.sendEmailWithRetry(mailOptions, {
       type: 'booking_deletion',
       bookingId: booking.id,
       deletedByAdmin: options.deletedByAdmin || false,

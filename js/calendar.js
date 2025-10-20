@@ -203,6 +203,16 @@ class CalendarModule {
     const dayHeader = document.createElement('div');
     dayHeader.className = 'calendar-day-header';
 
+    // Add weekday name for mobile display (Po, Út, etc.)
+    const weekdaySpan = document.createElement('span');
+    weekdaySpan.className = 'calendar-day-weekday';
+    const weekdayNames =
+      this.app.currentLanguage === 'cs'
+        ? ['Ne', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So']
+        : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    weekdaySpan.textContent = weekdayNames[date.getDay()];
+    dayHeader.appendChild(weekdaySpan);
+
     const dayNumber = document.createElement('div');
     dayNumber.className = 'calendar-day-number';
     dayNumber.textContent = date.getDate();
@@ -331,7 +341,7 @@ class CalendarModule {
       roomEl.style.cursor = 'not-allowed';
     }
 
-    roomEl.textContent = room.id;
+    roomEl.textContent = `P${room.id}`;
 
     return roomEl;
   }

@@ -418,23 +418,40 @@ class UtilsModule {
 
     // Get current settings and prices
     const settings = await dataManager.getSettings();
-    const prices = settings.prices || {
-      utia: { base: 298, adult: 49, child: 24 },
-      external: { base: 499, adult: 99, child: 49 },
-    };
+    const prices = settings.prices || PriceCalculator.getDefaultPrices();
 
     // Determine the current guest type for base price display
     let currentGuestType = 'utia';
+    let currentRoomId = null;
     if (this.app.currentBookingRoom) {
       currentGuestType = this.app.roomGuestTypes.get(this.app.currentBookingRoom) || 'utia';
+      currentRoomId = this.app.currentBookingRoom;
     } else if (this.app.selectedRooms.size > 0) {
       const firstRoom = Array.from(this.app.selectedRooms)[0];
       currentGuestType = this.app.roomGuestTypes.get(firstRoom) || 'utia';
+      currentRoomId = firstRoom;
     }
 
-    // Get base price based on current guest type
+    // Get base price based on current guest type AND room size (NEW 2025-10-17)
     const guestKey = currentGuestType === 'utia' ? 'utia' : 'external';
-    const baseRoomPrice = prices[guestKey].base;
+    const priceConfig = prices[guestKey];
+
+    // Check if room-size-based pricing is enabled
+    const hasRoomSizes = priceConfig?.small && priceConfig?.large;
+    let baseRoomPrice = 298; // Fallback
+
+    if (hasRoomSizes && currentRoomId) {
+      // NEW: Get room type (small/large) from settings
+      const rooms = await dataManager.getRooms();
+      const room = rooms.find((r) => r.id === currentRoomId);
+      const roomType = room?.type || 'small';
+      const roomPriceConfig = priceConfig[roomType] || priceConfig.small;
+      // Calculate base room price: price with 1 person minus adult surcharge
+      baseRoomPrice = roomPriceConfig.base - roomPriceConfig.adult;
+    } else if (priceConfig?.base && priceConfig?.adult) {
+      // LEGACY: Flat pricing model - also subtract adult surcharge
+      baseRoomPrice = priceConfig.base - priceConfig.adult;
+    }
 
     // Always update base price display
     if (basePriceEl) {
@@ -486,7 +503,7 @@ class UtilsModule {
           guests.children,
           guests.toddlers,
           1, // nights per room calculation
-          1 // single room
+          [roomId] // Pass room ID array for room-size-based pricing
         );
       })
     );
@@ -522,20 +539,27 @@ class UtilsModule {
         };
         const guestType = this.app.roomGuestTypes.get(this.app.currentBookingRoom) || 'utia';
         const roomGuestKey = guestType === 'utia' ? 'utia' : 'external';
-        const priceConfig = prices[roomGuestKey];
+        let roomPriceConfig = prices[roomGuestKey];
+
+        // NEW 2025-10-17: Get room-size-specific price config
+        if (hasRoomSizes && currentRoomId) {
+          const roomToFind = rooms.find((r) => r.id === currentRoomId);
+          const roomTypeForSurcharge = roomToFind?.type || 'small';
+          roomPriceConfig = roomPriceConfig[roomTypeForSurcharge] || roomPriceConfig.small;
+        }
 
         // Update guest counts summary
         const guestCountsSummary = document.getElementById('guestCountsSummary');
         if (guestCountsSummary) {
           const parts = [];
           if (guests.adults > 0) {
-            parts.push(`${guests.adults} dosp.`);
+            parts.push(`${guests.adults} ${langManager.t('adultsShort')}`);
           }
           if (guests.children > 0) {
-            parts.push(`${guests.children} děti`);
+            parts.push(`${guests.children} ${langManager.t('childrenShort')}`);
           }
           if (guests.toddlers > 0) {
-            parts.push(`${guests.toddlers} bat.`);
+            parts.push(`${guests.toddlers} ${langManager.t('toddlersShort')}`);
           }
           guestCountsSummary.textContent = parts.join(', ') || '0';
         }
@@ -543,11 +567,11 @@ class UtilsModule {
         // Calculate and show adult surcharge
         const adultsPrice = document.getElementById('adultsPrice');
         const adultsSurcharge = document.getElementById('adultsSurcharge');
-        if (adultsPrice && adultsSurcharge) {
+        if (adultsPrice && adultsSurcharge && roomPriceConfig) {
           const extraAdults = Math.max(0, guests.adults - 1);
           if (extraAdults > 0) {
-            const surcharge = extraAdults * priceConfig.adult;
-            adultsSurcharge.textContent = `${surcharge.toLocaleString('cs-CZ')} Kč (${extraAdults} × ${priceConfig.adult} Kč)`;
+            const surcharge = extraAdults * roomPriceConfig.adult;
+            adultsSurcharge.textContent = `${surcharge.toLocaleString('cs-CZ')} Kč (${extraAdults} × ${roomPriceConfig.adult} Kč)`;
             adultsPrice.style.display = 'flex';
           } else {
             adultsPrice.style.display = 'none';
@@ -557,10 +581,10 @@ class UtilsModule {
         // Calculate and show children surcharge
         const childrenPrice = document.getElementById('childrenPrice');
         const childrenSurcharge = document.getElementById('childrenSurcharge');
-        if (childrenPrice && childrenSurcharge) {
+        if (childrenPrice && childrenSurcharge && roomPriceConfig) {
           if (guests.children > 0) {
-            const surcharge = guests.children * priceConfig.child;
-            childrenSurcharge.textContent = `${surcharge.toLocaleString('cs-CZ')} Kč (${guests.children} × ${priceConfig.child} Kč)`;
+            const surcharge = guests.children * roomPriceConfig.child;
+            childrenSurcharge.textContent = `${surcharge.toLocaleString('cs-CZ')} Kč (${guests.children} × ${roomPriceConfig.child} Kč)`;
             childrenPrice.style.display = 'flex';
           } else {
             childrenPrice.style.display = 'none';
@@ -572,7 +596,9 @@ class UtilsModule {
         const toddlersInfo = document.getElementById('toddlersInfo');
         if (toddlersSummary && toddlersInfo) {
           if (guests.toddlers > 0) {
-            toddlersSummary.textContent = `${guests.toddlers} zdarma`;
+            // Use translation for "free" label
+            const freeLabel = langManager.t('toddlersFreeLabel');
+            toddlersSummary.textContent = `${guests.toddlers} ${freeLabel}`;
             toddlersInfo.style.display = 'flex';
           } else {
             toddlersInfo.style.display = 'none';

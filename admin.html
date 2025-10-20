@@ -17,6 +17,10 @@
       href="css/styles-unified.css"
     />
     <link
+      rel="stylesheet"
+      href="css/mobile-improvements.css"
+    />
+    <link
       rel="preconnect"
       href="https://fonts.googleapis.com"
     />
@@ -747,7 +751,7 @@
                       class="room-checkbox"
                       value="12"
                     />
-                    <span>Pokoj 12</span>
+                    <span>P12</span>
                   </label>
                   <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
                     <input
@@ -755,7 +759,7 @@
                       class="room-checkbox"
                       value="13"
                     />
-                    <span>Pokoj 13</span>
+                    <span>P13</span>
                   </label>
                   <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
                     <input
@@ -763,7 +767,7 @@
                       class="room-checkbox"
                       value="14"
                     />
-                    <span>Pokoj 14</span>
+                    <span>P14</span>
                   </label>
                   <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
                     <input
@@ -771,7 +775,7 @@
                       class="room-checkbox"
                       value="22"
                     />
-                    <span>Pokoj 22</span>
+                    <span>P22</span>
                   </label>
                   <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
                     <input
@@ -779,7 +783,7 @@
                       class="room-checkbox"
                       value="23"
                     />
-                    <span>Pokoj 23</span>
+                    <span>P23</span>
                   </label>
                   <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
                     <input
@@ -787,7 +791,7 @@
                       class="room-checkbox"
                       value="24"
                     />
-                    <span>Pokoj 24</span>
+                    <span>P24</span>
                   </label>
                   <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
                     <input
@@ -795,7 +799,7 @@
                       class="room-checkbox"
                       value="42"
                     />
-                    <span>Pokoj 42</span>
+                    <span>P42</span>
                   </label>
                   <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
                     <input
@@ -803,7 +807,7 @@
                       class="room-checkbox"
                       value="43"
                     />
-                    <span>Pokoj 43</span>
+                    <span>P43</span>
                   </label>
                   <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
                     <input
@@ -811,7 +815,7 @@
                       class="room-checkbox"
                       value="44"
                     />
-                    <span>Pokoj 44</span>
+                    <span>P44</span>
                   </label>
                 </div>
               </div>
@@ -1040,7 +1044,7 @@
                 "
               >
                 <div class="input-group">
-                  <label>Pokoj 12</label>
+                  <label data-translate="room12">Pokoj 12</label>
                   <input
                     type="number"
                     id="room12_beds"
@@ -1051,7 +1055,7 @@
                   />
                 </div>
                 <div class="input-group">
-                  <label>Pokoj 13</label>
+                  <label data-translate="room13">Pokoj 13</label>
                   <input
                     type="number"
                     id="room13_beds"
@@ -1062,7 +1066,7 @@
                   />
                 </div>
                 <div class="input-group">
-                  <label>Pokoj 14</label>
+                  <label data-translate="room14">Pokoj 14</label>
                   <input
                     type="number"
                     id="room14_beds"
@@ -1073,7 +1077,7 @@
                   />
                 </div>
                 <div class="input-group">
-                  <label>Pokoj 22</label>
+                  <label data-translate="room22">Pokoj 22</label>
                   <input
                     type="number"
                     id="room22_beds"
@@ -1084,7 +1088,7 @@
                   />
                 </div>
                 <div class="input-group">
-                  <label>Pokoj 23</label>
+                  <label data-translate="room23">Pokoj 23</label>
                   <input
                     type="number"
                     id="room23_beds"
@@ -1095,7 +1099,7 @@
                   />
                 </div>
                 <div class="input-group">
-                  <label>Pokoj 24</label>
+                  <label data-translate="room24">Pokoj 24</label>
                   <input
                     type="number"
                     id="room24_beds"
@@ -1106,7 +1110,7 @@
                   />
                 </div>
                 <div class="input-group">
-                  <label>Pokoj 42</label>
+                  <label data-translate="room42">Pokoj 42</label>
                   <input
                     type="number"
                     id="room42_beds"
@@ -1117,7 +1121,7 @@
                   />
                 </div>
                 <div class="input-group">
-                  <label>Pokoj 43</label>
+                  <label data-translate="room43">Pokoj 43</label>
                   <input
                     type="number"
                     id="room43_beds"
@@ -1128,7 +1132,7 @@
                   />
                 </div>
                 <div class="input-group">
-                  <label>Pokoj 44</label>
+                  <label data-translate="room44">Pokoj 44</label>
                   <input
                     type="number"
                     id="room44_beds"
@@ -1160,7 +1164,7 @@
             </form>
           </div>
 
-          <!-- Price Configuration - moved from settings -->
+          <!-- Price Configuration - NEW Room-size-based (2025-10-17) -->
           <div
             style="
               margin-bottom: 2rem;
@@ -1169,133 +1173,228 @@
               border-radius: var(--radius-md);
             "
           >
-            <h3>Konfigurace ceníku</h3>
+            <h3>Konfigurace ceníku podle velikosti pokojů</h3>
+            <p style="color: var(--gray-600); font-size: 0.9rem; margin-bottom: 1.5rem">
+              Ceny se liší podle velikosti pokoje. <strong>Malé pokoje:</strong> P12, P13, P22, P23,
+              P42, P43 | <strong>Velké pokoje:</strong> P14, P24, P44
+            </p>
             <form id="priceConfigForm">
-              <div style="display: grid; gap: 1.5rem">
-                <!-- UTIA Employees Prices -->
+              <div style="display: grid; gap: 2rem">
+                <!-- UTIA Employees -->
                 <div>
-                  <h4
-                    style="color: var(--primary-color); margin-bottom: 1rem"
-                    data-translate="utiaEmployees"
-                  >
-                    Zaměstnanci ÚTIA
+                  <h4 style="color: var(--primary-color); margin-bottom: 1rem">
+                    Zlevněné ceny (Zaměstnanci ÚTIA)
                   </h4>
-                  <div style="display: grid; gap: 0.5rem">
-                    <div style="display: flex; align-items: center; gap: 0.5rem">
-                      <label
-                        style="min-width: 200px"
-                        data-translate="basePriceOneRoom"
-                      >
-                        Základní cena (1 pokoj, 1 osoba):
-                      </label>
-                      <input
-                        type="number"
-                        id="utia_base"
-                        value="300"
-                        min="0"
-                        style="width: 80px"
-                      />
-                      <span>Kč<span data-translate="perNight">/noc</span></span>
+                  <p style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 1rem">
+                    Zlevněná cena se uplatní, pokud alespoň jedna osoba v pokoji na ni má nárok.
+                  </p>
+
+                  <!-- Small Rooms -->
+                  <div
+                    style="
+                      background: white;
+                      padding: 1rem;
+                      border-radius: 8px;
+                      margin-bottom: 1rem;
+                    "
+                  >
+                    <h5 style="margin-bottom: 0.75rem">
+                      Malý pokoj (P12, P13, P22, P23, P42, P43)
+                    </h5>
+                    <div style="display: grid; gap: 0.5rem">
+                      <div style="display: flex; align-items: center; gap: 0.5rem">
+                        <label style="min-width: 180px">Při obsazení 1 dospělou osobou:</label>
+                        <input
+                          type="number"
+                          id="utia_small_base"
+                          value="300"
+                          min="0"
+                          style="width: 80px"
+                        />
+                        <span>Kč/noc</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 0.5rem">
+                        <label style="min-width: 180px">Další dospělý:</label>
+                        <input
+                          type="number"
+                          id="utia_small_adult"
+                          value="50"
+                          min="0"
+                          style="width: 80px"
+                        />
+                        <span>Kč/osoba/noc</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 0.5rem">
+                        <label style="min-width: 180px">Dítě (3-17 let):</label>
+                        <input
+                          type="number"
+                          id="utia_small_child"
+                          value="25"
+                          min="0"
+                          style="width: 80px"
+                        />
+                        <span>Kč/osoba/noc</span>
+                      </div>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 0.5rem">
-                      <label
-                        style="min-width: 200px"
-                        data-translate="additionalAdultPrice"
-                      >
-                        Další dospělý:
-                      </label>
-                      <input
-                        type="number"
-                        id="utia_adult"
-                        value="50"
-                        min="0"
-                        style="width: 80px"
-                      />
-                      <span>Kč<span data-translate="perPerson">/osoba</span></span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 0.5rem">
-                      <label
-                        style="min-width: 200px"
-                        data-translate="childPriceRange"
-                      >
-                        Dítě 3-17 let:
-                      </label>
-                      <input
-                        type="number"
-                        id="utia_child"
-                        value="25"
-                        min="0"
-                        style="width: 80px"
-                      />
-                      <span>Kč<span data-translate="perPerson">/osoba</span></span>
+                  </div>
+
+                  <!-- Large Rooms -->
+                  <div style="background: white; padding: 1rem; border-radius: 8px">
+                    <h5 style="margin-bottom: 0.75rem">Velký pokoj (P14, P24, P44)</h5>
+                    <div style="display: grid; gap: 0.5rem">
+                      <div style="display: flex; align-items: center; gap: 0.5rem">
+                        <label style="min-width: 180px">Při obsazení 1 dospělou osobou:</label>
+                        <input
+                          type="number"
+                          id="utia_large_base"
+                          value="400"
+                          min="0"
+                          style="width: 80px"
+                        />
+                        <span>Kč/noc</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 0.5rem">
+                        <label style="min-width: 180px">Další dospělý:</label>
+                        <input
+                          type="number"
+                          id="utia_large_adult"
+                          value="50"
+                          min="0"
+                          style="width: 80px"
+                        />
+                        <span>Kč/osoba/noc</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 0.5rem">
+                        <label style="min-width: 180px">Dítě (3-17 let):</label>
+                        <input
+                          type="number"
+                          id="utia_large_child"
+                          value="25"
+                          min="0"
+                          style="width: 80px"
+                        />
+                        <span>Kč/osoba/noc</span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <!-- External Guests Prices -->
+                <!-- External Guests -->
                 <div>
-                  <h4
-                    style="color: var(--primary-color); margin-bottom: 1rem"
-                    data-translate="externalGuests"
-                  >
-                    Externí hosté
+                  <h4 style="color: var(--primary-color); margin-bottom: 1rem">
+                    Plná cena (Externí hosté)
                   </h4>
-                  <div style="display: grid; gap: 0.5rem">
-                    <div style="display: flex; align-items: center; gap: 0.5rem">
-                      <label
-                        style="min-width: 200px"
-                        data-translate="basePriceOneRoom"
-                      >
-                        Základní cena (1 pokoj, 1 osoba):
-                      </label>
-                      <input
-                        type="number"
-                        id="external_base"
-                        value="500"
-                        min="0"
-                        style="width: 80px"
-                      />
-                      <span>Kč<span data-translate="perNight">/noc</span></span>
+
+                  <!-- Small Rooms -->
+                  <div
+                    style="
+                      background: white;
+                      padding: 1rem;
+                      border-radius: 8px;
+                      margin-bottom: 1rem;
+                    "
+                  >
+                    <h5 style="margin-bottom: 0.75rem">
+                      Malý pokoj (P12, P13, P22, P23, P42, P43)
+                    </h5>
+                    <div style="display: grid; gap: 0.5rem">
+                      <div style="display: flex; align-items: center; gap: 0.5rem">
+                        <label style="min-width: 180px">Při obsazení 1 dospělou osobou:</label>
+                        <input
+                          type="number"
+                          id="external_small_base"
+                          value="500"
+                          min="0"
+                          style="width: 80px"
+                        />
+                        <span>Kč/noc</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 0.5rem">
+                        <label style="min-width: 180px">Další dospělý:</label>
+                        <input
+                          type="number"
+                          id="external_small_adult"
+                          value="100"
+                          min="0"
+                          style="width: 80px"
+                        />
+                        <span>Kč/osoba/noc</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 0.5rem">
+                        <label style="min-width: 180px">Dítě (3-17 let):</label>
+                        <input
+                          type="number"
+                          id="external_small_child"
+                          value="50"
+                          min="0"
+                          style="width: 80px"
+                        />
+                        <span>Kč/osoba/noc</span>
+                      </div>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 0.5rem">
-                      <label
-                        style="min-width: 200px"
-                        data-translate="additionalAdultPrice"
-                      >
-                        Další dospělý:
-                      </label>
-                      <input
-                        type="number"
-                        id="external_adult"
-                        value="100"
-                        min="0"
-                        style="width: 80px"
-                      />
-                      <span>Kč<span data-translate="perPerson">/osoba</span></span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 0.5rem">
-                      <label
-                        style="min-width: 200px"
-                        data-translate="childPriceRange"
-                      >
-                        Dítě 3-17 let:
-                      </label>
-                      <input
-                        type="number"
-                        id="external_child"
-                        value="50"
-                        min="0"
-                        style="width: 80px"
-                      />
-                      <span>Kč<span data-translate="perPerson">/osoba</span></span>
+                  </div>
+
+                  <!-- Large Rooms -->
+                  <div style="background: white; padding: 1rem; border-radius: 8px">
+                    <h5 style="margin-bottom: 0.75rem">Velký pokoj (P14, P24, P44)</h5>
+                    <div style="display: grid; gap: 0.5rem">
+                      <div style="display: flex; align-items: center; gap: 0.5rem">
+                        <label style="min-width: 180px">Při obsazení 1 dospělou osobou:</label>
+                        <input
+                          type="number"
+                          id="external_large_base"
+                          value="600"
+                          min="0"
+                          style="width: 80px"
+                        />
+                        <span>Kč/noc</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 0.5rem">
+                        <label style="min-width: 180px">Další dospělý:</label>
+                        <input
+                          type="number"
+                          id="external_large_adult"
+                          value="100"
+                          min="0"
+                          style="width: 80px"
+                        />
+                        <span>Kč/osoba/noc</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 0.5rem">
+                        <label style="min-width: 180px">Dítě (3-17 let):</label>
+                        <input
+                          type="number"
+                          id="external_large_child"
+                          value="50"
+                          min="0"
+                          style="width: 80px"
+                        />
+                        <span>Kč/osoba/noc</span>
+                      </div>
                     </div>
                   </div>
                 </div>
+
+                <!-- Info Box -->
+                <div
+                  style="
+                    padding: 1rem;
+                    background: rgba(34, 197, 94, 0.1);
+                    border-radius: 8px;
+                    border-left: 4px solid #22c55e;
+                  "
+                >
+                  <p style="font-size: 0.9rem; color: #15803d; margin: 0">
+                    ℹ️ <strong>Děti do 3 let jsou vždy zdarma.</strong> Ceny jsou uvedeny za jednu
+                    noc.
+                  </p>
+                </div>
               </div>
+
               <button
                 type="submit"
                 class="btn btn-primary"
-                style="margin-top: 1rem; padding: 0.875rem 1.75rem; width: 100%"
+                style="margin-top: 1.5rem; padding: 0.875rem 1.75rem; width: 100%"
               >
                 <svg
                   width="18"
@@ -1957,7 +2056,12 @@ Tým Chata Mariánská</textarea
                   />
                 </div>
                 <div class="input-group full-width">
-                  <label for="editNotes">Poznámky</label>
+                  <label
+                    for="editNotes"
+                    data-translate="notes"
+                  >
+                    Poznámky
+                  </label>
                   <textarea
                     id="editNotes"
                     rows="3"

@@ -245,7 +245,7 @@ class BookingDisplayUtils {
         </div>
         <div class="detail-row">
           <strong>${language === 'cs' ? 'Pokoje:' : 'Rooms:'}</strong>
-          <span>${booking.rooms.join(', ')}</span>
+          <span>${booking.rooms.map((r) => `P${r}`).join(', ')}</span>
         </div>
         <div class="detail-row">
           <strong>${language === 'cs' ? 'Hosté:' : 'Guests:'}</strong>
@@ -261,7 +261,7 @@ class BookingDisplayUtils {
                   border-radius: 4px;
                   font-weight: 600;
                   font-size: 0.875rem;
-                ">${roomDetail.roomId}</span>
+                ">P${roomDetail.roomId}</span>
                 <span style="color: var(--gray-700, #374151); font-size: 0.9rem;">
                   ${this.formatGuestCounts(roomDetail.adults, roomDetail.children, roomDetail.toddlers, language)}
                   <span style="color: var(--gray-400, #9ca3af); margin: 0 0.5rem;">•</span>
@@ -289,7 +289,7 @@ class BookingDisplayUtils {
     const nightsLabel = language === 'cs' ? 'Nocí:' : 'Nights:';
     const datesLabel = language === 'cs' ? 'Termín:' : 'Dates:';
     const guestsLabel = language === 'cs' ? 'Hosté:' : 'Guests:';
-    const roomLabel = language === 'cs' ? 'Pokoj' : 'Room';
+    const roomLabel = langManager.t('room');
 
     let html = `
       <div class="per-room-details" style="margin-top: 1rem;">
@@ -308,7 +308,7 @@ class BookingDisplayUtils {
           margin-bottom: 0.75rem;
         ">
           <div style="font-weight: 600; color: var(--gray-900, #111827); margin-bottom: 0.5rem;">
-            ${roomLabel} ${rd.roomId}
+            ${roomLabel} P${rd.roomId}
           </div>
           <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.5rem; font-size: 0.9rem;">
             <span style="color: var(--gray-600, #4b5563);">${datesLabel}</span>
@@ -346,14 +346,14 @@ class BookingDisplayUtils {
 
     return roomDetails
       .map((rd) => {
-        const roomLabel = language === 'cs' ? 'Pokoj' : 'Room';
+        const roomLabel = langManager.t('room');
         const guestShort = this.formatGuestCountsShort(
           rd.adults,
           rd.children,
           rd.toddlers,
           language
         );
-        return `${roomLabel} ${rd.roomId}: ${guestShort} (${rd.startDate} - ${rd.endDate})`;
+        return `${roomLabel} P${rd.roomId}: ${guestShort} (${rd.startDate} - ${rd.endDate})`;
       })
       .join('\n');
   }
@@ -370,26 +370,35 @@ class BookingDisplayUtils {
   static formatGuestCountsShort(adults, children, toddlers, language = 'cs') {
     const parts = [];
 
-    if (language === 'cs') {
-      if (adults > 0) {
-        parts.push(`${adults} dosp.`);
+    // Use langManager for translations if available, otherwise fallback to hardcoded values
+    const langMgr = typeof langManager !== 'undefined' && langManager !== null ? langManager : null;
+
+    if (adults > 0) {
+      let adultsLabel;
+      if (langMgr) {
+        adultsLabel = langMgr.t('adultsShort');
+      } else {
+        adultsLabel = language === 'cs' ? 'dosp.' : 'ad.';
       }
-      if (children > 0) {
-        parts.push(`${children} děti`);
+      parts.push(`${adults} ${adultsLabel}`);
+    }
+    if (children > 0) {
+      let childrenLabel;
+      if (langMgr) {
+        childrenLabel = langMgr.t('childrenShort');
+      } else {
+        childrenLabel = language === 'cs' ? 'děti' : 'ch.';
       }
-      if (toddlers > 0) {
-        parts.push(`${toddlers} bat.`);
+      parts.push(`${children} ${childrenLabel}`);
+    }
+    if (toddlers > 0) {
+      let toddlersLabel;
+      if (langMgr) {
+        toddlersLabel = langMgr.t('toddlersShort');
+      } else {
+        toddlersLabel = language === 'cs' ? 'bat.' : 'tod.';
       }
-    } else {
-      if (adults > 0) {
-        parts.push(`${adults} ad.`);
-      }
-      if (children > 0) {
-        parts.push(`${children} ch.`);
-      }
-      if (toddlers > 0) {
-        parts.push(`${toddlers} tod.`);
-      }
+      parts.push(`${toddlers} ${toddlersLabel}`);
     }
 
     return parts.join(', ') || (language === 'cs' ? '0 hostů' : '0 guests');

@@ -75,14 +75,23 @@ const translations = {
     // Form fields
     billingDetails: 'Fakturační údaje',
     name: 'Jméno a příjmení',
+    namePlaceholder: 'např. Jan Novák',
     email: 'Email',
+    emailPlaceholder: 'vas@email.cz',
     phone: 'Telefon',
-    company: 'Firma',
+    phonePlaceholder: '123456789',
+    company: 'Firma', // Optional field - no asterisk
+    companyPlaceholder: 'např. ÚTIA AV ČR',
     address: 'Adresa',
+    addressPlaceholder: 'např. Hlavní 123',
     city: 'Město',
+    cityPlaceholder: 'např. Praha',
     zip: 'PSČ',
+    zipPlaceholder: '12345',
     ico: 'IČO',
+    icoPlaceholder: '12345678',
     dic: 'DIČ',
+    dicPlaceholder: 'CZ12345678',
     notes: 'Poznámky',
     confirmBooking: 'Potvrdit rezervaci',
 
@@ -244,6 +253,11 @@ const translations = {
     bookingNumberPrefix: 'Rezervace',
     toddler: 'batole',
 
+    // Guest count abbreviations for compact display (used in modals)
+    adultsShort: 'dosp.',
+    childrenShort: 'děti',
+    toddlersShort: 'bat.',
+
     // Admin panel translations
     adminPanel: 'Admin Panel',
     backToReservations: 'Zpět na rezervace',
@@ -390,10 +404,15 @@ const translations = {
     nightSingular: 'noc',
     nightsPlural: 'noci',
     nightsPlural5: 'nocí',
+    room: 'Pokoj',
     roomLabel: 'Pokoj',
     bedsLabel: 'lůžka',
     bedsSingular: 'lůžko',
     bedsPlural: 'lůžek',
+    roomNotFoundError2: 'Pokoj {roomId} nebyl nalezen v konfiguraci',
+    roomCapacityExceeded2: 'Pokoj {roomName} má kapacitu pouze {beds} lůžek',
+    roomOccupiedInPeriod: '⚠️ Pokoj {roomId} je v tomto termínu již obsazený. Zvolte jiný termín.',
+    roomBlockedInPeriod: '⚠️ Pokoj {roomId} je v tomto termínu blokován. Zvolte jiný termín.',
     adultsLowercase: 'dospělí',
     childrenRange: 'děti',
     toddlersRange: 'batolata',
@@ -429,7 +448,7 @@ const translations = {
     selectStayPeriod: 'Vyberte termín pobytu',
     guestTypeAndCount: 'Typ hosta a počet osob',
     adultsCount: 'Dospělí',
-    childrenCount: 'Děti (3-12)',
+    childrenCount: 'Děti (3-17)',
     toddlersCount: 'Batolata (0-3)',
     priceSummary: 'Souhrn ceny',
     basePricePerRoom: 'Základní cena za pokoj',
@@ -467,6 +486,85 @@ const translations = {
 
     // Contact
     contactErrorsWriteTo: 'V případě chyb pište na:',
+
+    // Capacity warnings - specific for modals
+    capacityExceededRoom: '⚠️ Překročena kapacita pokoje',
+    bulkCapacityExceededCottage: '⚠️ Překročena kapacita chaty (maximum 26 lůžek)',
+
+    // NEW: Missing translations from booking form modal and general UI
+    book: 'Rezervovat',
+    reservation: 'Rezervace',
+    shrnutiRezervace: 'Shrnutí rezervace',
+    dospeliLabel: 'dospělí',
+    detiLabel: 'děti',
+    batole: 'batole',
+    celkemLabel: 'Celkem',
+    fillAllRequiredFieldsAsterisk: 'Vyplňte prosím všechna povinná pole označená hvězdičkou (*)',
+    christmasAccessCodeRequiredLong:
+      'Vánoční přístupový kód je vyžadován pro rezervace ve vánočním období',
+    guestNamesTitle: 'Jména ubytovaných osob',
+    adultsSectionTitle: 'Dospělí (18+ let)',
+    childrenSectionTitle: 'Děti (3-17 let)',
+    firstNameLabel: 'Křestní jméno',
+    lastNameLabel: 'Příjmení',
+    adultNumberLabel: 'dospělého',
+    childNumberLabel: 'dítěte',
+    firstNamePlaceholder: 'např. Jan',
+    lastNamePlaceholder: 'např. Novák',
+    firstNameChildPlaceholder: 'např. Anna',
+    lastNameChildPlaceholder: 'např. Nováková',
+    adultFirstNameLabel: 'Křestní jméno {n}. dospělého *',
+    adultLastNameLabel: 'Příjmení {n}. dospělého *',
+    childFirstNameLabel: 'Křestní jméno {n}. dítěte *',
+    childLastNameLabel: 'Příjmení {n}. dítěte *',
+    bookingSuccessfullyCreated: 'Rezervace úspěšně vytvořena!',
+    yourBookingId: 'Číslo vaší rezervace:',
+    saveEditLinkTitle: 'Uložte si tento odkaz pro budoucí úpravy:',
+    copyLinkButton: 'Kopírovat odkaz',
+    linkCopied: 'Zkopírováno!',
+    importantNote: 'Důležité:',
+    editLinkWillBeSent:
+      'Odkaz pro úpravu rezervace vám bude zaslán e-mailem, jakmile bude e-mailová služba dostupná.',
+    closeButtonLabel: 'Zavřít',
+    failedToCopyLink: 'Chyba při kopírování odkazu',
+    allFieldsAreRequired: 'Všechna pole jsou povinná',
+    validationErrorAllAdultNames: 'Vyplňte jména všech {count} dospělých',
+    validationErrorAllChildNames: 'Vyplňte jména všech {count} dětí',
+    validationErrorFirstNameLength: 'Všechna křestní jména musí mít alespoň 2 znaky',
+    validationErrorLastNameLength: 'Všechna příjmení musí mít alespoň 2 znaky',
+    blockedDateError: 'Vybraný termín obsahuje blokované dny. Vyberte jiný termín.',
+    temporaryReservationError: 'Chyba při vytváření dočasné rezervace',
+    bulkBookingAddedToList: 'Hromadná rezervace přidána do seznamu rezervací',
+    roomBlockedOnDate:
+      'Pokoj {roomName} je blokován dne {date}. Pro hromadnou rezervaci musí být všechny pokoje volné.',
+    allReservationsSuccessCreated: 'Všechny rezervace ({count}) byly úspěšně vytvořeny',
+    partialSuccessMessage:
+      'Částečný úspěch: {successCount} rezervací vytvořeno, {errorCount} selhalo',
+    errorCreatingReservationsMessage: 'Chyba při vytváření rezervací',
+    bookingCreatedSuccessfully: 'Rezervace byla úspěšně vytvořena',
+
+    // Admin panel - missing translations
+    backToCalendar: 'Zpět na kalendář',
+    paid: 'Zaplaceno',
+    paymentFromBenefitShort: 'Platba benefitem',
+    editReservationTitle: 'Upravit rezervaci',
+    dateAndRoomsTab: 'Termín a pokoje',
+    billingInfoTab2: 'Fakturační údaje',
+    clickChangeDate:
+      'Klikněte na "Změnit termín" u pokoje, který chcete upravit. Kalendář zobrazí původní termín modře.',
+    calendarRoomName: 'Kalendář',
+    closeCalendarButton: 'Zavřít kalendář',
+    newlySelectedDate: 'Nově vybraný termín:',
+    notSelectedYet: 'Zatím nevybráno',
+    saveDateButton: 'Uložit termín',
+    allRoomsTitle: 'Všechny pokoje',
+    totalPriceSummary: 'Celková cena:',
+    changeDate: 'Změnit termín',
+    guestNamesSectionTitle: 'Jména ubytovaných osob',
+    adultsNamesTitle: 'Dospělí (18+ let)',
+    childrenNamesTitle: 'Děti (3-17 let)',
+    cancelButton2: 'Zrušit',
+    saveChangesButton: 'Uložit změny',
   },
   en: {
     // Header
@@ -543,14 +641,23 @@ const translations = {
     // Form fields
     billingDetails: 'Billing Details',
     name: 'Full Name',
+    namePlaceholder: 'e.g. John Smith',
     email: 'Email',
+    emailPlaceholder: 'your@email.com',
     phone: 'Phone',
-    company: 'Company',
+    phonePlaceholder: '123456789',
+    company: 'Company', // Optional field - no asterisk
+    companyPlaceholder: 'e.g. ÚTIA AV ČR',
     address: 'Address',
+    addressPlaceholder: 'e.g. Main Street 123',
     city: 'City',
+    cityPlaceholder: 'e.g. Prague',
     zip: 'ZIP Code',
+    zipPlaceholder: '12345',
     ico: 'Company ID',
+    icoPlaceholder: '12345678',
     dic: 'VAT ID',
+    dicPlaceholder: 'CZ12345678',
     notes: 'Notes',
     confirmBooking: 'Confirm Booking',
 
@@ -712,6 +819,11 @@ const translations = {
     bookingNumberPrefix: 'Booking',
     toddler: 'toddler',
 
+    // Guest count abbreviations for compact display (used in modals)
+    adultsShort: 'ad.',
+    childrenShort: 'ch.',
+    toddlersShort: 'tod.',
+
     // Admin panel translations
     adminPanel: 'Admin Panel',
     backToReservations: 'Back to reservations',
@@ -859,10 +971,16 @@ const translations = {
     nightSingular: 'night',
     nightsPlural: 'nights',
     nightsPlural5: 'nights',
+    room: 'Room',
     roomLabel: 'Room',
     bedsLabel: 'beds',
     bedsSingular: 'bed',
     bedsPlural: 'beds',
+    roomNotFoundError2: 'Room {roomId} not found in configuration',
+    roomCapacityExceeded2: 'Room {roomName} has capacity of only {beds} beds',
+    roomOccupiedInPeriod:
+      '⚠️ Room {roomId} is already occupied in this period. Choose a different date.',
+    roomBlockedInPeriod: '⚠️ Room {roomId} is blocked in this period. Choose a different date.',
     adultsLowercase: 'adults',
     childrenRange: 'children',
     toddlersRange: 'toddlers',
@@ -899,7 +1017,7 @@ const translations = {
     selectStayPeriod: 'Select stay period',
     guestTypeAndCount: 'Guest type and count',
     adultsCount: 'Adults',
-    childrenCount: 'Children (3-12)',
+    childrenCount: 'Children (3-17)',
     toddlersCount: 'Toddlers (0-3)',
     priceSummary: 'Price Summary',
     basePricePerRoom: 'Base price per room',
@@ -937,6 +1055,85 @@ const translations = {
 
     // Contact
     contactErrorsWriteTo: 'In case of errors write to:',
+
+    // Capacity warnings - specific for modals
+    capacityExceededRoom: '⚠️ Room capacity exceeded',
+    bulkCapacityExceededCottage: '⚠️ Cottage capacity exceeded (maximum 26 beds)',
+
+    // NEW: Missing translations from booking form modal and general UI
+    book: 'Book',
+    reservation: 'Reservation',
+    shrnutiRezervace: 'Booking Summary',
+    dospeliLabel: 'adults',
+    detiLabel: 'children',
+    batole: 'toddler',
+    celkemLabel: 'Total',
+    fillAllRequiredFieldsAsterisk: 'Please fill in all required fields marked with asterisk (*)',
+    christmasAccessCodeRequiredLong:
+      'Christmas access code is required for bookings during Christmas period',
+    guestNamesTitle: 'Names of Guests',
+    adultsSectionTitle: 'Adults (18+ years)',
+    childrenSectionTitle: 'Children (3-17 years)',
+    firstNameLabel: 'First Name',
+    lastNameLabel: 'Last Name',
+    adultNumberLabel: 'adult',
+    childNumberLabel: 'child',
+    firstNamePlaceholder: 'e.g. John',
+    lastNamePlaceholder: 'e.g. Smith',
+    firstNameChildPlaceholder: 'e.g. Anna',
+    lastNameChildPlaceholder: 'e.g. Smith',
+    adultFirstNameLabel: 'First name of {n}. adult *',
+    adultLastNameLabel: 'Last name of {n}. adult *',
+    childFirstNameLabel: 'First name of {n}. child *',
+    childLastNameLabel: 'Last name of {n}. child *',
+    bookingSuccessfullyCreated: 'Booking Successfully Created!',
+    yourBookingId: 'Your booking ID:',
+    saveEditLinkTitle: 'Save this link to edit your booking later:',
+    copyLinkButton: 'Copy Link',
+    linkCopied: 'Copied!',
+    importantNote: 'Important:',
+    editLinkWillBeSent:
+      'The edit link will be sent to your email once the email service is available.',
+    closeButtonLabel: 'Close',
+    failedToCopyLink: 'Failed to copy link',
+    allFieldsAreRequired: 'All fields are required',
+    validationErrorAllAdultNames: 'Fill in names of all {count} adults',
+    validationErrorAllChildNames: 'Fill in names of all {count} children',
+    validationErrorFirstNameLength: 'All first names must be at least 2 characters',
+    validationErrorLastNameLength: 'All last names must be at least 2 characters',
+    blockedDateError: 'Selected dates include blocked days. Please choose different dates.',
+    temporaryReservationError: 'Error creating temporary reservation',
+    bulkBookingAddedToList: 'Bulk booking added to reservation list',
+    roomBlockedOnDate:
+      'Room {roomName} is blocked on {date}. All rooms must be available for bulk booking.',
+    allReservationsSuccessCreated: 'All reservations ({count}) created successfully',
+    partialSuccessMessage:
+      'Partial success: {successCount} reservations created, {errorCount} failed',
+    errorCreatingReservationsMessage: 'Error creating reservations',
+    bookingCreatedSuccessfully: 'Booking created successfully',
+
+    // Admin panel - missing translations
+    backToCalendar: 'Back to Calendar',
+    paid: 'Paid',
+    paymentFromBenefitShort: 'Benefit Payment',
+    editReservationTitle: 'Edit Reservation',
+    dateAndRoomsTab: 'Dates & Rooms',
+    billingInfoTab2: 'Billing Information',
+    clickChangeDate:
+      'Click "Change Date" for the room you want to edit. The calendar will display the original date in blue.',
+    calendarRoomName: 'Calendar',
+    closeCalendarButton: 'Close Calendar',
+    newlySelectedDate: 'Newly selected date:',
+    notSelectedYet: 'Not selected yet',
+    saveDateButton: 'Save Date',
+    allRoomsTitle: 'All Rooms',
+    totalPriceSummary: 'Total Price:',
+    changeDate: 'Change Date',
+    guestNamesSectionTitle: 'Names of Guests',
+    adultsNamesTitle: 'Adults (18+ years)',
+    childrenNamesTitle: 'Children (3-17 years)',
+    cancelButton2: 'Cancel',
+    saveChangesButton: 'Save Changes',
   },
 };
 
@@ -991,6 +1188,14 @@ class LanguageManager {
           elem.textContent = translation;
         }
       }
+    });
+
+    // Update placeholders with data-translate-placeholder attribute
+    document.querySelectorAll('[data-translate-placeholder]').forEach((element) => {
+      const key = element.getAttribute('data-translate-placeholder');
+      const translation = this.t(key);
+      const elem = element;
+      elem.placeholder = translation;
     });
 
     // Update specific elements

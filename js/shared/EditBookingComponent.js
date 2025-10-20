@@ -1029,15 +1029,19 @@ class EditBookingComponent {
     for (const [selectedRoomId, roomData] of this.editSelectedRooms) {
       const room = this.settings.rooms.find((r) => r.id === selectedRoomId);
       if (!room) {
-        throw new Error(`Pokoj ${selectedRoomId} nebyl nalezen v konfiguraci`);
+        throw new Error(langManager.t('roomNotFoundError2').replace('{roomId}', selectedRoomId));
       }
 
       const totalGuests = roomData.adults + roomData.children;
       if (totalGuests > room.beds) {
         throw new Error(
-          `Pokoj ${room.name} má kapacitu pouze ${room.beds} lůžek, ` +
-            `ale obsahuje ${totalGuests} hostů (${roomData.adults} dospělých + ${roomData.children} dětí). ` +
-            `Batolata se do kapacity nepočítají. Upravte prosím počty hostů.`
+          langManager
+            .t('roomCapacityExceeded2')
+            .replace('{roomName}', room.name)
+            .replace('{beds}', room.beds)
+            .replace('{totalGuests}', totalGuests)
+            .replace('{adults}', roomData.adults)
+            .replace('{children}', roomData.children)
         );
       }
     }
@@ -2022,7 +2026,7 @@ class EditBookingComponent {
 
     if (conflicts.length > 0) {
       this.showNotification(
-        `⚠️ Pokoj ${roomId} je v tomto termínu již obsazený. Zvolte jiný termín.`,
+        langManager.t('roomOccupiedInPeriod').replace('{roomId}', roomId),
         'error',
         4000
       );
@@ -2039,7 +2043,7 @@ class EditBookingComponent {
       const availability = await dataManager.getRoomAvailability(currentDate, roomId);
       if (availability.status === 'blocked') {
         this.showNotification(
-          `⚠️ Pokoj ${roomId} je v tomto termínu blokován. Zvolte jiný termín.`,
+          langManager.t('roomBlockedInPeriod').replace('{roomId}', roomId),
           'error',
           4000
         );

@@ -31,6 +31,7 @@ let isEditLocked = false; // TRUE if within 3 days of booking start
 #### Nové Funkce
 
 **`checkEditDeadline()`**
+
 - Kontroluje, zda je rezervace v 3-denní lhůtě
 - Porovnává dnešní datum s `booking.startDate`
 - Vrací `true` pokud zbývá < 3 dny
@@ -52,6 +53,7 @@ function checkEditDeadline() {
 ```
 
 **`displayEditLockWarning()`**
+
 - Zobrazí velký červený warning box
 - Zakáže všechny inputy, buttony, textarey
 - Skryje "Uložit změny" a "Zrušit rezervaci" tlačítka
@@ -110,6 +112,7 @@ if (!isAdmin) {
 ```
 
 **Response při porušení:**
+
 ```json
 {
   "error": "Úpravy rezervace jsou možné pouze 3 dny před začátkem pobytu. Pro změny kontaktujte administrátora.",
@@ -148,6 +151,7 @@ if (!isAdmin) {
 ```
 
 **Response při porušení:**
+
 ```json
 {
   "error": "Zrušení rezervace je možné pouze 3 dny před začátkem pobytu. Pro zrušení kontaktujte administrátora.",
@@ -166,6 +170,7 @@ if (!isAdmin) {
 ### Scénář 1: Rezervace za 7 dní
 
 **Očekávané chování:**
+
 - ✅ Edit link funguje normálně
 - ✅ Všechny inputy aktivní
 - ✅ "Uložit změny" button viditelný
@@ -179,6 +184,7 @@ if (!isAdmin) {
 **Dny do začátku**: `3`
 
 **Očekávané chování:**
+
 - ✅ Edit link funguje normálně (≥ 3 je OK)
 - ✅ Všechny inputy aktivní
 - ✅ Lze upravovat a rušit
@@ -190,6 +196,7 @@ if (!isAdmin) {
 **Dny do začátku**: `2`
 
 **Očekávané chování:**
+
 - ❌ Edit page zobrazí 🔒 warning
 - ❌ Všechny inputy disabled
 - ❌ "Uložit změny" button skrytý
@@ -204,6 +211,7 @@ if (!isAdmin) {
 **Dny do začátku**: `0`
 
 **Očekávané chování:**
+
 - ❌ Edit page zobrazí warning: "⚠️ Rezervace již začala nebo proběhla"
 - ❌ Všechny změny zakázány
 - ❌ API vrací `403`
@@ -213,6 +221,7 @@ if (!isAdmin) {
 **Kdokoliv**: admin s platným `sessionToken`
 
 **Očekávané chování:**
+
 - ✅ Admin může upravovat kdykoliv
 - ✅ Žádný 3-day check
 - ✅ PUT/DELETE vždy úspěšné
@@ -336,6 +345,7 @@ X-Session-Token: admin_session_token_xyz
 ### Manuální Test
 
 1. **Vytvořte rezervaci s `startDate` za 2 dny**:
+
    ```bash
    curl -sk -X POST https://localhost/api/booking \
      -H "Content-Type: application/json" \
@@ -348,6 +358,7 @@ X-Session-Token: admin_session_token_xyz
 2. **Získejte editToken z response**
 
 3. **Otevřete edit link**:
+
    ```
    http://localhost/edit.html?token=EDIT_TOKEN_HERE
    ```
@@ -358,6 +369,7 @@ X-Session-Token: admin_session_token_xyz
    - Action buttons skryté
 
 5. **Test API**:
+
    ```bash
    curl -sk -X PUT https://localhost/api/booking/BK123 \
      -H "X-Edit-Token: TOKEN" \

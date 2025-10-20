@@ -163,7 +163,7 @@ class BookingFormModule {
         guests.children,
         guests.toddlers,
         1, // price per night
-        1 // single room
+        [roomId] // Pass room ID array for room-size-based pricing
       );
 
       return { room, guests, roomPrice };
@@ -246,13 +246,12 @@ class BookingFormModule {
       document.getElementById('finalBookingBenefit')?.checked ||
       false;
 
-    // Validate required fields (IČO is optional)
-    if (!name || !email || !phoneNumber || !company || !address || !city || !zip) {
+    // Validate required fields (IČO and company are optional)
+    if (!name || !email || !phoneNumber || !address || !city || !zip) {
       console.warn('[BookingForm] Validation failed - missing required fields:', {
         name: Boolean(name),
         email: Boolean(email),
         phoneNumber: Boolean(phoneNumber),
-        company: Boolean(company),
         address: Boolean(address),
         city: Boolean(city),
         zip: Boolean(zip),
@@ -1019,7 +1018,7 @@ class BookingFormModule {
 
       const firstNameLabel = document.createElement('label');
       firstNameLabel.setAttribute('for', `adultFirstName${i}`);
-      firstNameLabel.textContent = `Křestní jméno ${i}. dospělého *`;
+      firstNameLabel.textContent = langManager.t('adultFirstNameLabel').replace('{n}', i);
       firstNameGroup.appendChild(firstNameLabel);
 
       const firstNameInput = document.createElement('input');
@@ -1029,7 +1028,7 @@ class BookingFormModule {
       firstNameInput.required = true;
       firstNameInput.minLength = 2;
       firstNameInput.maxLength = 50; // SECURITY FIX: Add max length validation
-      firstNameInput.placeholder = 'např. Jan';
+      firstNameInput.placeholder = langManager.t('firstNamePlaceholder');
       firstNameInput.setAttribute('data-guest-type', 'adult');
       firstNameInput.setAttribute('data-guest-index', i);
       firstNameGroup.appendChild(firstNameInput);
@@ -1040,7 +1039,7 @@ class BookingFormModule {
 
       const lastNameLabel = document.createElement('label');
       lastNameLabel.setAttribute('for', `adultLastName${i}`);
-      lastNameLabel.textContent = `Příjmení ${i}. dospělého *`;
+      lastNameLabel.textContent = langManager.t('adultLastNameLabel').replace('{n}', i);
       lastNameGroup.appendChild(lastNameLabel);
 
       const lastNameInput = document.createElement('input');
@@ -1050,7 +1049,7 @@ class BookingFormModule {
       lastNameInput.required = true;
       lastNameInput.minLength = 2;
       lastNameInput.maxLength = 50; // SECURITY FIX: Add max length validation
-      lastNameInput.placeholder = 'např. Novák';
+      lastNameInput.placeholder = langManager.t('lastNamePlaceholder');
       lastNameInput.setAttribute('data-guest-type', 'adult');
       lastNameInput.setAttribute('data-guest-index', i);
       lastNameGroup.appendChild(lastNameInput);
@@ -1074,7 +1073,7 @@ class BookingFormModule {
 
         const firstNameLabel = document.createElement('label');
         firstNameLabel.setAttribute('for', `childFirstName${i}`);
-        firstNameLabel.textContent = `Křestní jméno ${i}. dítěte *`;
+        firstNameLabel.textContent = langManager.t('childFirstNameLabel').replace('{n}', i);
         firstNameGroup.appendChild(firstNameLabel);
 
         const firstNameInput = document.createElement('input');
@@ -1084,7 +1083,7 @@ class BookingFormModule {
         firstNameInput.required = true;
         firstNameInput.minLength = 2;
         firstNameInput.maxLength = 50; // SECURITY FIX: Add max length validation
-        firstNameInput.placeholder = 'např. Anna';
+        firstNameInput.placeholder = langManager.t('firstNameChildPlaceholder');
         firstNameInput.setAttribute('data-guest-type', 'child');
         firstNameInput.setAttribute('data-guest-index', i);
         firstNameGroup.appendChild(firstNameInput);
@@ -1095,7 +1094,7 @@ class BookingFormModule {
 
         const lastNameLabel = document.createElement('label');
         lastNameLabel.setAttribute('for', `childLastName${i}`);
-        lastNameLabel.textContent = `Příjmení ${i}. dítěte *`;
+        lastNameLabel.textContent = langManager.t('childLastNameLabel').replace('{n}', i);
         lastNameGroup.appendChild(lastNameLabel);
 
         const lastNameInput = document.createElement('input');
@@ -1105,7 +1104,7 @@ class BookingFormModule {
         lastNameInput.required = true;
         lastNameInput.minLength = 2;
         lastNameInput.maxLength = 50; // SECURITY FIX: Add max length validation
-        lastNameInput.placeholder = 'např. Nováková';
+        lastNameInput.placeholder = langManager.t('lastNameChildPlaceholder');
         lastNameInput.setAttribute('data-guest-type', 'child');
         lastNameInput.setAttribute('data-guest-index', i);
         lastNameGroup.appendChild(lastNameInput);

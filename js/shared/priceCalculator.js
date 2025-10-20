@@ -9,13 +9,13 @@
 
 class PriceCalculator {
   /**
-   * Calculate total booking price
+   * Calculate total booking price with room-size-based pricing
    *
-   * Pricing model:
-   * - Base price per room * number of rooms * nights
-   * - Additional adults (beyond one per room) * adult price * nights
-   * - Children * child price * nights
-   * - Toddlers are free
+   * NEW Pricing model (2025-10-17):
+   * - Base price depends on room size (small/large) and occupancy
+   * - First person: Base price (different for small/large rooms)
+   * - Additional persons: Per-person surcharge
+   * - Toddlers (0-3 years) are always free
    *
    * @param {Object} options - Pricing options
    * @param {string} options.guestType - 'utia' or 'external'
@@ -23,7 +23,7 @@ class PriceCalculator {
    * @param {number} options.children - Number of children (3-17 years)
    * @param {number} options.toddlers - Number of toddlers (0-3 years, free)
    * @param {number} options.nights - Number of nights
-   * @param {number} options.roomsCount - Number of rooms
+   * @param {Array<string>} options.rooms - Array of room IDs (e.g., ['12', '14'])
    * @param {Object} options.settings - Settings object with prices configuration
    * @returns {number} Total price in CZK
    */
@@ -36,7 +36,7 @@ class PriceCalculator {
       // eslint-disable-next-line no-unused-vars -- Documenting that toddlers are accepted but not used in price calculation
       toddlers = 0,
       nights = 1,
-      roomsCount = 1,
+      rooms = [],
       settings,
     } = options;
 
@@ -54,20 +54,115 @@ class PriceCalculator {
       return 0;
     }
 
-    // Base price per room * number of rooms * nights
-    let totalPrice = priceConfig.base * roomsCount * nights;
+    // NEW: Check if prices have room-size-based structure
+    const hasRoomSizes = priceConfig.small && priceConfig.large;
 
-    // Additional adults (assuming one adult per room is included in base)
-    const additionalAdults = Math.max(0, adults - roomsCount);
-    totalPrice += additionalAdults * priceConfig.adult * nights;
+    if (hasRoomSizes) {
+      // NEW PRICING MODEL: Room-size-based pricing
+      return this.calculateRoomSizeBasedPrice(options);
+    }
 
-    // Children price
+    // LEGACY: Flat pricing model (backward compatibility)
+    // NEW 2025-10-17: Use same logic as room-size pricing for consistency
+    const roomsCount = rooms.length || 1;
+
+    // Empty room price = base - adult surcharge
+    const emptyRoomPrice = priceConfig.base - priceConfig.adult;
+    let totalPrice = emptyRoomPrice * roomsCount * nights;
+
+    // Add surcharges for ALL guests
+    totalPrice += adults * priceConfig.adult * nights;
     totalPrice += children * priceConfig.child * nights;
 
-    // Toddlers are free (no charge)
-    // No need to add anything for toddlers
+    return Math.round(totalPrice);
+  }
 
-    return Math.round(totalPrice); // Round to nearest CZK
+  /**
+   * Calculate price using room-size-based pricing model
+   * NEW 2025-10-17: Base price now represents "room + 1 adult", so we:
+   * 1. Calculate empty room price = base - adult surcharge
+   * 2. Add actual guest surcharges
+   *
+   * @param {Object} options - Pricing options
+   * @returns {number} Total price in CZK
+   * @private
+   */
+  static calculateRoomSizeBasedPrice(options) {
+    const { guestType, adults = 0, children = 0, nights = 1, rooms = [], settings } = options;
+
+    const { prices } = settings;
+    const guestKey = guestType === 'utia' ? 'utia' : 'external';
+    const priceConfig = prices[guestKey];
+
+    let totalPrice = 0;
+
+    // Calculate price for each room based on its size
+    for (const roomId of rooms) {
+      const room = settings.rooms?.find((r) => r.id === roomId);
+      const roomType = room?.type || 'small'; // Default to small if type not found
+
+      const roomPriceConfig = priceConfig[roomType];
+      if (!roomPriceConfig) {
+        console.warn(`[PriceCalculator] No price config for room type: ${roomType}`);
+        continue;
+      }
+
+      // NEW: Empty room price = base price - adult surcharge
+      // This allows rooms with only children (0 adults)
+      const emptyRoomPrice = roomPriceConfig.base - roomPriceConfig.adult;
+      totalPrice += emptyRoomPrice * nights;
+    }
+
+    // Add surcharges for ALL guests (not "additional" guests)
+    const totalRooms = rooms.length;
+    if (totalRooms > 0) {
+      const avgRoomPriceConfig = this.getAverageRoomPriceConfig(rooms, settings, guestKey);
+
+      // All adults pay surcharge
+      totalPrice += adults * avgRoomPriceConfig.adult * nights;
+
+      // All children pay surcharge
+      totalPrice += children * avgRoomPriceConfig.child * nights;
+    }
+
+    return Math.round(totalPrice);
+  }
+
+  /**
+   * Get average price config when multiple rooms are booked
+   *
+   * @param {Array<string>} rooms - Room IDs
+   * @param {Object} settings - Settings object
+   * @param {string} guestKey - 'utia' or 'external'
+   * @returns {Object} Average price configuration
+   * @private
+   */
+  static getAverageRoomPriceConfig(rooms, settings, guestKey) {
+    if (!rooms || rooms.length === 0) {
+      return settings.prices[guestKey]?.small || { adult: 50, child: 25 };
+    }
+
+    // Calculate average of adult/child surcharges across all booked rooms
+    let totalAdult = 0;
+    let totalChild = 0;
+    let count = 0;
+
+    for (const roomId of rooms) {
+      const room = settings.rooms?.find((r) => r.id === roomId);
+      const roomType = room?.type || 'small';
+      const roomPriceConfig = settings.prices[guestKey]?.[roomType];
+
+      if (roomPriceConfig) {
+        totalAdult += roomPriceConfig.adult;
+        totalChild += roomPriceConfig.child;
+        count += 1;
+      }
+    }
+
+    return {
+      adult: count > 0 ? Math.round(totalAdult / count) : 50,
+      child: count > 0 ? Math.round(totalChild / count) : 25,
+    };
   }
 
   /**
@@ -89,7 +184,7 @@ class PriceCalculator {
       children,
       toddlers: 0,
       nights,
-      roomsCount: rooms.length,
+      rooms, // Pass rooms array instead of roomsCount
       settings,
     });
   }
@@ -147,20 +242,35 @@ class PriceCalculator {
 
   /**
    * Get default price configuration
+   * NEW (2025-10-17): Room-size-based pricing structure
    *
    * @returns {Object} Default prices object
    */
   static getDefaultPrices() {
     return {
       utia: {
-        base: 298,
-        adult: 49,
-        child: 24,
+        small: {
+          base: 300, // Small room, 1 person
+          adult: 50, // Per additional adult
+          child: 25, // Per child (3-17 years)
+        },
+        large: {
+          base: 400, // Large room, 1 person
+          adult: 50, // Per additional adult
+          child: 25, // Per child (3-17 years)
+        },
       },
       external: {
-        base: 499,
-        adult: 99,
-        child: 49,
+        small: {
+          base: 500, // Small room, 1 person
+          adult: 100, // Per additional adult
+          child: 50, // Per child (3-17 years)
+        },
+        large: {
+          base: 600, // Large room, 1 person
+          adult: 100, // Per additional adult
+          child: 50, // Per child (3-17 years)
+        },
       },
     };
   }
