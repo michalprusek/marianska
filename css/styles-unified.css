@@ -3857,8 +3857,9 @@ input:checked + .slider:before {
   }
 
   .booking-actions {
-    position: sticky;
-    bottom: 0;
+    /* MOBILE FIX: Use relative positioning - mobile-improvements.css handles layout */
+    position: relative;
+    bottom: auto;
     padding: var(--space-3);
     background: white;
     border-top: 2px solid var(--gray-200);

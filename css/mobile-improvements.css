@@ -1,13 +1,14 @@
 /**
  * Mobile Responsiveness Improvements
- * Date: 2025-10-17
+ * Date: 2025-10-17 (initial mobile improvements)
+ * Updated: 2025-10-20 (comprehensive modal redesign)
  * Purpose: Quick wins to enhance mobile UX
  *
  * IMPORTANT: Add this file to index.html AFTER styles-unified.css
  * <link rel="stylesheet" href="css/mobile-improvements.css">
  *
  * ⚠️ TECHNICAL DEBT WARNING:
- * This file uses !important overrides extensively (463 lines).
+ * This file uses !important overrides extensively (237 declarations across ~750 lines).
  * This is a TEMPORARY solution for quick mobile improvements.
  *
  * Future refactoring needed:
@@ -497,93 +498,134 @@
   }
 }
 
-/* ===== CRITICAL FIX: SAFARI BOTTOM TOOLBAR OVERLAP ===== */
+/* ===== MOBILE MODAL REDESIGN ===== */
+/* Fixes: Content overlap, sticky positioning, iOS Safari issues */
 
-/**
- * Fix for iOS Safari where bottom toolbar covers action buttons
- * Uses env() for safe-area-inset to account for browser UI
- */
 @media (max-width: 768px) {
-  /* Fix for single room booking modal actions */
-  .booking-actions {
-    position: sticky !important;
-    bottom: 0 !important;
-    /* Add safe area padding for iOS Safari bottom toolbar */
-    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)) !important;
-    /* Ensure buttons remain visible above Safari toolbar */
-    z-index: 100 !important;
-    background: white !important;
-    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1) !important;
-  }
-
-  /* Fix for bulk booking modal footer */
-  .modal-footer {
-    position: sticky !important;
-    bottom: 0 !important;
-    /* Add safe area padding for iOS Safari bottom toolbar */
-    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)) !important;
-    /* Ensure buttons remain visible above Safari toolbar */
-    z-index: 100 !important;
-    background: white !important;
-    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1) !important;
-  }
-
-  /* Make sure buttons in these containers are fully tappable */
-  .booking-actions .btn,
-  .modal-footer .btn {
-    min-height: 48px !important; /* Larger touch target */
-    font-size: 1rem !important;
-    font-weight: 700 !important;
-    /* Prevent button text from wrapping */
-    white-space: nowrap !important;
-  }
-
-  /* Ensure modal has proper layout with adequate height */
+  /* === MODAL CONTAINER === */
   .compact-booking-modal {
+    height: 100vh !important;
+    max-height: 100vh !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
     display: flex !important;
     flex-direction: column !important;
-    /* Allow modal to be tall enough but leave space for Safari UI */
-    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 20px) !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
   }
 
-  /* Allow booking modal content to expand naturally */
-  .compact-booking-modal .booking-modal-content {
+  /* === HEADER === */
+  .booking-modal-header {
+    flex: 0 0 auto !important;
+    padding: calc(env(safe-area-inset-top, 0px) + 1rem) 1rem 1rem 1rem !important;
+    position: relative !important;
+    z-index: 10 !important;
+  }
+
+  /* === CONTENT === */
+  .booking-modal-content {
     flex: 1 1 auto !important;
-    min-height: auto !important;
-    /* Adequate padding to ensure content doesn't touch sticky buttons */
-    padding-bottom: 1rem !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior: contain !important;
+    scroll-behavior: smooth !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1.5rem !important;
+    grid-template-columns: unset !important;
+    padding: 1rem !important;
+    padding-bottom: 2rem !important;
   }
 
-  /* Ensure left column (calendar) has good height */
-  .booking-left-column {
-    min-height: 450px !important; /* Ensure adequate space for mini calendar */
-    flex: 1 !important;
-  }
-
-  /* Ensure right column (guest form) has good height */
+  /* === COLUMNS === */
+  .booking-left-column,
   .booking-right-column {
-    min-height: 500px !important; /* Ensure adequate space for form fields */
-    max-height: none !important; /* Override any inline max-height */
-    overflow-y: visible !important; /* Allow natural scrolling */
-    flex: 1 !important;
+    height: auto !important;
+    min-height: unset !important;
+    max-height: none !important;
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1rem !important;
   }
 
-  /* Improve interactive calendar height in modals */
+  .booking-right-column {
+    overflow: visible !important;
+  }
+
+  /* === CALENDAR === */
+  /* MAINTENANCE NOTE: If changing the 320px value, also update:
+   * - MOBILE_MODAL_REDESIGN.md (lines 46, 102, 185)
+   * - DEPLOYMENT_VERIFICATION_2025-10-20.md (lines 68, 122)
+   */
   .interactive-calendar {
-    min-height: 380px !important; /* Ensure mini calendar is visible */
+    height: clamp(280px, 40vh, 320px) !important; /* Flexible height for small devices */
+    min-height: 280px !important;
+    max-height: 320px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior: contain !important;
+    scroll-behavior: smooth !important;
+  }
+
+  /* === FOOTER === */
+  .booking-actions,
+  .modal-footer {
+    flex: 0 0 auto !important;
+    position: relative !important;
+    width: 100% !important;
+    z-index: 5 !important;
+    padding: 1rem !important;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)) !important;
+    background: white !important;
+    border-top: 1px solid #e2e8f0 !important;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08) !important;
+  }
+
+  /* === BUTTONS === */
+  .booking-actions > div,
+  .modal-footer > div {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+    width: 100% !important;
+  }
+
+  .booking-actions .btn,
+  .modal-footer .btn {
+    width: 100% !important;
+    min-height: 48px !important;
+    padding: 0.875rem 1rem !important;
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  /* === BODY LOCK === */
+  body.modal-open {
+    overflow: hidden !important;
+    position: fixed !important;
+    width: 100% !important;
   }
 }
 
-/* Additional fix for viewport units on iOS Safari */
+/* === iOS SAFARI === */
 @supports (-webkit-touch-callout: none) {
-  /* iOS Safari specific styles */
   @media (max-width: 768px) {
     .booking-actions,
     .modal-footer {
-      /* Extra padding for iOS Safari's dynamic toolbar */
-      padding-bottom: calc(1.5rem + max(env(safe-area-inset-bottom, 0px), 20px)) !important;
+      padding-bottom: calc(1rem + max(env(safe-area-inset-bottom, 0px), 20px)) !important;
+    }
+
+    .booking-modal-header {
+      padding-top: calc(1rem + max(env(safe-area-inset-top, 0px), 10px)) !important;
     }
   }
 }
