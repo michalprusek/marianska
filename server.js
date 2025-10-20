@@ -638,16 +638,17 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
         return res.status(400).json({ error: 'Jména hostů musí být pole' });
       }
 
-      const expectedCount = (bookingData.adults || 0) + (bookingData.children || 0);
+      const expectedCount = (bookingData.adults || 0) + (bookingData.children || 0) + (bookingData.toddlers || 0);
       if (bookingData.guestNames.length !== expectedCount) {
         return res.status(400).json({
           error: `Počet jmen (${bookingData.guestNames.length}) neodpovídá počtu hostů (${expectedCount})`,
         });
       }
 
-      // SECURITY FIX: Validate adult/child count distribution
+      // SECURITY FIX: Validate adult/child/toddler count distribution
       const adultCount = bookingData.guestNames.filter((g) => g.personType === 'adult').length;
       const childCount = bookingData.guestNames.filter((g) => g.personType === 'child').length;
+      const toddlerCount = bookingData.guestNames.filter((g) => g.personType === 'toddler').length;
 
       if (adultCount !== (bookingData.adults || 0)) {
         return res.status(400).json({
@@ -658,6 +659,12 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
       if (childCount !== (bookingData.children || 0)) {
         return res.status(400).json({
           error: `Počet dětských jmen (${childCount}) neodpovídá počtu dětí (${bookingData.children || 0})`,
+        });
+      }
+
+      if (toddlerCount !== (bookingData.toddlers || 0)) {
+        return res.status(400).json({
+          error: `Počet jmen batolat (${toddlerCount}) neodpovídá počtu batolat (${bookingData.toddlers || 0})`,
         });
       }
 
@@ -700,9 +707,9 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
           });
         }
 
-        if (guest.personType !== 'adult' && guest.personType !== 'child') {
+        if (guest.personType !== 'adult' && guest.personType !== 'child' && guest.personType !== 'toddler') {
           return res.status(400).json({
-            error: `Neplatný typ osoby pro hosta ${i + 1} (musí být 'adult' nebo 'child')`,
+            error: `Neplatný typ osoby pro hosta ${i + 1} (musí být 'adult', 'child' nebo 'toddler')`,
           });
         }
 
@@ -1010,16 +1017,17 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
         return res.status(400).json({ error: 'Jména hostů musí být pole' });
       }
 
-      const expectedCount = (bookingData.adults || 0) + (bookingData.children || 0);
+      const expectedCount = (bookingData.adults || 0) + (bookingData.children || 0) + (bookingData.toddlers || 0);
       if (bookingData.guestNames.length !== expectedCount) {
         return res.status(400).json({
           error: `Počet jmen (${bookingData.guestNames.length}) neodpovídá počtu hostů (${expectedCount})`,
         });
       }
 
-      // SECURITY FIX: Validate adult/child count distribution
+      // SECURITY FIX: Validate adult/child/toddler count distribution
       const adultCount = bookingData.guestNames.filter((g) => g.personType === 'adult').length;
       const childCount = bookingData.guestNames.filter((g) => g.personType === 'child').length;
+      const toddlerCount = bookingData.guestNames.filter((g) => g.personType === 'toddler').length;
 
       if (adultCount !== (bookingData.adults || 0)) {
         return res.status(400).json({
@@ -1030,6 +1038,12 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       if (childCount !== (bookingData.children || 0)) {
         return res.status(400).json({
           error: `Počet dětských jmen (${childCount}) neodpovídá počtu dětí (${bookingData.children || 0})`,
+        });
+      }
+
+      if (toddlerCount !== (bookingData.toddlers || 0)) {
+        return res.status(400).json({
+          error: `Počet jmen batolat (${toddlerCount}) neodpovídá počtu batolat (${bookingData.toddlers || 0})`,
         });
       }
 
@@ -1072,9 +1086,9 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
           });
         }
 
-        if (guest.personType !== 'adult' && guest.personType !== 'child') {
+        if (guest.personType !== 'adult' && guest.personType !== 'child' && guest.personType !== 'toddler') {
           return res.status(400).json({
-            error: `Neplatný typ osoby pro hosta ${i + 1} (musí být 'adult' nebo 'child')`,
+            error: `Neplatný typ osoby pro hosta ${i + 1} (musí být 'adult', 'child' nebo 'toddler')`,
           });
         }
 

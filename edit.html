@@ -286,7 +286,7 @@
             >
               <div class="form-grid">
                 <div class="input-group">
-                  <label for="editName">Jméno a příjmení *</label>
+                  <label for="editName">Jméno a příjmení <span class="required-asterisk">*</span></label>
                   <input
                     type="text"
                     id="editName"
@@ -294,7 +294,7 @@
                   />
                 </div>
                 <div class="input-group">
-                  <label for="editEmail">Email *</label>
+                  <label for="editEmail">Email <span class="required-asterisk">*</span></label>
                   <input
                     type="email"
                     id="editEmail"
@@ -302,7 +302,7 @@
                   />
                 </div>
                 <div class="input-group">
-                  <label for="editPhone">Telefon *</label>
+                  <label for="editPhone">Telefon <span class="required-asterisk">*</span></label>
                   <input
                     type="tel"
                     id="editPhone"
@@ -317,7 +317,7 @@
                   />
                 </div>
                 <div class="input-group full-width">
-                  <label for="editAddress">Adresa *</label>
+                  <label for="editAddress">Adresa <span class="required-asterisk">*</span></label>
                   <input
                     type="text"
                     id="editAddress"
@@ -325,7 +325,7 @@
                   />
                 </div>
                 <div class="input-group">
-                  <label for="editCity">Město *</label>
+                  <label for="editCity">Město <span class="required-asterisk">*</span></label>
                   <input
                     type="text"
                     id="editCity"
@@ -333,7 +333,7 @@
                   />
                 </div>
                 <div class="input-group">
-                  <label for="editZip">PSČ *</label>
+                  <label for="editZip">PSČ <span class="required-asterisk">*</span></label>
                   <input
                     type="text"
                     id="editZip"
@@ -410,6 +410,15 @@
                     <h4 style="margin: 0 0 0.75rem 0; color: #059669">Děti (3-17 let)</h4>
                     <div id="editChildrenNamesList"></div>
                   </div>
+
+                  <!-- Toddlers Names -->
+                  <div
+                    id="editToddlersNamesContainer"
+                    style="display: none"
+                  >
+                    <h4 style="margin: 0 0 0.75rem 0; color: #059669">Batolata (0-2 roky)</h4>
+                    <div id="editToddlersNamesList"></div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -462,6 +471,7 @@
     <script src="js/shared/priceCalculator.js"></script>
     <script src="js/shared/bookingLogic.js"></script>
     <script src="js/shared/bookingUtils.js"></script>
+    <script src="js/shared/GuestNameUtils.js"></script>
     <script src="js/calendar-utils.js"></script>
     <script src="js/shared/BaseCalendar.js"></script>
     <script src="js/shared/EditBookingComponent.js"></script>

@@ -272,27 +272,52 @@ class CalendarModule {
       roomEl.style.background = '#ef4444';
       roomEl.style.color = 'white';
     } else if (availability === 'edge') {
-      // Edge = exactly ONE night occupied - half green/half red gradient
+      // Edge = ONE or BOTH nights occupied (with different types)
+      // Supports: proposed-only, confirmed-only, AND MIXED (proposed + confirmed)
       roomEl.style.color = 'white';
 
-      // Visual indicator: show which side has the occupied night
+      // Get detailed night information
       const nightBefore = availabilityInfo?.nightBefore;
       const nightAfter = availabilityInfo?.nightAfter;
+      const nightBeforeType = availabilityInfo?.nightBeforeType || 'available';
+      const nightAfterType = availabilityInfo?.nightAfterType || 'available';
+
+      // Color map
+      const colorMap = {
+        proposed: '#f59e0b', // Orange
+        confirmed: '#ef4444', // Red
+        available: '#10b981', // Green
+      };
+
+      // Type label map for tooltip
+      const typeLabel = {
+        proposed: 'navrhované',
+        confirmed: 'potvrzené',
+        available: 'volné',
+      };
+
+      const leftColor = colorMap[nightBeforeType];
+      const rightColor = colorMap[nightAfterType];
 
       if (nightBefore && !nightAfter) {
-        // Night before is occupied -> left half red, right half green
+        // Only night before occupied
         roomEl.style.background =
-          'linear-gradient(90deg, #ef4444 0%, #ef4444 50%, #10b981 50%, #10b981 100%)';
-        roomEl.title = 'Krajní den (noc PŘED dnem obsazena) - volný pro novou rezervaci';
+          `linear-gradient(90deg, ${leftColor} 0%, ${leftColor} 50%, ${colorMap.available} 50%, ${colorMap.available} 100%)`;
+        roomEl.title = `Krajní den (${typeLabel[nightBeforeType]}, noc PŘED dnem) - volný pro novou rezervaci`;
       } else if (!nightBefore && nightAfter) {
-        // Night after is occupied -> left half green, right half red
+        // Only night after occupied
         roomEl.style.background =
-          'linear-gradient(90deg, #10b981 0%, #10b981 50%, #ef4444 50%, #ef4444 100%)';
-        roomEl.title = 'Krajní den (noc PO dni obsazena) - volný pro novou rezervaci';
+          `linear-gradient(90deg, ${colorMap.available} 0%, ${colorMap.available} 50%, ${rightColor} 50%, ${rightColor} 100%)`;
+        roomEl.title = `Krajní den (${typeLabel[nightAfterType]}, noc PO dni) - volný pro novou rezervaci`;
+      } else if (nightBefore && nightAfter) {
+        // BOTH nights occupied but DIFFERENT TYPES (mixed: proposed + confirmed)
+        roomEl.style.background =
+          `linear-gradient(90deg, ${leftColor} 0%, ${leftColor} 50%, ${rightColor} 50%, ${rightColor} 100%)`;
+        roomEl.title = `Smíšený krajní den (noc PŘED: ${typeLabel[nightBeforeType]}, noc PO: ${typeLabel[nightAfterType]}) - volný pro novou rezervaci`;
       } else {
         // Fallback
         roomEl.style.background =
-          'linear-gradient(90deg, #10b981 0%, #10b981 50%, #ef4444 50%, #ef4444 100%)';
+          `linear-gradient(90deg, ${colorMap.available} 0%, ${colorMap.available} 50%, ${colorMap.confirmed} 50%, ${colorMap.confirmed} 100%)`;
         roomEl.title = 'Krajní den rezervace - volný pro novou rezervaci';
       }
     } else if (availability === 'available') {

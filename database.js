@@ -213,6 +213,9 @@ class DatabaseManager {
     // Add pay_from_benefit column to bookings table if it doesn't exist
     addColumnIfNotExists('bookings', 'pay_from_benefit', 'INTEGER', 0);
 
+    // Add per_room_guests column to bookings table if it doesn't exist (JSON format)
+    addColumnIfNotExists('bookings', 'per_room_guests', 'TEXT', null);
+
     // Create proposed booking rooms table
     this.db.exec(`
             CREATE TABLE IF NOT EXISTS proposed_booking_rooms (
@@ -235,21 +238,47 @@ class DatabaseManager {
             CREATE TABLE IF NOT EXISTS guest_names (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 booking_id TEXT NOT NULL,
-                person_type TEXT NOT NULL CHECK(person_type IN ('adult', 'child')),
+                person_type TEXT NOT NULL CHECK(person_type IN ('adult', 'child', 'toddler')),
                 first_name TEXT NOT NULL,
                 last_name TEXT NOT NULL,
                 order_index INTEGER NOT NULL,
+                room_id TEXT,
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
                 UNIQUE(booking_id, person_type, order_index)
             )
         `);
 
+    // Migration: Add room_id column if it doesn't exist (for existing databases)
+    try {
+      const columns = this.db.prepare('PRAGMA table_info(guest_names)').all();
+      const hasRoomId = columns.some((col) => col.name === 'room_id');
+
+      if (!hasRoomId) {
+        this.db.exec('ALTER TABLE guest_names ADD COLUMN room_id TEXT');
+      }
+    } catch (error) {
+      // Table might not exist yet, or column already added - safe to ignore
+    }
+
     // Create indexes for guest names performance
-    this.db.exec(`
+    try {
+      this.db.exec(`
             CREATE INDEX IF NOT EXISTS idx_guest_names_booking ON guest_names(booking_id);
             CREATE INDEX IF NOT EXISTS idx_guest_names_type ON guest_names(booking_id, person_type);
         `);
+
+      // Only create room_id index if column exists
+      const columns = this.db.prepare('PRAGMA table_info(guest_names)').all();
+      const hasRoomId = columns.some((col) => col.name === 'room_id');
+      if (hasRoomId) {
+        this.db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_guest_names_room ON guest_names(booking_id, room_id);
+        `);
+      }
+    } catch (error) {
+      // Index creation failed - safe to ignore
+    }
 
     // Create admin sessions table for persistent session storage
     this.db.exec(`
@@ -366,11 +395,11 @@ class DatabaseManager {
                 INSERT INTO bookings (
                     id, name, email, phone, company, address, city, zip, ico, dic,
                     start_date, end_date, guest_type, adults, children, toddlers,
-                    total_price, notes, paid, pay_from_benefit, edit_token, created_at, updated_at
+                    total_price, notes, paid, pay_from_benefit, per_room_guests, edit_token, created_at, updated_at
                 ) VALUES (
                     @id, @name, @email, @phone, @company, @address, @city, @zip, @ico, @dic,
                     @start_date, @end_date, @guest_type, @adults, @children, @toddlers,
-                    @total_price, @notes, @paid, @pay_from_benefit, @edit_token, @created_at, @updated_at
+                    @total_price, @notes, @paid, @pay_from_benefit, @per_room_guests, @edit_token, @created_at, @updated_at
                 )
             `),
 
@@ -384,6 +413,7 @@ class DatabaseManager {
                     children = @children, toddlers = @toddlers,
                     total_price = @total_price, notes = @notes,
                     paid = @paid, pay_from_benefit = @pay_from_benefit,
+                    per_room_guests = @per_room_guests,
                     updated_at = @updated_at
                 WHERE id = @id
             `),
@@ -510,18 +540,19 @@ class DatabaseManager {
 
       // Guest names
       insertGuestName: this.db.prepare(`
-        INSERT INTO guest_names (booking_id, person_type, first_name, last_name, order_index, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO guest_names (booking_id, person_type, first_name, last_name, order_index, room_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `),
 
       deleteGuestNamesByBooking: this.db.prepare('DELETE FROM guest_names WHERE booking_id = ?'),
 
       getGuestNamesByBooking: this.db.prepare(`
-        SELECT person_type, first_name, last_name, order_index
+        SELECT person_type, first_name, last_name, order_index, room_id
         FROM guest_names
         WHERE booking_id = ?
         ORDER BY
-          CASE person_type WHEN 'adult' THEN 1 WHEN 'child' THEN 2 END,
+          room_id NULLS LAST,
+          CASE person_type WHEN 'adult' THEN 1 WHEN 'child' THEN 2 WHEN 'toddler' THEN 3 END,
           order_index
       `),
     };
@@ -552,6 +583,7 @@ class DatabaseManager {
         notes: data.notes || null,
         paid: data.paid ? 1 : 0,
         pay_from_benefit: data.payFromBenefit ? 1 : 0,
+        per_room_guests: data.perRoomGuests ? JSON.stringify(data.perRoomGuests) : null,
         edit_token: data.editToken,
         created_at: data.createdAt,
         updated_at: data.updatedAt,
@@ -613,10 +645,11 @@ class DatabaseManager {
         data.guestNames.forEach((guest, index) => {
           this.statements.insertGuestName.run(
             data.id,
-            guest.personType, // 'adult' or 'child'
+            guest.personType, // 'adult', 'child', or 'toddler'
             guest.firstName,
             guest.lastName,
             index + 1, // order_index starts at 1
+            guest.roomId || null, // room_id (nullable for backward compatibility)
             now
           );
         });
@@ -650,6 +683,7 @@ class DatabaseManager {
         notes: data.notes || null,
         paid: data.paid ? 1 : 0,
         pay_from_benefit: data.payFromBenefit ? 1 : 0,
+        per_room_guests: data.perRoomGuests ? JSON.stringify(data.perRoomGuests) : null,
         updated_at: new Date().toISOString(),
       });
 
@@ -711,10 +745,11 @@ class DatabaseManager {
         data.guestNames.forEach((guest, index) => {
           this.statements.insertGuestName.run(
             bookingId,
-            guest.personType, // 'adult' or 'child'
+            guest.personType, // 'adult', 'child', or 'toddler'
             guest.firstName,
             guest.lastName,
             index + 1, // order_index starts at 1
+            guest.roomId || null, // room_id (nullable for backward compatibility)
             now
           );
         });
@@ -807,7 +842,7 @@ class DatabaseManager {
 
       // Build perRoomDates and perRoomGuests objects
       const perRoomDates = {};
-      const perRoomGuests = {};
+      let perRoomGuests = {}; // Changed from const to let
       roomRows.forEach((row) => {
         if (row.start_date && row.end_date) {
           perRoomDates[row.room_id] = {
@@ -824,6 +859,31 @@ class DatabaseManager {
           guestType: row.guest_type || booking.guest_type,
         };
       });
+
+      // PRIORITY: Use per_room_guests from bookings table if exists (new format)
+      // This overrides the data from booking_rooms table
+      if (booking.per_room_guests) {
+        try {
+          const parsedPerRoomGuests = JSON.parse(booking.per_room_guests);
+          // Convert array format to object format with roomId as key
+          if (Array.isArray(parsedPerRoomGuests)) {
+            perRoomGuests = {};
+            parsedPerRoomGuests.forEach((roomGuest) => {
+              if (roomGuest.roomId) {
+                perRoomGuests[roomGuest.roomId] = {
+                  adults: roomGuest.adults || 0,
+                  children: roomGuest.children || 0,
+                  toddlers: roomGuest.toddlers || 0,
+                  guestType: roomGuest.guestType || booking.guest_type,
+                };
+              }
+            });
+          }
+        } catch (error) {
+          // Ignore JSON parse errors, use fallback from booking_rooms
+          console.warn('Failed to parse per_room_guests for booking', booking.id, error);
+        }
+      }
 
       // Get guest names
       const guestNameRows = this.statements.getGuestNamesByBooking.all(booking.id);
@@ -893,7 +953,7 @@ class DatabaseManager {
       // Parse room_data to extract rooms, per-room dates, and per-room guest data
       const rooms = [];
       const perRoomDates = {};
-      const perRoomGuests = {};
+      let perRoomGuests = {};
 
       if (booking.room_data) {
         const roomEntries = booking.room_data.split(',');
@@ -917,6 +977,31 @@ class DatabaseManager {
             guestType: guestType || booking.guest_type,
           };
         });
+      }
+
+      // PRIORITY: Use per_room_guests from bookings table if exists (new format)
+      // This overrides the data from booking_rooms table
+      if (booking.per_room_guests) {
+        try {
+          const parsedPerRoomGuests = JSON.parse(booking.per_room_guests);
+          // Convert array format to object format with roomId as key
+          if (Array.isArray(parsedPerRoomGuests)) {
+            perRoomGuests = {};
+            parsedPerRoomGuests.forEach((roomGuest) => {
+              if (roomGuest.roomId) {
+                perRoomGuests[roomGuest.roomId] = {
+                  adults: roomGuest.adults || 0,
+                  children: roomGuest.children || 0,
+                  toddlers: roomGuest.toddlers || 0,
+                  guestType: roomGuest.guestType || booking.guest_type,
+                };
+              }
+            });
+          }
+        } catch (error) {
+          // Ignore JSON parse errors, use fallback from booking_rooms
+          console.warn('Failed to parse per_room_guests for booking', booking.id, error);
+        }
       }
 
       // Fetch guest names for this booking
@@ -1203,6 +1288,18 @@ class DatabaseManager {
       settings.contactEmail = contactEmail;
     }
 
+    // Get admin emails for notifications
+    const adminEmailsJson = this.getSetting('adminEmails');
+    if (adminEmailsJson) {
+      try {
+        settings.adminEmails = JSON.parse(adminEmailsJson);
+      } catch (error) {
+        settings.adminEmails = [];
+      }
+    } else {
+      settings.adminEmails = [];
+    }
+
     return settings;
   }
 
@@ -1277,6 +1374,14 @@ class DatabaseManager {
       // Handle contact email updates
       if (updatedSettings.contactEmail) {
         this.setSetting('contactEmail', updatedSettings.contactEmail);
+      }
+
+      // Handle admin emails updates
+      if (updatedSettings.adminEmails !== undefined) {
+        // Validate that it's an array
+        if (Array.isArray(updatedSettings.adminEmails)) {
+          this.setSetting('adminEmails', JSON.stringify(updatedSettings.adminEmails));
+        }
       }
     });
 
@@ -1395,17 +1500,13 @@ class DatabaseManager {
       }
     }
 
-    const occupiedCount = (nightBeforeOccupied ? 1 : 0) + (nightAfterOccupied ? 1 : 0);
-
-    // Check for proposed bookings (excluding current session if provided)
-    // INCLUSIVE end date - proposed booking blocks checkout day too
+    // Check for proposed bookings using NIGHT-BASED MODEL (supports mixed edge days)
     const now = new Date().toISOString();
     const proposedQuery = excludeSessionId
       ? `
             SELECT pb.* FROM proposed_bookings pb
             JOIN proposed_booking_rooms pbr ON pb.proposal_id = pbr.proposal_id
             WHERE pbr.room_id = ?
-            AND ? >= pb.start_date AND ? <= pb.end_date
             AND pb.expires_at > ?
             AND pb.session_id != ?
         `
@@ -1413,39 +1514,103 @@ class DatabaseManager {
             SELECT pb.* FROM proposed_bookings pb
             JOIN proposed_booking_rooms pbr ON pb.proposal_id = pbr.proposal_id
             WHERE pbr.room_id = ?
-            AND ? >= pb.start_date AND ? <= pb.end_date
             AND pb.expires_at > ?
         `;
 
     const proposedParams = excludeSessionId
-      ? [roomId, date, date, now, excludeSessionId]
-      : [roomId, date, date, now];
+      ? [roomId, now, excludeSessionId]
+      : [roomId, now];
 
     const proposedBookings = this.db.prepare(proposedQuery).all(...proposedParams);
 
-    if (proposedBookings.length > 0) {
-      return {
-        available: false,
-        status: 'proposed',
-        reason: 'proposed',
-        proposal: proposedBookings[0],
-      };
+    // Check if nights are occupied by proposed bookings
+    let proposedNightBeforeOccupied = false;
+    let proposedNightAfterOccupied = false;
+
+    for (const pb of proposedBookings) {
+      // Use DateUtils.isNightOccupied for consistent EXCLUSIVE end date logic
+      if (DateUtils.isNightOccupied(nightBefore, pb.start_date, pb.end_date)) {
+        proposedNightBeforeOccupied = true;
+      }
+      if (DateUtils.isNightOccupied(nightAfter, pb.start_date, pb.end_date)) {
+        proposedNightAfterOccupied = true;
+      }
     }
 
-    // Determine status based on occupied night count
-    if (occupiedCount === 0) {
+    // Combine proposed and confirmed night occupancy
+    const totalNightBeforeOccupied = proposedNightBeforeOccupied || nightBeforeOccupied;
+    const totalNightAfterOccupied = proposedNightAfterOccupied || nightAfterOccupied;
+    const totalOccupiedCount = (totalNightBeforeOccupied ? 1 : 0) + (totalNightAfterOccupied ? 1 : 0);
+
+    // Determine night types for detailed rendering
+    const nightBeforeType = proposedNightBeforeOccupied
+      ? 'proposed'
+      : nightBeforeOccupied
+        ? 'confirmed'
+        : 'available';
+    const nightAfterType = proposedNightAfterOccupied
+      ? 'proposed'
+      : nightAfterOccupied
+        ? 'confirmed'
+        : 'available';
+
+    // Determine status based on total occupied night count
+    if (totalOccupiedCount === 0) {
       return { available: true, status: 'available', email: null };
-    } else if (occupiedCount === 1) {
+    } else if (totalOccupiedCount === 1) {
+      // Edge day - ONE night occupied (either proposed or confirmed)
       return {
         available: true, // Edge days are available for new bookings
         status: 'edge',
         reason: 'edge',
         email: bookingEmail,
-        nightBefore: nightBeforeOccupied,
-        nightAfter: nightAfterOccupied,
+        nightBefore: totalNightBeforeOccupied,
+        nightAfter: totalNightAfterOccupied,
+        nightBeforeType,
+        nightAfterType,
+      };
+    } else if (totalOccupiedCount === 2) {
+      // BOTH nights occupied - check if MIXED (one proposed, one confirmed)
+      const isMixed =
+        (proposedNightBeforeOccupied && !nightBeforeOccupied && nightAfterOccupied) ||
+        (proposedNightAfterOccupied && !nightAfterOccupied && nightBeforeOccupied);
+
+      if (isMixed) {
+        // Mixed edge day - one night proposed, one confirmed
+        // Treat as edge day (clickable) with special flag
+        return {
+          available: true,
+          status: 'edge',
+          reason: 'edge',
+          email: bookingEmail,
+          nightBefore: totalNightBeforeOccupied,
+          nightAfter: totalNightAfterOccupied,
+          nightBeforeType,
+          nightAfterType,
+          isMixed: true, // Flag for special rendering
+        };
+      }
+
+      // Both nights occupied by same type (both proposed OR both confirmed)
+      if (proposedNightBeforeOccupied && proposedNightAfterOccupied) {
+        return {
+          available: false,
+          status: 'proposed',
+          reason: 'proposed',
+          proposal: proposedBookings[0],
+        };
+      }
+
+      // Both nights confirmed
+      return {
+        available: false,
+        status: 'occupied',
+        reason: 'booked',
+        email: bookingEmail,
       };
     }
-    // Both nights occupied = fully occupied
+
+    // Shouldn't reach here, but return occupied as fallback
     return {
       available: false,
       status: 'occupied',

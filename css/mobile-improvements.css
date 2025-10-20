@@ -497,6 +497,97 @@
   }
 }
 
+/* ===== CRITICAL FIX: SAFARI BOTTOM TOOLBAR OVERLAP ===== */
+
+/**
+ * Fix for iOS Safari where bottom toolbar covers action buttons
+ * Uses env() for safe-area-inset to account for browser UI
+ */
+@media (max-width: 768px) {
+  /* Fix for single room booking modal actions */
+  .booking-actions {
+    position: sticky !important;
+    bottom: 0 !important;
+    /* Add safe area padding for iOS Safari bottom toolbar */
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)) !important;
+    /* Ensure buttons remain visible above Safari toolbar */
+    z-index: 100 !important;
+    background: white !important;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1) !important;
+  }
+
+  /* Fix for bulk booking modal footer */
+  .modal-footer {
+    position: sticky !important;
+    bottom: 0 !important;
+    /* Add safe area padding for iOS Safari bottom toolbar */
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)) !important;
+    /* Ensure buttons remain visible above Safari toolbar */
+    z-index: 100 !important;
+    background: white !important;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1) !important;
+  }
+
+  /* Make sure buttons in these containers are fully tappable */
+  .booking-actions .btn,
+  .modal-footer .btn {
+    min-height: 48px !important; /* Larger touch target */
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+    /* Prevent button text from wrapping */
+    white-space: nowrap !important;
+  }
+
+  /* Ensure modal has proper layout with adequate height */
+  .compact-booking-modal {
+    display: flex !important;
+    flex-direction: column !important;
+    /* Allow modal to be tall enough but leave space for Safari UI */
+    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 20px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Allow booking modal content to expand naturally */
+  .compact-booking-modal .booking-modal-content {
+    flex: 1 1 auto !important;
+    min-height: auto !important;
+    /* Adequate padding to ensure content doesn't touch sticky buttons */
+    padding-bottom: 1rem !important;
+  }
+
+  /* Ensure left column (calendar) has good height */
+  .booking-left-column {
+    min-height: 450px !important; /* Ensure adequate space for mini calendar */
+    flex: 1 !important;
+  }
+
+  /* Ensure right column (guest form) has good height */
+  .booking-right-column {
+    min-height: 500px !important; /* Ensure adequate space for form fields */
+    max-height: none !important; /* Override any inline max-height */
+    overflow-y: visible !important; /* Allow natural scrolling */
+    flex: 1 !important;
+  }
+
+  /* Improve interactive calendar height in modals */
+  .interactive-calendar {
+    min-height: 380px !important; /* Ensure mini calendar is visible */
+  }
+}
+
+/* Additional fix for viewport units on iOS Safari */
+@supports (-webkit-touch-callout: none) {
+  /* iOS Safari specific styles */
+  @media (max-width: 768px) {
+    .booking-actions,
+    .modal-footer {
+      /* Extra padding for iOS Safari's dynamic toolbar */
+      padding-bottom: calc(1.5rem + max(env(safe-area-inset-bottom, 0px), 20px)) !important;
+    }
+  }
+}
+
 /* ===== END OF MOBILE IMPROVEMENTS ===== */
 
 /**
@@ -524,4 +615,9 @@
  *    - Smooth scrolling
  *    - Quick touch response
  *    - No layout shift
+ *
+ * 6. CRITICAL: Test on real iPhone Safari:
+ *    - Verify "Přidat rezervaci" button is clickable
+ *    - Verify button doesn't hide behind Safari toolbar
+ *    - Test both single room and bulk booking modals
  */

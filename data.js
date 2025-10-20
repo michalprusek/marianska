@@ -568,22 +568,37 @@ class DataManager {
     // Available day = NO nights around the day are occupied
     const checkDateStr = this.formatDate(date);
 
-    // HIGHEST PRIORITY: Check for proposed bookings first
+    // Calculate nights around the given day for proposed bookings check
+    const nightBefore = DateUtils.getPreviousDay(checkDateStr); // night from (day-1) to day
+    const nightAfter = checkDateStr; // night from day to (day+1)
+
+    // Check BOTH proposed and confirmed bookings to support mixed edge days
+    // (one night proposed, other night confirmed)
+    let proposedNightBeforeOccupied = false;
+    let proposedNightAfterOccupied = false;
+
+    // HIGHEST PRIORITY: Check for proposed bookings using NIGHT-BASED MODEL
     try {
       const proposedBookings = await this.getProposedBookings();
       const shouldExcludeSession = excludeSessionId === undefined;
       const sessionToExclude = shouldExcludeSession ? this.sessionId : excludeSessionId;
 
-      const hasProposedBooking = proposedBookings.some(
+      // Filter proposed bookings for this room (excluding own session)
+      const relevantProposals = proposedBookings.filter(
         (pb) =>
           pb.rooms.includes(roomId) &&
-          checkDateStr >= pb.start_date &&
-          checkDateStr <= pb.end_date && // INCLUSIVE end date for proposed bookings - blocks checkout day
           (sessionToExclude === '' || pb.session_id !== sessionToExclude)
       );
 
-      if (hasProposedBooking) {
-        return { status: 'proposed', email: null };
+      // Check if nights are occupied by proposed bookings
+      for (const pb of relevantProposals) {
+        // Night is occupied if nightDate >= proposalStart AND nightDate < proposalEnd
+        if (DateUtils.isNightOccupied(nightBefore, pb.start_date, pb.end_date)) {
+          proposedNightBeforeOccupied = true;
+        }
+        if (DateUtils.isNightOccupied(nightAfter, pb.start_date, pb.end_date)) {
+          proposedNightAfterOccupied = true;
+        }
       }
     } catch (error) {
       console.error('Failed to check proposed bookings:', error);
@@ -608,9 +623,8 @@ class DataManager {
         return { startDate: b.startDate, endDate: b.endDate, email: b.email };
       });
 
-    // Calculate nights around the given day using DateUtils
-    const nightBefore = DateUtils.getPreviousDay(checkDateStr); // night from (day-1) to day
-    const nightAfter = checkDateStr; // night from day to (day+1)
+    // nightBefore and nightAfter already calculated above (for proposed bookings check)
+    // Reuse the same values for confirmed bookings check
 
     let nightBeforeOccupied = false;
     let nightAfterOccupied = false;
@@ -629,24 +643,71 @@ class DataManager {
       }
     }
 
-    const occupiedCount = (nightBeforeOccupied ? 1 : 0) + (nightAfterOccupied ? 1 : 0);
+    // Combine proposed and confirmed night occupancy
+    // Priority: proposed > confirmed (if both occupy same night, show as proposed)
+    const totalNightBeforeOccupied = proposedNightBeforeOccupied || nightBeforeOccupied;
+    const totalNightAfterOccupied = proposedNightAfterOccupied || nightAfterOccupied;
+    const totalOccupiedCount = (totalNightBeforeOccupied ? 1 : 0) + (totalNightAfterOccupied ? 1 : 0);
 
-    // Determine status based on occupied night count
-    if (occupiedCount === 0) {
+    // Determine night types for detailed rendering
+    const nightBeforeType = proposedNightBeforeOccupied
+      ? 'proposed'
+      : nightBeforeOccupied
+        ? 'confirmed'
+        : 'available';
+    const nightAfterType = proposedNightAfterOccupied
+      ? 'proposed'
+      : nightAfterOccupied
+        ? 'confirmed'
+        : 'available';
+
+    // Determine status based on total occupied night count
+    if (totalOccupiedCount === 0) {
       return { status: 'available', email: null };
-    } else if (occupiedCount === 1) {
+    } else if (totalOccupiedCount === 2) {
+      // Both nights occupied
+      // Special case: If one is proposed and one is confirmed, treat as 'edge' for mixed display
+      const isMixed =
+        (proposedNightBeforeOccupied && nightBeforeOccupied === false && nightAfterOccupied) ||
+        (proposedNightAfterOccupied && nightAfterOccupied === false && nightBeforeOccupied);
+
+      if (isMixed) {
+        // Mixed: one proposed, one confirmed = edge day with both colors
+        return {
+          status: 'edge',
+          email: bookingEmail || null,
+          nightBefore: totalNightBeforeOccupied,
+          nightAfter: totalNightAfterOccupied,
+          nightBeforeType,
+          nightAfterType,
+          isMixed: true, // Flag for special rendering
+        };
+      }
+
+      // If BOTH are proposed, return 'proposed' status (solid orange)
+      if (proposedNightBeforeOccupied && proposedNightAfterOccupied) {
+        return { status: 'proposed', email: null };
+      }
+
+      // Otherwise return 'occupied' (solid red) - both are confirmed
+      return {
+        status: 'occupied',
+        email: bookingEmail || null,
+      };
+    } else if (totalOccupiedCount === 1) {
+      // Exactly one night occupied = edge day
       return {
         status: 'edge',
         email: bookingEmail || null,
-        nightBefore: nightBeforeOccupied,
-        nightAfter: nightAfterOccupied,
+        nightBefore: totalNightBeforeOccupied,
+        nightAfter: totalNightAfterOccupied,
+        nightBeforeType,
+        nightAfterType,
       };
     }
-    // Both nights occupied = fully occupied
-    return {
-      status: 'occupied',
-      email: bookingEmail || null,
-    };
+
+    // Fallback (should never reach here)
+    return { status: 'available', email: null };
   }
 
   // Generate color from email for consistent coloring

@@ -168,6 +168,124 @@ class EmailService {
   }
 
   /**
+   * Generate detailed price breakdown per room
+   * @param {Object} booking - Booking data
+   * @param {Object} settings - System settings
+   * @returns {string} Formatted price breakdown
+   * @private
+   */
+  generatePriceBreakdown(booking, settings = {}) {
+    if (!booking || !settings || !settings.prices || !settings.rooms) {
+      return 'Rozpis ceny není k dispozici';
+    }
+
+    const guestKey = booking.guestType === 'utia' ? 'utia' : 'external';
+    const priceConfig = settings.prices[guestKey];
+    const nights = DateUtils.getDaysBetween(booking.startDate, booking.endDate);
+
+    // Handle per-room bookings
+    if (booking.perRoomDates && booking.perRoomGuests) {
+      let breakdown = '';
+      let totalPrice = 0;
+
+      for (const roomId of booking.rooms || []) {
+        const room = settings.rooms.find((r) => r.id === roomId);
+        const roomType = room?.type || 'small';
+        const roomBeds = room?.beds || '?';
+        const roomPriceConfig = priceConfig?.[roomType];
+
+        if (!roomPriceConfig) continue;
+
+        const roomDates = booking.perRoomDates[roomId];
+        const roomGuests = booking.perRoomGuests[roomId] || {};
+        const roomNights = roomDates
+          ? DateUtils.getDaysBetween(roomDates.startDate, roomDates.endDate)
+          : nights;
+        const roomAdults = roomGuests.adults || 0;
+        const roomChildren = roomGuests.children || 0;
+
+        // Calculate room price
+        const emptyRoomPrice = roomPriceConfig.base - roomPriceConfig.adult;
+        const basePrice = emptyRoomPrice * roomNights;
+        const adultsPrice = roomAdults * roomPriceConfig.adult * roomNights;
+        const childrenPrice = roomChildren * roomPriceConfig.child * roomNights;
+        const roomTotal = basePrice + adultsPrice + childrenPrice;
+
+        breakdown += `Pokoj ${roomId} (${roomBeds} lůžka)\n`;
+        breakdown += `  Základní cena: ${emptyRoomPrice} Kč/noc × ${roomNights} nocí = ${basePrice} Kč\n`;
+        if (roomAdults > 0) {
+          breakdown += `  Dospělí: ${roomAdults} × ${roomPriceConfig.adult} Kč/noc × ${roomNights} nocí = ${adultsPrice} Kč\n`;
+        }
+        if (roomChildren > 0) {
+          breakdown += `  Děti: ${roomChildren} × ${roomPriceConfig.child} Kč/noc × ${roomNights} nocí = ${childrenPrice} Kč\n`;
+        }
+        breakdown += `  Celkem za pokoj: ${roomTotal} Kč\n\n`;
+        totalPrice += roomTotal;
+      }
+
+      breakdown += `CELKOVÁ CENA: ${totalPrice} Kč`;
+      return breakdown.trim();
+    }
+
+    // Handle single-date bookings (all rooms same dates)
+    let breakdown = '';
+    let totalPrice = 0;
+
+    for (const roomId of booking.rooms || []) {
+      const room = settings.rooms.find((r) => r.id === roomId);
+      const roomType = room?.type || 'small';
+      const roomBeds = room?.beds || '?';
+      const roomPriceConfig = priceConfig?.[roomType];
+
+      if (!roomPriceConfig) continue;
+
+      const emptyRoomPrice = roomPriceConfig.base - roomPriceConfig.adult;
+      const basePrice = emptyRoomPrice * nights;
+
+      breakdown += `Pokoj ${roomId} (${roomBeds} lůžka)\n`;
+      breakdown += `  Základní cena: ${emptyRoomPrice} Kč/noc × ${nights} nocí = ${basePrice} Kč\n\n`;
+      totalPrice += basePrice;
+    }
+
+    // Add guests surcharge (distributed across rooms)
+    if (booking.adults > 0 || booking.children > 0) {
+      // Calculate average price config
+      const avgAdult =
+        booking.rooms.reduce((sum, roomId) => {
+          const room = settings.rooms.find((r) => r.id === roomId);
+          const roomType = room?.type || 'small';
+          return sum + (priceConfig?.[roomType]?.adult || 0);
+        }, 0) / booking.rooms.length;
+
+      const avgChild =
+        booking.rooms.reduce((sum, roomId) => {
+          const room = settings.rooms.find((r) => r.id === roomId);
+          const roomType = room?.type || 'small';
+          return sum + (priceConfig?.[roomType]?.child || 0);
+        }, 0) / booking.rooms.length;
+
+      breakdown += 'Hosté (napříč všemi pokoji)\n';
+
+      if (booking.adults > 0) {
+        const adultsPrice = booking.adults * Math.round(avgAdult) * nights;
+        breakdown += `  Dospělí: ${booking.adults} × ${Math.round(avgAdult)} Kč/noc × ${nights} nocí = ${adultsPrice} Kč\n`;
+        totalPrice += adultsPrice;
+      }
+
+      if (booking.children > 0) {
+        const childrenPrice = booking.children * Math.round(avgChild) * nights;
+        breakdown += `  Děti: ${booking.children} × ${Math.round(avgChild)} Kč/noc × ${nights} nocí = ${childrenPrice} Kč\n`;
+        totalPrice += childrenPrice;
+      }
+
+      breakdown += '\n';
+    }
+
+    breakdown += `CELKOVÁ CENA: ${totalPrice} Kč`;
+    return breakdown.trim();
+  }
+
+  /**
    * Generate current timestamp in Czech format
    * @returns {string} Formatted timestamp
    * @private
@@ -336,6 +454,12 @@ class EmailService {
   generateBookingConfirmationHtml(booking, editUrl, settings = {}) {
     const details = this.formatBookingDetails(booking, settings);
 
+    // Generate price breakdown
+    const priceBreakdown = this.generatePriceBreakdown(booking, settings);
+    const perRoomPriceHtml = priceBreakdown
+      ? `<div class="d" style="margin-bottom:10px"><p><b>Rozpis ceny:</b></p><pre style="margin:0;font-family:monospace;font-size:12px;white-space:pre-wrap">${priceBreakdown}</pre></div>`
+      : '';
+
     // Simplified HTML for SMTP size limit (hermes.utia.cas.cz has ~1KB limit)
     return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><style>
@@ -358,7 +482,8 @@ Nocí: ${details.nights} | Pokoje: ${details.roomList}<br>
 Typ: ${details.guestTypeText}<br>
 Osob: ${details.adults} dospělých, ${details.children} dětí${details.notes ? `<br>Poznámka: ${details.notes}` : ''}</p>
 </div>
-<div class="p">Cena: ${details.priceFormatted}</div>
+${perRoomPriceHtml}
+<div class="p">Celková cena: ${details.priceFormatted}</div>
 <div class="e">
 <p><b>Editace nebo zrušení rezervace:</b></p>
 <a href="${editUrl}" class="b">Upravit rezervaci</a>
@@ -377,9 +502,10 @@ Osob: ${details.adults} dospělých, ${details.children} dětí${details.notes ?
    * @param {string} template - Email template with variables
    * @param {Object} booking - Booking data
    * @param {string} editUrl - URL for editing the booking
+   * @param {Object} settings - System settings (for price breakdown)
    * @returns {string} Email content with substituted variables
    */
-  substituteVariables(template, booking, editUrl) {
+  substituteVariables(template, booking, editUrl, settings = {}) {
     // Parse date strings to Date objects for formatting
     const startDate = DateUtils.parseDate(booking.startDate);
     const endDate = DateUtils.parseDate(booking.endDate);
@@ -389,6 +515,7 @@ Osob: ${details.adults} dospělých, ${details.children} dětí${details.notes ?
     const nights = DateUtils.getDaysBetween(booking.startDate, booking.endDate);
     const roomList = this.formatRoomList(booking.rooms);
     const priceFormatted = this.formatPrice(booking.totalPrice);
+    const priceBreakdown = this.generatePriceBreakdown(booking, settings);
 
     // Variable mapping
     const variables = {
@@ -398,6 +525,7 @@ Osob: ${details.adults} dospělých, ${details.children} dětí${details.notes ?
       '{end_date}': `${endDateFormatted} (${booking.endDate})`,
       '{rooms}': roomList,
       '{total_price}': priceFormatted,
+      '{price_overview}': priceBreakdown,
       '{adults}': booking.adults,
       '{children}': booking.children || 0,
       '{toddlers}': booking.toddlers || 0,
@@ -417,6 +545,58 @@ Osob: ${details.adults} dospělých, ${details.children} dětí${details.notes ?
   }
 
   /**
+   * Send notification copies to admin emails
+   * @param {Object} booking - Booking data
+   * @param {string} subject - Email subject
+   * @param {string} textContent - Email body
+   * @param {Object} settings - System settings (contains adminEmails array)
+   * @returns {Promise<Array>} Array of send results
+   * @private
+   */
+  async sendAdminNotifications(booking, subject, textContent, settings = {}) {
+    const adminEmails = settings.adminEmails || [];
+
+    // Filter out invalid emails and duplicates
+    const validAdminEmails = [...new Set(adminEmails.filter((email) => this.isValidEmail(email)))];
+
+    if (validAdminEmails.length === 0) {
+      logger.info('No admin emails configured, skipping admin notifications', {
+        bookingId: booking.id,
+      });
+      return [];
+    }
+
+    logger.info('Sending admin notifications', {
+      bookingId: booking.id,
+      adminCount: validAdminEmails.length,
+    });
+
+    // Send to all admins in parallel
+    const sendPromises = validAdminEmails.map(async (adminEmail) => {
+      try {
+        const adminMailOptions = this.createMailOptions(adminEmail, subject, textContent);
+
+        const result = await this.sendEmail(adminMailOptions, {
+          type: 'admin_notification',
+          bookingId: booking.id,
+          adminEmail,
+        });
+
+        return { email: adminEmail, success: true, ...result };
+      } catch (error) {
+        logger.error('Failed to send admin notification', {
+          adminEmail,
+          bookingId: booking.id,
+          error: error.message,
+        });
+        return { email: adminEmail, success: false, error: error.message };
+      }
+    });
+
+    return Promise.all(sendPromises);
+  }
+
+  /**
    * Generate plain text email template for booking confirmation
    * @param {Object} booking - Booking data
    * @param {string} editUrl - URL for editing the booking
@@ -430,7 +610,8 @@ Osob: ${details.adults} dospělých, ${details.children} dětí${details.notes ?
       let emailContent = this.substituteVariables(
         settings.emailTemplate.template,
         booking,
-        editUrl
+        editUrl,
+        settings
       );
 
       // Auto-append edit link if not already in template
@@ -443,6 +624,7 @@ Osob: ${details.adults} dospělých, ${details.children} dětí${details.notes ?
 
     // Fallback to default template
     const details = this.formatBookingDetails(booking, settings);
+    const priceBreakdown = this.generatePriceBreakdown(booking, settings);
 
     return `CHATA MARIÁNSKÁ - Potvrzení rezervace ${booking.id}
 
@@ -455,8 +637,10 @@ Příjezd: ${details.startDateFormatted} (${details.startDate})
 Odjezd: ${details.endDateFormatted} (${details.endDate})
 Nocí: ${details.nights} | Pokoje: ${details.roomList}
 Typ: ${details.guestTypeText}
-Osob: ${details.adults} dospělých, ${details.children} dětí
-Cena: ${details.priceFormatted}${details.notes ? `\nPoznámka: ${details.notes}` : ''}
+Osob: ${details.adults} dospělých, ${details.children} dětí${details.notes ? `\nPoznámka: ${details.notes}` : ''}
+
+ROZPIS CENY:
+${priceBreakdown}
 
 EDITACE/ZRUŠENÍ REZERVACE:
 ${editUrl}
@@ -474,12 +658,13 @@ Automatická zpráva - neodpovídejte
    * Send booking confirmation email
    * @param {Object} booking - Booking data
    * @param {Object} options - Additional options
+   * @param {Object} [options.settings] - System settings (includes adminEmails)
    * @returns {Promise<Object>} Email sending result
    *   - {boolean} success - True if email sent successfully
    *   - {string} [messageId] - SMTP message ID (on success)
    * @throws {Error} If email validation fails or sending fails
    */
-  sendBookingConfirmation(booking, options = {}) {
+  async sendBookingConfirmation(booking, options = {}) {
     // Validate input data
     if (!booking || !booking.email || !booking.editToken) {
       throw new Error('Invalid booking data: missing email or editToken');
@@ -495,10 +680,23 @@ Automatická zpráva - neodpovídejte
 
     const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent);
 
-    return this.sendEmailWithRetry(mailOptions, {
+    // Send to booking owner
+    const result = await this.sendEmailWithRetry(mailOptions, {
       type: 'booking_confirmation',
       bookingId: booking.id,
     });
+
+    // Send copies to admin emails (non-blocking)
+    this.sendAdminNotifications(booking, emailSubject, textContent, options.settings).catch(
+      (error) => {
+        logger.warn('Failed to send admin notification for booking confirmation', {
+          bookingId: booking.id,
+          error: error.message,
+        });
+      }
+    );
+
+    return result;
   }
 
   /**
@@ -716,10 +914,11 @@ Automatická zpráva - neodpovídejte
    * @param {Object} changes - Object describing what changed
    * @param {Object} options - Additional options
    * @param {boolean} options.modifiedByAdmin - Whether change was made by admin
+   * @param {Object} [options.settings] - System settings (includes adminEmails)
    * @returns {Promise<Object>} Email sending result
    * @throws {Error} If validation fails or sending fails
    */
-  sendBookingModification(booking, changes, options = {}) {
+  async sendBookingModification(booking, changes, options = {}) {
     if (!booking || !booking.email || !booking.editToken) {
       throw new Error('Invalid booking data: missing email or editToken');
     }
@@ -740,12 +939,25 @@ Automatická zpráva - neodpovídejte
 
     const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent);
 
-    return this.sendEmailWithRetry(mailOptions, {
+    // Send to booking owner
+    const result = await this.sendEmailWithRetry(mailOptions, {
       type: 'booking_modification',
       bookingId: booking.id,
       modifiedByAdmin: options.modifiedByAdmin || false,
       changes: Object.keys(changes),
     });
+
+    // Send copies to admin emails (non-blocking)
+    this.sendAdminNotifications(booking, emailSubject, textContent, options.settings).catch(
+      (error) => {
+        logger.warn('Failed to send admin notification for booking modification', {
+          bookingId: booking.id,
+          error: error.message,
+        });
+      }
+    );
+
+    return result;
   }
 
   /**
@@ -793,10 +1005,11 @@ Automatická zpráva - neodpovídejte
    * @param {Object} booking - Deleted booking data
    * @param {Object} options - Additional options
    * @param {boolean} options.deletedByAdmin - Whether deletion was performed by admin
+   * @param {Object} [options.settings] - System settings (includes adminEmails)
    * @returns {Promise<Object>} Email sending result
    * @throws {Error} If validation fails or sending fails
    */
-  sendBookingDeletion(booking, options = {}) {
+  async sendBookingDeletion(booking, options = {}) {
     if (!booking || !booking.email) {
       throw new Error('Invalid booking data: missing email');
     }
@@ -812,11 +1025,24 @@ Automatická zpráva - neodpovídejte
 
     const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent);
 
-    return this.sendEmailWithRetry(mailOptions, {
+    // Send to booking owner
+    const result = await this.sendEmailWithRetry(mailOptions, {
       type: 'booking_deletion',
       bookingId: booking.id,
       deletedByAdmin: options.deletedByAdmin || false,
     });
+
+    // Send copies to admin emails (non-blocking)
+    this.sendAdminNotifications(booking, emailSubject, textContent, options.settings).catch(
+      (error) => {
+        logger.warn('Failed to send admin notification for booking deletion', {
+          bookingId: booking.id,
+          error: error.message,
+        });
+      }
+    );
+
+    return result;
   }
 }
 

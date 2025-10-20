@@ -1230,6 +1230,13 @@ input:checked + .slider:before {
   color: var(--gray-800);
 }
 
+/* Required field indicator - highlight asterisks in red */
+.required-asterisk {
+  color: #dc2626; /* red-600 */
+  font-weight: 700;
+  margin-left: 2px;
+}
+
 .input-group input,
 .input-group select,
 .input-group textarea {
@@ -2208,7 +2215,7 @@ input:checked + .slider:before {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10000;
+  z-index: 99999; /* Highest z-index to ensure visibility */
   opacity: 0;
   transition: opacity 0.3s ease;
 }
@@ -2265,14 +2272,15 @@ input:checked + .slider:before {
 }
 
 .confirm-ok {
-  background: var(--primary-color);
+  background: #0d9488; /* Teal green */
   color: white;
 }
 
 .confirm-ok:hover {
-  background: var(--primary-dark);
+  background: #0f766e; /* Darker teal on hover */
+  color: white;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3);
+  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.4);
 }
 
 /* Toast animations */

@@ -18,6 +18,7 @@ class AdminPanel {
     this.editStartDate = null;
     this.editEndDate = null;
     this.currentEditBooking = null;
+    this.selectedBookings = new Set(); // Track selected bookings for bulk operations
     this.init();
   }
 
@@ -53,6 +54,145 @@ class AdminPanel {
             box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
             text-shadow: 0 1px 2px rgba(0,0,0,0.2);
         ">P${roomId}</span>`;
+  }
+
+  /**
+   * Render guest names organized by room
+   * @param {Object} booking - Booking object with guestNames and rooms
+   * @returns {string} - HTML string
+   */
+  renderGuestNamesByRoom(booking) {
+    if (!booking.guestNames || booking.guestNames.length === 0) {
+      return '<p style="color: #9ca3af;">Žádná jména hostů</p>';
+    }
+
+    // Use GuestNameUtils to organize names by room
+    const perRoomGuests = booking.perRoomGuests || {};
+    const rooms = booking.rooms || [];
+
+    // Organize guest names by room
+    const perRoomGuestNames =
+      typeof GuestNameUtils !== 'undefined'
+        ? GuestNameUtils.organizeByRoom(booking.guestNames, perRoomGuests, rooms)
+        : null;
+
+    // If we have per-room organization AND multiple rooms, display by room
+    if (
+      perRoomGuestNames &&
+      Object.keys(perRoomGuestNames).length > 0 &&
+      rooms.length > 1
+    ) {
+      let html = '<div style="display: flex; flex-direction: column; gap: 1rem;">';
+
+      // Sort room IDs numerically
+      const sortedRoomIds = Object.keys(perRoomGuestNames).sort((a, b) => {
+        return parseInt(a, 10) - parseInt(b, 10);
+      });
+
+      sortedRoomIds.forEach((roomId) => {
+        const guests = perRoomGuestNames[roomId];
+        if (!Array.isArray(guests) || guests.length === 0) {
+          return;
+        }
+
+        html += `
+          <div style="border-left: 3px solid #28a745; padding-left: 0.75rem;">
+            <div style="font-weight: 600; color: #4b5563; font-size: 0.9rem; margin-bottom: 0.5rem;">
+              ${this.createRoomBadge(roomId, true)}
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+        `;
+
+        // Group by person type within the room
+        const adults = guests.filter((g) => g.personType === 'adult');
+        const children = guests.filter((g) => g.personType === 'child');
+        const toddlers = guests.filter((g) => g.personType === 'toddler');
+
+        if (adults.length > 0) {
+          html += `<div style="color: #6b7280; font-size: 0.85rem; margin-top: 0.25rem;"><strong>Dospělí:</strong> ${adults
+            .map((g) => `${this.escapeHtml(g.firstName)} ${this.escapeHtml(g.lastName)}`)
+            .join(', ')}</div>`;
+        }
+
+        if (children.length > 0) {
+          html += `<div style="color: #6b7280; font-size: 0.85rem; margin-top: 0.25rem;"><strong>Děti:</strong> ${children
+            .map((g) => `${this.escapeHtml(g.firstName)} ${this.escapeHtml(g.lastName)}`)
+            .join(', ')}</div>`;
+        }
+
+        if (toddlers.length > 0) {
+          html += `<div style="color: #6b7280; font-size: 0.85rem; margin-top: 0.25rem;"><strong>Batolata:</strong> ${toddlers
+            .map((g) => `${this.escapeHtml(g.firstName)} ${this.escapeHtml(g.lastName)}`)
+            .join(', ')}</div>`;
+        }
+
+        html += `
+            </div>
+          </div>
+        `;
+      });
+
+      html += '</div>';
+      return html;
+    }
+
+    // Fallback: display by person type only (backward compatible for single-room or legacy bookings)
+    let html = '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem;">';
+
+    const adults = booking.guestNames.filter((g) => g.personType === 'adult');
+    const children = booking.guestNames.filter((g) => g.personType === 'child');
+    const toddlers = booking.guestNames.filter((g) => g.personType === 'toddler');
+
+    if (adults.length > 0) {
+      html += `
+        <div>
+          <div style="font-weight: 600; color: #4b5563; font-size: 0.85rem; margin-bottom: 0.5rem;">Dospělí:</div>
+          <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+            ${adults
+              .map(
+                (guest) =>
+                  `<div style="color: #6b7280; font-size: 0.9rem;">${this.escapeHtml(guest.firstName)} ${this.escapeHtml(guest.lastName)}</div>`
+              )
+              .join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    if (children.length > 0) {
+      html += `
+        <div>
+          <div style="font-weight: 600; color: #4b5563; font-size: 0.85rem; margin-bottom: 0.5rem;">Děti:</div>
+          <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+            ${children
+              .map(
+                (guest) =>
+                  `<div style="color: #6b7280; font-size: 0.9rem;">${this.escapeHtml(guest.firstName)} ${this.escapeHtml(guest.lastName)}</div>`
+              )
+              .join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    if (toddlers.length > 0) {
+      html += `
+        <div>
+          <div style="font-weight: 600; color: #4b5563; font-size: 0.85rem; margin-bottom: 0.5rem;">Batolata:</div>
+          <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+            ${toddlers
+              .map(
+                (guest) =>
+                  `<div style="color: #6b7280; font-size: 0.9rem;">${this.escapeHtml(guest.firstName)} ${this.escapeHtml(guest.lastName)}</div>`
+              )
+              .join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    html += '</div>';
+    return html;
   }
 
   async init() {
@@ -114,6 +254,9 @@ class AdminPanel {
     document
       .getElementById('contactEmailForm')
       .addEventListener('submit', (e) => this.handleContactEmail(e));
+    document
+      .getElementById('addAdminEmailForm')
+      .addEventListener('submit', (e) => this.handleAddAdminEmail(e));
 
     // Modal close
     document.querySelectorAll('.modal-close').forEach((btn) => {
@@ -468,7 +611,17 @@ class AdminPanel {
       }
 
       const row = document.createElement('tr');
+      row.setAttribute('data-booking-id', booking.id);
       row.innerHTML = `
+                <td style="text-align: center;">
+                    <input
+                        type="checkbox"
+                        class="booking-checkbox"
+                        data-booking-id="${booking.id}"
+                        style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary-color);"
+                        onchange="adminPanel.toggleBookingSelection('${booking.id}', this.checked)"
+                    />
+                </td>
                 <td>${this.escapeHtml(booking.id)}</td>
                 <td>${this.escapeHtml(booking.name)}</td>
                 <td>${this.escapeHtml(booking.email)}</td>
@@ -522,6 +675,10 @@ class AdminPanel {
             `;
       tbody.appendChild(row);
     });
+
+    // Reset selection state
+    this.selectedBookings.clear();
+    this.updateBulkActionsUI();
   }
 
   filterBookings(searchTerm) {
@@ -684,7 +841,7 @@ class AdminPanel {
                         ? `
                     <div>
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
-                            <strong style="color: var(--gray-600); font-size: 0.9rem;">Jména hostů:</strong>
+                            <strong style="color: var(--gray-600); font-size: 0.9rem;">Jména hostů (podle pokojů):</strong>
                             <button
                                 onclick="adminPanel.copyGuestNames('${booking.id}')"
                                 style="padding: 0.4rem 0.8rem; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: 500; display: flex; align-items: center; gap: 0.4rem;"
@@ -698,44 +855,17 @@ class AdminPanel {
                                 Kopírovat
                             </button>
                         </div>
-                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem;">
-                            ${
-                              booking.guestNames.filter((g) => g.personType === 'adult').length > 0
-                                ? `
-                            <div>
-                                <div style="font-weight: 600; color: #4b5563; font-size: 0.85rem; margin-bottom: 0.5rem;">Dospělí:</div>
-                                <div style="display: flex; flex-direction: column; gap: 0.35rem;">
-                                    ${booking.guestNames
-                                      .filter((g) => g.personType === 'adult')
-                                      .map(
-                                        (guest) =>
-                                          `<div style="color: #6b7280; font-size: 0.9rem;">${this.escapeHtml(guest.firstName)} ${this.escapeHtml(guest.lastName)}</div>`
-                                      )
-                                      .join('')}
-                                </div>
-                            </div>
-                            `
-                                : ''
-                            }
-                            ${
-                              booking.guestNames.filter((g) => g.personType === 'child').length > 0
-                                ? `
-                            <div>
-                                <div style="font-weight: 600; color: #4b5563; font-size: 0.85rem; margin-bottom: 0.5rem;">Děti:</div>
-                                <div style="display: flex; flex-direction: column; gap: 0.35rem;">
-                                    ${booking.guestNames
-                                      .filter((g) => g.personType === 'child')
-                                      .map(
-                                        (guest) =>
-                                          `<div style="color: #6b7280; font-size: 0.9rem;">${this.escapeHtml(guest.firstName)} ${this.escapeHtml(guest.lastName)}</div>`
-                                      )
-                                      .join('')}
-                                </div>
-                            </div>
-                            `
-                                : ''
-                            }
-                        </div>
+                        ${this.renderGuestNamesByRoom(booking)}
+                    </div>
+                    `
+                        : ''
+                    }
+
+                    ${
+                      await this.generatePerRoomPriceBreakdown(booking)
+                        ? `
+                    <div style="margin-bottom: 1rem;">
+                        ${await this.generatePerRoomPriceBreakdown(booking)}
                     </div>
                     `
                         : ''
@@ -743,9 +873,9 @@ class AdminPanel {
 
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
                         <div>
-                            <strong style="color: var(--gray-600); font-size: 0.9rem;">Celková cena:</strong>
+                            <strong style="color: var(--gray-600); font-size: 0.9rem;">Celková cena rezervace:</strong>
                             <div style="margin-top: 0.25rem; font-size: 1.25rem; font-weight: 600; color: var(--primary-color);">
-                                ${booking.totalPrice} Kč
+                                ${booking.totalPrice.toLocaleString('cs-CZ')} Kč
                             </div>
                         </div>
                         ${
@@ -1070,6 +1200,576 @@ class AdminPanel {
         this.showToast(`Chyba: ${error.message}`, 'error');
       }
     });
+  }
+
+  // Bulk operations
+  toggleBookingSelection(bookingId, checked) {
+    if (checked) {
+      this.selectedBookings.add(bookingId);
+    } else {
+      this.selectedBookings.delete(bookingId);
+    }
+    this.updateBulkActionsUI();
+  }
+
+  toggleSelectAll(checked) {
+    const checkboxes = document.querySelectorAll('.booking-checkbox');
+    checkboxes.forEach((checkbox) => {
+      const bookingId = checkbox.getAttribute('data-booking-id');
+      checkbox.checked = checked;
+      if (checked) {
+        this.selectedBookings.add(bookingId);
+      } else {
+        this.selectedBookings.delete(bookingId);
+      }
+    });
+    this.updateBulkActionsUI();
+  }
+
+  updateBulkActionsUI() {
+    const count = this.selectedBookings.size;
+    const bulkActionsContainer = document.getElementById('bulkActionsContainer');
+    const selectedCountElement = document.getElementById('selectedCount');
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+
+    if (count > 0) {
+      bulkActionsContainer.style.display = 'flex';
+      selectedCountElement.textContent = `${count} vybran${count === 1 ? 'á' : count <= 4 ? 'é' : 'ých'}`;
+
+      // Update "select all" checkbox state
+      const totalCheckboxes = document.querySelectorAll('.booking-checkbox').length;
+      selectAllCheckbox.checked = count === totalCheckboxes;
+      selectAllCheckbox.indeterminate = count > 0 && count < totalCheckboxes;
+    } else {
+      bulkActionsContainer.style.display = 'none';
+      selectAllCheckbox.checked = false;
+      selectAllCheckbox.indeterminate = false;
+    }
+  }
+
+  async bulkDeleteBookings() {
+    const count = this.selectedBookings.size;
+    if (count === 0) {
+      return;
+    }
+
+    this.showConfirm(
+      `Opravdu chcete smazat ${count} vybran${count === 1 ? 'ou rezervaci' : count <= 4 ? 'é rezervace' : 'ých rezervací'}?`,
+      async () => {
+        // FIX: Validate session before admin operation
+        if (!(await this.validateSession())) {
+          return;
+        }
+
+        const sessionToken = localStorage.getItem('adminSessionToken');
+        let successCount = 0;
+        let errorCount = 0;
+
+        try {
+          // Delete bookings one by one
+          for (const bookingId of this.selectedBookings) {
+            try {
+              const response = await fetch(`/api/booking/${bookingId}`, {
+                method: 'DELETE',
+                headers: {
+                  'x-session-token': sessionToken,
+                },
+              });
+
+              if (response.ok) {
+                successCount++;
+              } else {
+                errorCount++;
+              }
+            } catch (error) {
+              errorCount++;
+              console.error(`Chyba při mazání rezervace ${bookingId}:`, error);
+            }
+          }
+
+          // Sync with server to get updated data
+          await dataManager.syncWithServer();
+
+          // Reload bookings table
+          await this.loadBookings();
+
+          // Show result message
+          if (errorCount === 0) {
+            this.showSuccessMessage(`Úspěšně smazáno ${successCount} rezervací`);
+          } else {
+            this.showToast(
+              `Smazáno ${successCount} rezervací, ${errorCount} se nepodařilo smazat`,
+              'warning'
+            );
+          }
+        } catch (error) {
+          console.error('Chyba při hromadném mazání:', error);
+          this.showToast(`Chyba: ${error.message}`, 'error');
+        }
+      }
+    );
+  }
+
+  async bulkPrintBookings() {
+    const count = this.selectedBookings.size;
+    if (count === 0) {
+      return;
+    }
+
+    try {
+      // Fetch all selected bookings
+      const bookings = [];
+      for (const bookingId of this.selectedBookings) {
+        const booking = await dataManager.getBooking(bookingId);
+        if (booking) {
+          bookings.push(booking);
+        }
+      }
+
+      if (bookings.length === 0) {
+        this.showToast('Žádné rezervace k tisku', 'error');
+        return;
+      }
+
+      // Generate print-friendly HTML
+      const printHTML = this.generatePrintHTML(bookings);
+
+      // Create a hidden iframe for printing
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'absolute';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      document.body.appendChild(iframe);
+
+      // Write content to iframe
+      const iframeDoc = iframe.contentWindow.document;
+      iframeDoc.open();
+      iframeDoc.write(printHTML);
+      iframeDoc.close();
+
+      // Wait for images to load (if any)
+      iframe.contentWindow.onload = () => {
+        // Trigger print dialog
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+
+        // Remove iframe after printing (with delay for print dialog)
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+        }, 1000);
+      };
+    } catch (error) {
+      console.error('Chyba při tisku:', error);
+      this.showToast(`Chyba: ${error.message}`, 'error');
+    }
+  }
+
+  generatePrintHTML(bookings) {
+    const html = `
+      <!DOCTYPE html>
+      <html lang="cs">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Tisk rezervací - Chata Mariánská</title>
+        <style>
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+
+          body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 12pt;
+            line-height: 1.6;
+            color: #333;
+            padding: 20mm;
+          }
+
+          .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #0d9488;
+          }
+
+          .header h1 {
+            font-size: 24pt;
+            color: #0d9488;
+            margin-bottom: 10px;
+          }
+
+          .header p {
+            font-size: 11pt;
+            color: #666;
+          }
+
+          .booking-card {
+            page-break-inside: avoid;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            background: #f9fafb;
+          }
+
+          .booking-card:not(:first-child) {
+            page-break-before: always;
+          }
+
+          .booking-header {
+            background: #0d9488;
+            color: white;
+            padding: 15px;
+            margin: -20px -20px 20px -20px;
+            border-radius: 6px 6px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+
+          .booking-id {
+            font-size: 14pt;
+            font-weight: bold;
+          }
+
+          .booking-status {
+            display: inline-block;
+            padding: 5px 15px;
+            background: white;
+            color: #0d9488;
+            border-radius: 20px;
+            font-size: 10pt;
+            font-weight: 600;
+          }
+
+          .section {
+            margin-bottom: 20px;
+          }
+
+          .section-title {
+            font-size: 11pt;
+            font-weight: bold;
+            color: #0d9488;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #d1d5db;
+          }
+
+          .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 15px;
+          }
+
+          .info-item {
+            display: flex;
+            flex-direction: column;
+          }
+
+          .info-label {
+            font-size: 9pt;
+            color: #6b7280;
+            font-weight: 600;
+            margin-bottom: 3px;
+          }
+
+          .info-value {
+            font-size: 11pt;
+            color: #1f2937;
+          }
+
+          .room-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            background: #10b981;
+            color: white;
+            border-radius: 6px;
+            font-weight: bold;
+            margin-right: 8px;
+            margin-bottom: 5px;
+          }
+
+          .guest-names {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #10b981;
+          }
+
+          .guest-name {
+            padding: 5px 0;
+            display: flex;
+            align-items: center;
+          }
+
+          .guest-name::before {
+            content: '👤';
+            margin-right: 8px;
+          }
+
+          .price-summary {
+            background: #fef3c7;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #f59e0b;
+            margin-top: 20px;
+          }
+
+          .total-price {
+            font-size: 16pt;
+            font-weight: bold;
+            color: #b45309;
+          }
+
+          .notes {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            font-style: italic;
+            color: #4b5563;
+          }
+
+          .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #e5e7eb;
+            text-align: center;
+            font-size: 9pt;
+            color: #9ca3af;
+          }
+
+          @media print {
+            body {
+              padding: 10mm;
+            }
+
+            .booking-card {
+              page-break-after: always;
+            }
+
+            .booking-card:last-child {
+              page-break-after: auto;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>🏔️ Chata Mariánská</h1>
+          <p>Přehled vybraných rezervací</p>
+          <p style="margin-top: 5px;">Vytištěno: ${new Date().toLocaleString('cs-CZ')}</p>
+        </div>
+
+        ${bookings
+          .map(
+            (booking) => `
+          <div class="booking-card">
+            <div class="booking-header">
+              <span class="booking-id">Rezervace #${this.escapeHtml(booking.id)}</span>
+              <span class="booking-status">${booking.paid ? '✓ Zaplaceno' : 'Nezaplaceno'}</span>
+            </div>
+
+            <div class="section">
+              <div class="section-title">Kontaktní údaje</div>
+              <div class="info-grid">
+                <div class="info-item">
+                  <span class="info-label">Jméno a příjmení</span>
+                  <span class="info-value">${this.escapeHtml(booking.name)}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Email</span>
+                  <span class="info-value">${this.escapeHtml(booking.email)}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Telefon</span>
+                  <span class="info-value">${this.escapeHtml(booking.phone)}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Firma</span>
+                  <span class="info-value">${this.escapeHtml(booking.company) || '-'}</span>
+                </div>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Adresa</span>
+                <span class="info-value">${this.escapeHtml(booking.address)}, ${this.escapeHtml(booking.city)} ${this.escapeHtml(booking.zip)}</span>
+              </div>
+              ${
+                booking.ico || booking.dic
+                  ? `
+              <div class="info-grid" style="margin-top: 10px;">
+                ${
+                  booking.ico
+                    ? `
+                <div class="info-item">
+                  <span class="info-label">IČO</span>
+                  <span class="info-value">${this.escapeHtml(booking.ico)}</span>
+                </div>
+                `
+                    : ''
+                }
+                ${
+                  booking.dic
+                    ? `
+                <div class="info-item">
+                  <span class="info-label">DIČ</span>
+                  <span class="info-value">${this.escapeHtml(booking.dic)}</span>
+                </div>
+                `
+                    : ''
+                }
+              </div>
+              `
+                  : ''
+              }
+            </div>
+
+            <div class="section">
+              <div class="section-title">Detaily rezervace</div>
+              <div class="info-grid">
+                <div class="info-item">
+                  <span class="info-label">Datum příjezdu</span>
+                  <span class="info-value">${new Date(booking.startDate).toLocaleDateString('cs-CZ', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Datum odjezdu</span>
+                  <span class="info-value">${new Date(booking.endDate).toLocaleDateString('cs-CZ', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Počet nocí</span>
+                  <span class="info-value">${Math.ceil((new Date(booking.endDate) - new Date(booking.startDate)) / (1000 * 60 * 60 * 24))} nocí</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Typ hosta</span>
+                  <span class="info-value">${booking.guestType === 'utia' ? 'Zaměstnanec ÚTIA' : 'Externí host'}</span>
+                </div>
+              </div>
+              <div class="info-item" style="margin-top: 15px;">
+                <span class="info-label">Pokoje</span>
+                <div style="margin-top: 5px;">
+                  ${booking.rooms.map((roomId) => `<span class="room-badge">P${roomId}</span>`).join('')}
+                </div>
+              </div>
+              ${
+                booking.perRoomDates && Object.keys(booking.perRoomDates).length > 0
+                  ? `
+              <div class="info-item" style="margin-top: 15px;">
+                <span class="info-label">Termíny jednotlivých pokojů</span>
+                <div style="margin-top: 5px;">
+                  ${booking.rooms
+                    .map((roomId) => {
+                      const dates = booking.perRoomDates[roomId];
+                      if (dates) {
+                        return `<div style="margin: 5px 0;"><span class="room-badge">P${roomId}</span> ${new Date(dates.startDate).toLocaleDateString('cs-CZ')} - ${new Date(dates.endDate).toLocaleDateString('cs-CZ')}</div>`;
+                      }
+                      return '';
+                    })
+                    .join('')}
+                </div>
+              </div>
+              `
+                  : ''
+              }
+            </div>
+
+            <div class="section">
+              <div class="section-title">Hosté</div>
+              <div class="info-grid">
+                <div class="info-item">
+                  <span class="info-label">Dospělí (18+ let)</span>
+                  <span class="info-value">${booking.adults || 0} osob</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Děti (3-17 let)</span>
+                  <span class="info-value">${booking.children || 0} dětí</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Batolata (0-2 roky)</span>
+                  <span class="info-value">${booking.toddlers || 0} batolat</span>
+                </div>
+              </div>
+              ${
+                booking.guestNames && Array.isArray(booking.guestNames) && booking.guestNames.length > 0
+                  ? `
+              <div class="guest-names" style="margin-top: 15px;">
+                <div class="info-label" style="margin-bottom: 10px;">Jména ubytovaných osob</div>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                  ${
+                    booking.guestNames.filter((g) => g.personType === 'adult').length > 0
+                      ? `
+                  <div>
+                    <div style="font-weight: 600; color: #4b5563; font-size: 0.85rem; margin-bottom: 0.5rem;">Dospělí:</div>
+                    <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+                      ${booking.guestNames
+                        .filter((g) => g.personType === 'adult')
+                        .map(
+                          (guest) =>
+                            `<div class="guest-name">${this.escapeHtml(guest.firstName)} ${this.escapeHtml(guest.lastName)}</div>`
+                        )
+                        .join('')}
+                    </div>
+                  </div>
+                  `
+                      : ''
+                  }
+                  ${
+                    booking.guestNames.filter((g) => g.personType === 'child').length > 0
+                      ? `
+                  <div>
+                    <div style="font-weight: 600; color: #4b5563; font-size: 0.85rem; margin-bottom: 0.5rem;">Děti:</div>
+                    <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+                      ${booking.guestNames
+                        .filter((g) => g.personType === 'child')
+                        .map(
+                          (guest) =>
+                            `<div class="guest-name">${this.escapeHtml(guest.firstName)} ${this.escapeHtml(guest.lastName)}</div>`
+                        )
+                        .join('')}
+                    </div>
+                  </div>
+                  `
+                      : ''
+                  }
+                </div>
+              </div>
+              `
+                  : ''
+              }
+            </div>
+
+            ${
+              booking.notes
+                ? `
+            <div class="section">
+              <div class="section-title">Poznámky</div>
+              <div class="notes">${this.escapeHtml(booking.notes)}</div>
+            </div>
+            `
+                : ''
+            }
+
+            <div class="price-summary">
+              <div class="info-label">Celková cena</div>
+              <div class="total-price">${booking.totalPrice} Kč</div>
+              ${booking.payFromBenefit ? '<div style="margin-top: 10px; color: #0891b2; font-weight: 600;">💳 Platba benefitem</div>' : ''}
+            </div>
+          </div>
+        `
+          )
+          .join('')}
+
+        <div class="footer">
+          <p>Tento dokument byl vygenerován automaticky ze systému Chata Mariánská</p>
+          <p style="margin-top: 5px;">www.chata.utia.cas.cz | chata@utia.cas.cz</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    return html;
   }
 
   async togglePaidStatus(bookingId, paid) {
@@ -2022,12 +2722,130 @@ class AdminPanel {
       contactEmailInput.value = settings.contactEmail || 'chata@utia.cas.cz';
     }
 
+    // Load admin emails
+    this.loadAdminEmails(settings.adminEmails || []);
+
     // Initialize character counter
     this.updateEmailTemplateCharCount();
 
     // Add input listener for real-time character count
     const templateTextarea = document.getElementById('emailTemplate');
     templateTextarea.addEventListener('input', () => this.updateEmailTemplateCharCount());
+  }
+
+  loadAdminEmails(adminEmails) {
+    const listContainer = document.getElementById('adminEmailsList');
+    if (!listContainer) return;
+
+    if (adminEmails.length === 0) {
+      listContainer.innerHTML = `
+        <div style="padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md); color: var(--gray-600);">
+          Zatím nejsou přidáni žádní správci. Přidejte emailovou adresu správce níže.
+        </div>
+      `;
+      return;
+    }
+
+    listContainer.innerHTML = adminEmails
+      .map(
+        (email, index) => `
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; background: var(--gray-50); border-radius: var(--radius-md); margin-bottom: 0.5rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="color: var(--primary-color);">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+            <polyline points="22,6 12,13 2,6"/>
+          </svg>
+          <span style="font-weight: 500;">${email}</span>
+        </div>
+        <button
+          class="btn btn-sm"
+          onclick="adminPanel.removeAdminEmail('${email}')"
+          style="padding: 0.5rem 1rem; background: #dc2626; color: white; border: none;"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="display: inline; margin-right: 0.25rem;">
+            <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+          </svg>
+          Odebrat
+        </button>
+      </div>
+    `
+      )
+      .join('');
+  }
+
+  async handleAddAdminEmail(e) {
+    e.preventDefault();
+
+    // Validate session before admin operation
+    if (!this.validateSession()) {
+      return;
+    }
+
+    try {
+      const emailInput = document.getElementById('newAdminEmail');
+      const newEmail = emailInput.value.trim();
+
+      // Validate email format
+      if (!ValidationUtils.validateEmail(newEmail)) {
+        this.showToast('Neplatný formát emailové adresy', 'error');
+        return;
+      }
+
+      const settings = await dataManager.getSettings();
+      const adminEmails = settings.adminEmails || [];
+
+      // Check if email already exists
+      if (adminEmails.includes(newEmail)) {
+        this.showToast('Tento email je již v seznamu správců', 'warning');
+        return;
+      }
+
+      // Add new email
+      adminEmails.push(newEmail);
+      settings.adminEmails = adminEmails;
+
+      await dataManager.updateSettings(settings);
+
+      // Reload admin emails list
+      this.loadAdminEmails(adminEmails);
+
+      // Clear input
+      emailInput.value = '';
+
+      this.showSuccessMessage(`Správce ${newEmail} byl úspěšně přidán`);
+    } catch (error) {
+      console.error('Chyba při přidávání správce:', error);
+      this.showToast(`Chyba: ${error.message}`, 'error');
+    }
+  }
+
+  async removeAdminEmail(email) {
+    // Validate session before admin operation
+    if (!this.validateSession()) {
+      return;
+    }
+
+    if (!confirm(`Opravdu chcete odebrat správce ${email}?`)) {
+      return;
+    }
+
+    try {
+      const settings = await dataManager.getSettings();
+      const adminEmails = settings.adminEmails || [];
+
+      // Remove email
+      settings.adminEmails = adminEmails.filter((e) => e !== email);
+
+      await dataManager.updateSettings(settings);
+
+      // Reload admin emails list
+      this.loadAdminEmails(settings.adminEmails);
+
+      this.showSuccessMessage(`Správce ${email} byl úspěšně odebrán`);
+    } catch (error) {
+      console.error('Chyba při odebírání správce:', error);
+      this.showToast(`Chyba: ${error.message}`, 'error');
+    }
   }
 
   updateEmailTemplateCharCount() {
@@ -2229,6 +3047,62 @@ class AdminPanel {
         }
       }
     });
+  }
+
+  /**
+   * Generate per-room price breakdown HTML
+   * @param {Object} booking - Booking object
+   * @returns {Promise<string>} HTML string with per-room price breakdown
+   */
+  async generatePerRoomPriceBreakdown(booking) {
+    try {
+      // Check if we have per-room guest data
+      if (!booking.perRoomGuests || Object.keys(booking.perRoomGuests).length === 0) {
+        return '';
+      }
+
+      const settings = await dataManager.getSettings();
+      if (!settings || !settings.prices) {
+        return '';
+      }
+
+      // Calculate nights for each room
+      const perRoomGuests = [];
+      for (const roomId of booking.rooms) {
+        const roomGuests = booking.perRoomGuests[roomId];
+        if (roomGuests) {
+          perRoomGuests.push({
+            roomId,
+            adults: roomGuests.adults || 0,
+            children: roomGuests.children || 0,
+            toddlers: roomGuests.toddlers || 0,
+          });
+        }
+      }
+
+      if (perRoomGuests.length === 0) {
+        return '';
+      }
+
+      // Calculate nights
+      const startDate = new Date(booking.startDate);
+      const endDate = new Date(booking.endDate);
+      const nights = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+
+      // Calculate per-room prices
+      const perRoomPrices = PriceCalculator.calculatePerRoomPrices({
+        guestType: booking.guestType || 'utia',
+        nights,
+        settings,
+        perRoomGuests,
+      });
+
+      // Format HTML
+      return PriceCalculator.formatPerRoomPricesHTML(perRoomPrices, 'cs');
+    } catch (error) {
+      console.warn('Error generating per-room price breakdown:', error);
+      return '';
+    }
   }
 
   /**

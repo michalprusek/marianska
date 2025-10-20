@@ -674,6 +674,80 @@ class BookingApp {
     this.singleRoomBooking.showRoomBookingModal(roomId);
   }
 
+  /**
+   * Consolidate consecutive same-room bookings for display
+   * @param {Array} reservations - Array of temp reservations
+   * @returns {Array} Consolidated reservations
+   */
+  consolidateTempReservations(reservations) {
+    if (!reservations || reservations.length === 0) {
+      return [];
+    }
+
+    // Group by roomId (or roomIds for bulk bookings)
+    const roomGroups = new Map();
+
+    reservations.forEach((booking) => {
+      const key = booking.isBulkBooking
+        ? `BULK_${booking.roomIds?.sort().join(',')}`
+        : booking.roomId;
+
+      if (!roomGroups.has(key)) {
+        roomGroups.set(key, []);
+      }
+      roomGroups.get(key).push(booking);
+    });
+
+    // Consolidate each room group if dates are consecutive
+    const consolidated = [];
+
+    for (const [, bookings] of roomGroups) {
+      if (bookings.length === 1) {
+        // No consolidation needed - single booking for this room
+        consolidated.push(bookings[0]);
+        continue;
+      }
+
+      // Sort by start date
+      bookings.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+
+      let current = { ...bookings[0] };
+      for (let i = 1; i < bookings.length; i++) {
+        const next = bookings[i];
+
+        // Check if dates are consecutive (current.endDate + 1 day === next.startDate)
+        const currentEnd = new Date(current.endDate);
+        const nextStart = new Date(next.startDate);
+        const nextDay = new Date(currentEnd);
+        nextDay.setDate(nextDay.getDate() + 1);
+
+        const isConsecutive = nextDay.toISOString().split('T')[0] === nextStart.toISOString().split('T')[0];
+
+        if (isConsecutive && current.guestType === next.guestType) {
+          // Merge consecutive bookings
+          current.endDate = next.endDate;
+          current.nights += next.nights;
+          current.totalPrice += next.totalPrice;
+          // Keep same guests (they should be identical for same room)
+          // Store original IDs for potential removal
+          if (!current.consolidatedIds) {
+            current.consolidatedIds = [current.id];
+          }
+          current.consolidatedIds.push(next.id);
+        } else {
+          // Not consecutive or different guest type - push current and start new
+          consolidated.push(current);
+          current = { ...next };
+        }
+      }
+
+      // Push the last booking
+      consolidated.push(current);
+    }
+
+    return consolidated;
+  }
+
   async displayTempReservations() {
     const sectionDiv = document.getElementById('tempReservationsSection');
     const containerDiv = document.getElementById('tempReservationsContainer');
@@ -710,10 +784,13 @@ class BookingApp {
     }
     containerDiv.style.display = 'block';
 
+    // Consolidate consecutive same-room bookings for display
+    const displayBookings = this.consolidateTempReservations(this.tempReservations);
+
     let html = '';
     let totalPrice = 0;
 
-    this.tempReservations.forEach((booking) => {
+    displayBookings.forEach((booking) => {
       const dateStart = new Date(booking.startDate);
       const dateEnd = new Date(booking.endDate);
       totalPrice += booking.totalPrice;
@@ -945,6 +1022,9 @@ class BookingApp {
       return;
     }
 
+    // Consolidate consecutive same-room bookings for display
+    const displayReservations = this.consolidateTempReservations(this.tempReservations);
+
     // Prepare summary for the booking form modal
     const summaryEl = document.getElementById('bookingSummary');
     if (summaryEl) {
@@ -952,7 +1032,7 @@ class BookingApp {
       let totalPrice = 0;
 
       // Group reservations by type
-      this.tempReservations.forEach((reservation) => {
+      displayReservations.forEach((reservation) => {
         totalPrice += reservation.totalPrice;
 
         if (reservation.isBulkBooking) {
@@ -1078,17 +1158,21 @@ class BookingApp {
 
     this.bookingForm.checkAndShowChristmasCodeField(allDates, hasBulkBooking);
 
-    // Calculate total guests for all reservations and generate guest name inputs
+    // Calculate total UNIQUE guests across all reservations
+    // Use consolidated bookings to avoid counting same guest multiple times
+    // when same room is booked on consecutive dates
     let totalAdults = 0;
     let totalChildren = 0;
+    let totalToddlers = 0;
 
-    this.tempReservations.forEach((reservation) => {
+    displayReservations.forEach((reservation) => {
       totalAdults += reservation.guests.adults || 0;
       totalChildren += reservation.guests.children || 0;
+      totalToddlers += reservation.guests.toddlers || 0;
     });
 
     // Generate guest names input fields for bookingFormModal
-    this.bookingForm.generateGuestNamesInputs(totalAdults, totalChildren, 'bookingForm');
+    this.bookingForm.generateGuestNamesInputs(totalAdults, totalChildren, totalToddlers, 'bookingForm');
 
     // Show the modal
     modal.classList.add('active');
@@ -1370,10 +1454,13 @@ class BookingApp {
       return;
     }
 
+    // Consolidate consecutive same-room bookings for display
+    const displayReservations = this.consolidateTempReservations(this.tempReservations);
+
     let totalPrice = 0;
     let summaryHTML = '';
 
-    this.tempReservations.forEach((reservation) => {
+    displayReservations.forEach((reservation) => {
       const guestTypeLabel = reservation.guestType === 'utia' ? 'ÚTIA' : 'Externí';
       const guestDetails = reservation.guests;
 

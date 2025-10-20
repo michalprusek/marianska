@@ -145,9 +145,11 @@ class BookingFormModule {
     });
     html += `</div>`;
 
-    // Rooms and guests
+    // Rooms and guests - build per-room data
     const rooms = await dataManager.getRooms();
+    const settings = await dataManager.getSettings();
     let totalPrice = 0;
+    const perRoomGuests = [];
 
     html += `<div class="summary-rooms">`;
     const roomPricePromises = Array.from(this.app.selectedRooms).map(async (roomId) => {
@@ -165,6 +167,14 @@ class BookingFormModule {
         1, // price per night
         [roomId] // Pass room ID array for room-size-based pricing
       );
+
+      // Add to per-room data for detailed breakdown
+      perRoomGuests.push({
+        roomId,
+        adults: guests.adults,
+        children: guests.children,
+        toddlers: guests.toddlers
+      });
 
       return { room, guests, roomPrice };
     });
@@ -195,11 +205,32 @@ class BookingFormModule {
     }
     html += `</div>`;
 
+    // Per-room price breakdown (NEW)
+    if (perRoomGuests.length > 0 && typeof PriceCalculator !== 'undefined') {
+      try {
+        const perRoomPrices = PriceCalculator.calculatePerRoomPrices({
+          guestType,
+          nights: sortedDates.length,
+          settings,
+          perRoomGuests
+        });
+
+        const perRoomHTML = PriceCalculator.formatPerRoomPricesHTML(
+          perRoomPrices,
+          this.app.currentLanguage
+        );
+
+        html += perRoomHTML;
+      } catch (error) {
+        console.warn('Error calculating per-room prices:', error);
+      }
+    }
+
     // Total
     html += `
-            <div class="summary-total">
-                <strong>${this.app.currentLanguage === 'cs' ? 'Celkem' : 'Total'}:</strong>
-                <strong>${totalPrice.toLocaleString('cs-CZ')} Kč</strong>
+            <div class="summary-total" style="margin-top: 1rem;">
+                <strong>${this.app.currentLanguage === 'cs' ? 'Celková cena rezervace' : 'Total Booking Price'}:</strong>
+                <strong style="font-size: 1.3rem; color: #28a745;">${totalPrice.toLocaleString('cs-CZ')} Kč</strong>
             </div>
         </div>`;
 
@@ -208,16 +239,18 @@ class BookingFormModule {
     // Generate guest names inputs based on total guests
     let totalAdults = 0;
     let totalChildren = 0;
+    let totalToddlers = 0;
     for (const result of roomPriceResults) {
       if (result) {
         const { guests } = result;
         totalAdults += guests.adults;
         totalChildren += guests.children;
+        totalToddlers += guests.toddlers || 0;
       }
     }
 
     // Call generateGuestNamesInputs for bookingFormModal
-    this.generateGuestNamesInputs(totalAdults, totalChildren, 'bookingForm');
+    this.generateGuestNamesInputs(totalAdults, totalChildren, totalToddlers, 'bookingForm');
   }
 
   async submitBooking() {
@@ -374,15 +407,17 @@ class BookingFormModule {
       // Calculate total guests for validation
       let totalAdults = 0;
       let totalChildren = 0;
+      let totalToddlers = 0;
 
       this.app.tempReservations.forEach((reservation) => {
         totalAdults += reservation.guests.adults || 0;
         totalChildren += reservation.guests.children || 0;
+        totalToddlers += reservation.guests.toddlers || 0;
       });
 
       // Validate guest names if there are any guests
-      if (totalAdults + totalChildren > 0) {
-        const validation = this.validateGuestNames(totalAdults, totalChildren);
+      if (totalAdults + totalChildren + totalToddlers > 0) {
+        const validation = this.validateGuestNames(totalAdults, totalChildren, totalToddlers);
         if (!validation.valid) {
           this.app.showNotification(validation.error, 'error');
           return;
@@ -485,8 +520,11 @@ class BookingFormModule {
           };
 
           for (const tempReservation of this.app.tempReservations) {
+            // Include toddlers in guest count for name distribution
             const bookingGuestCount =
-              (tempReservation.guests.adults || 0) + (tempReservation.guests.children || 0);
+              (tempReservation.guests.adults || 0) +
+              (tempReservation.guests.children || 0) +
+              (tempReservation.guests.toddlers || 0);
             const bookingGuestNames = guestNames.slice(
               guestNameIndex,
               guestNameIndex + bookingGuestCount
@@ -643,8 +681,8 @@ class BookingFormModule {
     }
 
     // Validate guest names if there are any guests
-    if (totalAdults + totalChildren > 0) {
-      const validation = this.validateGuestNames(totalAdults, totalChildren);
+    if (totalAdults + totalChildren + totalToddlers > 0) {
+      const validation = this.validateGuestNames(totalAdults, totalChildren, totalToddlers);
       if (!validation.valid) {
         this.app.showNotification(validation.error, 'error');
         return;
@@ -965,10 +1003,11 @@ class BookingFormModule {
   /**
    * Generate guest names input fields dynamically based on guest counts
    * @param {number} adults - Number of adults
-   * @param {number} children - Number of children
+   * @param {number} children - Number of children (3-17 years)
+   * @param {number} toddlers - Number of toddlers (<3 years)
    * @param {string} formPrefix - Prefix for element IDs ('bookingForm' for bookingFormModal, '' for finalBookingModal)
    */
-  generateGuestNamesInputs(adults, children, formPrefix = '') {
+  generateGuestNamesInputs(adults, children, toddlers = 0, formPrefix = '') {
     const prefix = formPrefix ? `${formPrefix}` : '';
 
     // Helper function to create proper ID with capitalization
@@ -983,7 +1022,9 @@ class BookingFormModule {
     const guestNamesSection = document.getElementById(makeId('guestNamesSection'));
     const adultsNamesList = document.getElementById(makeId('adultsNamesList'));
     const childrenNamesList = document.getElementById(makeId('childrenNamesList'));
+    const toddlersNamesList = document.getElementById(makeId('toddlersNamesList'));
     const childrenContainer = document.getElementById(makeId('childrenNamesContainer'));
+    const toddlersContainer = document.getElementById(makeId('toddlersNamesContainer'));
 
     if (!guestNamesSection || !adultsNamesList || !childrenNamesList) {
       return;
@@ -992,9 +1033,12 @@ class BookingFormModule {
     // Clear existing inputs
     adultsNamesList.textContent = '';
     childrenNamesList.textContent = '';
+    if (toddlersNamesList) {
+      toddlersNamesList.textContent = '';
+    }
 
     // Show/hide section based on guest counts
-    if (adults + children > 0) {
+    if (adults + children + toddlers > 0) {
       guestNamesSection.style.display = 'block';
       // Also show parent containers if they exist
       const adultsContainer = document.getElementById(makeId('adultsNamesContainer'));
@@ -1116,6 +1160,64 @@ class BookingFormModule {
     } else {
       childrenContainer.style.display = 'none';
     }
+
+    // Generate toddler name inputs
+    if (toddlers > 0 && toddlersNamesList && toddlersContainer) {
+      toddlersContainer.style.display = 'block';
+      for (let i = 1; i <= toddlers; i++) {
+        const guestDiv = document.createElement('div');
+        guestDiv.className = 'guest-name-row';
+        guestDiv.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;';
+
+        // First name input
+        const firstNameGroup = document.createElement('div');
+        firstNameGroup.className = 'input-group';
+
+        const firstNameLabel = document.createElement('label');
+        firstNameLabel.setAttribute('for', `toddlerFirstName${i}`);
+        firstNameLabel.textContent = langManager.t('toddlerFirstNameLabel').replace('{n}', i);
+        firstNameGroup.appendChild(firstNameLabel);
+
+        const firstNameInput = document.createElement('input');
+        firstNameInput.type = 'text';
+        firstNameInput.id = `toddlerFirstName${i}`;
+        firstNameInput.name = `toddlerFirstName${i}`;
+        firstNameInput.required = true;
+        firstNameInput.minLength = 2;
+        firstNameInput.maxLength = 50;
+        firstNameInput.placeholder = langManager.t('firstNameToddlerPlaceholder');
+        firstNameInput.setAttribute('data-guest-type', 'toddler');
+        firstNameInput.setAttribute('data-guest-index', i);
+        firstNameGroup.appendChild(firstNameInput);
+
+        // Last name input
+        const lastNameGroup = document.createElement('div');
+        lastNameGroup.className = 'input-group';
+
+        const lastNameLabel = document.createElement('label');
+        lastNameLabel.setAttribute('for', `toddlerLastName${i}`);
+        lastNameLabel.textContent = langManager.t('toddlerLastNameLabel').replace('{n}', i);
+        lastNameGroup.appendChild(lastNameLabel);
+
+        const lastNameInput = document.createElement('input');
+        lastNameInput.type = 'text';
+        lastNameInput.id = `toddlerLastName${i}`;
+        lastNameInput.name = `toddlerLastName${i}`;
+        lastNameInput.required = true;
+        lastNameInput.minLength = 2;
+        lastNameInput.maxLength = 50;
+        lastNameInput.placeholder = langManager.t('lastNameToddlerPlaceholder');
+        lastNameInput.setAttribute('data-guest-type', 'toddler');
+        lastNameInput.setAttribute('data-guest-index', i);
+        lastNameGroup.appendChild(lastNameInput);
+
+        guestDiv.appendChild(firstNameGroup);
+        guestDiv.appendChild(lastNameGroup);
+        toddlersNamesList.appendChild(guestDiv);
+      }
+    } else if (toddlersContainer) {
+      toddlersContainer.style.display = 'none';
+    }
   }
 
   /**
@@ -1184,19 +1286,96 @@ class BookingFormModule {
       }
     }
 
-    return guestNames;
+    // Collect toddler names - ONLY from the active form container
+    const toddlerFirstNames = formContainer.querySelectorAll(
+      'input[data-guest-type="toddler"][id^="toddlerFirstName"]'
+    );
+    const toddlerLastNames = formContainer.querySelectorAll(
+      'input[data-guest-type="toddler"][id^="toddlerLastName"]'
+    );
+
+    for (let i = 0; i < toddlerFirstNames.length; i++) {
+      const firstName = toddlerFirstNames[i].value.trim();
+      const lastName = toddlerLastNames[i].value.trim();
+      if (firstName && lastName) {
+        guestNames.push({
+          personType: 'toddler',
+          firstName,
+          lastName,
+        });
+      }
+    }
+
+    // Assign room IDs if multi-room booking with tempReservations
+    return this.assignRoomIds(guestNames);
+  }
+
+  /**
+   * Assign room IDs to guest names based on tempReservations context
+   * @param {Array} guestNames - Collected guest names without room IDs
+   * @returns {Array} - Guest names with room IDs assigned
+   */
+  assignRoomIds(guestNames) {
+    // If no tempReservations or single room, return as-is (backward compatible)
+    if (
+      !this.app.tempReservations ||
+      this.app.tempReservations.length === 0 ||
+      this.app.tempReservations.length === 1
+    ) {
+      // For single room, optionally assign the room ID
+      if (this.app.tempReservations && this.app.tempReservations.length === 1) {
+        const roomId = this.app.tempReservations[0].roomId;
+        if (roomId) {
+          return guestNames.map((guest) => ({ ...guest, roomId }));
+        }
+      }
+      return guestNames;
+    }
+
+    // Multi-room booking: assign room IDs sequentially based on guest counts
+    const guestNamesWithRooms = [];
+    let currentIndex = 0;
+
+    // Process each temporary reservation in order
+    for (const tempReservation of this.app.tempReservations) {
+      const roomId = tempReservation.roomId;
+      const guests = tempReservation.guests || {};
+
+      // Calculate total guests for this room
+      const roomGuestCount =
+        (guests.adults || 0) + (guests.children || 0) + (guests.toddlers || 0);
+
+      // Assign the appropriate number of names to this room
+      for (let i = 0; i < roomGuestCount && currentIndex < guestNames.length; i++) {
+        guestNamesWithRooms.push({
+          ...guestNames[currentIndex],
+          roomId,
+        });
+        currentIndex++;
+      }
+    }
+
+    // If there are remaining names (shouldn't happen if validation is correct), append them without room ID
+    while (currentIndex < guestNames.length) {
+      guestNamesWithRooms.push(guestNames[currentIndex]);
+      currentIndex++;
+    }
+
+    return guestNamesWithRooms;
   }
 
   /**
    * Validate guest names input fields
    * @param {number} expectedAdults - Expected number of adults
    * @param {number} expectedChildren - Expected number of children
+   * @param {number} expectedToddlers - Expected number of toddlers
    * @returns {Object} Validation result with valid flag and error message
    */
-  validateGuestNames(expectedAdults, expectedChildren) {
+  validateGuestNames(expectedAdults, expectedChildren, expectedToddlers = 0) {
     const guestNames = this.collectGuestNames();
     const adultNames = guestNames.filter((g) => g.personType === 'adult');
     const childNames = guestNames.filter((g) => g.personType === 'child');
+    const toddlerNames = guestNames.filter((g) => g.personType === 'toddler');
 
     // Check counts
     if (adultNames.length !== expectedAdults) {
@@ -1210,6 +1389,13 @@ class BookingFormModule {
       return {
         valid: false,
         error: `Vyplňte jména všech ${expectedChildren} dětí`,
+      };
+    }
+
+    if (toddlerNames.length !== expectedToddlers) {
+      return {
+        valid: false,
+        error: `Vyplňte jména všech ${expectedToddlers} batolat`,
       };
     }
 
@@ -1292,7 +1478,7 @@ class BookingFormModule {
       children: tempReservation.guests.children,
       toddlers: tempReservation.guests.toddlers,
       totalPrice: tempReservation.totalPrice,
-      roomGuests: { [tempReservation.roomId]: tempReservation.guests },
+      perRoomGuests: { [tempReservation.roomId]: tempReservation.guests }, // FIX: Changed from roomGuests to perRoomGuests
       sessionId: this.app.sessionId,
       guestNames,
     };

@@ -1,0 +1,145 @@
+================================================================================
+PROPOSED vs CONFIRMED BOOKINGS - EDGE DAY HANDLING COMPARISON
+================================================================================
+
+SCENARIO: Two back-to-back bookings
+- First: Oct 6-8 (3 days: 6, 7, 8)
+- Second: Oct 8-10 (3 days: 8, 9, 10)
+
+================================================================================
+CONFIRMED BOOKINGS (EXCLUSIVE END DATE MODEL) - ✅ CORRECT
+================================================================================
+
+First Confirmed Booking: 2025-10-06 to 2025-10-08
+┌──────────────────────────────────────────────┐
+│ Date  │ Night    │ Model              │ Status      │
+├──────────────────────────────────────────────┤
+│ Oct 6 │ 6→7     │ >= start, < end    │ OCCUPIED ✓  │
+│ Oct 7 │ 7→8     │ >= start, < end    │ OCCUPIED ✓  │
+│ Oct 8 │ 8→9     │ >= start, < end    │ FREE ✗      │
+└──────────────────────────────────────────────┘
+
+Night Calculation (from dateUtils.js:194):
+  nightDate >= bookingStart && nightDate < bookingEnd
+  ├─ Oct 6: 06 >= 06 && 06 < 08 = TRUE   (OCCUPIED)
+  ├─ Oct 7: 07 >= 06 && 07 < 08 = TRUE   (OCCUPIED)
+  └─ Oct 8: 08 >= 06 && 08 < 08 = FALSE  (FREE! ← allows checkout day for next booking)
+
+Calendar Display:
+  Oct 6: 🔴 RED   (both nights occupied)
+  Oct 7: 🔴 RED   (both nights occupied)
+  Oct 8: 🟠 EDGE  (one night free) ← Can book next guest here!
+
+Second Confirmed Booking: 2025-10-08 to 2025-10-10
+  Oct 8: Checks nights around Oct 8
+         └─ Night before (7→8): Occupied by first booking
+         └─ Night after (8→9):  FREE! ✅ Can book!
+         
+Result: ✅ Back-to-back bookings on Oct 8 WORK!
+
+
+================================================================================
+PROPOSED BOOKINGS (INCLUSIVE END DATE MODEL) - ❌ WRONG
+================================================================================
+
+First Proposal: 2025-10-06 to 2025-10-08
+┌────────────────────────────────────────────────────┐
+│ Date  │ Proposed Check              │ Status         │
+├────────────────────────────────────────────────────┤
+│ Oct 6 │ >= start AND <= end         │ BLOCKED ✓      │
+│ Oct 7 │ >= start AND <= end         │ BLOCKED ✓      │
+│ Oct 8 │ >= start AND <= end         │ BLOCKED ✓ ❌   │
+└────────────────────────────────────────────────────┘
+
+Proposed Booking Query Check (from database.js:1484):
+  date >= pb.start_date AND date <= pb.end_date
+  ├─ Oct 6: 06 >= 06 && 06 <= 08 = TRUE   (BLOCKED)
+  ├─ Oct 7: 07 >= 06 && 07 <= 08 = TRUE   (BLOCKED)
+  └─ Oct 8: 08 >= 06 && 08 <= 08 = TRUE   (BLOCKED) ❌ WRONG!
+
+Calendar Display:
+  Oct 6: 🟡 YELLOW (proposed)
+  Oct 7: 🟡 YELLOW (proposed)
+  Oct 8: 🟡 YELLOW (proposed) ← PROBLEM: Blocks checkout day!
+
+Second Proposal: 2025-10-08 to 2025-10-10
+  Oct 8: Proposed check finds existing proposal Oct 6-8
+         └─ 08 >= 06 && 08 <= 08 = TRUE
+         └─ Result: BLOCKED ❌ Cannot create second proposal!
+         
+Result: ❌ Cannot create back-to-back proposals on Oct 8!
+
+
+================================================================================
+THE FIX
+================================================================================
+
+Change INCLUSIVE to EXCLUSIVE:
+
+  CURRENT (database.js:1484):
+  ┌─────────────────────────────────────┐
+  │ AND ? >= pb.start_date             │
+  │ AND ? <= pb.end_date               │ ← WRONG: includes end date
+  └─────────────────────────────────────┘
+
+  FIXED:
+  ┌─────────────────────────────────────┐
+  │ AND ? >= pb.start_date             │
+  │ AND ? < pb.end_date                │ ← CORRECT: excludes end date
+  └─────────────────────────────────────┘
+
+After Fix, Oct 8 Checkout Day:
+  Oct 8: 08 >= 06 && 08 < 08 = FALSE   (AVAILABLE!)
+  └─ Can now create second proposal on Oct 8 ✅
+
+
+================================================================================
+CODE LOCATIONS THAT NEED TO BE CHANGED
+================================================================================
+
+1. SERVER-SIDE (database.js)
+   ┌─────────────────────────────────────────────────────────────┐
+   │ File: /home/marianska/marianska/database.js                 │
+   │ Lines: 1479-1494 (two SQL queries)                          │
+   │ Change: <= to <                                             │
+   │                                                             │
+   │ Current (line 1484, 1492):                                 │
+   │   AND ? >= pb.start_date AND ? <= pb.end_date              │
+   │                                                 ↑           │
+   │ Should be:                                      │           │
+   │   AND ? >= pb.start_date AND ? < pb.end_date   ←───────────┘
+   └─────────────────────────────────────────────────────────────┘
+
+2. CLIENT-SIDE (data.js)
+   ┌─────────────────────────────────────────────────────────────┐
+   │ File: /home/marianska/marianska/data.js                     │
+   │ Lines: 577-583                                              │
+   │ Change: <= to <                                             │
+   │                                                             │
+   │ Current (line 580):                                         │
+   │   checkDateStr >= pb.start_date &&                          │
+   │   checkDateStr <= pb.end_date &&       ← WRONG              │
+   │                                                             │
+   │ Should be:                                                  │
+   │   checkDateStr >= pb.start_date &&                          │
+   │   checkDateStr < pb.end_date &&        ← CORRECT            │
+   │                                                             │
+   │ Also update comment (line 581):                             │
+   │   FROM: "INCLUSIVE end date for proposed bookings..."       │
+   │   TO:   "EXCLUSIVE end date - allows checkout day..."       │
+   └─────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+COMPARISON TABLE: CONFIRMED vs PROPOSED AFTER FIX
+================================================================================
+
+Aspect                    │ Confirmed        │ Proposed (After Fix)
+──────────────────────────┼──────────────────┼────────────────────
+End Date Model            │ EXCLUSIVE (<)    │ EXCLUSIVE (<)
+Location                  │ dateUtils.js:194 │ database.js:1484, data.js:580
+Checkout Day Available    │ ✅ YES           │ ✅ YES (After fix)
+Can Book on Edge Day      │ ✅ YES           │ ✅ YES (After fix)
+Back-to-Back Bookings     │ ✅ YES           │ ✅ YES (After fix)
+Consistency               │ ✅ Consistent    │ ✅ Consistent (After fix)
+

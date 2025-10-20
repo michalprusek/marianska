@@ -356,28 +356,46 @@ class BaseCalendar {
         styles.push('background: #ef4444; color: white;');
         clickable = false;
       } else if (status === 'edge') {
-        // Edge = exactly ONE night occupied - half green (available) / half red (occupied)
-        // Still clickable for new bookings
+        // Edge = ONE or BOTH nights occupied (with different types)
+        // Supports: proposed-only, confirmed-only, AND MIXED (proposed + confirmed)
         classes.push('edge-day');
 
-        // Visual indicator: show which side has the occupied night
+        // Get detailed night information
         const nightBefore = availability?.nightBefore;
         const nightAfter = availability?.nightAfter;
+        const nightBeforeType = availability?.nightBeforeType || 'available';
+        const nightAfterType = availability?.nightAfterType || 'available';
+
+        // Color map
+        const colorMap = {
+          proposed: '#f59e0b', // Orange
+          confirmed: '#ef4444', // Red
+          available: '#10b981', // Green
+        };
+
+        const leftColor = colorMap[nightBeforeType];
+        const rightColor = colorMap[nightAfterType];
 
         if (nightBefore && !nightAfter) {
-          // Night before is occupied -> left half red, right half green
+          // Only night before occupied
           styles.push(
-            'background: linear-gradient(90deg, #ef4444 0%, #ef4444 50%, #10b981 50%, #10b981 100%); color: white;'
+            `background: linear-gradient(90deg, ${leftColor} 0%, ${leftColor} 50%, ${colorMap.available} 50%, ${colorMap.available} 100%); color: white;`
           );
         } else if (!nightBefore && nightAfter) {
-          // Night after is occupied -> left half green, right half red
+          // Only night after occupied
           styles.push(
-            'background: linear-gradient(90deg, #10b981 0%, #10b981 50%, #ef4444 50%, #ef4444 100%); color: white;'
+            `background: linear-gradient(90deg, ${colorMap.available} 0%, ${colorMap.available} 50%, ${rightColor} 50%, ${rightColor} 100%); color: white;`
+          );
+        } else if (nightBefore && nightAfter) {
+          // BOTH nights occupied but DIFFERENT TYPES (mixed: proposed + confirmed)
+          // Show both colors: left half = nightBeforeType color, right half = nightAfterType color
+          styles.push(
+            `background: linear-gradient(90deg, ${leftColor} 0%, ${leftColor} 50%, ${rightColor} 50%, ${rightColor} 100%); color: white;`
           );
         } else {
           // Fallback (shouldn't happen but just in case)
           styles.push(
-            'background: linear-gradient(90deg, #10b981 0%, #10b981 50%, #ef4444 50%, #ef4444 100%); color: white;'
+            `background: linear-gradient(90deg, ${colorMap.available} 0%, ${colorMap.available} 50%, ${colorMap.confirmed} 50%, ${colorMap.confirmed} 100%); color: white;`
           );
         }
 

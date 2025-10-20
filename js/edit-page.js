@@ -157,57 +157,48 @@ class EditPage {
     this.displayReadOnlyBooking();
   }
 
-  displayReadOnlyBooking() {
-    // Display booking details but disable all inputs
+  async displayReadOnlyBooking() {
+    // Load settings first (needed for component)
+    const settings = await dataManager.getSettings();
+    this.settings = settings;
+
+    // Initialize EditBookingComponent even in locked mode to populate guest names
+    this.editComponent = new EditBookingComponent({
+      mode: 'user',
+      enforceDeadline: true,
+      validateSession: null,
+      onSubmit: () => {}, // No-op for locked mode
+      onDelete: () => {}, // No-op for locked mode
+      settings,
+    });
+
+    // Load booking data into component (this populates guest names!)
+    await this.editComponent.loadBooking(this.currentBooking, settings);
+
+    // Display booking ID
     const bookingIdDisplay = document.getElementById('bookingIdDisplay');
     if (bookingIdDisplay) {
       bookingIdDisplay.textContent = this.currentBooking.id;
     }
 
-    // Populate billing info in read-only mode
-    const fields = [
-      'Name',
-      'Email',
-      'Phone',
-      'Company',
-      'Address',
-      'City',
-      'Zip',
-      'Ico',
-      'Dic',
-      'Notes',
-    ];
-    fields.forEach((field) => {
-      const element = document.getElementById(`edit${field}`);
-      if (element) {
-        element.value = this.currentBooking[field.toLowerCase()] || '';
-        element.disabled = true;
-      }
+    // Now disable ALL inputs including guest names
+    const allInputs = document.querySelectorAll(
+      '#editBookingForm input, #editBookingForm textarea, #editBookingForm button[type="button"]'
+    );
+    allInputs.forEach((input) => {
+      input.disabled = true;
+      input.style.opacity = '0.5';
+      input.style.cursor = 'not-allowed';
     });
-
-    // Display dates and rooms as text only
-    const startDateFormatted = DateUtils.formatDateDisplay(
-      DateUtils.parseDate(this.currentBooking.startDate),
-      'cs'
-    );
-    const endDateFormatted = DateUtils.formatDateDisplay(
-      DateUtils.parseDate(this.currentBooking.endDate),
-      'cs'
-    );
-
-    const editSelectedDates = document.getElementById('editSelectedDates');
-    if (editSelectedDates) {
-      editSelectedDates.textContent = `${startDateFormatted} - ${endDateFormatted}`;
-    }
 
     // Disable all buttons except cancel
     const editSubmitButton = document.getElementById('editSubmitButton');
     if (editSubmitButton) {
-      editSubmitButton.disabled = true;
+      editSubmitButton.style.display = 'none'; // Hide instead of disable
     }
     const deleteBookingButton = document.getElementById('deleteBookingButton');
     if (deleteBookingButton) {
-      deleteBookingButton.disabled = true;
+      deleteBookingButton.style.display = 'none'; // Hide instead of disable
     }
 
     // Disable tab switching in read-only mode

@@ -289,6 +289,245 @@ class PriceCalculator {
       externalChild: 50,
     };
   }
+
+  /**
+   * Calculate per-room price breakdown
+   *
+   * This method provides granular pricing information for each room in a booking,
+   * showing the cost breakdown per room including the room base price and guest surcharges.
+   *
+   * @param {Object} options - Pricing options
+   * @param {string} options.guestType - 'utia' or 'external'
+   * @param {number} options.nights - Number of nights
+   * @param {Object} options.settings - Settings object with prices configuration
+   * @param {Array<Object>} options.perRoomGuests - Array of room guest configurations
+   *   Example: [
+   *     { roomId: '12', adults: 2, children: 1, toddlers: 0 },
+   *     { roomId: '13', adults: 1, children: 0, toddlers: 0 }
+   *   ]
+   * @returns {Object} Per-room price breakdown
+   *   {
+   *     rooms: [
+   *       {
+   *         roomId: '12',
+   *         roomType: 'small',
+   *         basePrice: 300,
+   *         adults: 2,
+   *         children: 1,
+   *         adultsPrice: 100,
+   *         childrenPrice: 25,
+   *         subtotal: 425,
+   *         total: 850 (for 2 nights)
+   *       },
+   *       ...
+   *     ],
+   *     grandTotal: 1700
+   *   }
+   */
+  static calculatePerRoomPrices(options) {
+    const {
+      guestType,
+      nights = 1,
+      settings,
+      perRoomGuests = []
+    } = options;
+
+    if (!settings || !settings.prices) {
+      console.warn('[PriceCalculator] Missing settings or prices configuration');
+      return { rooms: [], grandTotal: 0 };
+    }
+
+    const { prices } = settings;
+    const guestKey = guestType === 'utia' ? 'utia' : 'external';
+    const priceConfig = prices[guestKey];
+
+    if (!priceConfig) {
+      console.warn(`[PriceCalculator] No price config found for guest type: ${guestType}`);
+      return { rooms: [], grandTotal: 0 };
+    }
+
+    // Check if prices have room-size-based structure
+    const hasRoomSizes = priceConfig.small && priceConfig.large;
+
+    const roomPrices = [];
+    let grandTotal = 0;
+
+    // Calculate price for each room
+    for (const roomGuests of perRoomGuests) {
+      const { roomId, adults = 0, children = 0, toddlers = 0 } = roomGuests;
+
+      let roomPriceConfig;
+      let roomType = 'standard';
+
+      if (hasRoomSizes) {
+        // NEW PRICING MODEL: Room-size-based pricing
+        const room = settings.rooms?.find((r) => r.id === roomId);
+        roomType = room?.type || 'small';
+        roomPriceConfig = priceConfig[roomType];
+
+        if (!roomPriceConfig) {
+          console.warn(`[PriceCalculator] No price config for room type: ${roomType}`);
+          continue;
+        }
+      } else {
+        // LEGACY: Flat pricing model
+        roomPriceConfig = priceConfig;
+      }
+
+      // Calculate empty room price (base - adult surcharge)
+      const emptyRoomPrice = roomPriceConfig.base - roomPriceConfig.adult;
+
+      // Calculate surcharges
+      const adultsPrice = adults * roomPriceConfig.adult;
+      const childrenPrice = children * roomPriceConfig.child;
+
+      // Subtotal for one night
+      const subtotal = emptyRoomPrice + adultsPrice + childrenPrice;
+
+      // Total for all nights
+      const total = subtotal * nights;
+
+      grandTotal += total;
+
+      roomPrices.push({
+        roomId,
+        roomType,
+        basePrice: roomPriceConfig.base,
+        emptyRoomPrice,
+        adults,
+        children,
+        toddlers,
+        adultsPrice,
+        childrenPrice,
+        subtotal,
+        total,
+        nights
+      });
+    }
+
+    return {
+      rooms: roomPrices,
+      grandTotal: Math.round(grandTotal)
+    };
+  }
+
+  /**
+   * Format per-room prices for display
+   *
+   * @param {Object} priceBreakdown - Output from calculatePerRoomPrices()
+   * @param {string} language - 'cs' or 'en'
+   * @returns {string} Formatted HTML string
+   */
+  static formatPerRoomPricesHTML(priceBreakdown, language = 'cs') {
+    const { rooms, grandTotal } = priceBreakdown;
+
+    if (!rooms || rooms.length === 0) {
+      return '';
+    }
+
+    const translations = {
+      cs: {
+        perRoom: 'Cena po pokojích',
+        room: 'Pokoj',
+        basePrice: 'Základní cena pokoje',
+        adults: 'Dospělí',
+        children: 'Děti',
+        toddlers: 'Batolata (zdarma)',
+        subtotal: 'Mezisoučet (1 noc)',
+        total: 'Celkem za',
+        nights: 'nocí',
+        grandTotal: 'Celková cena'
+      },
+      en: {
+        perRoom: 'Price per Room',
+        room: 'Room',
+        basePrice: 'Base room price',
+        adults: 'Adults',
+        children: 'Children',
+        toddlers: 'Toddlers (free)',
+        subtotal: 'Subtotal (1 night)',
+        total: 'Total for',
+        nights: 'nights',
+        grandTotal: 'Total Price'
+      }
+    };
+
+    const t = translations[language] || translations.cs;
+
+    let html = `<div class="per-room-prices" style="margin-top: 1rem;">`;
+    html += `<h4 style="margin-bottom: 0.75rem; color: #2c5282; font-size: 1.1rem;">${t.perRoom}</h4>`;
+
+    for (const room of rooms) {
+      html += `<div class="room-price-card" style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; background: #f8fafc;">`;
+      html += `<div style="font-weight: 600; color: #2d3748; margin-bottom: 0.5rem; font-size: 1.05rem;">`;
+      html += `<span style="background: #28a745; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; margin-right: 0.5rem;">P${room.roomId}</span>`;
+      html += `${t.room} ${room.roomId}`;
+      html += `</div>`;
+
+      html += `<div style="font-size: 0.9rem; color: #4a5568; margin-left: 0.5rem;">`;
+
+      // Base price
+      html += `<div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">`;
+      html += `<span>${t.basePrice}:</span>`;
+      html += `<span style="font-weight: 500;">${room.emptyRoomPrice.toLocaleString('cs-CZ')} Kč</span>`;
+      html += `</div>`;
+
+      // Adults
+      if (room.adults > 0) {
+        html += `<div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">`;
+        html += `<span>${t.adults} (${room.adults}×):</span>`;
+        html += `<span style="font-weight: 500;">+${room.adultsPrice.toLocaleString('cs-CZ')} Kč</span>`;
+        html += `</div>`;
+      }
+
+      // Children
+      if (room.children > 0) {
+        html += `<div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">`;
+        html += `<span>${t.children} (${room.children}×):</span>`;
+        html += `<span style="font-weight: 500;">+${room.childrenPrice.toLocaleString('cs-CZ')} Kč</span>`;
+        html += `</div>`;
+      }
+
+      // Toddlers (if any)
+      if (room.toddlers > 0) {
+        html += `<div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem; color: #38a169;">`;
+        html += `<span>${t.toddlers} (${room.toddlers}×):</span>`;
+        html += `<span style="font-weight: 500;">0 Kč</span>`;
+        html += `</div>`;
+      }
+
+      // Subtotal
+      html += `<div style="display: flex; justify-content: space-between; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #cbd5e0; font-weight: 600;">`;
+      html += `<span>${t.subtotal}:</span>`;
+      html += `<span style="color: #2c5282;">${room.subtotal.toLocaleString('cs-CZ')} Kč</span>`;
+      html += `</div>`;
+
+      // Total for all nights (if more than 1 night)
+      if (room.nights > 1) {
+        html += `<div style="display: flex; justify-content: space-between; margin-top: 0.25rem; font-weight: 700; font-size: 1.05rem;">`;
+        html += `<span>${t.total} ${room.nights} ${t.nights}:</span>`;
+        html += `<span style="color: #28a745;">${room.total.toLocaleString('cs-CZ')} Kč</span>`;
+        html += `</div>`;
+      }
+
+      html += `</div>`; // Close details
+      html += `</div>`; // Close card
+    }
+
+    // Grand total (if multiple rooms)
+    if (rooms.length > 1) {
+      html += `<div style="margin-top: 1rem; padding: 1rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; color: white;">`;
+      html += `<div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: 700;">`;
+      html += `<span>${t.grandTotal}:</span>`;
+      html += `<span>${grandTotal.toLocaleString('cs-CZ')} Kč</span>`;
+      html += `</div>`;
+      html += `</div>`;
+    }
+
+    html += `</div>`;
+
+    return html;
+  }
 }
 
 // Export for both Node.js and browser

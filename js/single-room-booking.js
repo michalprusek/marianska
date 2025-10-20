@@ -126,7 +126,10 @@ class SingleRoomBookingModule {
       return;
     }
 
-    modalTitle.textContent = `${this.app.currentLanguage === 'cs' ? 'Rezervace' : 'Book'} ${room.name}`;
+    // Translate room name: "Pokoj 24" -> "Room 24" in English
+    const roomName =
+      this.app.currentLanguage === 'cs' ? room.name : room.name.replace('Pokoj', 'Room');
+    modalTitle.textContent = `${this.app.currentLanguage === 'cs' ? 'Rezervace' : 'Book'} ${roomName}`;
 
     this.app.currentBookingRoom = roomId;
     this.app.selectedDates.clear();

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
     <title>Rezervační systém - Chata Mariánská</title>
     <link
@@ -669,6 +669,32 @@
                   <!-- Children name inputs will be dynamically generated here -->
                 </div>
               </div>
+
+              <!-- Toddlers Section -->
+              <div
+                id="toddlersNamesContainer"
+                style="display: none; margin-bottom: 1.5rem"
+              >
+                <h4
+                  style="
+                    margin-bottom: 0.75rem;
+                    font-size: 1rem;
+                    color: var(--gray-700);
+                    border-bottom: 2px solid var(--gray-200);
+                    padding-bottom: 0.5rem;
+                  "
+                  data-translate="toddlersSectionTitle"
+                >
+                  Batolata (0-2 roky)
+                </h4>
+                <div
+                  id="toddlersNamesList"
+                  class="guest-names-grid"
+                  style="display: grid; gap: 1rem"
+                >
+                  <!-- Toddler name inputs will be dynamically generated here -->
+                </div>
+              </div>
             </div>
 
             <!-- Christmas Access Code (conditionally shown) -->
@@ -841,7 +867,7 @@
                 <label
                   for="name"
                   data-translate="fullName"
-                  >Jméno a příjmení *</label
+                  >Jméno a příjmení <span class="required-asterisk">*</span></label
                 >
                 <input
                   type="text"
@@ -858,7 +884,7 @@
                 <label
                   for="email"
                   data-translate="email"
-                  >Email *</label
+                  >Email <span class="required-asterisk">*</span></label
                 >
                 <input
                   type="email"
@@ -875,7 +901,7 @@
                 <label
                   for="phone"
                   data-translate="phone"
-                  >Telefon *</label
+                  >Telefon <span class="required-asterisk">*</span></label
                 >
                 <div class="phone-input-container">
                   <select
@@ -926,7 +952,7 @@
                 <label
                   for="address"
                   data-translate="address"
-                  >Adresa *</label
+                  >Adresa <span class="required-asterisk">*</span></label
                 >
                 <input
                   type="text"
@@ -943,7 +969,7 @@
                 <label
                   for="city"
                   data-translate="city"
-                  >Město *</label
+                  >Město <span class="required-asterisk">*</span></label
                 >
                 <input
                   type="text"
@@ -960,7 +986,7 @@
                 <label
                   for="zip"
                   data-translate="zip"
-                  >PSČ *</label
+                  >PSČ <span class="required-asterisk">*</span></label
                 >
                 <input
                   type="text"
@@ -1084,6 +1110,32 @@
                   style="display: grid; gap: 1rem"
                 >
                   <!-- Children name inputs will be dynamically generated here -->
+                </div>
+              </div>
+
+              <!-- Toddlers Section -->
+              <div
+                id="bookingFormToddlersNamesContainer"
+                style="display: none; margin-bottom: 1.5rem"
+              >
+                <h4
+                  style="
+                    margin-bottom: 0.75rem;
+                    font-size: 1rem;
+                    color: var(--gray-700);
+                    border-bottom: 2px solid var(--gray-200);
+                    padding-bottom: 0.5rem;
+                  "
+                  data-translate="toddlersSectionTitle"
+                >
+                  Batolata (0-2 roky)
+                </h4>
+                <div
+                  id="bookingFormToddlersNamesList"
+                  class="guest-names-grid"
+                  style="display: grid; gap: 1rem"
+                >
+                  <!-- Toddler name inputs will be dynamically generated here -->
                 </div>
               </div>
             </div>
@@ -2205,6 +2257,7 @@
     <script src="js/shared/christmasUtils.js"></script>
     <script src="js/shared/bookingLogic.js"></script>
     <script src="js/shared/bookingDisplayUtils.js"></script>
+    <script src="js/shared/GuestNameUtils.js"></script>
     <script src="js/calendar-utils.js"></script>
     <script src="js/shared/BaseCalendar.js"></script>
 
