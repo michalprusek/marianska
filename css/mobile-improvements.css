@@ -109,7 +109,7 @@
 /* Fix 5: Better Calendar Day Number Visibility */
 @media (max-width: 768px) {
   .calendar-day-number {
-    font-size: 0.8rem !important; /* Increased from 0.75rem */
+    font-size: 0.85rem !important; /* ~13.6px - Improved readability */
     font-weight: 700 !important;
     margin-bottom: 0.15rem !important;
   }
@@ -117,6 +117,13 @@
   .calendar-day {
     min-height: 54px !important; /* Increased from 50px */
     padding: 0.2rem !important;
+  }
+
+  /* Ensure all calendar text is readable */
+  .calendar-day-content,
+  .calendar-weekday,
+  .month-name {
+    font-size: 0.875rem !important; /* 14px minimum for readability */
   }
 }
 
@@ -132,6 +139,7 @@
   /* Add better spacing for header buttons */
   .nav .btn {
     min-width: 44px !important;
+    min-height: 44px !important; /* Apple HIG minimum touch target */
     padding: 0.5rem 0.75rem !important;
   }
 
@@ -141,6 +149,52 @@
     width: 22px !important;
     height: 22px !important;
     flex-shrink: 0 !important;
+  }
+
+  /* CRITICAL FIX: Header action buttons (Room Info, Bulk Booking) */
+  #roomInfoBtn,
+  #bulkActionBtn,
+  .header-action-btn {
+    min-height: 44px !important; /* Apple HIG compliance */
+    min-width: 44px !important;
+    padding: 0.75rem 1rem !important;
+    font-size: 14px !important; /* Improved readability */
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  /* Navigation arrows - ensure 44x44px minimum */
+  .nav-btn,
+  .calendar-nav-btn,
+  button[aria-label*='Previous'],
+  button[aria-label*='Next'] {
+    min-width: 44px !important;
+    min-height: 44px !important; /* Added to meet Apple HIG */
+    padding: 0.5rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+}
+
+/* Fix 7: Improve Button Readability */
+@media (max-width: 768px) {
+  /* All buttons should have readable font size */
+  .btn,
+  button:not(.counter-btn):not(.mini-calendar-day):not(.calendar-day) {
+    font-size: 0.875rem !important; /* 14px minimum for readability */
+    font-weight: 600 !important;
+    min-height: 44px !important; /* Touch target compliance */
+  }
+
+  /* Primary action buttons - extra emphasis */
+  .btn-primary,
+  .btn-success,
+  button[type='submit'] {
+    font-size: 1rem !important; /* 16px for primary actions */
+    font-weight: 700 !important;
+    padding: 0.85rem 1.25rem !important;
   }
 }
 
@@ -284,9 +338,9 @@
     padding: 0.15rem !important;
   }
 
-  /* Smaller buttons on ultra-small screens */
+  /* Smaller buttons on ultra-small screens (but still readable) */
   .btn {
-    font-size: 0.85rem !important;
+    font-size: 0.875rem !important; /* 14px - minimum for readability */
     padding: 0.65rem 0.85rem !important;
   }
 
