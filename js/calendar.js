@@ -301,23 +301,19 @@ class CalendarModule {
 
       if (nightBefore && !nightAfter) {
         // Only night before occupied
-        roomEl.style.background =
-          `linear-gradient(90deg, ${leftColor} 0%, ${leftColor} 50%, ${colorMap.available} 50%, ${colorMap.available} 100%)`;
+        roomEl.style.background = `linear-gradient(90deg, ${leftColor} 0%, ${leftColor} 50%, ${colorMap.available} 50%, ${colorMap.available} 100%)`;
         roomEl.title = `Krajní den (${typeLabel[nightBeforeType]}, noc PŘED dnem) - volný pro novou rezervaci`;
       } else if (!nightBefore && nightAfter) {
         // Only night after occupied
-        roomEl.style.background =
-          `linear-gradient(90deg, ${colorMap.available} 0%, ${colorMap.available} 50%, ${rightColor} 50%, ${rightColor} 100%)`;
+        roomEl.style.background = `linear-gradient(90deg, ${colorMap.available} 0%, ${colorMap.available} 50%, ${rightColor} 50%, ${rightColor} 100%)`;
         roomEl.title = `Krajní den (${typeLabel[nightAfterType]}, noc PO dni) - volný pro novou rezervaci`;
       } else if (nightBefore && nightAfter) {
         // BOTH nights occupied but DIFFERENT TYPES (mixed: proposed + confirmed)
-        roomEl.style.background =
-          `linear-gradient(90deg, ${leftColor} 0%, ${leftColor} 50%, ${rightColor} 50%, ${rightColor} 100%)`;
+        roomEl.style.background = `linear-gradient(90deg, ${leftColor} 0%, ${leftColor} 50%, ${rightColor} 50%, ${rightColor} 100%)`;
         roomEl.title = `Smíšený krajní den (noc PŘED: ${typeLabel[nightBeforeType]}, noc PO: ${typeLabel[nightAfterType]}) - volný pro novou rezervaci`;
       } else {
         // Fallback
-        roomEl.style.background =
-          `linear-gradient(90deg, ${colorMap.available} 0%, ${colorMap.available} 50%, ${colorMap.confirmed} 50%, ${colorMap.confirmed} 100%)`;
+        roomEl.style.background = `linear-gradient(90deg, ${colorMap.available} 0%, ${colorMap.available} 50%, ${colorMap.confirmed} 50%, ${colorMap.confirmed} 100%)`;
         roomEl.title = 'Krajní den rezervace - volný pro novou rezervaci';
       }
     } else if (availability === 'available') {
@@ -366,7 +362,9 @@ class CalendarModule {
       roomEl.style.cursor = 'not-allowed';
     }
 
-    roomEl.textContent = `P${room.id}`;
+    // Use language-aware room ID formatting
+    const currentLang = this.app.currentLanguage || 'cs';
+    roomEl.textContent = BookingDisplayUtils.formatRoomId(room.id, currentLang);
 
     return roomEl;
   }

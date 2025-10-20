@@ -20,6 +20,7 @@
  * - When creating booking: dates are used exactly as selected by user
  */
 
+/* global BookingDisplayUtils */
 /* eslint-disable no-underscore-dangle -- Private methods use underscore prefix by convention */
 class BaseCalendar {
   /**
@@ -211,8 +212,12 @@ class BaseCalendar {
     html += '<div class="calendar-row calendar-row-header">';
     html += '<div class="calendar-cell-date"></div>'; // Empty cell for date column
 
+    // Get current language for room ID formatting
+    const currentLang = (typeof langManager !== 'undefined' && langManager.currentLang) || 'cs';
+
     for (const room of rooms) {
-      html += `<div class="calendar-cell-room">${room.id}</div>`;
+      const formattedRoomId = BookingDisplayUtils.formatRoomId(room.id, currentLang);
+      html += `<div class="calendar-cell-room">${formattedRoomId}</div>`;
     }
     html += '</div>';
 

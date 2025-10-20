@@ -20,6 +20,21 @@
 
 class BookingDisplayUtils {
   /**
+   * Format room ID for display with proper prefix based on language
+   *
+   * Czech: P14 (Patro = Floor)
+   * English: R14 (Room)
+   *
+   * @param {string|number} roomId - Room ID (e.g., "14", 14)
+   * @param {string} language - 'cs' or 'en'
+   * @returns {string} Formatted room ID (e.g., "P14" or "R14")
+   */
+  static formatRoomId(roomId, language = 'cs') {
+    const prefix = language === 'en' ? 'R' : 'P';
+    return `${prefix}${roomId}`;
+  }
+
+  /**
    * Format per-room booking details for display
    *
    * Automatically detects per-room data vs legacy global data
@@ -245,7 +260,7 @@ class BookingDisplayUtils {
         </div>
         <div class="detail-row">
           <strong>${language === 'cs' ? 'Pokoje:' : 'Rooms:'}</strong>
-          <span>${booking.rooms.map((r) => `P${r}`).join(', ')}</span>
+          <span>${booking.rooms.map((r) => this.formatRoomId(r, language)).join(', ')}</span>
         </div>
         <div class="detail-row">
           <strong>${language === 'cs' ? 'Hosté:' : 'Guests:'}</strong>
@@ -261,7 +276,7 @@ class BookingDisplayUtils {
                   border-radius: 4px;
                   font-weight: 600;
                   font-size: 0.875rem;
-                ">P${roomDetail.roomId}</span>
+                ">${this.formatRoomId(roomDetail.roomId, language)}</span>
                 <span style="color: var(--gray-700, #374151); font-size: 0.9rem;">
                   ${this.formatGuestCounts(roomDetail.adults, roomDetail.children, roomDetail.toddlers, language)}
                   <span style="color: var(--gray-400, #9ca3af); margin: 0 0.5rem;">•</span>
@@ -308,7 +323,7 @@ class BookingDisplayUtils {
           margin-bottom: 0.75rem;
         ">
           <div style="font-weight: 600; color: var(--gray-900, #111827); margin-bottom: 0.5rem;">
-            ${roomLabel} P${rd.roomId}
+            ${roomLabel} ${this.formatRoomId(rd.roomId, language)}
           </div>
           <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.5rem; font-size: 0.9rem;">
             <span style="color: var(--gray-600, #4b5563);">${datesLabel}</span>
@@ -353,7 +368,7 @@ class BookingDisplayUtils {
           rd.toddlers,
           language
         );
-        return `${roomLabel} P${rd.roomId}: ${guestShort} (${rd.startDate} - ${rd.endDate})`;
+        return `${roomLabel} ${this.formatRoomId(rd.roomId, language)}: ${guestShort} (${rd.startDate} - ${rd.endDate})`;
       })
       .join('\n');
   }
