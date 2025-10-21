@@ -481,7 +481,12 @@
       <!-- Header -->
       <header class="header">
         <div class="header-content">
-          <h1 class="logo">Admin Panel - Chata Mariánská</h1>
+          <h1
+            class="logo"
+            data-translate="adminPanelTitle"
+          >
+            Admin Panel - Chata Mariánská
+          </h1>
           <nav class="nav">
             <button
               id="backBtn"
@@ -646,8 +651,16 @@
           class="tab-content active"
         >
           <h2>Správa rezervací</h2>
-          <div style="margin-bottom: 1rem;">
-            <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem;">
+          <div style="margin-bottom: 1rem">
+            <div
+              style="
+                display: flex;
+                gap: 1rem;
+                align-items: center;
+                flex-wrap: wrap;
+                margin-bottom: 1rem;
+              "
+            >
               <input
                 type="text"
                 id="searchBookings"
@@ -661,8 +674,24 @@
                 "
               />
             </div>
-            <div id="bulkActionsContainer" style="display: none; flex-direction: row; gap: 0.75rem; align-items: center; padding: 0.75rem; background: #f0f9ff; border-radius: 8px; border-left: 4px solid var(--primary-color);">
-              <span id="selectedCount" style="font-weight: 700; color: var(--primary-color); font-size: 1rem;">0 vybraných</span>
+            <div
+              id="bulkActionsContainer"
+              style="
+                display: none;
+                flex-direction: row;
+                gap: 0.75rem;
+                align-items: center;
+                padding: 0.75rem;
+                background: #f0f9ff;
+                border-radius: 8px;
+                border-left: 4px solid var(--primary-color);
+              "
+            >
+              <span
+                id="selectedCount"
+                style="font-weight: 700; color: var(--primary-color); font-size: 1rem"
+                >0 vybraných</span
+              >
               <button
                 id="bulkDeleteBtn"
                 class="btn btn-danger"
@@ -683,10 +712,29 @@
                 onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(239, 68, 68, 0.3)';"
                 onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/>
-                  <line x1="10" y1="11" x2="10" y2="17"/>
-                  <line x1="14" y1="11" x2="14" y2="17"/>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"
+                  />
+                  <line
+                    x1="10"
+                    y1="11"
+                    x2="10"
+                    y2="17"
+                  />
+                  <line
+                    x1="14"
+                    y1="11"
+                    x2="14"
+                    y2="17"
+                  />
                 </svg>
                 Smazat vybrané
               </button>
@@ -710,10 +758,22 @@
                 onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(59, 130, 246, 0.3)';"
                 onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="6 9 6 2 18 2 18 9"/>
-                  <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
-                  <rect x="6" y="14" width="12" height="8"/>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <polyline points="6 9 6 2 18 2 18 9" />
+                  <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" />
+                  <rect
+                    x="6"
+                    y="14"
+                    width="12"
+                    height="8"
+                  />
                 </svg>
                 Tisknout vybrané
               </button>
@@ -722,11 +782,16 @@
           <table class="bookings-table">
             <thead>
               <tr>
-                <th style="width: 40px;">
+                <th style="width: 40px">
                   <input
                     type="checkbox"
                     id="selectAllCheckbox"
-                    style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary-color);"
+                    style="
+                      width: 18px;
+                      height: 18px;
+                      cursor: pointer;
+                      accent-color: var(--primary-color);
+                    "
                     onchange="adminPanel.toggleSelectAll(this.checked)"
                     title="Vybrat všechny"
                   />
@@ -1749,9 +1814,9 @@
           <div style="margin-bottom: 2rem">
             <h3>Správci systému</h3>
             <p style="color: var(--gray-600); margin-bottom: 1rem">
-              Nastavte emailové adresy správců, kteří budou dostávat kopie všech emailových notifikací
-              při vytvoření, změně nebo zrušení rezervace. Správci obdrží stejný email jako majitel
-              rezervace.
+              Nastavte emailové adresy správců, kteří budou dostávat kopie všech emailových
+              notifikací při vytvoření, změně nebo zrušení rezervace. Správci obdrží stejný email
+              jako majitel rezervace.
             </p>
             <div
               id="adminEmailsList"
@@ -1763,9 +1828,7 @@
               id="addAdminEmailForm"
               style="max-width: 500px"
             >
-              <div
-                style="display: flex; gap: 0.5rem; align-items: flex-end"
-              >
+              <div style="display: flex; gap: 0.5rem; align-items: flex-end">
                 <div
                   class="input-group"
                   style="flex: 1; margin: 0"
@@ -2122,7 +2185,9 @@ Tým Chata Mariánská</textarea
             >
               <div class="form-grid">
                 <div class="input-group">
-                  <label for="editName">Jméno a příjmení <span class="required-asterisk">*</span></label>
+                  <label for="editName"
+                    >Jméno a příjmení <span class="required-asterisk">*</span></label
+                  >
                   <input
                     type="text"
                     id="editName"

@@ -2,6 +2,10 @@
 const translations = {
   cs: {
     // Header
+    cottageName: 'Chata Mariánská',
+    pageTitle: 'Rezervační systém - Chata Mariánská',
+    editPageTitle: 'Upravit rezervaci - Chata Mariánská',
+    adminPageTitle: 'Admin Panel - Chata Mariánská',
     roomInfo: 'Informace o pokojích',
     admin: 'Admin',
 
@@ -260,6 +264,7 @@ const translations = {
 
     // Admin panel translations
     adminPanel: 'Admin Panel',
+    adminPanelTitle: 'Admin Panel - Chata Mariánská',
     backToReservations: 'Zpět na rezervace',
     logout: 'Odhlásit',
     adminLogin: 'Přihlášení administrátora',
@@ -573,6 +578,10 @@ const translations = {
   },
   en: {
     // Header
+    cottageName: 'Mariánská Cottage',
+    pageTitle: 'Booking System - Mariánská Cottage',
+    editPageTitle: 'Edit Reservation - Mariánská Cottage',
+    adminPageTitle: 'Admin Panel - Mariánská Cottage',
     roomInfo: 'Room Information',
     admin: 'Admin',
 
@@ -831,6 +840,7 @@ const translations = {
 
     // Admin panel translations
     adminPanel: 'Admin Panel',
+    adminPanelTitle: 'Admin Panel - Mariánská Cottage',
     backToReservations: 'Back to reservations',
     logout: 'Logout',
     adminLogin: 'Administrator Login',
@@ -1233,6 +1243,19 @@ class LanguageManager {
       const isExpanded = legendToggle.getAttribute('aria-expanded') === 'true';
       if (toggleText) {
         toggleText.textContent = isExpanded ? this.t('hideLegend') : this.t('showLegend');
+      }
+    }
+
+    // Update page title based on current page
+    const titleElement = document.querySelector('title');
+    if (titleElement) {
+      const currentPath = window.location.pathname;
+      if (currentPath.includes('admin.html')) {
+        titleElement.textContent = this.t('adminPageTitle');
+      } else if (currentPath.includes('edit.html')) {
+        titleElement.textContent = this.t('editPageTitle');
+      } else {
+        titleElement.textContent = this.t('pageTitle');
       }
     }
 

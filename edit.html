@@ -28,7 +28,12 @@
         style="max-width: none"
       >
         <h1>📝 Upravit rezervaci</h1>
-        <p style="color: var(--gray-600)">Chata Mariánská</p>
+        <p
+          style="color: var(--gray-600)"
+          data-translate="cottageName"
+        >
+          Chata Mariánská
+        </p>
       </div>
 
       <!-- Loading State -->
@@ -286,7 +291,9 @@
             >
               <div class="form-grid">
                 <div class="input-group">
-                  <label for="editName">Jméno a příjmení <span class="required-asterisk">*</span></label>
+                  <label for="editName"
+                    >Jméno a příjmení <span class="required-asterisk">*</span></label
+                  >
                   <input
                     type="text"
                     id="editName"
