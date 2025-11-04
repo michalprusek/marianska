@@ -502,6 +502,7 @@ class BookingApp {
       adults: 1,
       children: 0,
       toddlers: 0,
+      guestType: 'utia', // NEW 2025-11-04: Default guest type
     };
 
     // Calculate new value
@@ -549,6 +550,42 @@ class BookingApp {
     }
 
     await this.updatePriceCalculation();
+
+    // Regenerate guest name input fields with updated counts
+    this.singleRoomBooking.generateGuestNamesInputs(
+      guests.adults,
+      guests.children,
+      guests.toddlers
+    );
+  }
+
+  // Set guest type for current room (NEW 2025-11-04: Per-room guest type)
+  async setRoomGuestType(guestType) {
+    if (!this.currentBookingRoom) {
+      return;
+    }
+
+    // Get current guests data
+    const guests = this.roomGuests.get(this.currentBookingRoom) || {
+      adults: 1,
+      children: 0,
+      toddlers: 0,
+      guestType: 'utia', // Default
+    };
+
+    // Update guest type
+    guests.guestType = guestType;
+    this.roomGuests.set(this.currentBookingRoom, guests);
+
+    // Update price calculation with new guest type
+    await this.updatePriceCalculation();
+
+    // Log for debugging
+    console.log(
+      `[BookingApp] Set guest type for room ${this.currentBookingRoom}:`,
+      guestType,
+      guests
+    );
   }
 
   // Main booking modal
@@ -861,6 +898,11 @@ class BookingApp {
                   <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
                     👥 ${guestText.join(', ')}
                   </div>
+                  ${booking.guestNames && booking.guestNames.length > 0 ? `
+                  <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
+                    👤 ${booking.guestNames[0].firstName} ${booking.guestNames[0].lastName}${booking.guestNames.length > 1 ? ` +${booking.guestNames.length - 1} ${this.currentLanguage === 'cs' ? 'další' : 'other'}` : ''}
+                  </div>
+                  ` : ''}
                   <div style="font-size: 0.9rem; color: var(--gray-600);">
                     🏷️ Typ: <span style="font-weight: 600;">${guestTypeText}</span>
                   </div>
@@ -902,6 +944,11 @@ class BookingApp {
                   <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
                     👥 ${guestText.join(', ')}
                   </div>
+                  ${booking.guestNames && booking.guestNames.length > 0 ? `
+                  <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
+                    👤 ${booking.guestNames[0].firstName} ${booking.guestNames[0].lastName}${booking.guestNames.length > 1 ? ` +${booking.guestNames.length - 1} ${this.currentLanguage === 'cs' ? 'další' : 'other'}` : ''}
+                  </div>
+                  ` : ''}
                   <div style="font-size: 0.9rem; color: var(--gray-600);">
                     🏷️ Typ: <span style="font-weight: 600;">${guestTypeText}</span>
                   </div>
@@ -1171,8 +1218,8 @@ class BookingApp {
       totalToddlers += reservation.guests.toddlers || 0;
     });
 
-    // Generate guest names input fields for bookingFormModal
-    this.bookingForm.generateGuestNamesInputs(totalAdults, totalChildren, totalToddlers, 'bookingForm');
+    // NOTE: Guest names are already collected in tempReservations during temp reservation creation
+    // No need to generate input fields here - collectGuestNames() will read from tempReservations
 
     // Show the modal
     modal.classList.add('active');
@@ -1565,6 +1612,7 @@ class BookingApp {
         children: tempReservation.guests.children,
         toddlers: tempReservation.guests.toddlers,
         totalPrice: tempReservation.totalPrice,
+        guestNames: tempReservation.guestNames, // Guest names already validated when temp reservation was created
         sessionId: this.sessionId, // Include sessionId to exclude user's own proposals
       };
 

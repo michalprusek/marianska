@@ -64,7 +64,7 @@ npm run pre-commit           # Lint + format + duplicate check (PŘED commitem!)
 3. **DateUtils.js** - Formátování dat, date ranges, výpočty dnů
 4. **BookingLogic.js** - Detekce konfliktů rezervací, validace překrývání
 5. **IdGenerator.js** - Generování booking ID, edit tokenů (30 znaků), session ID
-6. **PriceCalculator.js** - Centralizovaný výpočet cen (individuální + bulk)
+6. **PriceCalculator.js** - Centralizovaný výpočet cen (individuální + bulk, room-size based, per-room guest types)
 7. **ChristmasUtils.js** - Vánoční logika (detekce období, validace kódů, pravidla)
 8. **AccessLogger.js** - HTTP logování s IP detekcí (formát: `[timestamp] IP user METHOD /path STATUS time`)
 9. **EmailService.js** - Email notifikace (vytvoření/změna/zrušení rezervace, kontaktní formulář)
@@ -76,7 +76,21 @@ npm run pre-commit           # Lint + format + duplicate check (PŘED commitem!)
 new BaseCalendar({ mode: BaseCalendar.MODES.EDIT });
 ValidationUtils.validateEmail(email);
 DateUtils.formatDate(date);
-const price = PriceCalculator.calculatePrice({ guestType, adults, children, nights, settings });
+
+// NEW 2025-11-04: Room-size based pricing with per-room guest types
+const price = PriceCalculator.calculatePriceFromRooms({
+  rooms: ['12', '13'],
+  guestType: 'utia',  // Default (can be overridden per room)
+  adults: 3,
+  children: 1,
+  nights: 2,
+  perRoomGuests: [
+    { roomId: '12', guestType: 'utia', adults: 2, children: 0 },
+    { roomId: '13', guestType: 'external', adults: 1, children: 1 }
+  ],
+  settings
+});
+
 await emailService.sendBookingConfirmation(booking, { settings });
 
 // ❌ NIKDY nevytvářejte vlastní implementace!
@@ -166,17 +180,53 @@ Jednotný kalendářní komponent s 4 režimy:
 
 **⚠️ Dynamicky konfigurovatelné** z admin panelu.
 
-**Výchozí ceny (individuální rezervace):**
+**⚠️ NEW 2025-11-04:** Změna cenového modelu - admin nastavuje cenu **PRÁZDNÉHO pokoje** (bez hostů)
 
-- ÚTIA: 298 Kč/noc + 49 Kč/dospělý + 24 Kč/dítě
-- Externí: 499 Kč/noc + 99 Kč/dospělý + 49 Kč/dítě
+**Individuální rezervace - Nový model:**
+
+Vzorec: `prázdný_pokoj + (VŠICHNI dospělí × příplatek) + (VŠECHNY děti × příplatek)`
+
+**Výchozí ceny (room-size based):**
+
+ÚTIA:
+- Malý pokoj (prázdný): 250 Kč/noc + 50 Kč/dospělý + 25 Kč/dítě
+- Velký pokoj (prázdný): 350 Kč/noc + 70 Kč/dospělý + 35 Kč/dítě
+
+Externí:
+- Malý pokoj (prázdný): 400 Kč/noc + 100 Kč/dospělý + 50 Kč/dítě
+- Velký pokoj (prázdný): 500 Kč/noc + 120 Kč/dospělý + 60 Kč/dítě
+
+**Pokoje:**
+- Malé pokoje (3 lůžka): P12, P13, P22, P23, P42, P43
+- Velké pokoje (4 lůžka): P14, P24, P44
+
+**Per-Room Guest Type:**
+- Cena ÚTIA se použije, pokud je na pokoji **alespoň 1 zaměstnanec ÚTIA**
+- Každý pokoj v multi-room booking může mít jiný typ hostů
+
+**Příklad výpočtu:**
+```
+Malý pokoj, ÚTIA, 2 dospělí, 1 dítě, 2 noci:
+= 250 × 2 + (2 × 50 × 2) + (1 × 25 × 2)
+= 500 + 200 + 50
+= 750 Kč
+```
+
+**⚠️ DŮLEŽITÉ:** Všichni dospělí a děti platí příplatky (žádný "první dospělý zdarma")
 
 **Hromadná rezervace (celá chata):**
 
 - ÚTIA: 2000 Kč/noc + 100 Kč/dospělý + 0 Kč/dítě
 - Externí: 2000 Kč/noc + 250 Kč/dospělý + 50 Kč/dítě
 
-_Děti do 3 let vždy zdarma_
+**Backward Compatibility:**
+- Starší rezervace (před 2025-11-04) mají zamknuté ceny (`price_locked = 1`)
+- Při editaci starších rezervací se cena NEPŘEPOČÍTÁVÁ
+- Nové rezervace používají nový vzorec
+
+_Děti do 3 let (toddlers) vždy zdarma_
+
+**Dokumentace:** Viz `/docs/NEW_PRICING_MODEL_IMPLEMENTATION.md` pro detaily implementace
 
 ### Vánoční období
 
@@ -359,3 +409,6 @@ npm test                 # Unit + integration testy
 npm run test:e2e         # E2E testy (Playwright)
 npm run test:coverage    # Coverage report
 ```
+- VERY IMPORTANT: vždy získej maximální kontext z aplikace před začátkem implementace\
+  CRITICAL: použij context7 před každou novou implemntací a získej relevantní dokumentaci k implementaci\
+  CRITICAL: po každé implementaci restartuj app v dockeru a otestuj pomocí playwright MCP specializovaným agentem

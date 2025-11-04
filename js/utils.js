@@ -416,6 +416,22 @@ class UtilsModule {
       priceBreakdownEl.style.display = 'block';
     }
 
+    // Helper: Collect guest names with price types from current selection
+    const collectGuestNamesFromDOM = () => {
+      const guestNames = [];
+
+      // Try to get from single room modal if open
+      if (window.app && window.app.singleRoomBooking) {
+        const collected = window.app.singleRoomBooking.collectGuestNames();
+        if (collected && collected.length > 0) {
+          return collected;
+        }
+      }
+
+      // Fallback: Return empty array (will use fallback guest type)
+      return [];
+    };
+
     // Get current settings and prices
     const settings = await dataManager.getSettings();
     const prices = settings.prices || PriceCalculator.getDefaultPrices();
@@ -486,24 +502,34 @@ class UtilsModule {
       roomsToCalculate = new Set();
     }
 
-    const rooms = await dataManager.getRooms();
+    // Calculate price per room using PER-GUEST pricing
     const roomPrices = await Promise.all(
-      Array.from(roomsToCalculate).map((roomId) => {
+      Array.from(roomsToCalculate).map(async (roomId) => {
         const guests = this.app.roomGuests.get(roomId) || { adults: 1, children: 0, toddlers: 0 };
-        const guestType = this.app.roomGuestTypes.get(roomId) || 'utia';
+        const fallbackGuestType = this.app.roomGuestTypes.get(roomId) || 'utia';
 
-        const room = rooms.find((r) => r.id === roomId);
-        if (!room) {
-          return 0;
+        // Get individual guest names with price types
+        const guestNames = collectGuestNamesFromDOM();
+
+        // If we have guest names with price types, use per-guest calculation
+        if (guestNames.length > 0) {
+          return PriceCalculator.calculatePerGuestPrice({
+            rooms: [roomId],
+            guestNames: guestNames,
+            nights: 1, // Per night calculation
+            settings: settings,
+            fallbackGuestType: fallbackGuestType,
+          });
         }
 
+        // Fallback to old method if no guest names available
         return dataManager.calculatePrice(
-          guestType,
+          fallbackGuestType,
           guests.adults,
           guests.children,
           guests.toddlers,
-          1, // nights per room calculation
-          [roomId] // Pass room ID array for room-size-based pricing
+          1,
+          [roomId]
         );
       })
     );
@@ -568,10 +594,11 @@ class UtilsModule {
         const adultsPrice = document.getElementById('adultsPrice');
         const adultsSurcharge = document.getElementById('adultsSurcharge');
         if (adultsPrice && adultsSurcharge && roomPriceConfig) {
-          const extraAdults = Math.max(0, guests.adults - 1);
-          if (extraAdults > 0) {
-            const surcharge = extraAdults * roomPriceConfig.adult;
-            adultsSurcharge.textContent = `${surcharge.toLocaleString('cs-CZ')} Kč (${extraAdults} × ${roomPriceConfig.adult} Kč)`;
+          // Count surcharge for ALL adults
+          const totalAdults = Math.max(0, guests.adults);
+          if (totalAdults > 0) {
+            const surcharge = totalAdults * roomPriceConfig.adult;
+            adultsSurcharge.textContent = `${surcharge.toLocaleString('cs-CZ')} Kč (${totalAdults} × ${roomPriceConfig.adult} Kč)`;
             adultsPrice.style.display = 'flex';
           } else {
             adultsPrice.style.display = 'none';

@@ -1,0 +1,393 @@
+GUEST INPUT GENERATION LOGIC - QUICK SUMMARY
+=============================================
+
+Date: 2025-11-04
+Files Analyzed: 3 (single-room-booking.js, booking-app.js, index.html)
+Functions Found: 4 core functions
+
+
+CRITICAL ISSUE IDENTIFIED
+=========================
+
+🔴 DATA LOSS ON GUEST COUNT CHANGE
+
+When user clicks +/- button to adjust guest counts:
+1. All existing guest name inputs are DESTROYED (innerHTML = '')
+2. All previously entered first/last names are LOST
+3. All toggle switch states (ÚTIA/External) are RESET to defaults
+4. User must RE-ENTER data after count change
+
+
+FUNCTION DEFINITIONS
+====================
+
+1. generateGuestNamesInputs(adults, children, toddlers = 0)
+   Location: /js/single-room-booking.js:499
+   Purpose: Creates dynamic input fields for guest names
+
+   How it works:
+   - Gets 3 containers by ID (adultsNamesContainer, childrenNamesContainer, toddlersNamesContainer)
+   - CLEARS each container: innerHTML = ''  ← PROBLEM!
+   - Creates new input rows for each guest type
+   - Each row has: firstName input, lastName input, toggle switch
+   - Registers event listeners on toggle switches
+   - Appends all rows to containers
+
+
+2. adjustGuests(type, change)
+   Location: /js/booking-app.js:496
+   Purpose: Increment/decrement guest count and trigger regeneration
+
+   How it works:
+   - Gets current guest counts from roomGuests Map
+   - Calculates newValue = guests[type] + change
+   - Validates room capacity
+   - Updates roomGuests Map with new count
+   - Updates DOM display (singleRoomAdults textContent)
+   - Calls updatePriceCalculation()
+   - Calls generateGuestNamesInputs() with new counts ← TRIGGERS DATA LOSS!
+
+
+3. collectGuestNames()
+   Location: /js/single-room-booking.js:831
+   Purpose: Collect and validate all guest names from inputs
+
+   How it works:
+   - Queries all name inputs: querySelectorAll('input[data-guest-type]:not([data-guest-price-type])')
+   - Groups inputs by guest type and index into a Map
+   - Extracts firstName and lastName values from each input
+   - Validates: all fields required, min length 2
+   - Queries all toggle inputs: querySelectorAll('input[data-guest-price-type]')
+   - Reads .checked state to determine guest type (false = ÚTIA, true = External)
+   - Returns array of guest objects or null if validation fails
+
+
+4. Event Listeners (registered on +/- buttons)
+   Location: /js/booking-app.js:391-401
+   Purpose: Handle user clicks on increment/decrement buttons
+
+   How it works:
+   - Finds buttons by data-action attribute: [data-action="decrease-adults"], [data-action="increase-adults"], etc.
+   - Registers click listeners that call adjustGuests(type, -1) or adjustGuests(type, 1)
+   - Also supports inline onclick="window.app.adjustGuests('adults', 1)"
+
+
+CURRENT DATA FLOW
+=================
+
+User Action: Click "+" button to add second adult
+   ↓
+adjustGuests('adults', 1) is called
+   ├─ roomGuests.get('room12') returns { adults: 1, children: 0, ... }
+   ├─ newValue = 1 + 1 = 2
+   ├─ roomGuests.set('room12', { adults: 2, children: 0, ... })
+   ├─ Update DOM: singleRoomAdults.textContent = "2"
+   ├─ updatePriceCalculation()
+   ├─ singleRoomBooking.generateGuestNamesInputs(2, 0, 0)
+   │  ├─ Get adultsContainer
+   │  ├─ adultsContainer.innerHTML = ''  ← DATA LOSS!
+   │  │  │ User's "Jan Novák" and toggle state → DESTROYED
+   │  │  │ roomGuests Map still has count: { adults: 2, ... } → PRESERVED
+   │  ├─ Create 2 new empty input rows
+   │  └─ Register listeners on new toggles
+   └─ Modal shows 2 empty input rows
+
+
+WHAT'S PRESERVED vs. WHAT'S LOST
+================================
+
+PRESERVED (in roomGuests Map):
+  ✓ Adult count: 2
+  ✓ Children count: 0
+  ✓ Toddlers count: 0
+  ✓ Guest type: 'utia'
+
+LOST (in DOM inputs):
+  ✗ Guest first names (e.g., "Jan")
+  ✗ Guest last names (e.g., "Novák")
+  ✗ Toggle switch states (e.g., checked=true for External)
+  ✗ Visual toggle states (slider colors, text labels)
+
+
+TOGGLE SWITCH DETAILS
+====================
+
+Input Field Structure (1 adult example):
+  <div> (row container)
+    <input id="singleRoomAdultFirstName1" type="text" data-guest-type="adult" data-guest-index="1"/>
+    <input id="singleRoomAdultLastName1" type="text" data-guest-type="adult" data-guest-index="1"/>
+    <label>
+      <input id="adult1GuestTypeToggle" type="checkbox" checked="false" data-guest-type="adult" data-guest-index="1" data-guest-price-type="true"/>
+      <span> (visual slider - position/color updated by event listener)</span>
+    </label>
+    <span>ÚTIA</span> (text label updated by event listener)
+  </div>
+
+
+Toggle States:
+  checked=false → ÚTIA (default) → Green slider, "ÚTIA" text
+  checked=true  → External       → Red slider, "EXT" text
+
+Toggle Event Listener (registered during generateGuestNamesInputs):
+  toggleInput.addEventListener('change', function() {
+    if (this.checked) {
+      // External: Red slider, move thumb right
+      toggleSlider.style.backgroundColor = '#dc2626';
+      toggleThumb.style.transform = 'translateX(20px)';
+      toggleText.textContent = 'EXT';
+    } else {
+      // ÚTIA: Green slider, move thumb left
+      toggleSlider.style.backgroundColor = '#059669';
+      toggleThumb.style.transform = 'translateX(0)';
+      toggleText.textContent = 'ÚTIA';
+    }
+  });
+
+
+INPUT FIELD CREATION PROCESS
+============================
+
+For each guest type (adults, children, toddlers):
+
+1. Get container by ID (e.g., 'singleRoomAdultsNamesContainer')
+2. Clear existing: container.innerHTML = ''
+3. If count > 0:
+   a. Create header (e.g., "Dospělí (2)")
+   b. For each guest (i=1 to count):
+      i.   Create row div
+      ii.  Create firstName input (id="singleRoomAdultFirstName{i}")
+      iii. Create lastName input (id="singleRoomAdultLastName{i}")
+      iv.  Create toggle switch (id="adult{i}GuestTypeToggle")
+      v.   Create toggle visual elements (slider, thumb)
+      vi.  Register event listener on toggle
+      vii. Append all to row
+      viii.Append row to container
+4. Else: Hide container
+
+
+EVENT LISTENER REGISTRATION POINTS
+==================================
+
+1. Guest Count +/- Buttons (index.html):
+   - HTML: <button onclick="window.app.adjustGuests('adults', 1)">+</button>
+   - Also: <button data-action="increase-adults">+</button>
+   - Registered in: booking-app.js:391-401 with addEventListener
+
+2. Toggle Switch Change (created in generateGuestNamesInputs):
+   - Type: 'change' event on checkbox
+   - Handler: Updates visual state (color, position, text)
+   - Registered in: single-room-booking.js:581, 683, 785
+   - Recreated every time generateGuestNamesInputs() runs
+
+
+STATE PRESERVATION MECHANISMS
+=============================
+
+Only TWO levels of state:
+
+1. PERSISTENT: roomGuests Map
+   Storage: Map<roomId, { adults, children, toddlers, guestType }>
+   Preserved across: All operations
+   Lost on: Modal close
+   Limitation: Only stores COUNTS, not names or toggle states
+
+2. EPHEMERAL: DOM Input Elements
+   Storage: HTML input.value, input.checked
+   Preserved across: None (destroyed on regeneration)
+   Lost on: adjustGuests() called → generateGuestNamesInputs() called
+   No backup: No localStorage, sessionStorage, or instance variables
+
+
+COLLECTION FLOW (collectGuestNames)
+===================================
+
+Called from: confirmRoomBooking() when user clicks "Confirm"
+
+Steps:
+1. Query all name inputs (not toggles):
+   querySelectorAll('input[data-guest-type]:not([data-guest-price-type])')
+
+2. Group by guest type and index:
+   "adult-1", "adult-2", "child-1", etc.
+
+3. Validate all fields filled:
+   if (!value || value.length < 2) → Error
+
+4. Extract firstName and lastName
+
+5. Query all toggle inputs:
+   querySelectorAll('input[data-guest-price-type]')
+
+6. Extract guest type:
+   checked=false → 'utia'
+   checked=true  → 'external'
+
+7. Return array of guest objects:
+   [
+     { personType: 'adult', firstName: 'Jan', lastName: 'Novák', guestPriceType: 'utia' },
+     { personType: 'adult', firstName: 'Petr', lastName: 'Svoboda', guestPriceType: 'external' },
+     ...
+   ]
+
+
+CRITICAL PROBLEM
+================
+
+User Flow with Data Loss:
+
+1. User opens modal (1 adult default)
+   → generateGuestNamesInputs(1, 0, 0) creates 1 input row
+
+2. User enters "Jan Novák"
+   → firstname1.value = "Jan"
+   → lastname1.value = "Novák"
+   → toggle unchecked (ÚTIA selected)
+
+3. User clicks "+" to add second adult
+   → adjustGuests('adults', 1) called
+   → roomGuests updated to { adults: 2, ... }
+   → generateGuestNamesInputs(2, 0, 0) called
+   → adultsContainer.innerHTML = ''  ← PROBLEM!
+   → "Jan Novák" and toggle state DESTROYED
+   → 2 new empty input rows created
+
+4. User sees empty inputs
+   → Must re-enter "Jan Novák" again!
+
+
+HOW TO FIX
+==========
+
+Option 1: Save Before Clear (Recommended)
+
+Before innerHTML = '', save existing values:
+  const preserved = [];
+  for (let i = 1; i <= currentCount; i++) {
+    const firstName = document.getElementById(`singleRoom...FirstName${i}`)?.value;
+    const lastName = document.getElementById(`singleRoom...LastName${i}`)?.value;
+    const toggle = document.getElementById(`...GuestTypeToggle${i}`);
+    if (firstName || lastName) {
+      preserved.push({ i, firstName, lastName, guestType: toggle?.checked ? 'external' : 'utia' });
+    }
+  }
+
+After creating new inputs, restore:
+  preserved.forEach(data => {
+    const firstInput = document.getElementById(`singleRoom...FirstName${data.i}`);
+    const lastInput = document.getElementById(`singleRoom...LastName${data.i}`);
+    const toggle = document.getElementById(`...GuestTypeToggle${data.i}`);
+    if (firstInput) firstInput.value = data.firstName;
+    if (lastInput) lastInput.value = data.lastName;
+    if (toggle) toggle.checked = data.guestType === 'external';
+  });
+
+
+Option 2: Use Instance Variables
+
+Store in SingleRoomBookingModule instance:
+  this.guestNameData = {
+    'adult-1': { firstName: 'Jan', lastName: 'Novák', guestType: 'utia' },
+    'adult-2': { firstName: 'Petr', lastName: 'Svoboda', guestType: 'external' }
+  };
+
+Before clearing, save from inputs.
+After regenerating, restore to inputs.
+
+
+FILES CONTAINING LOGIC
+======================
+
+1. /home/marianska/marianska/js/single-room-booking.js
+   - Line 499: generateGuestNamesInputs() function start
+   - Line 514-613: Adults section creation
+   - Line 616-715: Children section creation
+   - Line 718-823: Toddlers section creation
+   - Line 581, 683, 785: Event listener registration on toggles
+   - Line 831: collectGuestNames() function start
+   - Line 840: Query name inputs
+   - Line 876: Query toggle inputs
+
+2. /home/marianska/marianska/js/booking-app.js
+   - Line 391-401: Event listener registration for +/- buttons
+   - Line 496: adjustGuests() function start
+   - Line 501-507: Get/store guest counts in roomGuests Map
+   - Line 540-550: Update DOM display
+   - Line 555-559: Call generateGuestNamesInputs()
+
+3. /home/marianska/marianska/index.html
+   - Guest count controls: <button onclick="window.app.adjustGuests(...)">
+   - Guest count display: <span id="singleRoomAdults">
+   - Input containers: <div id="singleRoomAdultsNamesContainer">
+
+
+SELECTORS USED
+==============
+
+For Finding Inputs:
+  - By ID: `singleRoomAdult[First|Last]Name${i}`, `adult${i}GuestTypeToggle`
+  - By data attribute: `input[data-guest-type]`
+  - By data attribute (names only): `input[data-guest-type]:not([data-guest-price-type])`
+  - By data attribute (toggles only): `input[data-guest-price-type]`
+
+For Finding Buttons:
+  - By onclick: `onclick="window.app.adjustGuests(..."`
+  - By data attribute: `[data-action="increase-adults"]`, `[data-action="decrease-adults"]`
+
+For Finding Containers:
+  - By ID: `singleRoomAdultsNamesContainer`, `singleRoomChildrenNamesContainer`, `singleRoomToddlersNamesContainer`
+  - By ID: `singleRoomGuestNamesSection`
+
+
+RELATED INFORMATION
+===================
+
+Per-Guest Pricing (NEW 2025-11-04):
+  Each guest can have different pricing type (ÚTIA vs External)
+  Toggle state determines pricing type for that specific guest
+  PriceCalculator.calculatePerGuestPrice() uses guestNames array with guestPriceType
+
+Room Capacity:
+  Toddlers don't count toward room bed capacity
+  adjustGuests() validates: (adults + children) <= room.beds
+
+Validation:
+  First name: required, min 2 chars, max 50 chars
+  Last name: required, min 2 chars, max 50 chars
+  Guest type: required (must be set via toggle)
+  All names must be filled before submission
+
+
+KNOWN LIMITATIONS
+=================
+
+1. No preservation of guest names across count changes
+2. No preservation of toggle states across count changes
+3. No recovery mechanism if user accidentally changes count
+4. Event listeners recreated on every regeneration (potential memory leak)
+5. No localStorage/sessionStorage backup of input data
+6. No undo/redo functionality
+7. Validation only at collection time, not real-time
+8. No form auto-save feature
+
+
+TESTING NOTES
+=============
+
+To verify data loss issue:
+
+1. Open modal for single room
+2. Increment adults to 2
+3. Enter "Jan Novák" in first adult fields
+4. Toggle to External
+5. Click "+" again to add third adult
+6. Result: First adult's name and toggle state should be LOST
+
+
+To verify preservation of counts:
+
+1. Open modal for single room
+2. Increment adults to 3
+3. Leave modal (by closing it)
+4. Open modal again
+5. Result: Count should be 1 (default), not 3
+   (Because roomGuests Map is cleared on modal open)

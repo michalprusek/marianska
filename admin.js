@@ -2403,7 +2403,13 @@ class AdminPanel {
     const utiaSmallChildEl = document.getElementById('utia_small_child');
 
     if (utiaSmallBaseEl) {
-      utiaSmallBaseEl.value = prices.utia?.small?.base || defaultPrices.utia.small.base;
+      // Backward compatibility: Try 'empty' first, fall back to 'base'
+      const emptyPrice = prices.utia?.small?.empty !== undefined
+        ? prices.utia.small.empty
+        : (prices.utia?.small?.base !== undefined
+          ? prices.utia.small.base - (prices.utia.small.adult || 0)
+          : defaultPrices.utia.small.base - defaultPrices.utia.small.adult);
+      utiaSmallBaseEl.value = emptyPrice;
     }
     if (utiaSmallAdultEl) {
       utiaSmallAdultEl.value = prices.utia?.small?.adult || defaultPrices.utia.small.adult;
@@ -2418,7 +2424,13 @@ class AdminPanel {
     const utiaLargeChildEl = document.getElementById('utia_large_child');
 
     if (utiaLargeBaseEl) {
-      utiaLargeBaseEl.value = prices.utia?.large?.base || defaultPrices.utia.large.base;
+      // Backward compatibility: Try 'empty' first, fall back to 'base'
+      const emptyPrice = prices.utia?.large?.empty !== undefined
+        ? prices.utia.large.empty
+        : (prices.utia?.large?.base !== undefined
+          ? prices.utia.large.base - (prices.utia.large.adult || 0)
+          : defaultPrices.utia.large.base - defaultPrices.utia.large.adult);
+      utiaLargeBaseEl.value = emptyPrice;
     }
     if (utiaLargeAdultEl) {
       utiaLargeAdultEl.value = prices.utia?.large?.adult || defaultPrices.utia.large.adult;
@@ -2433,7 +2445,13 @@ class AdminPanel {
     const externalSmallChildEl = document.getElementById('external_small_child');
 
     if (externalSmallBaseEl) {
-      externalSmallBaseEl.value = prices.external?.small?.base || defaultPrices.external.small.base;
+      // Backward compatibility: Try 'empty' first, fall back to 'base'
+      const emptyPrice = prices.external?.small?.empty !== undefined
+        ? prices.external.small.empty
+        : (prices.external?.small?.base !== undefined
+          ? prices.external.small.base - (prices.external.small.adult || 0)
+          : defaultPrices.external.small.base - defaultPrices.external.small.adult);
+      externalSmallBaseEl.value = emptyPrice;
     }
     if (externalSmallAdultEl) {
       externalSmallAdultEl.value =
@@ -2450,7 +2468,13 @@ class AdminPanel {
     const externalLargeChildEl = document.getElementById('external_large_child');
 
     if (externalLargeBaseEl) {
-      externalLargeBaseEl.value = prices.external?.large?.base || defaultPrices.external.large.base;
+      // Backward compatibility: Try 'empty' first, fall back to 'base'
+      const emptyPrice = prices.external?.large?.empty !== undefined
+        ? prices.external.large.empty
+        : (prices.external?.large?.base !== undefined
+          ? prices.external.large.base - (prices.external.large.adult || 0)
+          : defaultPrices.external.large.base - defaultPrices.external.large.adult);
+      externalLargeBaseEl.value = emptyPrice;
     }
     if (externalLargeAdultEl) {
       externalLargeAdultEl.value =
@@ -2471,28 +2495,28 @@ class AdminPanel {
     }
 
     try {
-      // NEW (2025-10-17): Room-size-based pricing structure
+      // NEW (2025-11-04): Room-size-based pricing with empty room model
       const prices = {
         utia: {
           small: {
-            base: parseInt(document.getElementById('utia_small_base').value, 10),
+            empty: parseInt(document.getElementById('utia_small_base').value, 10),
             adult: parseInt(document.getElementById('utia_small_adult').value, 10),
             child: parseInt(document.getElementById('utia_small_child').value, 10),
           },
           large: {
-            base: parseInt(document.getElementById('utia_large_base').value, 10),
+            empty: parseInt(document.getElementById('utia_large_base').value, 10),
             adult: parseInt(document.getElementById('utia_large_adult').value, 10),
             child: parseInt(document.getElementById('utia_large_child').value, 10),
           },
         },
         external: {
           small: {
-            base: parseInt(document.getElementById('external_small_base').value, 10),
+            empty: parseInt(document.getElementById('external_small_base').value, 10),
             adult: parseInt(document.getElementById('external_small_adult').value, 10),
             child: parseInt(document.getElementById('external_small_child').value, 10),
           },
           large: {
-            base: parseInt(document.getElementById('external_large_base').value, 10),
+            empty: parseInt(document.getElementById('external_large_base').value, 10),
             adult: parseInt(document.getElementById('external_large_adult').value, 10),
             child: parseInt(document.getElementById('external_large_child').value, 10),
           },

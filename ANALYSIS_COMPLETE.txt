@@ -1,0 +1,374 @@
+================================================================================
+GUEST INPUT GENERATION LOGIC ANALYSIS - COMPLETE
+================================================================================
+
+Date: 2025-11-04
+Analysis Scope: Guest input field creation, modification, and state management
+Files Analyzed: 3 core files + detailed line-by-line review
+
+================================================================================
+ANALYSIS DOCUMENTS CREATED
+================================================================================
+
+1. GUEST_INPUT_GENERATION_ANALYSIS.md
+   ├─ Executive summary of the guest input system
+   ├─ Detailed function definitions with line numbers
+   ├─ Complete data flow documentation
+   ├─ Input field structure explanation
+   ├─ Toggle switch initialization process
+   ├─ Critical issue identification (data loss)
+   ├─ Event listener registration points
+   ├─ Existing state preservation mechanisms
+   ├─ Guest name collection flow
+   └─ Proposed preservation mechanisms (2 options)
+
+2. GUEST_INPUT_DATAFLOW_DIAGRAM.md
+   ├─ 6 comprehensive data flow diagrams
+   ├─ Complete guest input generation flow
+   ├─ Guest count adjustment flow
+   ├─ Input field structure visualization
+   ├─ State storage vs. input values comparison
+   ├─ Data collection (collectGuestNames) flow
+   ├─ Event listener lifecycle
+   └─ Key insights and takeaways
+
+3. GUEST_INPUT_ANALYSIS_SUMMARY.txt
+   ├─ Quick reference summary
+   ├─ Function definitions (4 core functions)
+   ├─ Current data flow overview
+   ├─ Preserved vs. lost data breakdown
+   ├─ Toggle switch details
+   ├─ Input field creation process
+   ├─ Event listener registration points
+   ├─ State preservation mechanisms (2 levels)
+   ├─ Collection flow (7-step process)
+   ├─ Critical problem scenario
+   ├─ How to fix recommendations
+   ├─ Complete file/line mapping
+   └─ Known limitations
+
+4. GUEST_INPUT_LINE_REFERENCE.md
+   ├─ Exact line number reference table
+   ├─ Function start/end lines for 4 core files
+   ├─ Critical code section mappings
+   ├─ Data loss location references (3 points)
+   ├─ Event listener registration points
+   ├─ Input field ID patterns
+   ├─ Data attribute reference
+   ├─ Selector quick reference
+   ├─ roomGuests Map structure documentation
+   └─ Quick navigation guide
+
+================================================================================
+KEY FINDINGS
+================================================================================
+
+CRITICAL ISSUE: DATA LOSS ON GUEST COUNT CHANGE
+───────────────────────────────────────────────
+
+Problem:
+  When user clicks +/- button to adjust guest counts, all previously entered
+  guest names and toggle states (ÚTIA/External) are DESTROYED.
+
+Root Cause:
+  Line 516, 618, 720 in single-room-booking.js:
+    adultsContainer.innerHTML = ''     (DESTROYS ALL ADULT INPUTS)
+    childrenContainer.innerHTML = ''   (DESTROYS ALL CHILDREN INPUTS)
+    toddlersContainer.innerHTML = ''   (DESTROYS ALL TODDLER INPUTS)
+
+Trigger:
+  booking-app.js:555 calls generateGuestNamesInputs() after adjustGuests()
+  
+Impact:
+  User must re-enter all guest names and re-toggle their types after any
+  guest count change
+
+
+WHAT'S PRESERVED (State Map)
+────────────────────────────
+
+roomGuests Map (booking-app.js:501-507, 536-537):
+  ✓ Guest count (adults: N, children: M, toddlers: K)
+  ✓ Guest type (ÚTIA or External - applies to all guests for default pricing)
+  ✗ Individual guest names
+  ✗ Individual guest type toggles (per-guest pricing)
+
+
+WHAT'S LOST (DOM Elements)
+──────────────────────────
+
+When container.innerHTML = '' is executed:
+  ✗ Guest first names (e.g., "Jan")
+  ✗ Guest last names (e.g., "Novák")
+  ✗ Guest type toggles (checked state: false=ÚTIA, true=External)
+  ✗ Visual toggle states (slider colors, thumb position, text labels)
+
+
+FUNCTION MAP (4 Core Functions)
+───────────────────────────────
+
+1. generateGuestNamesInputs(adults, children, toddlers = 0)
+   Location: /js/single-room-booking.js:499-824
+   Purpose:  Creates dynamic input fields for guest names
+   Called By: booking-app.js:555 (from adjustGuests)
+   Trigger:  Guest count change or modal open
+
+2. adjustGuests(type, change)
+   Location: /js/booking-app.js:496-560
+   Purpose:  Increment/decrement guest count and trigger regeneration
+   Called By: HTML onclick or event listener click
+   Triggers: generateGuestNamesInputs()
+
+3. collectGuestNames()
+   Location: /js/single-room-booking.js:831-916
+   Purpose:  Collect and validate all guest names from DOM
+   Called By: confirmRoomBooking() when user submits
+   Returns:  Array of guest objects or null
+
+4. Event Listeners (Guest Count Buttons)
+   Location: /js/booking-app.js:391-401
+   Purpose:  Register click handlers on +/- buttons
+   Handler:  Calls adjustGuests(type, -1) or adjustGuests(type, 1)
+
+
+INPUT FIELD STRUCTURE
+────────────────────
+
+Each guest row contains 3 elements:
+
+1. firstName input
+   ID: singleRoomAdult[First|Last]Name{i}
+   Data attributes: data-guest-type="adult", data-guest-index="1"
+   Value stored in: DOM element.value (LOST on regeneration)
+
+2. lastName input
+   ID: singleRoomAdult[First|Last]Name{i}
+   Data attributes: data-guest-type="adult", data-guest-index="1"
+   Value stored in: DOM element.value (LOST on regeneration)
+
+3. Toggle switch (ÚTIA/External selection)
+   ID: adult{i}GuestTypeToggle
+   Type: Hidden checkbox
+   Data attributes: data-guest-type="adult", data-guest-index="1", data-guest-price-type="true"
+   State stored in: DOM element.checked (LOST on regeneration)
+   Visual state:    Color, position, text (updated by event listener)
+
+
+DATA COLLECTION PROCESS (7 Steps)
+─────────────────────────────────
+
+1. Query all name inputs (not toggles)
+2. Group by guest type and index
+3. Validate all fields required (min 2 chars)
+4. Extract firstName and lastName
+5. Query all toggle inputs
+6. Extract guest type from toggle.checked state
+7. Return array of guest objects or null
+
+
+EVENT LISTENER REGISTRATION
+──────────────────────────
+
+Two sources:
+
+1. Button Click Listeners
+   File: /js/booking-app.js:391-401
+   Registers: addEventListener('click') on +/- buttons
+   Handler:   Calls this.adjustGuests(type, change)
+
+2. Toggle Switch Change Listeners
+   File: /js/single-room-booking.js:581, 683, 785
+   Registers: addEventListener('change') on each toggle
+   Handler:   Updates visual state (colors, position, text)
+   Recreated: Every time generateGuestNamesInputs() runs
+
+
+STATE STORAGE (2 Levels)
+───────────────────────
+
+PERSISTENT (Across operations):
+  roomGuests Map: { adults, children, toddlers, guestType }
+  Storage: booking-app.js this.app.roomGuests
+  Scope: Single modal session
+  Lost on: Modal close
+
+EPHEMERAL (Lost on regeneration):
+  DOM inputs: input.value for names, input.checked for toggles
+  Storage: HTML elements in containers
+  Scope: Current input field set only
+  Lost on: adjustGuests() → generateGuestNamesInputs()
+
+
+CRITICAL LINE NUMBERS
+────────────────────
+
+Data Loss Points:
+  - Line 516: adultsContainer.innerHTML = ''
+  - Line 618: childrenContainer.innerHTML = ''
+  - Line 720: toddlersContainer.innerHTML = ''
+
+Regeneration Trigger:
+  - Line 555: this.singleRoomBooking.generateGuestNamesInputs(...)
+
+Event Listener Registration:
+  - Line 396: .addEventListener('click', () => this.adjustGuests(type, -1))
+  - Line 399: .addEventListener('click', () => this.adjustGuests(type, 1))
+  - Line 581, 683, 785: .addEventListener('change', function() { ... })
+
+State Updates:
+  - Line 536: guests[type] = newValue
+  - Line 537: this.roomGuests.set(this.currentBookingRoom, guests)
+
+Data Collection:
+  - Line 840: querySelectorAll('input[data-guest-type]:not([data-guest-price-type])')
+  - Line 876: querySelectorAll('input[data-guest-price-type]')
+
+
+RECOMMENDED SOLUTION
+───────────────────
+
+Option 1: Save Before Clear (Recommended)
+
+Before innerHTML = '', extract and save:
+  - Guest first names from each input
+  - Guest last names from each input
+  - Guest type toggle states (checked property)
+
+After creating new inputs, restore saved data:
+  - Set input.value to saved first/last names
+  - Set toggle.checked to saved type state
+  - Let event listeners update visual state
+
+This preserves user-entered data when guest count changes.
+
+Option 2: Use Instance Variables
+
+Store guest data in SingleRoomBookingModule instance:
+  this.guestNameData = {
+    'adult-1': { firstName, lastName, guestType },
+    'adult-2': { firstName, lastName, guestType },
+    ...
+  }
+
+Extract before clear, restore after create.
+Less elegant but prevents garbage collection issues.
+
+
+FILES ANALYSIS
+──────────────
+
+/home/marianska/marianska/js/single-room-booking.js
+  ├─ Lines 499-824:   generateGuestNamesInputs() - Field creation
+  ├─ Lines 514-613:   Adults section
+  ├─ Lines 616-715:   Children section
+  ├─ Lines 718-823:   Toddlers section
+  ├─ Lines 831-916:   collectGuestNames() - Data collection
+  ├─ Lines 117-251:   showRoomBookingModal() - Modal initialization
+  └─ Lines 307-490:   confirmRoomBooking() - Confirmation handler
+
+/home/marianska/marianska/js/booking-app.js
+  ├─ Lines 391-401:   Event listener registration
+  ├─ Lines 496-560:   adjustGuests() - Trigger function
+  ├─ Lines 563-589:   setRoomGuestType() - Per-room type
+  ├─ Line 501-507:    Get roomGuests state
+  └─ Line 536-537:    Update roomGuests state
+
+/home/marianska/marianska/index.html
+  ├─ Guest count controls with buttons
+  ├─ Guest names input containers (3 divs)
+  └─ Per-room guest type dropdown
+
+
+KNOWN LIMITATIONS
+─────────────────
+
+1. No preservation of guest names across count changes
+2. No preservation of toggle states across count changes
+3. No recovery mechanism if user accidentally changes count
+4. Event listeners recreated on every regeneration
+5. No localStorage/sessionStorage backup
+6. No undo/redo functionality
+7. Validation only at collection time
+8. No form auto-save
+
+
+VALIDATION LOGIC
+────────────────
+
+At Input Time (reactive, in collectGuestNames):
+  ✓ First name required: value.trim().length >= 2
+  ✓ Last name required: value.trim().length >= 2
+  ✓ Guest type required: guestPriceType must be set
+  ✓ Visual error: Border turns red on invalid field
+
+At Submit Time (before booking):
+  ✓ All fields must be filled
+  ✓ Guest count must match total names
+  ✓ All guests must have type (ÚTIA or External)
+
+
+RELATED FEATURES (NEW 2025-11-04)
+──────────────────────────────────
+
+Per-Guest Pricing:
+  - Each guest can have individual price type
+  - Toggle determines ÚTIA vs External pricing for that guest
+  - PriceCalculator.calculatePerGuestPrice() uses guestNames array
+
+Room Capacity:
+  - Toddlers don't count toward bed capacity
+  - Validation: (adults + children) <= room.beds
+  - Prevents overbooking by capacity
+
+
+TESTING THE ISSUE
+──────────────────
+
+To observe data loss:
+
+1. Open modal for single room
+2. Increment adults to 2
+3. Enter "Jan Novák" in first adult fields
+4. Toggle first adult to External
+5. Click "+" to add third adult
+6. Result: First adult's name and toggle state → LOST
+7. User must re-enter data
+
+
+================================================================================
+DELIVERABLES SUMMARY
+================================================================================
+
+✓ 4 comprehensive analysis documents created
+✓ Line-by-line code mapping provided
+✓ Data flow diagrams with visual representations
+✓ Critical issue identification and root cause analysis
+✓ 2 solution options documented
+✓ Quick reference guides for developers
+✓ Event listener lifecycle documentation
+✓ State preservation mechanism analysis
+✓ Exact line numbers for all key points
+✓ Selector quick reference guide
+
+All files are located in:
+  /home/marianska/marianska/
+
+Files created:
+  1. GUEST_INPUT_GENERATION_ANALYSIS.md (detailed technical analysis)
+  2. GUEST_INPUT_DATAFLOW_DIAGRAM.md (visual flow diagrams)
+  3. GUEST_INPUT_ANALYSIS_SUMMARY.txt (quick reference)
+  4. GUEST_INPUT_LINE_REFERENCE.md (exact line mappings)
+  5. ANALYSIS_COMPLETE.txt (this file)
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+1. Review the critical issue: Data loss on guest count change
+2. Choose preferred solution: Option 1 (Save/Restore) or Option 2 (Instance vars)
+3. Implement preservation mechanism in generateGuestNamesInputs()
+4. Test with multiple guest count changes
+5. Verify no data loss occurs
+6. Consider adding localStorage backup as secondary safety net
+
+================================================================================

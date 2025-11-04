@@ -50,6 +50,9 @@ class BulkBookingModule {
     await this.updateBulkPriceCalculation();
     this.updateBulkCapacityCheck();
 
+    // Generate guest names input fields with default counts (1 adult, 0 children, 0 toddlers)
+    this.generateGuestNamesInputs(1, 0, 0);
+
     modal.classList.add('active');
   }
 
@@ -346,6 +349,11 @@ class BulkBookingModule {
     element.textContent = value;
     this.updateBulkCapacityCheck();
     this.updateBulkPriceCalculation();
+
+    // Regenerate guest names input fields with updated counts
+    const adults = parseInt(document.getElementById('bulkAdults')?.textContent || '1', 10);
+    const children = parseInt(document.getElementById('bulkChildren')?.textContent || '0', 10);
+    this.generateGuestNamesInputs(adults, children, 0);
   }
 
   hideBulkBookingModal() {
@@ -447,6 +455,25 @@ class BulkBookingModule {
           ? 'Musíte zadat alespoň 1 osobu (dospělého nebo dítě) pro hromadnou rezervaci'
           : 'You must specify at least 1 person (adult or child) for bulk booking',
         'warning'
+      );
+      return;
+    }
+
+    // Validate guest names - REQUIRED before creating booking
+    const guestNames = this.collectGuestNames();
+    if (guestNames === null) {
+      // Validation failed - collectGuestNames() already showed error notification
+      return;
+    }
+
+    // Validate guest names count matches total guests
+    const expectedGuestCount = (adults || 0) + (children || 0);
+    if (guestNames.length !== expectedGuestCount) {
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? `Počet vyplněných jmen (${guestNames.length}) neodpovídá počtu hostů (${expectedGuestCount})`
+          : `Number of filled names (${guestNames.length}) doesn't match guest count (${expectedGuestCount})`,
+        'error'
       );
       return;
     }
@@ -558,6 +585,7 @@ class BulkBookingModule {
         guestType,
         totalPrice,
         perRoomGuests, // FIX 2025-10-16: Include smart room allocation
+        guestNames, // Guest names validated and collected earlier
         // CRITICAL FIX 2025-10-07: Use IdGenerator (SSOT) for temp IDs
         id: `temp-bulk-${IdGenerator.generateToken(9)}`,
         proposalId, // Store the proposal ID for cleanup
@@ -747,6 +775,242 @@ class BulkBookingModule {
         'error'
       );
     }
+  }
+
+  /**
+   * Generate guest names input fields for bulk booking
+   * @param {number} adults - Number of adults
+   * @param {number} children - Number of children (3-17 years)
+   * @param {number} toddlers - Number of toddlers (0-3 years)
+   */
+  generateGuestNamesInputs(adults, children, toddlers = 0) {
+    const section = document.getElementById('bulkGuestNamesSection');
+    const totalGuests = (adults || 0) + (children || 0) + (toddlers || 0);
+
+    // Show section only if there are guests
+    if (totalGuests > 0) {
+      section.style.display = 'block';
+    } else {
+      section.style.display = 'none';
+      return;
+    }
+
+    const makeId = (prefix) => prefix;
+
+    // Adults section
+    const adultsContainer = document.getElementById('bulkAdultsNamesContainer');
+    if (adultsContainer) {
+      adultsContainer.innerHTML = '';
+      if (adults > 0) {
+        adultsContainer.style.display = 'block';
+        const adultsHeader = document.createElement('h5');
+        adultsHeader.style.cssText = 'margin-bottom: 0.5rem; color: #374151; font-size: 0.95rem;';
+        adultsHeader.textContent = langManager.t('adultsLabel') + ` (${adults})`;
+        adultsContainer.appendChild(adultsHeader);
+
+        for (let i = 1; i <= adults; i++) {
+          const row = document.createElement('div');
+          row.style.cssText = 'display: flex; gap: 0.5rem; margin-bottom: 0.5rem;';
+          row.innerHTML = `
+            <input
+              type="text"
+              id="${makeId('bulkAdultFirstName')}${i}"
+              placeholder="${langManager.t('firstNamePlaceholder')}"
+              data-guest-type="adult"
+              data-guest-index="${i}"
+              required
+              minlength="2"
+              maxlength="50"
+              style="flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;"
+            />
+            <input
+              type="text"
+              id="${makeId('bulkAdultLastName')}${i}"
+              placeholder="${langManager.t('lastNamePlaceholder')}"
+              data-guest-type="adult"
+              data-guest-index="${i}"
+              required
+              minlength="2"
+              maxlength="50"
+              style="flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;"
+            />
+          `;
+          adultsContainer.appendChild(row);
+        }
+      } else {
+        adultsContainer.style.display = 'none';
+      }
+    }
+
+    // Children section
+    const childrenContainer = document.getElementById('bulkChildrenNamesContainer');
+    if (childrenContainer) {
+      childrenContainer.innerHTML = '';
+      if (children > 0) {
+        childrenContainer.style.display = 'block';
+        childrenContainer.style.marginTop = '1rem';
+        const childrenHeader = document.createElement('h5');
+        childrenHeader.style.cssText = 'margin-bottom: 0.5rem; color: #374151; font-size: 0.95rem;';
+        childrenHeader.textContent = langManager.t('childrenLabel') + ` (${children})`;
+        childrenContainer.appendChild(childrenHeader);
+
+        for (let i = 1; i <= children; i++) {
+          const row = document.createElement('div');
+          row.style.cssText = 'display: flex; gap: 0.5rem; margin-bottom: 0.5rem;';
+          row.innerHTML = `
+            <input
+              type="text"
+              id="${makeId('bulkChildFirstName')}${i}"
+              placeholder="${langManager.t('firstNamePlaceholder')}"
+              data-guest-type="child"
+              data-guest-index="${i}"
+              required
+              minlength="2"
+              maxlength="50"
+              style="flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;"
+            />
+            <input
+              type="text"
+              id="${makeId('bulkChildLastName')}${i}"
+              placeholder="${langManager.t('lastNamePlaceholder')}"
+              data-guest-type="child"
+              data-guest-index="${i}"
+              required
+              minlength="2"
+              maxlength="50"
+              style="flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;"
+            />
+          `;
+          childrenContainer.appendChild(row);
+        }
+      } else {
+        childrenContainer.style.display = 'none';
+      }
+    }
+
+    // Toddlers section
+    const toddlersContainer = document.getElementById('bulkToddlersNamesContainer');
+    if (toddlersContainer) {
+      toddlersContainer.innerHTML = '';
+      if (toddlers > 0) {
+        toddlersContainer.style.display = 'block';
+        toddlersContainer.style.marginTop = '1rem';
+        const toddlersHeader = document.createElement('h5');
+        toddlersHeader.style.cssText = 'margin-bottom: 0.5rem; color: #374151; font-size: 0.95rem;';
+        toddlersHeader.textContent = langManager.t('toddlersLabel') + ` (${toddlers})`;
+        toddlersContainer.appendChild(toddlersHeader);
+
+        for (let i = 1; i <= toddlers; i++) {
+          const row = document.createElement('div');
+          row.style.cssText = 'display: flex; gap: 0.5rem; margin-bottom: 0.5rem;';
+          row.innerHTML = `
+            <input
+              type="text"
+              id="${makeId('bulkToddlerFirstName')}${i}"
+              placeholder="${langManager.t('firstNamePlaceholder')}"
+              data-guest-type="toddler"
+              data-guest-index="${i}"
+              required
+              minlength="2"
+              maxlength="50"
+              style="flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;"
+            />
+            <input
+              type="text"
+              id="${makeId('bulkToddlerLastName')}${i}"
+              placeholder="${langManager.t('lastNamePlaceholder')}"
+              data-guest-type="toddler"
+              data-guest-index="${i}"
+              required
+              minlength="2"
+              maxlength="50"
+              style="flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;"
+            />
+          `;
+          toddlersContainer.appendChild(row);
+        }
+      } else {
+        toddlersContainer.style.display = 'none';
+      }
+    }
+  }
+
+  /**
+   * Collect and validate guest names from bulk booking form
+   * @returns {Array|null} Array of guest objects or null if validation fails
+   */
+  collectGuestNames() {
+    const guestNames = [];
+    const section = document.getElementById('bulkGuestNamesSection');
+
+    if (!section || section.style.display === 'none') {
+      return []; // No names section visible
+    }
+
+    const inputs = section.querySelectorAll('input[data-guest-type]');
+    const guestMap = new Map();
+
+    inputs.forEach((input) => {
+      const guestType = input.dataset.guestType;
+      const guestIndex = input.dataset.guestIndex;
+      const key = `${guestType}-${guestIndex}`;
+
+      if (!guestMap.has(key)) {
+        guestMap.set(key, { personType: guestType });
+      }
+
+      const guest = guestMap.get(key);
+      const value = input.value.trim();
+
+      // Validate: all fields must be filled
+      if (!value || value.length < 2) {
+        input.style.borderColor = '#ef4444';
+        return null; // Validation failed
+      }
+
+      input.style.borderColor = '#d1d5db';
+
+      if (input.id.includes('FirstName')) {
+        guest.firstName = value;
+      } else if (input.id.includes('LastName')) {
+        guest.lastName = value;
+      }
+    });
+
+    // Check if any validation failed
+    let validationFailed = false;
+    inputs.forEach((input) => {
+      const value = input.value.trim();
+      if (!value || value.length < 2) {
+        validationFailed = true;
+      }
+    });
+
+    if (validationFailed) {
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? 'Vyplňte všechna jména hostů (křestní i příjmení)'
+          : 'Fill in all guest names (first and last name)',
+        'error'
+      );
+      return null;
+    }
+
+    // Convert map to array and validate completeness
+    for (const [key, guest] of guestMap) {
+      if (!guest.firstName || !guest.lastName) {
+        this.app.showNotification(
+          this.app.currentLanguage === 'cs'
+            ? 'Vyplňte všechna jména hostů (křestní i příjmení)'
+            : 'Fill in all guest names (first and last name)',
+          'error'
+        );
+        return null;
+      }
+      guestNames.push(guest);
+    }
+
+    return guestNames;
   }
 }
 

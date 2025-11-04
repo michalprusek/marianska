@@ -216,6 +216,32 @@ class DatabaseManager {
     // Add per_room_guests column to bookings table if it doesn't exist (JSON format)
     addColumnIfNotExists('bookings', 'per_room_guests', 'TEXT', null);
 
+    // Add price_locked column to bookings table if it doesn't exist (for new pricing model)
+    // This prevents existing bookings from recalculating with the new "empty room" pricing formula
+    addColumnIfNotExists('bookings', 'price_locked', 'INTEGER', 0);
+
+    // Migration: Lock prices for all existing bookings (one-time migration)
+    try {
+      const existingBookings = this.db
+        .prepare('SELECT COUNT(*) as count FROM bookings WHERE price_locked = 0 OR price_locked IS NULL')
+        .get();
+
+      if (existingBookings.count > 0) {
+        const updated = this.db
+          .prepare('UPDATE bookings SET price_locked = 1 WHERE price_locked = 0 OR price_locked IS NULL')
+          .run();
+
+        if (updated.changes > 0) {
+          console.log(`[Migration] Locked prices for ${updated.changes} existing bookings`);
+        }
+      }
+    } catch (error) {
+      // Column might not exist yet, or migration already completed - safe to ignore
+      if (!error.message.includes('no such column')) {
+        console.error('[Migration] Price lock migration error:', error.message);
+      }
+    }
+
     // Create proposed booking rooms table
     this.db.exec(`
             CREATE TABLE IF NOT EXISTS proposed_booking_rooms (
@@ -259,6 +285,19 @@ class DatabaseManager {
       }
     } catch (error) {
       // Table might not exist yet, or column already added - safe to ignore
+    }
+
+    // Migration: Add guest_type column if it doesn't exist (NEW 2025-11-04: per-guest pricing)
+    try {
+      const columns = this.db.prepare('PRAGMA table_info(guest_names)').all();
+      const hasGuestType = columns.some((col) => col.name === 'guest_type');
+
+      if (!hasGuestType) {
+        this.db.exec('ALTER TABLE guest_names ADD COLUMN guest_type TEXT DEFAULT NULL');
+        console.log('[Database] Added guest_type column to guest_names table for per-guest pricing support');
+      }
+    } catch (error) {
+      console.warn('[Database] Failed to add guest_type column (may already exist):', error.message);
     }
 
     // Create indexes for guest names performance
@@ -540,14 +579,14 @@ class DatabaseManager {
 
       // Guest names
       insertGuestName: this.db.prepare(`
-        INSERT INTO guest_names (booking_id, person_type, first_name, last_name, order_index, room_id, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO guest_names (booking_id, person_type, first_name, last_name, order_index, room_id, guest_type, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `),
 
       deleteGuestNamesByBooking: this.db.prepare('DELETE FROM guest_names WHERE booking_id = ?'),
 
       getGuestNamesByBooking: this.db.prepare(`
-        SELECT person_type, first_name, last_name, order_index, room_id
+        SELECT person_type, first_name, last_name, order_index, room_id, guest_type
         FROM guest_names
         WHERE booking_id = ?
         ORDER BY
@@ -650,6 +689,7 @@ class DatabaseManager {
             guest.lastName,
             index + 1, // order_index starts at 1
             guest.roomId || null, // room_id (nullable for backward compatibility)
+            guest.guestPriceType || null, // guest_type for per-guest pricing (NEW 2025-11-04)
             now
           );
         });
@@ -750,6 +790,7 @@ class DatabaseManager {
             guest.lastName,
             index + 1, // order_index starts at 1
             guest.roomId || null, // room_id (nullable for backward compatibility)
+            guest.guestPriceType || null, // guest_type for per-guest pricing (NEW 2025-11-04)
             now
           );
         });

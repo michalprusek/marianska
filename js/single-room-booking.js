@@ -174,8 +174,9 @@ class SingleRoomBookingModule {
       defaultGuests.adults = Math.min(1, room.beds);
     }
 
+    // NEW 2025-11-04: Add default guest type to guests object
+    defaultGuests.guestType = 'utia'; // Default to ÚTIA employee
     this.app.roomGuests.set(roomId, defaultGuests);
-    this.app.roomGuestTypes.set(roomId, 'utia');
 
     // Update display of guest counts
     const adultsEl = document.getElementById('singleRoomAdults');
@@ -217,6 +218,12 @@ class SingleRoomBookingModule {
       utiaRadio.checked = true;
     }
 
+    // NEW 2025-11-04: Set per-room guest type dropdown to current value
+    const perRoomGuestTypeDropdown = document.getElementById('singleRoomPerRoomGuestType');
+    if (perRoomGuestTypeDropdown) {
+      perRoomGuestTypeDropdown.value = defaultGuests.guestType || 'utia';
+    }
+
     // Hide price breakdown initially since no dates are selected
     const priceBreakdownEl = document.getElementById('priceBreakdown');
     if (priceBreakdownEl) {
@@ -234,6 +241,13 @@ class SingleRoomBookingModule {
     // Ensure room is selected for price calculation
     this.app.selectedRooms.add(roomId);
     await this.app.updatePriceCalculation();
+
+    // Generate guest name input fields based on default guest counts
+    this.generateGuestNamesInputs(
+      defaultGuests.adults,
+      defaultGuests.children,
+      defaultGuests.toddlers
+    );
   }
 
   async renderMiniCalendar(roomId) {
@@ -377,14 +391,36 @@ class SingleRoomBookingModule {
     }
 
     const nights = sortedDates.length - 1;
-    const price = await dataManager.calculatePrice(
-      guestType,
-      guests.adults,
-      guests.children,
-      guests.toddlers,
-      nights,
-      [this.app.currentBookingRoom] // Pass room ID array for room-size-based pricing
-    );
+
+    // Validate guest names - REQUIRED before creating temp reservation
+    const guestNames = this.collectGuestNames();
+    if (guestNames === null) {
+      // Validation failed - collectGuestNames() already showed error notification
+      return;
+    }
+
+    // Calculate price using per-guest pricing (NEW 2025-11-04)
+    // Each guest can have their own pricing type (ÚTIA vs External)
+    const settings = await dataManager.getSettings();
+    const price = PriceCalculator.calculatePerGuestPrice({
+      rooms: [this.app.currentBookingRoom],
+      guestNames: guestNames,
+      nights: nights,
+      settings: settings,
+      fallbackGuestType: guestType
+    });
+
+    // Validate guest names count matches total guests
+    const expectedGuestCount = (guests.adults || 0) + (guests.children || 0) + (guests.toddlers || 0);
+    if (guestNames.length !== expectedGuestCount) {
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? `Počet vyplněných jmen (${guestNames.length}) neodpovídá počtu hostů (${expectedGuestCount})`
+          : `Number of filled names (${guestNames.length}) doesn't match guest count (${expectedGuestCount})`,
+        'error'
+      );
+      return;
+    }
 
     // Create proposed booking in database
     try {
@@ -411,6 +447,7 @@ class SingleRoomBookingModule {
         guests,
         guestType,
         totalPrice: price,
+        guestNames, // Guest names validated and collected earlier
         // CRITICAL FIX 2025-10-07: Use IdGenerator (SSOT) for temp IDs
         id: `temp-${IdGenerator.generateToken(9)}`,
         proposalId, // Store the proposal ID for cleanup
@@ -449,6 +486,700 @@ class SingleRoomBookingModule {
           : 'Error creating temporary reservation',
         'error'
       );
+    }
+  }
+
+  /**
+   * Generate guest name input fields dynamically
+   * REQUIRED inputs - all fields must be filled before adding to temp reservations
+   * @param {number} adults - Number of adults
+   * @param {number} children - Number of children
+   * @param {number} toddlers - Number of toddlers (default 0)
+   */
+  generateGuestNamesInputs(adults, children, toddlers = 0) {
+    const section = document.getElementById('singleRoomGuestNamesSection');
+    const totalGuests = (adults || 0) + (children || 0) + (toddlers || 0);
+
+    // Show section only if there are guests
+    if (totalGuests > 0) {
+      section.style.display = 'block';
+    } else {
+      section.style.display = 'none';
+      return;
+    }
+
+    // CAPTURE PHASE: Save existing guest data before clearing DOM
+    const savedGuestData = new Map();
+
+    // Capture adults
+    const existingAdultInputs = section.querySelectorAll('input[data-guest-type="adult"]');
+    existingAdultInputs.forEach(input => {
+      const index = input.dataset.guestIndex;
+      const key = `adult-${index}`;
+      if (!savedGuestData.has(key)) {
+        savedGuestData.set(key, {});
+      }
+      const data = savedGuestData.get(key);
+      if (input.id.includes('FirstName')) {
+        data.firstName = input.value;
+      } else if (input.id.includes('LastName')) {
+        data.lastName = input.value;
+      }
+    });
+
+    // Capture adult toggle states
+    const existingAdultToggles = section.querySelectorAll('input[data-guest-type="adult"][data-guest-price-type]');
+    existingAdultToggles.forEach(toggle => {
+      const index = toggle.dataset.guestIndex;
+      const key = `adult-${index}`;
+      if (savedGuestData.has(key)) {
+        savedGuestData.get(key).guestType = toggle.checked ? 'external' : 'utia';
+      }
+    });
+
+    // Capture children
+    const existingChildInputs = section.querySelectorAll('input[data-guest-type="child"]');
+    existingChildInputs.forEach(input => {
+      const index = input.dataset.guestIndex;
+      const key = `child-${index}`;
+      if (!savedGuestData.has(key)) {
+        savedGuestData.set(key, {});
+      }
+      const data = savedGuestData.get(key);
+      if (input.id.includes('FirstName')) {
+        data.firstName = input.value;
+      } else if (input.id.includes('LastName')) {
+        data.lastName = input.value;
+      }
+    });
+
+    // Capture children toggle states
+    const existingChildToggles = section.querySelectorAll('input[data-guest-type="child"][data-guest-price-type]');
+    existingChildToggles.forEach(toggle => {
+      const index = toggle.dataset.guestIndex;
+      const key = `child-${index}`;
+      if (savedGuestData.has(key)) {
+        savedGuestData.get(key).guestType = toggle.checked ? 'external' : 'utia';
+      }
+    });
+
+    // Capture toddlers
+    const existingToddlerInputs = section.querySelectorAll('input[data-guest-type="toddler"]');
+    existingToddlerInputs.forEach(input => {
+      const index = input.dataset.guestIndex;
+      const key = `toddler-${index}`;
+      if (!savedGuestData.has(key)) {
+        savedGuestData.set(key, {});
+      }
+      const data = savedGuestData.get(key);
+      if (input.id.includes('FirstName')) {
+        data.firstName = input.value;
+      } else if (input.id.includes('LastName')) {
+        data.lastName = input.value;
+      }
+    });
+
+    // Capture toddler toggle states
+    const existingToddlerToggles = section.querySelectorAll('input[data-guest-type="toddler"][data-guest-price-type]');
+    existingToddlerToggles.forEach(toggle => {
+      const index = toggle.dataset.guestIndex;
+      const key = `toddler-${index}`;
+      if (savedGuestData.has(key)) {
+        savedGuestData.get(key).guestType = toggle.checked ? 'external' : 'utia';
+      }
+    });
+
+    const makeId = (prefix) => prefix;
+
+    // Adults section
+    const adultsContainer = document.getElementById('singleRoomAdultsNamesContainer');
+    if (adultsContainer) {
+      adultsContainer.innerHTML = '';
+      if (adults > 0) {
+        adultsContainer.style.display = 'block';
+        const adultsHeader = document.createElement('h5');
+        adultsHeader.style.cssText = 'margin-bottom: 0.5rem; color: #374151; font-size: 0.95rem;';
+        adultsHeader.textContent = `${langManager.t('adultsLabel')} (${adults})`;
+        adultsContainer.appendChild(adultsHeader);
+
+        for (let i = 1; i <= adults; i++) {
+          const row = document.createElement('div');
+          row.style.cssText = 'display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;';
+
+          // Name inputs
+          const firstNameInput = document.createElement('input');
+          firstNameInput.type = 'text';
+          firstNameInput.id = `${makeId('singleRoomAdultFirstName')}${i}`;
+          firstNameInput.placeholder = langManager.t('firstNamePlaceholder');
+          firstNameInput.setAttribute('data-guest-type', 'adult');
+          firstNameInput.setAttribute('data-guest-index', i);
+          firstNameInput.required = true;
+          firstNameInput.minLength = 2;
+          firstNameInput.maxLength = 50;
+          firstNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
+
+          const lastNameInput = document.createElement('input');
+          lastNameInput.type = 'text';
+          lastNameInput.id = `${makeId('singleRoomAdultLastName')}${i}`;
+          lastNameInput.placeholder = langManager.t('lastNamePlaceholder');
+          lastNameInput.setAttribute('data-guest-type', 'adult');
+          lastNameInput.setAttribute('data-guest-index', i);
+          lastNameInput.required = true;
+          lastNameInput.minLength = 2;
+          lastNameInput.maxLength = 50;
+          lastNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
+
+          // Toggle switch container
+          const toggleContainer = document.createElement('div');
+          toggleContainer.style.cssText = 'display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; flex-shrink: 0;';
+
+          const toggleLabel = document.createElement('label');
+          toggleLabel.style.cssText = 'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer;';
+
+          const toggleInput = document.createElement('input');
+          toggleInput.type = 'checkbox';
+          toggleInput.id = `adult${i}GuestTypeToggle`;
+          toggleInput.setAttribute('data-guest-type', 'adult');
+          toggleInput.setAttribute('data-guest-index', i);
+          toggleInput.setAttribute('data-guest-price-type', 'true');
+          toggleInput.checked = false; // Unchecked = ÚTIA, Checked = External
+          toggleInput.style.cssText = 'opacity: 0; width: 0; height: 0;';
+
+          const toggleSlider = document.createElement('span');
+          toggleSlider.style.cssText = `
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #059669; transition: 0.3s; border-radius: 24px;
+          `;
+
+          const toggleThumb = document.createElement('span');
+          toggleThumb.style.cssText = `
+            position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px;
+            background-color: white; transition: 0.3s; border-radius: 50%;
+          `;
+          toggleSlider.appendChild(toggleThumb);
+
+          // Toggle state change handler
+          toggleInput.addEventListener('change', async function() {
+            if (this.checked) {
+              toggleSlider.style.backgroundColor = '#dc2626'; // Red for External
+              toggleThumb.style.transform = 'translateX(20px)';
+              toggleText.textContent = 'EXT';
+              toggleText.style.color = '#dc2626';
+            } else {
+              toggleSlider.style.backgroundColor = '#059669'; // Green for ÚTIA
+              toggleThumb.style.transform = 'translateX(0)';
+              toggleText.textContent = 'ÚTIA';
+              toggleText.style.color = '#059669';
+            }
+
+            // NOVÝ KÓD - Přepočet ceny po změně typu hosta:
+            if (window.app && window.app.singleRoomBooking) {
+              try {
+                await window.app.singleRoomBooking.updatePriceForCurrentRoom();
+              } catch (error) {
+                console.error('Failed to update price after guest type change:', error);
+              }
+            }
+          });
+
+          toggleLabel.appendChild(toggleInput);
+          toggleLabel.appendChild(toggleSlider);
+
+          const toggleText = document.createElement('span');
+          toggleText.textContent = 'ÚTIA';
+          toggleText.style.cssText = 'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px;';
+
+          toggleContainer.appendChild(toggleLabel);
+          toggleContainer.appendChild(toggleText);
+
+          // RESTORE PHASE: Restore saved data for this guest
+          const savedKey = `adult-${i}`;
+          if (savedGuestData.has(savedKey)) {
+            const saved = savedGuestData.get(savedKey);
+            if (saved.firstName) firstNameInput.value = saved.firstName;
+            if (saved.lastName) lastNameInput.value = saved.lastName;
+            if (saved.guestType) {
+              const isExternal = saved.guestType === 'external';
+              toggleInput.checked = isExternal;
+              // Trigger visual update
+              if (isExternal) {
+                toggleSlider.style.backgroundColor = '#dc2626';
+                toggleThumb.style.transform = 'translateX(20px)';
+                toggleText.textContent = 'EXT';
+                toggleText.style.color = '#dc2626';
+              } else {
+                toggleSlider.style.backgroundColor = '#059669';
+                toggleThumb.style.transform = 'translateX(0)';
+                toggleText.textContent = 'ÚTIA';
+                toggleText.style.color = '#059669';
+              }
+            }
+          }
+
+          row.appendChild(firstNameInput);
+          row.appendChild(lastNameInput);
+          row.appendChild(toggleContainer);
+          adultsContainer.appendChild(row);
+        }
+      } else {
+        adultsContainer.style.display = 'none';
+      }
+    }
+
+    // Children section
+    const childrenContainer = document.getElementById('singleRoomChildrenNamesContainer');
+    if (childrenContainer) {
+      childrenContainer.innerHTML = '';
+      if (children > 0) {
+        childrenContainer.style.display = 'block';
+        const childrenHeader = document.createElement('h5');
+        childrenHeader.style.cssText = 'margin-bottom: 0.5rem; color: #374151; font-size: 0.95rem;';
+        childrenHeader.textContent = `${langManager.t('childrenLabel')} (${children})`;
+        childrenContainer.appendChild(childrenHeader);
+
+        for (let i = 1; i <= children; i++) {
+          const row = document.createElement('div');
+          row.style.cssText = 'display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;';
+
+          // Name inputs
+          const firstNameInput = document.createElement('input');
+          firstNameInput.type = 'text';
+          firstNameInput.id = `${makeId('singleRoomChildFirstName')}${i}`;
+          firstNameInput.placeholder = langManager.t('firstNamePlaceholder');
+          firstNameInput.setAttribute('data-guest-type', 'child');
+          firstNameInput.setAttribute('data-guest-index', i);
+          firstNameInput.required = true;
+          firstNameInput.minLength = 2;
+          firstNameInput.maxLength = 50;
+          firstNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
+
+          const lastNameInput = document.createElement('input');
+          lastNameInput.type = 'text';
+          lastNameInput.id = `${makeId('singleRoomChildLastName')}${i}`;
+          lastNameInput.placeholder = langManager.t('lastNamePlaceholder');
+          lastNameInput.setAttribute('data-guest-type', 'child');
+          lastNameInput.setAttribute('data-guest-index', i);
+          lastNameInput.required = true;
+          lastNameInput.minLength = 2;
+          lastNameInput.maxLength = 50;
+          lastNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
+
+          // Toggle switch container
+          const toggleContainer = document.createElement('div');
+          toggleContainer.style.cssText = 'display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; flex-shrink: 0;';
+
+          const toggleLabel = document.createElement('label');
+          toggleLabel.style.cssText = 'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer;';
+
+          const toggleInput = document.createElement('input');
+          toggleInput.type = 'checkbox';
+          toggleInput.id = `child${i}GuestTypeToggle`;
+          toggleInput.setAttribute('data-guest-type', 'child');
+          toggleInput.setAttribute('data-guest-index', i);
+          toggleInput.setAttribute('data-guest-price-type', 'true');
+          toggleInput.checked = false; // Unchecked = ÚTIA, Checked = External
+          toggleInput.style.cssText = 'opacity: 0; width: 0; height: 0;';
+
+          const toggleSlider = document.createElement('span');
+          toggleSlider.style.cssText = `
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #059669; transition: 0.3s; border-radius: 24px;
+          `;
+
+          const toggleThumb = document.createElement('span');
+          toggleThumb.style.cssText = `
+            position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px;
+            background-color: white; transition: 0.3s; border-radius: 50%;
+          `;
+          toggleSlider.appendChild(toggleThumb);
+
+          // Toggle state change handler
+          toggleInput.addEventListener('change', async function() {
+            if (this.checked) {
+              toggleSlider.style.backgroundColor = '#dc2626'; // Red for External
+              toggleThumb.style.transform = 'translateX(20px)';
+              toggleText.textContent = 'EXT';
+              toggleText.style.color = '#dc2626';
+            } else {
+              toggleSlider.style.backgroundColor = '#059669'; // Green for ÚTIA
+              toggleThumb.style.transform = 'translateX(0)';
+              toggleText.textContent = 'ÚTIA';
+              toggleText.style.color = '#059669';
+            }
+
+            // NOVÝ KÓD - Přepočet ceny po změně typu hosta:
+            if (window.app && window.app.singleRoomBooking) {
+              try {
+                await window.app.singleRoomBooking.updatePriceForCurrentRoom();
+              } catch (error) {
+                console.error('Failed to update price after guest type change:', error);
+              }
+            }
+          });
+
+          toggleLabel.appendChild(toggleInput);
+          toggleLabel.appendChild(toggleSlider);
+
+          const toggleText = document.createElement('span');
+          toggleText.textContent = 'ÚTIA';
+          toggleText.style.cssText = 'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px;';
+
+          toggleContainer.appendChild(toggleLabel);
+          toggleContainer.appendChild(toggleText);
+
+          // RESTORE PHASE: Restore saved data for this guest
+          const savedKey = `child-${i}`;
+          if (savedGuestData.has(savedKey)) {
+            const saved = savedGuestData.get(savedKey);
+            if (saved.firstName) firstNameInput.value = saved.firstName;
+            if (saved.lastName) lastNameInput.value = saved.lastName;
+            if (saved.guestType) {
+              const isExternal = saved.guestType === 'external';
+              toggleInput.checked = isExternal;
+              // Trigger visual update
+              if (isExternal) {
+                toggleSlider.style.backgroundColor = '#dc2626';
+                toggleThumb.style.transform = 'translateX(20px)';
+                toggleText.textContent = 'EXT';
+                toggleText.style.color = '#dc2626';
+              } else {
+                toggleSlider.style.backgroundColor = '#059669';
+                toggleThumb.style.transform = 'translateX(0)';
+                toggleText.textContent = 'ÚTIA';
+                toggleText.style.color = '#059669';
+              }
+            }
+          }
+
+          row.appendChild(firstNameInput);
+          row.appendChild(lastNameInput);
+          row.appendChild(toggleContainer);
+          childrenContainer.appendChild(row);
+        }
+      } else {
+        childrenContainer.style.display = 'none';
+      }
+    }
+
+    // Toddlers section
+    const toddlersContainer = document.getElementById('singleRoomToddlersNamesContainer');
+    if (toddlersContainer) {
+      toddlersContainer.innerHTML = '';
+      if (toddlers > 0) {
+        toddlersContainer.style.display = 'block';
+        const toddlersHeader = document.createElement('h5');
+        toddlersHeader.style.cssText = 'margin-bottom: 0.5rem; color: #374151; font-size: 0.95rem;';
+        toddlersHeader.textContent = `${langManager.t('toddlersLabel')} (${toddlers})`;
+        toddlersContainer.appendChild(toddlersHeader);
+
+        for (let i = 1; i <= toddlers; i++) {
+          const row = document.createElement('div');
+          row.style.cssText = 'display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;';
+
+          // Name inputs
+          const firstNameInput = document.createElement('input');
+          firstNameInput.type = 'text';
+          firstNameInput.id = `${makeId('singleRoomToddlerFirstName')}${i}`;
+          firstNameInput.placeholder = langManager.t('firstNamePlaceholder');
+          firstNameInput.setAttribute('data-guest-type', 'toddler');
+          firstNameInput.setAttribute('data-guest-index', i);
+          firstNameInput.required = true;
+          firstNameInput.minLength = 2;
+          firstNameInput.maxLength = 50;
+          firstNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
+
+          const lastNameInput = document.createElement('input');
+          lastNameInput.type = 'text';
+          lastNameInput.id = `${makeId('singleRoomToddlerLastName')}${i}`;
+          lastNameInput.placeholder = langManager.t('lastNamePlaceholder');
+          lastNameInput.setAttribute('data-guest-type', 'toddler');
+          lastNameInput.setAttribute('data-guest-index', i);
+          lastNameInput.required = true;
+          lastNameInput.minLength = 2;
+          lastNameInput.maxLength = 50;
+          lastNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
+
+          // Toggle switch container (toddlers are free, but we track type for reporting)
+          const toggleContainer = document.createElement('div');
+          toggleContainer.style.cssText = 'display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; flex-shrink: 0;';
+
+          const toggleLabel = document.createElement('label');
+          toggleLabel.style.cssText = 'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer;';
+
+          const toggleInput = document.createElement('input');
+          toggleInput.type = 'checkbox';
+          toggleInput.id = `toddler${i}GuestTypeToggle`;
+          toggleInput.setAttribute('data-guest-type', 'toddler');
+          toggleInput.setAttribute('data-guest-index', i);
+          toggleInput.setAttribute('data-guest-price-type', 'true');
+          toggleInput.checked = false; // Unchecked = ÚTIA, Checked = External
+          toggleInput.style.cssText = 'opacity: 0; width: 0; height: 0;';
+
+          const toggleSlider = document.createElement('span');
+          toggleSlider.style.cssText = `
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #059669; transition: 0.3s; border-radius: 24px;
+          `;
+
+          const toggleThumb = document.createElement('span');
+          toggleThumb.style.cssText = `
+            position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px;
+            background-color: white; transition: 0.3s; border-radius: 50%;
+          `;
+          toggleSlider.appendChild(toggleThumb);
+
+          // Toggle state change handler
+          toggleInput.addEventListener('change', async function() {
+            if (this.checked) {
+              toggleSlider.style.backgroundColor = '#dc2626'; // Red for External
+              toggleThumb.style.transform = 'translateX(20px)';
+              toggleText.textContent = 'EXT';
+              toggleText.style.color = '#dc2626';
+            } else {
+              toggleSlider.style.backgroundColor = '#059669'; // Green for ÚTIA
+              toggleThumb.style.transform = 'translateX(0)';
+              toggleText.textContent = 'ÚTIA';
+              toggleText.style.color = '#059669';
+            }
+
+            // NOVÝ KÓD - Přepočet ceny po změně typu hosta:
+            if (window.app && window.app.singleRoomBooking) {
+              try {
+                await window.app.singleRoomBooking.updatePriceForCurrentRoom();
+              } catch (error) {
+                console.error('Failed to update price after guest type change:', error);
+              }
+            }
+          });
+
+          toggleLabel.appendChild(toggleInput);
+          toggleLabel.appendChild(toggleSlider);
+
+          const toggleText = document.createElement('span');
+          toggleText.textContent = 'ÚTIA';
+          toggleText.style.cssText = 'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px;';
+
+          toggleContainer.appendChild(toggleLabel);
+          toggleContainer.appendChild(toggleText);
+
+          // RESTORE PHASE: Restore saved data for this guest
+          const savedKey = `toddler-${i}`;
+          if (savedGuestData.has(savedKey)) {
+            const saved = savedGuestData.get(savedKey);
+            if (saved.firstName) firstNameInput.value = saved.firstName;
+            if (saved.lastName) lastNameInput.value = saved.lastName;
+            if (saved.guestType) {
+              const isExternal = saved.guestType === 'external';
+              toggleInput.checked = isExternal;
+              // Trigger visual update
+              if (isExternal) {
+                toggleSlider.style.backgroundColor = '#dc2626';
+                toggleThumb.style.transform = 'translateX(20px)';
+                toggleText.textContent = 'EXT';
+                toggleText.style.color = '#dc2626';
+              } else {
+                toggleSlider.style.backgroundColor = '#059669';
+                toggleThumb.style.transform = 'translateX(0)';
+                toggleText.textContent = 'ÚTIA';
+                toggleText.style.color = '#059669';
+              }
+            }
+          }
+
+          // Free label
+          const freeLabel = document.createElement('span');
+          freeLabel.textContent = '(zdarma)';
+          freeLabel.style.cssText = 'font-size: 0.7rem; color: #6b7280; white-space: nowrap;';
+
+          row.appendChild(firstNameInput);
+          row.appendChild(lastNameInput);
+          row.appendChild(toggleContainer);
+          row.appendChild(freeLabel);
+          toddlersContainer.appendChild(row);
+        }
+      } else {
+        toddlersContainer.style.display = 'none';
+      }
+    }
+  }
+
+  /**
+   * Collect guest names from input fields
+   * Validates that ALL fields are filled
+   * @returns {Array|null} Array of guest name objects or null if validation fails
+   */
+  collectGuestNames() {
+    const guestNames = [];
+    const section = document.getElementById('singleRoomGuestNamesSection');
+
+    if (!section || section.style.display === 'none') {
+      return []; // No names section visible, return empty array
+    }
+
+    // Collect all inputs with data-guest-type attribute (text inputs for names)
+    const inputs = section.querySelectorAll('input[data-guest-type]:not([data-guest-price-type])');
+
+    // Group inputs by guest type and index
+    const guestMap = new Map();
+
+    inputs.forEach((input) => {
+      const guestType = input.dataset.guestType;
+      const guestIndex = input.dataset.guestIndex;
+      const key = `${guestType}-${guestIndex}`;
+
+      if (!guestMap.has(key)) {
+        guestMap.set(key, { personType: guestType });
+      }
+
+      const guest = guestMap.get(key);
+      const value = input.value.trim();
+
+      // Validate: all fields must be filled
+      if (!value || value.length < 2) {
+        // Highlight invalid field
+        input.style.borderColor = '#ef4444';
+        return null; // Validation failed
+      }
+
+      // Reset border color
+      input.style.borderColor = '#d1d5db';
+
+      // Determine if this is firstName or lastName based on ID
+      if (input.id.includes('FirstName')) {
+        guest.firstName = value;
+      } else if (input.id.includes('LastName')) {
+        guest.lastName = value;
+      }
+    });
+
+    // Collect guest type for each guest from toggle switches (checkboxes)
+    const guestTypeInputs = section.querySelectorAll('input[data-guest-price-type]');
+    guestTypeInputs.forEach((input) => {
+      const guestType = input.dataset.guestType;
+      const guestIndex = input.dataset.guestIndex;
+      const key = `${guestType}-${guestIndex}`;
+
+      if (guestMap.has(key)) {
+        const guest = guestMap.get(key);
+        // Checkbox: unchecked = 'utia', checked = 'external'
+        guest.guestPriceType = input.checked ? 'external' : 'utia';
+      }
+    });
+
+    // Convert map to array and validate completeness
+    for (const [key, guest] of guestMap) {
+      if (!guest.firstName || !guest.lastName) {
+        this.app.showNotification(
+          this.app.currentLanguage === 'cs'
+            ? 'Vyplňte všechna jména hostů (křestní i příjmení)'
+            : 'Fill in all guest names (first and last name)',
+          'error'
+        );
+        return null; // Incomplete guest data
+      }
+
+      // Validate that guest type is set
+      if (!guest.guestPriceType) {
+        this.app.showNotification(
+          this.app.currentLanguage === 'cs'
+            ? 'Vyberte typ hosta (ÚTIA/Externí) pro všechny hosty'
+            : 'Select guest type (ÚTIA/External) for all guests',
+          'error'
+        );
+        return null;
+      }
+
+      guestNames.push(guest);
+    }
+
+    return guestNames;
+  }
+
+  /**
+   * Update price for currently selected room and dates
+   * Recalculates price based on current guest types and guest counts
+   * Called when user changes guest type toggle switches
+   */
+  async updatePriceForCurrentRoom() {
+    if (!this.app.currentBookingRoom) {
+      return;
+    }
+
+    try {
+      const settings = await dataManager.getSettings();
+      const roomId = this.app.currentBookingRoom;
+
+      // Get current date selection
+      const startDate = this.app.selectedDates.size > 0
+        ? Array.from(this.app.selectedDates).sort()[0]
+        : null;
+      const endDate = this.app.selectedDates.size > 0
+        ? Array.from(this.app.selectedDates).sort().pop()
+        : null;
+
+      if (!startDate || !endDate) {
+        return; // No dates selected yet
+      }
+
+      const nights = DateUtils.getDaysBetween(startDate, endDate);
+
+      // Get guest names with individual price types
+      const guestNames = this.collectGuestNames();
+      if (!guestNames) {
+        return; // Validation failed, don't update price
+      }
+
+      // Get fallback guest type (global radio button)
+      const guestTypeInput = document.querySelector('input[name="singleRoomGuestType"]:checked');
+      const fallbackGuestType = guestTypeInput ? guestTypeInput.value : 'external';
+
+      // Calculate price using PER-GUEST method
+      const price = PriceCalculator.calculatePerGuestPrice({
+        rooms: [roomId],
+        guestNames: guestNames,
+        nights: nights,
+        settings: settings,
+        fallbackGuestType: fallbackGuestType
+      });
+
+      // Update price display
+      this.updatePriceSummary(price, nights, guestNames);
+
+    } catch (error) {
+      console.error('Error updating price for current room:', error);
+    }
+  }
+
+  /**
+   * Update price summary display in the modal
+   * @param {number} totalPrice - Total price in CZK
+   * @param {number} nights - Number of nights
+   * @param {Array<Object>} guestNames - Array of guest name objects
+   */
+  updatePriceSummary(totalPrice, nights, guestNames) {
+    // Update total price
+    const totalElement = document.querySelector('#singleRoomBookingModal .price-total');
+    if (totalElement) {
+      totalElement.textContent = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
+    }
+
+    // Update guest summary
+    const adults = guestNames.filter(g => g.personType === 'adult').length;
+    const children = guestNames.filter(g => g.personType === 'child').length;
+    const toddlers = guestNames.filter(g => g.personType === 'toddler').length;
+
+    const guestSummary = document.querySelector('#singleRoomBookingModal .guest-summary');
+    if (guestSummary) {
+      let text = `${adults} dosp.`;
+      if (children > 0) text += `, ${children} děti`;
+      if (toddlers > 0) text += `, ${toddlers} bat.`;
+      guestSummary.textContent = text;
+    }
+
+    // Update nights display
+    const nightsElement = document.querySelector('#singleRoomBookingModal .nights-count');
+    if (nightsElement) {
+      nightsElement.textContent = `× ${nights}`;
     }
   }
 }

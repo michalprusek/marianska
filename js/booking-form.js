@@ -158,9 +158,18 @@ class BookingFormModule {
         return null;
       }
 
-      const guests = this.app.roomGuests.get(roomId) || { adults: 1, children: 0, toddlers: 0 };
+      const guests = this.app.roomGuests.get(roomId) || {
+        adults: 1,
+        children: 0,
+        toddlers: 0,
+        guestType: 'utia',
+      };
+
+      // NEW 2025-11-04: Use per-room guest type if available
+      const roomGuestType = guests.guestType || guestType;
+
       const roomPrice = await dataManager.calculatePrice(
-        guestType,
+        roomGuestType,
         guests.adults,
         guests.children,
         guests.toddlers,
@@ -168,12 +177,13 @@ class BookingFormModule {
         [roomId] // Pass room ID array for room-size-based pricing
       );
 
-      // Add to per-room data for detailed breakdown
+      // Add to per-room data for detailed breakdown (with guest type)
       perRoomGuests.push({
         roomId,
         adults: guests.adults,
         children: guests.children,
-        toddlers: guests.toddlers
+        toddlers: guests.toddlers,
+        guestType: roomGuestType, // NEW: Include per-room guest type
       });
 
       return { room, guests, roomPrice };
@@ -680,14 +690,8 @@ class BookingFormModule {
       totalToddlers += guests.toddlers;
     }
 
-    // Validate guest names if there are any guests
-    if (totalAdults + totalChildren + totalToddlers > 0) {
-      const validation = this.validateGuestNames(totalAdults, totalChildren, totalToddlers);
-      if (!validation.valid) {
-        this.app.showNotification(validation.error, 'error');
-        return;
-      }
-    }
+    // NOTE: Guest names validation is only done during finalization (line ~430)
+    // Don't validate here - it blocks calendar interaction
 
     // Collect guest names
     const guestNames = this.collectGuestNames();
@@ -1226,6 +1230,25 @@ class BookingFormModule {
    * @returns {Array<Object>} Array of guest name objects
    */
   collectGuestNames() {
+    // NEW: If finalizing temp reservations, collect names from tempReservations instead of form
+    if (
+      this.app.isFinalizingReservations &&
+      this.app.tempReservations &&
+      this.app.tempReservations.length > 0
+    ) {
+      const guestNames = [];
+
+      // Collect guest names from all temp reservations
+      this.app.tempReservations.forEach((reservation) => {
+        if (reservation.guestNames && Array.isArray(reservation.guestNames)) {
+          guestNames.push(...reservation.guestNames);
+        }
+      });
+
+      return guestNames;
+    }
+
+    // ORIGINAL LOGIC: For single room booking modal, collect from form
     const guestNames = [];
 
     // Determine which form container is active/visible
