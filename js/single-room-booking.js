@@ -629,6 +629,21 @@ class SingleRoomBookingModule {
           lastNameInput.maxLength = 50;
           lastNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
 
+          // Add input event listeners to remove red border when user starts typing
+          const removeRedBorder = (input) => {
+            if (input.style.borderColor === 'rgb(239, 68, 68)' || input.style.borderColor === '#ef4444') {
+              input.style.borderColor = '#d1d5db';
+            }
+          };
+
+          firstNameInput.addEventListener('input', function() {
+            removeRedBorder(this);
+          });
+
+          lastNameInput.addEventListener('input', function() {
+            removeRedBorder(this);
+          });
+
           // Toggle switch container
           const toggleContainer = document.createElement('div');
           toggleContainer.style.cssText = 'display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; flex-shrink: 0;';
@@ -851,6 +866,21 @@ class SingleRoomBookingModule {
             }
           }
 
+          // Add input event listeners to remove red border when user starts typing
+          const removeRedBorderChild = (input) => {
+            if (input.style.borderColor === 'rgb(239, 68, 68)' || input.style.borderColor === '#ef4444') {
+              input.style.borderColor = '#d1d5db';
+            }
+          };
+
+          firstNameInput.addEventListener('input', function() {
+            removeRedBorderChild(this);
+          });
+
+          lastNameInput.addEventListener('input', function() {
+            removeRedBorderChild(this);
+          });
+
           row.appendChild(firstNameInput);
           row.appendChild(lastNameInput);
           row.appendChild(toggleContainer);
@@ -986,6 +1016,21 @@ class SingleRoomBookingModule {
             }
           }
 
+          // Add input event listeners to remove red border when user starts typing
+          const removeRedBorderToddler = (input) => {
+            if (input.style.borderColor === 'rgb(239, 68, 68)' || input.style.borderColor === '#ef4444') {
+              input.style.borderColor = '#d1d5db';
+            }
+          };
+
+          firstNameInput.addEventListener('input', function() {
+            removeRedBorderToddler(this);
+          });
+
+          lastNameInput.addEventListener('input', function() {
+            removeRedBorderToddler(this);
+          });
+
           // Free label
           const freeLabel = document.createElement('span');
           freeLabel.textContent = '(zdarma)';
@@ -1006,9 +1051,10 @@ class SingleRoomBookingModule {
   /**
    * Collect guest names from input fields
    * Validates that ALL fields are filled
+   * @param {boolean} showValidationErrors - If true, shows error notifications (default: true)
    * @returns {Array|null} Array of guest name objects or null if validation fails
    */
-  collectGuestNames() {
+  collectGuestNames(showValidationErrors = true) {
     const guestNames = [];
     const section = document.getElementById('singleRoomGuestNamesSection');
 
@@ -1016,6 +1062,28 @@ class SingleRoomBookingModule {
       return []; // No names section visible, return empty array
     }
 
+    // If NOT showing validation errors (price update mode), collect only checkboxes
+    if (!showValidationErrors) {
+      // Collect guest type from toggle switches (checkboxes) only
+      const guestTypeInputs = section.querySelectorAll('input[data-guest-price-type]');
+      guestTypeInputs.forEach((input) => {
+        const guestType = input.dataset.guestType; // adult, child, toddler
+        // UI logic: Unchecked (false) = ÚTIA, Checked (true) = External
+        const guestPriceType = input.checked ? 'external' : 'utia';
+
+        // Create dummy guest for price calculation
+        guestNames.push({
+          personType: guestType,
+          guestPriceType: guestPriceType,
+          firstName: '', // Empty for price update mode
+          lastName: ''
+        });
+      });
+
+      return guestNames;
+    }
+
+    // FULL VALIDATION MODE (when submitting)
     // Collect all inputs with data-guest-type attribute (text inputs for names)
     const inputs = section.querySelectorAll('input[data-guest-type]:not([data-guest-price-type])');
 
@@ -1036,7 +1104,6 @@ class SingleRoomBookingModule {
 
       // Validate: all fields must be filled
       if (!value || value.length < 2) {
-        // Highlight invalid field
         input.style.borderColor = '#ef4444';
         return null; // Validation failed
       }
@@ -1061,7 +1128,7 @@ class SingleRoomBookingModule {
 
       if (guestMap.has(key)) {
         const guest = guestMap.get(key);
-        // Checkbox: unchecked = 'utia', checked = 'external'
+        // UI logic: Unchecked (false) = ÚTIA, Checked (true) = External
         guest.guestPriceType = input.checked ? 'external' : 'utia';
       }
     });
@@ -1086,7 +1153,7 @@ class SingleRoomBookingModule {
             : 'Select guest type (ÚTIA/External) for all guests',
           'error'
         );
-        return null;
+        return null; // Missing guest type
       }
 
       guestNames.push(guest);
@@ -1124,7 +1191,8 @@ class SingleRoomBookingModule {
       const nights = DateUtils.getDaysBetween(startDate, endDate);
 
       // Get guest names with individual price types
-      const guestNames = this.collectGuestNames();
+      // Don't show validation errors during price updates (only during final submission)
+      const guestNames = this.collectGuestNames(false);
       if (!guestNames) {
         return; // Validation failed, don't update price
       }
@@ -1156,27 +1224,170 @@ class SingleRoomBookingModule {
    * @param {number} nights - Number of nights
    * @param {Array<Object>} guestNames - Array of guest name objects
    */
-  updatePriceSummary(totalPrice, nights, guestNames) {
-    // Update total price
-    const totalElement = document.querySelector('#singleRoomBookingModal .price-total');
-    if (totalElement) {
-      totalElement.textContent = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
+  async updatePriceSummary(totalPrice, nights, guestNames) {
+    // Get settings for price configuration
+    const settings = await dataManager.getSettings();
+    const roomId = this.app.currentBookingRoom;
+    const room = settings.rooms?.find(r => r.id === roomId);
+    const roomType = room?.type || 'small';
+
+    // Determine actual guest type based on whether ANY guest is ÚTIA
+    const hasUtiaGuest = guestNames && guestNames.length > 0
+      ? guestNames.some(guest => guest.guestPriceType === 'utia')
+      : false;
+    const actualGuestType = hasUtiaGuest ? 'utia' : 'external';
+
+    // Count guests by person type and price type
+    let utiaAdults = 0;
+    let utiaChildren = 0;
+    let externalAdults = 0;
+    let externalChildren = 0;
+    let toddlers = 0;
+
+    for (const guest of guestNames) {
+      const priceType = guest.guestPriceType || 'external';
+      const personType = guest.personType;
+
+      if (personType === 'toddler') {
+        toddlers++;
+        continue; // Free
+      }
+
+      if (priceType === 'utia') {
+        if (personType === 'adult') {
+          utiaAdults++;
+        } else if (personType === 'child') {
+          utiaChildren++;
+        }
+      } else {
+        // External
+        if (personType === 'adult') {
+          externalAdults++;
+        } else if (personType === 'child') {
+          externalChildren++;
+        }
+      }
     }
 
-    // Update guest summary
-    const adults = guestNames.filter(g => g.personType === 'adult').length;
-    const children = guestNames.filter(g => g.personType === 'child').length;
-    const toddlers = guestNames.filter(g => g.personType === 'toddler').length;
+    const totalAdults = utiaAdults + externalAdults;
+    const totalChildren = utiaChildren + externalChildren;
 
+    // Get price configurations
+    const utiaPrices = settings.prices?.utia?.[roomType] || {};
+    const externalPrices = settings.prices?.external?.[roomType] || {};
+
+    // Calculate empty room price (match PriceCalculator logic)
+    const actualPriceConfig = actualGuestType === 'utia' ? utiaPrices : externalPrices;
+    const emptyRoomPrice = actualPriceConfig.empty !== undefined
+      ? actualPriceConfig.empty
+      : (actualPriceConfig.base || 0) - (actualPriceConfig.adult || 0);
+
+    // Update base price
+    const basePriceElement = document.getElementById('basePrice');
+    if (basePriceElement) {
+      const basePriceText = `${emptyRoomPrice.toLocaleString('cs-CZ')} Kč${hasUtiaGuest ? ' (ÚTIA)' : ' (EXT)'}`;
+      basePriceElement.textContent = basePriceText;
+    }
+
+    // Update guest counts summary
+    const guestCountsElement = document.getElementById('guestCountsSummary');
+    if (guestCountsElement) {
+      let text = `${totalAdults} dosp.`;
+      if (totalChildren > 0) text += `, ${totalChildren} děti`;
+      if (toddlers > 0) text += `, ${toddlers} bat.`;
+      guestCountsElement.textContent = text;
+    }
+
+    // Calculate and update adults surcharge
+    const adultsPrice = document.getElementById('adultsPrice');
+    const adultsSurcharge = document.getElementById('adultsSurcharge');
+    if (adultsPrice && adultsSurcharge) {
+      if (totalAdults > 0) {
+        let adultSurchargeText = '';
+        let totalAdultSurcharge = 0;
+
+        if (utiaAdults > 0 && externalAdults > 0) {
+          // Mixed pricing
+          const utiaAdultSurcharge = utiaAdults * utiaPrices.adult;
+          const externalAdultSurcharge = externalAdults * externalPrices.adult;
+          totalAdultSurcharge = utiaAdultSurcharge + externalAdultSurcharge;
+          adultSurchargeText = `${totalAdultSurcharge.toLocaleString('cs-CZ')} Kč (${utiaAdults} ÚTIA × ${utiaPrices.adult} Kč + ${externalAdults} EXT × ${externalPrices.adult} Kč)`;
+        } else if (utiaAdults > 0) {
+          // All ÚTIA
+          totalAdultSurcharge = utiaAdults * utiaPrices.adult;
+          adultSurchargeText = `${totalAdultSurcharge.toLocaleString('cs-CZ')} Kč (${utiaAdults} × ${utiaPrices.adult} Kč)`;
+        } else {
+          // All External
+          totalAdultSurcharge = externalAdults * externalPrices.adult;
+          adultSurchargeText = `${totalAdultSurcharge.toLocaleString('cs-CZ')} Kč (${externalAdults} × ${externalPrices.adult} Kč)`;
+        }
+
+        adultsSurcharge.textContent = adultSurchargeText;
+        adultsPrice.style.display = 'flex';
+      } else {
+        adultsPrice.style.display = 'none';
+      }
+    }
+
+    // Calculate and update children surcharge
+    const childrenPrice = document.getElementById('childrenPrice');
+    const childrenSurcharge = document.getElementById('childrenSurcharge');
+    if (childrenPrice && childrenSurcharge) {
+      if (totalChildren > 0) {
+        let childSurchargeText = '';
+        let totalChildSurcharge = 0;
+
+        if (utiaChildren > 0 && externalChildren > 0) {
+          // Mixed pricing
+          const utiaChildSurcharge = utiaChildren * utiaPrices.child;
+          const externalChildSurcharge = externalChildren * externalPrices.child;
+          totalChildSurcharge = utiaChildSurcharge + externalChildSurcharge;
+          childSurchargeText = `${totalChildSurcharge.toLocaleString('cs-CZ')} Kč (${utiaChildren} ÚTIA × ${utiaPrices.child} Kč + ${externalChildren} EXT × ${externalPrices.child} Kč)`;
+        } else if (utiaChildren > 0) {
+          // All ÚTIA
+          totalChildSurcharge = utiaChildren * utiaPrices.child;
+          childSurchargeText = `${totalChildSurcharge.toLocaleString('cs-CZ')} Kč (${utiaChildren} × ${utiaPrices.child} Kč)`;
+        } else {
+          // All External
+          totalChildSurcharge = externalChildren * externalPrices.child;
+          childSurchargeText = `${totalChildSurcharge.toLocaleString('cs-CZ')} Kč (${externalChildren} × ${externalPrices.child} Kč)`;
+        }
+
+        childrenSurcharge.textContent = childSurchargeText;
+        childrenPrice.style.display = 'flex';
+      } else {
+        childrenPrice.style.display = 'none';
+      }
+    }
+
+    // Update toddlers info visibility
+    const toddlersInfo = document.getElementById('toddlersInfo');
+    if (toddlersInfo) {
+      toddlersInfo.style.display = toddlers > 0 ? 'flex' : 'none';
+    }
+
+    // Update nights multiplier
+    const nightsMultiplier = document.getElementById('nightsMultiplier');
+    if (nightsMultiplier) {
+      nightsMultiplier.textContent = nights;
+    }
+
+    // Update total price
+    const totalPriceElement = document.getElementById('totalPrice');
+    if (totalPriceElement) {
+      totalPriceElement.textContent = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
+    }
+
+    // Also update the guest summary in modal header if it exists
     const guestSummary = document.querySelector('#singleRoomBookingModal .guest-summary');
     if (guestSummary) {
-      let text = `${adults} dosp.`;
-      if (children > 0) text += `, ${children} děti`;
+      let text = `${totalAdults} dosp.`;
+      if (totalChildren > 0) text += `, ${totalChildren} děti`;
       if (toddlers > 0) text += `, ${toddlers} bat.`;
       guestSummary.textContent = text;
     }
 
-    // Update nights display
+    // Update nights display in header if it exists
     const nightsElement = document.querySelector('#singleRoomBookingModal .nights-count');
     if (nightsElement) {
       nightsElement.textContent = `× ${nights}`;

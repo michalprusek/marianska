@@ -619,14 +619,21 @@ class PriceCalculator {
     const { prices } = settings;
     let totalPrice = 0;
 
+    // CRITICAL FIX: Determine actual guest type based on guest names
+    // If at least ONE guest has guestPriceType 'utia', use ÚTIA pricing for empty room
+    // Otherwise (all external or no guests yet), use external pricing
+    const hasUtiaGuest = guestNames && guestNames.length > 0
+      ? guestNames.some(guest => guest.guestPriceType === 'utia')
+      : false;
+    const actualGuestType = hasUtiaGuest ? 'utia' : 'external';
+
     // Calculate empty room prices first
     for (const roomId of rooms) {
       const room = settings.rooms?.find((r) => r.id === roomId);
       const roomType = room?.type || 'small';
 
-      // Use fallback guest type to determine empty room price
-      // (In multi-room scenarios, this might need refinement)
-      const guestKey = fallbackGuestType === 'utia' ? 'utia' : 'external';
+      // Use ACTUAL guest type (not fallback) to determine empty room price
+      const guestKey = actualGuestType;
       const roomPriceConfig = prices[guestKey]?.[roomType];
 
       if (!roomPriceConfig) {

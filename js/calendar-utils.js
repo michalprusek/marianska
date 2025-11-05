@@ -154,38 +154,6 @@ class CalendarUtils {
     return day === 0 || day === 6;
   }
 
-  /**
-   * Get all dates in a range
-   * @param {string} startDate - Start date in YYYY-MM-DD format
-   * @param {string} endDate - End date in YYYY-MM-DD format
-   * @returns {string[]} Array of dates in YYYY-MM-DD format
-   */
-  static getDateRange(startDate, endDate) {
-    const dates = [];
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const current = new Date(start);
-
-    while (current.getTime() <= end.getTime()) {
-      dates.push(dataManager.formatDate(current));
-      current.setDate(current.getDate() + 1);
-    }
-
-    return dates;
-  }
-
-  /**
-   * Calculate number of nights between two dates
-   * @param {string} startDate - Start date in YYYY-MM-DD format
-   * @param {string} endDate - End date in YYYY-MM-DD format
-   * @returns {number} Number of nights
-   */
-  static calculateNights(startDate, endDate) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diffTime = Math.abs(end - start);
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  }
 
   /**
    * Create navigation buttons HTML

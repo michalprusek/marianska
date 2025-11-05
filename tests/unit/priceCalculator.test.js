@@ -102,14 +102,14 @@ describe('PriceCalculator', () => {
     it('should multiply base price by number of rooms', () => {
       const price = PriceCalculator.calculatePrice({
         guestType: 'utia',
-        adults: 2, // 2 rooms, so no additional adults (1 per room)
+        adults: 2,
         children: 0,
         toddlers: 0,
         nights: 1,
-        roomsCount: 2,
+        rooms: ['12', '13'], // NEW: Use rooms array instead of roomsCount
         settings: mockSettings,
       });
-      // Base 298 * 2 rooms = 596 (no additional adults: 2 adults - 2 rooms = 0)
+      // NEW MODEL: (empty 249 × 2 rooms × 1 night) + (2 adults × 49 × 1 night) = 498 + 98 = 596
       expect(price).toBe(596);
     });
 
@@ -130,14 +130,15 @@ describe('PriceCalculator', () => {
     it('should handle multiple rooms with multiple guests', () => {
       const price = PriceCalculator.calculatePrice({
         guestType: 'utia',
-        adults: 5, // 3 rooms = 3 included, 2 additional
+        adults: 5,
         children: 2,
-        toddlers: 1,
+        toddlers: 1, // Toddlers are free
         nights: 2,
-        roomsCount: 3,
+        rooms: ['12', '13', '14'], // NEW: Use rooms array instead of roomsCount
         settings: mockSettings,
       });
-      // (Base 298 * 3 + 2 * 49 + 2 * 24) * 2 = (894 + 98 + 48) * 2 = 1040 * 2 = 2080
+      // NEW MODEL: (empty 249 × 3 rooms × 2 nights) + (5 adults × 49 × 2) + (2 children × 24 × 2)
+      // = 1494 + 490 + 96 = 2080
       expect(price).toBe(2080);
     });
 
@@ -286,16 +287,31 @@ describe('PriceCalculator', () => {
   describe('getDefaultPrices()', () => {
     it('should return default price configuration', () => {
       const defaults = PriceCalculator.getDefaultPrices();
+      // NEW room-size-based pricing model (2025-11-04)
       expect(defaults).toEqual({
         utia: {
-          base: 298,
-          adult: 49,
-          child: 24,
+          small: {
+            base: 300,
+            adult: 50,
+            child: 25,
+          },
+          large: {
+            base: 400,
+            adult: 50,
+            child: 25,
+          },
         },
         external: {
-          base: 499,
-          adult: 99,
-          child: 49,
+          small: {
+            base: 500,
+            adult: 100,
+            child: 50,
+          },
+          large: {
+            base: 600,
+            adult: 100,
+            child: 50,
+          },
         },
       });
     });
@@ -321,12 +337,12 @@ describe('PriceCalculator', () => {
         adults: 0,
         children: 2,
         nights: 1,
-        roomsCount: 1,
+        rooms: ['12'], // NEW: Use rooms array
         settings: mockSettings,
       });
-      // Base 298 + 0 additional adults (max(0-1, 0) = 0) + 2 children
-      // 298 + 0 + 48 = 346
-      expect(price).toBe(346);
+      // NEW MODEL: (empty 249 × 1 room × 1 night) + (0 adults × 49) + (2 children × 24)
+      // = 249 + 0 + 48 = 297
+      expect(price).toBe(297);
     });
 
     it('should handle zero nights (edge case)', () => {
@@ -389,10 +405,11 @@ describe('PriceCalculator', () => {
         children: 0,
         toddlers: 0,
         nights: 2,
-        roomsCount: 3,
+        rooms: ['12', '13', '14'], // NEW: Use rooms array instead of roomsCount
         settings: mockSettings,
       });
-      // (499*3 + 7*99) * 2 = (1497 + 693) * 2 = 2190 * 2 = 4380
+      // NEW MODEL: (empty 400 × 3 rooms × 2 nights) + (10 adults × 99 × 2 nights)
+      // = 2400 + 1980 = 4380
       expect(price).toBe(4380);
     });
 

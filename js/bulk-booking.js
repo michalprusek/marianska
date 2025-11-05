@@ -227,9 +227,22 @@ class BulkBookingModule {
     const adults = parseInt(document.getElementById('bulkAdults')?.textContent, 10) || 1;
     const children = parseInt(document.getElementById('bulkChildren')?.textContent, 10) || 0;
 
-    // Get guest type from radio buttons
-    const guestTypeInput = document.querySelector('input[name="bulkGuestType"]:checked');
-    const guestType = guestTypeInput ? guestTypeInput.value : 'external';
+    // Determine guest type based on per-person selection
+    // If at least one ÚTIA guest, use ÚTIA pricing for all
+    let guestType = 'external'; // Default to external
+
+    // Check for ÚTIA guests by looking at toggle switches directly (without name validation)
+    const section = document.getElementById('bulkGuestNamesSection');
+    if (section && section.style.display !== 'none') {
+      const toggles = section.querySelectorAll('input[data-guest-price-type]');
+      const hasUtiaGuest = Array.from(toggles).some(toggle => {
+        return !toggle.checked; // Unchecked = ÚTIA, Checked = External
+      });
+
+      if (hasUtiaGuest) {
+        guestType = 'utia';
+      }
+    }
 
     // Get pricing settings from admin configuration
     const settings = await dataManager.getSettings();
@@ -306,6 +319,34 @@ class BulkBookingModule {
     const nightsDisplay = document.getElementById('bulkNightsCount');
     if (nightsDisplay) {
       nightsDisplay.textContent = nights;
+    }
+
+    // Add visual indicator for pricing category
+    let priceCategoryIndicator = document.getElementById('bulkPriceCategoryIndicator');
+    if (!priceCategoryIndicator) {
+      // Create indicator if it doesn't exist
+      const priceBreakdown = document.getElementById('bulkPriceBreakdown');
+      if (priceBreakdown) {
+        priceCategoryIndicator = document.createElement('div');
+        priceCategoryIndicator.id = 'bulkPriceCategoryIndicator';
+        priceCategoryIndicator.style.cssText = 'margin-top: 0.75rem; padding: 0.5rem; border-radius: 4px; font-size: 0.85rem; text-align: center;';
+        priceBreakdown.insertBefore(priceCategoryIndicator, priceBreakdown.firstChild);
+      }
+    }
+
+    // Update indicator based on guest type
+    if (priceCategoryIndicator) {
+      if (guestType === 'utia') {
+        priceCategoryIndicator.innerHTML = '✅ <strong>ÚTIA ceník</strong> (alespoň 1 zaměstnanec ÚTIA)';
+        priceCategoryIndicator.style.backgroundColor = '#d1fae5';
+        priceCategoryIndicator.style.color = '#065f46';
+        priceCategoryIndicator.style.border = '1px solid #10b981';
+      } else {
+        priceCategoryIndicator.innerHTML = 'ℹ️ <strong>Externí ceník</strong> (žádný zaměstnanec ÚTIA)';
+        priceCategoryIndicator.style.backgroundColor = '#e0f2fe';
+        priceCategoryIndicator.style.color = '#075985';
+        priceCategoryIndicator.style.border = '1px solid #3b82f6';
+      }
     }
   }
 
@@ -810,31 +851,87 @@ class BulkBookingModule {
 
         for (let i = 1; i <= adults; i++) {
           const row = document.createElement('div');
-          row.style.cssText = 'display: flex; gap: 0.5rem; margin-bottom: 0.5rem;';
-          row.innerHTML = `
-            <input
-              type="text"
-              id="${makeId('bulkAdultFirstName')}${i}"
-              placeholder="${langManager.t('firstNamePlaceholder')}"
-              data-guest-type="adult"
-              data-guest-index="${i}"
-              required
-              minlength="2"
-              maxlength="50"
-              style="flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;"
-            />
-            <input
-              type="text"
-              id="${makeId('bulkAdultLastName')}${i}"
-              placeholder="${langManager.t('lastNamePlaceholder')}"
-              data-guest-type="adult"
-              data-guest-index="${i}"
-              required
-              minlength="2"
-              maxlength="50"
-              style="flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;"
-            />
-          `;
+          row.style.cssText = 'display: flex; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center;';
+
+          // First name input
+          const firstNameInput = document.createElement('input');
+          firstNameInput.type = 'text';
+          firstNameInput.id = `${makeId('bulkAdultFirstName')}${i}`;
+          firstNameInput.placeholder = langManager.t('firstNamePlaceholder');
+          firstNameInput.setAttribute('data-guest-type', 'adult');
+          firstNameInput.setAttribute('data-guest-index', i);
+          firstNameInput.required = true;
+          firstNameInput.minLength = 2;
+          firstNameInput.maxLength = 50;
+          firstNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
+
+          // Last name input
+          const lastNameInput = document.createElement('input');
+          lastNameInput.type = 'text';
+          lastNameInput.id = `${makeId('bulkAdultLastName')}${i}`;
+          lastNameInput.placeholder = langManager.t('lastNamePlaceholder');
+          lastNameInput.setAttribute('data-guest-type', 'adult');
+          lastNameInput.setAttribute('data-guest-index', i);
+          lastNameInput.required = true;
+          lastNameInput.minLength = 2;
+          lastNameInput.maxLength = 50;
+          lastNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
+
+          // Toggle switch container
+          const toggleContainer = document.createElement('div');
+          toggleContainer.style.cssText = 'display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; flex-shrink: 0;';
+
+          const toggleLabel = document.createElement('label');
+          toggleLabel.style.cssText = 'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer;';
+
+          const toggleInput = document.createElement('input');
+          toggleInput.type = 'checkbox';
+          toggleInput.id = `bulkAdult${i}GuestTypeToggle`;
+          toggleInput.setAttribute('data-guest-type', 'adult');
+          toggleInput.setAttribute('data-guest-index', i);
+          toggleInput.setAttribute('data-guest-price-type', 'true');
+          toggleInput.checked = false; // Unchecked = ÚTIA, Checked = External
+          toggleInput.style.cssText = 'opacity: 0; width: 0; height: 0;';
+
+          const toggleSlider = document.createElement('span');
+          toggleSlider.style.cssText = 'position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #059669; transition: 0.3s; border-radius: 24px;';
+
+          const toggleThumb = document.createElement('span');
+          toggleThumb.style.cssText = 'position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%;';
+          toggleSlider.appendChild(toggleThumb);
+
+          toggleLabel.appendChild(toggleInput);
+          toggleLabel.appendChild(toggleSlider);
+
+          const toggleText = document.createElement('span');
+          toggleText.textContent = 'ÚTIA';
+          toggleText.style.cssText = 'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px;';
+
+          toggleContainer.appendChild(toggleLabel);
+          toggleContainer.appendChild(toggleText);
+
+          // Add event listener to toggle
+          toggleInput.addEventListener('change', () => {
+            if (toggleInput.checked) {
+              // External (checked)
+              toggleSlider.style.backgroundColor = '#dc2626';
+              toggleThumb.style.transform = 'translateX(20px)';
+              toggleText.textContent = 'EXT';
+              toggleText.style.color = '#dc2626';
+            } else {
+              // ÚTIA (unchecked)
+              toggleSlider.style.backgroundColor = '#059669';
+              toggleThumb.style.transform = 'translateX(0)';
+              toggleText.textContent = 'ÚTIA';
+              toggleText.style.color = '#059669';
+            }
+            // Trigger price recalculation
+            this.updateBulkPriceCalculation();
+          });
+
+          row.appendChild(firstNameInput);
+          row.appendChild(lastNameInput);
+          row.appendChild(toggleContainer);
           adultsContainer.appendChild(row);
         }
       } else {
@@ -856,31 +953,87 @@ class BulkBookingModule {
 
         for (let i = 1; i <= children; i++) {
           const row = document.createElement('div');
-          row.style.cssText = 'display: flex; gap: 0.5rem; margin-bottom: 0.5rem;';
-          row.innerHTML = `
-            <input
-              type="text"
-              id="${makeId('bulkChildFirstName')}${i}"
-              placeholder="${langManager.t('firstNamePlaceholder')}"
-              data-guest-type="child"
-              data-guest-index="${i}"
-              required
-              minlength="2"
-              maxlength="50"
-              style="flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;"
-            />
-            <input
-              type="text"
-              id="${makeId('bulkChildLastName')}${i}"
-              placeholder="${langManager.t('lastNamePlaceholder')}"
-              data-guest-type="child"
-              data-guest-index="${i}"
-              required
-              minlength="2"
-              maxlength="50"
-              style="flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;"
-            />
-          `;
+          row.style.cssText = 'display: flex; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center;';
+
+          // First name input
+          const firstNameInput = document.createElement('input');
+          firstNameInput.type = 'text';
+          firstNameInput.id = `${makeId('bulkChildFirstName')}${i}`;
+          firstNameInput.placeholder = langManager.t('firstNamePlaceholder');
+          firstNameInput.setAttribute('data-guest-type', 'child');
+          firstNameInput.setAttribute('data-guest-index', i);
+          firstNameInput.required = true;
+          firstNameInput.minLength = 2;
+          firstNameInput.maxLength = 50;
+          firstNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
+
+          // Last name input
+          const lastNameInput = document.createElement('input');
+          lastNameInput.type = 'text';
+          lastNameInput.id = `${makeId('bulkChildLastName')}${i}`;
+          lastNameInput.placeholder = langManager.t('lastNamePlaceholder');
+          lastNameInput.setAttribute('data-guest-type', 'child');
+          lastNameInput.setAttribute('data-guest-index', i);
+          lastNameInput.required = true;
+          lastNameInput.minLength = 2;
+          lastNameInput.maxLength = 50;
+          lastNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
+
+          // Toggle switch container
+          const toggleContainer = document.createElement('div');
+          toggleContainer.style.cssText = 'display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; flex-shrink: 0;';
+
+          const toggleLabel = document.createElement('label');
+          toggleLabel.style.cssText = 'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer;';
+
+          const toggleInput = document.createElement('input');
+          toggleInput.type = 'checkbox';
+          toggleInput.id = `bulkChild${i}GuestTypeToggle`;
+          toggleInput.setAttribute('data-guest-type', 'child');
+          toggleInput.setAttribute('data-guest-index', i);
+          toggleInput.setAttribute('data-guest-price-type', 'true');
+          toggleInput.checked = false; // Unchecked = ÚTIA, Checked = External
+          toggleInput.style.cssText = 'opacity: 0; width: 0; height: 0;';
+
+          const toggleSlider = document.createElement('span');
+          toggleSlider.style.cssText = 'position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #059669; transition: 0.3s; border-radius: 24px;';
+
+          const toggleThumb = document.createElement('span');
+          toggleThumb.style.cssText = 'position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%;';
+          toggleSlider.appendChild(toggleThumb);
+
+          toggleLabel.appendChild(toggleInput);
+          toggleLabel.appendChild(toggleSlider);
+
+          const toggleText = document.createElement('span');
+          toggleText.textContent = 'ÚTIA';
+          toggleText.style.cssText = 'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px;';
+
+          toggleContainer.appendChild(toggleLabel);
+          toggleContainer.appendChild(toggleText);
+
+          // Add event listener to toggle
+          toggleInput.addEventListener('change', () => {
+            if (toggleInput.checked) {
+              // External (checked)
+              toggleSlider.style.backgroundColor = '#dc2626';
+              toggleThumb.style.transform = 'translateX(20px)';
+              toggleText.textContent = 'EXT';
+              toggleText.style.color = '#dc2626';
+            } else {
+              // ÚTIA (unchecked)
+              toggleSlider.style.backgroundColor = '#059669';
+              toggleThumb.style.transform = 'translateX(0)';
+              toggleText.textContent = 'ÚTIA';
+              toggleText.style.color = '#059669';
+            }
+            // Trigger price recalculation
+            this.updateBulkPriceCalculation();
+          });
+
+          row.appendChild(firstNameInput);
+          row.appendChild(lastNameInput);
+          row.appendChild(toggleContainer);
           childrenContainer.appendChild(row);
         }
       } else {
@@ -937,9 +1090,10 @@ class BulkBookingModule {
 
   /**
    * Collect and validate guest names from bulk booking form
+   * @param {boolean} showValidationErrors - If true, shows error notifications (default: true)
    * @returns {Array|null} Array of guest objects or null if validation fails
    */
-  collectGuestNames() {
+  collectGuestNames(showValidationErrors = true) {
     const guestNames = [];
     const section = document.getElementById('bulkGuestNamesSection');
 
@@ -964,7 +1118,10 @@ class BulkBookingModule {
 
       // Validate: all fields must be filled
       if (!value || value.length < 2) {
-        input.style.borderColor = '#ef4444';
+        // Highlight invalid field (only if showing errors)
+        if (showValidationErrors) {
+          input.style.borderColor = '#ef4444';
+        }
         return null; // Validation failed
       }
 
@@ -974,6 +1131,20 @@ class BulkBookingModule {
         guest.firstName = value;
       } else if (input.id.includes('LastName')) {
         guest.lastName = value;
+      }
+    });
+
+    // Collect guest type from toggle switches (checkboxes)
+    const toggles = section.querySelectorAll('input[data-guest-price-type]');
+    toggles.forEach((toggle) => {
+      const guestType = toggle.dataset.guestType;
+      const guestIndex = toggle.dataset.guestIndex;
+      const key = `${guestType}-${guestIndex}`;
+
+      if (guestMap.has(key)) {
+        const guest = guestMap.get(key);
+        // Determine guest category: unchecked = utia, checked = external
+        guest.guestCategory = toggle.checked ? 'external' : 'utia';
       }
     });
 
@@ -987,25 +1158,35 @@ class BulkBookingModule {
     });
 
     if (validationFailed) {
-      this.app.showNotification(
-        this.app.currentLanguage === 'cs'
-          ? 'Vyplňte všechna jména hostů (křestní i příjmení)'
-          : 'Fill in all guest names (first and last name)',
-        'error'
-      );
-      return null;
-    }
-
-    // Convert map to array and validate completeness
-    for (const [key, guest] of guestMap) {
-      if (!guest.firstName || !guest.lastName) {
+      // Only show notification if requested
+      if (showValidationErrors) {
         this.app.showNotification(
           this.app.currentLanguage === 'cs'
             ? 'Vyplňte všechna jména hostů (křestní i příjmení)'
             : 'Fill in all guest names (first and last name)',
           'error'
         );
+      }
+      return null;
+    }
+
+    // Convert map to array and validate completeness
+    for (const [key, guest] of guestMap) {
+      if (!guest.firstName || !guest.lastName) {
+        // Only show notification if requested
+        if (showValidationErrors) {
+          this.app.showNotification(
+            this.app.currentLanguage === 'cs'
+              ? 'Vyplňte všechna jména hostů (křestní i příjmení)'
+              : 'Fill in all guest names (first and last name)',
+            'error'
+          );
+        }
         return null;
+      }
+      // Default to 'external' if not set (for toddlers or backward compatibility)
+      if (!guest.guestCategory) {
+        guest.guestCategory = 'external';
       }
       guestNames.push(guest);
     }

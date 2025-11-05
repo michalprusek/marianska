@@ -1086,7 +1086,7 @@ const translations = {
     fillAllRequiredFieldsAsterisk: 'Please fill in all required fields marked with asterisk (*)',
     christmasAccessCodeRequiredLong:
       'Christmas access code is required for bookings during Christmas period',
-    guestNamesTitle: 'Names of Guests',
+    guestNamesTitle: '👥 Guest Names',
     adultsSectionTitle: 'Adults (18+ years)',
     childrenSectionTitle: 'Children (3-17 years)',
     firstNameLabel: 'First Name',
@@ -1149,7 +1149,7 @@ const translations = {
     allRoomsTitle: 'All Rooms',
     totalPriceSummary: 'Total Price:',
     changeDate: 'Change Date',
-    guestNamesSectionTitle: 'Names of Guests',
+    guestNamesSectionTitle: '👥 Guest Names',
     adultsNamesTitle: 'Adults (18+ years)',
     childrenNamesTitle: 'Children (3-17 years)',
     cancelButton2: 'Cancel',

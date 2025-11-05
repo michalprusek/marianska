@@ -711,11 +711,19 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
       const nights = DateUtils.getDaysBetween(bookingData.startDate, bookingData.endDate);
       // settings already defined earlier in the function (line 489)
 
+      // CRITICAL FIX: Determine correct guestType based on actual guest names
+      // If at least ONE guest has guestPriceType 'utia', use ÚTIA pricing for empty room
+      // Otherwise (all external), use external pricing
+      const hasUtiaGuest = bookingData.guestNames && Array.isArray(bookingData.guestNames)
+        ? bookingData.guestNames.some(guest => guest.guestPriceType === 'utia')
+        : false;
+      const actualGuestType = hasUtiaGuest ? 'utia' : 'external';
+
       // CRITICAL FIX: Use correct price calculation based on booking type
       if (bookingData.isBulkBooking) {
         // Bulk booking: Use bulk pricing structure (flat base + per-person charges)
         bookingData.totalPrice = PriceCalculator.calculateBulkPrice({
-          guestType: bookingData.guestType,
+          guestType: actualGuestType,
           adults: bookingData.adults,
           children: bookingData.children || 0,
           toddlers: bookingData.toddlers || 0,
@@ -726,7 +734,7 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
         // Individual room booking: Use per-room pricing structure
         bookingData.totalPrice = PriceCalculator.calculatePriceFromRooms({
           rooms: bookingData.rooms,
-          guestType: bookingData.guestType,
+          guestType: actualGuestType,
           adults: bookingData.adults,
           children: bookingData.children || 0,
           toddlers: bookingData.toddlers || 0,
@@ -734,6 +742,9 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
           settings,
         });
       }
+
+      // Store the actual guest type (not the one from client request)
+      bookingData.guestType = actualGuestType;
 
       // Generate secure IDs
       bookingData.id = IdGenerator.generateBookingId();

@@ -387,8 +387,8 @@ class DataManager {
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
         const booking = {
           ...bookingData,
-          id: this.generateBookingId(),
-          editToken: this.generateEditToken(),
+          id: IdGenerator.generateBookingId(),
+          editToken: IdGenerator.generateEditToken(),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -774,32 +774,10 @@ class DataManager {
     return codeRequired;
   }
 
-  /**
-   * @deprecated REMOVED 2025-10-05 - Unused method with inverted logic (off-by-one date error).
-   * Use ChristmasUtils.checkChristmasAccessRequirement() instead.
-   * This method had incorrect logic (Oct 1 vs Sept 30) and was never called in the codebase.
-   */
-
-  /**
-   * @deprecated REMOVED 2025-10-05 - Redundant validation logic.
-   * Use ChristmasUtils.validateChristmasCode() and ChristmasUtils.checkChristmasAccessRequirement() instead.
-   * This method duplicated validation that is now centralized in ChristmasUtils.
-   */
-
-  async getChristmasBookings() {
-    const data = await this.getData();
-    const checkPromises = data.bookings.map(async (booking) => {
-      const startDate = new Date(booking.startDate);
-      const isChristmas = await this.isChristmasPeriod(startDate);
-      return isChristmas ? booking : null;
-    });
-    const results = await Promise.all(checkPromises);
-    return results.filter((booking) => booking !== null);
-  }
 
   // Blockage management - NEW STRUCTURE
   async createBlockageInstance(startDate, endDate, rooms = [], reason = '') {
-    const blockageId = this.generateBlockageId();
+    const blockageId = IdGenerator.generateBlockageId();
     const blockageData = {
       blockageId,
       startDate: this.formatDate(startDate),
@@ -908,14 +886,6 @@ class DataManager {
     return data.blockageInstances || [];
   }
 
-  /**
-   * @deprecated Use IdGenerator.generateBlockageId() directly instead.
-   * This wrapper exists for backward compatibility only.
-   */
-  generateBlockageId() {
-    return IdGenerator.generateBlockageId();
-  }
-
   // Legacy methods for backward compatibility
   async blockDate(date, roomId = null, reason = '', blockageId = null) {
     const data = await this.getData();
@@ -923,7 +893,7 @@ class DataManager {
       date: this.formatDate(date),
       roomId,
       reason,
-      blockageId: blockageId || this.generateBlockageId(),
+      blockageId: blockageId || IdGenerator.generateBlockageId(),
       blockedAt: new Date().toISOString(),
     };
 
@@ -1075,22 +1045,6 @@ class DataManager {
   }
 
   // Utility functions
-  /**
-   * @deprecated Use IdGenerator.generateBookingId() directly instead.
-   * This wrapper adds no value and will be removed in a future version.
-   */
-  generateBookingId() {
-    return IdGenerator.generateBookingId();
-  }
-
-  /**
-   * @deprecated Use IdGenerator.generateEditToken() directly instead.
-   * This wrapper adds no value and will be removed in a future version.
-   */
-  generateEditToken() {
-    return IdGenerator.generateEditToken();
-  }
-
   /**
    * @deprecated Use DateUtils.formatDate() directly instead.
    * This wrapper adds unnecessary complexity and will be removed in a future version.
