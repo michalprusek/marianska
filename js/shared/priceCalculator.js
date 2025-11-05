@@ -9,13 +9,29 @@
 
 class PriceCalculator {
   /**
+   * Get empty room price (base accommodation cost without guests)
+   *
+   * @param {Object} roomPriceConfig - Price configuration for specific room type
+   * @returns {number} Empty room base price
+   * @private
+   */
+  static getEmptyRoomPrice(roomPriceConfig) {
+    // If 'empty' price explicitly configured, use it
+    // Otherwise, fallback to old formula: base - adult surcharge
+    return roomPriceConfig.empty === undefined
+      ? roomPriceConfig.base - roomPriceConfig.adult
+      : roomPriceConfig.empty;
+  }
+
+  /**
    * Calculate total booking price with room-size-based pricing
    *
-   * NEW Pricing model (2025-10-17):
-   * - Base price depends on room size (small/large) and occupancy
-   * - First person: Base price (different for small/large rooms)
-   * - Additional persons: Per-person surcharge
-   * - Toddlers (0-3 years) are always free
+   * NEW Pricing model (2025-11-04):
+   * - Empty room base price (NO guests included)
+   * - ALL adults pay surcharge (no "first person free")
+   * - ALL children pay surcharge
+   * - Price varies by room size (small 3-bed vs large 4-bed)
+   * - Toddlers (0-2 years) are always free
    *
    * @param {Object} options - Pricing options
    * @param {string} options.guestType - 'utia' or 'external'
@@ -40,9 +56,11 @@ class PriceCalculator {
       settings,
     } = options;
 
+    // CRITICAL: Validate required configuration exists - throw error instead of returning 0
     if (!settings || !settings.prices) {
-      console.warn('[PriceCalculator] Missing settings or prices configuration');
-      return 0;
+      const error = new Error('Chybí cenová konfigurace - nelze spočítat cenu');
+      console.error('[PriceCalculator] Missing settings or prices configuration', error);
+      throw error;
     }
 
     const { prices } = settings;
@@ -50,8 +68,9 @@ class PriceCalculator {
     const priceConfig = prices[guestKey];
 
     if (!priceConfig) {
-      console.warn(`[PriceCalculator] No price config found for guest type: ${guestType}`);
-      return 0;
+      const error = new Error(`Chybějící cenová konfigurace pro typ hosta: ${guestType}`);
+      console.error(`[PriceCalculator] No price config found for guest type: ${guestType}`, error);
+      throw error;
     }
 
     // NEW: Check if prices have room-size-based structure
@@ -111,24 +130,36 @@ class PriceCalculator {
     // If per-room guest breakdown is provided, calculate per-room prices
     if (perRoomGuests && Array.isArray(perRoomGuests) && perRoomGuests.length > 0) {
       for (const roomGuest of perRoomGuests) {
-        const { roomId, guestType: roomGuestType, adults: roomAdults = 0, children: roomChildren = 0 } = roomGuest;
+        const {
+          roomId,
+          guestType: roomGuestType,
+          adults: roomAdults = 0,
+          children: roomChildren = 0,
+        } = roomGuest;
 
         const room = settings.rooms?.find((r) => r.id === roomId);
         const roomType = room?.type || 'small';
 
         const guestKey = roomGuestType === 'utia' ? 'utia' : 'external';
-        const roomPriceConfig = prices[guestKey]?.[roomType];
+        if (!prices[guestKey]) {
+          const error = new Error(`Chybějící cenová konfigurace pro typ hosta: ${guestKey}`);
+          console.error('[PriceCalculator]', error);
+          throw error;
+        }
+
+        const roomPriceConfig = prices[guestKey][roomType];
 
         if (!roomPriceConfig) {
-          console.warn(`[PriceCalculator] No price config for guest type: ${guestKey}, room type: ${roomType}`);
-          continue;
+          const error = new Error(
+            `Chybějící cenová konfigurace pro typ pokoje: ${roomType} (host: ${guestKey})`
+          );
+          console.error('[PriceCalculator]', error);
+          throw error;
         }
 
         // Empty room price (admin-configured, no implicit guests included)
         // Fallback: if 'empty' not configured, use old formula for backward compatibility
-        const emptyRoomPrice = roomPriceConfig.empty !== undefined
-          ? roomPriceConfig.empty
-          : roomPriceConfig.base - roomPriceConfig.adult;
+        const emptyRoomPrice = this.getEmptyRoomPrice(roomPriceConfig);
 
         totalPrice += emptyRoomPrice * nights;
 
@@ -148,15 +179,14 @@ class PriceCalculator {
 
         const roomPriceConfig = priceConfig[roomType];
         if (!roomPriceConfig) {
-          console.warn(`[PriceCalculator] No price config for room type: ${roomType}`);
-          continue;
+          const error = new Error(`Chybějící cenová konfigurace pro typ pokoje: ${roomType}`);
+          console.error('[PriceCalculator]', error);
+          throw error;
         }
 
         // Empty room price (admin-configured)
         // Fallback: if 'empty' not configured, use old formula for backward compatibility
-        const emptyRoomPrice = roomPriceConfig.empty !== undefined
-          ? roomPriceConfig.empty
-          : roomPriceConfig.base - roomPriceConfig.adult;
+        const emptyRoomPrice = this.getEmptyRoomPrice(roomPriceConfig);
 
         totalPrice += emptyRoomPrice * nights;
       }
@@ -265,9 +295,11 @@ class PriceCalculator {
       settings,
     } = options;
 
+    // CRITICAL: Validate required configuration exists - throw error instead of returning 0
     if (!settings || !settings.bulkPrices) {
-      console.warn('[PriceCalculator] Missing settings or bulkPrices configuration');
-      return 0;
+      const error = new Error('Chybí konfigurace cen pro hromadné rezervace');
+      console.error('[PriceCalculator] Missing settings or bulkPrices configuration', error);
+      throw error;
     }
 
     const { bulkPrices } = settings;
@@ -374,12 +406,7 @@ class PriceCalculator {
    *   }
    */
   static calculatePerRoomPrices(options) {
-    const {
-      guestType,
-      nights = 1,
-      settings,
-      perRoomGuests = []
-    } = options;
+    const { guestType, nights = 1, settings, perRoomGuests = [] } = options;
 
     if (!settings || !settings.prices) {
       console.warn('[PriceCalculator] Missing settings or prices configuration');
@@ -450,13 +477,13 @@ class PriceCalculator {
         childrenPrice,
         subtotal,
         total,
-        nights
+        nights,
       });
     }
 
     return {
       rooms: roomPrices,
-      grandTotal: Math.round(grandTotal)
+      grandTotal: Math.round(grandTotal),
     };
   }
 
@@ -485,7 +512,7 @@ class PriceCalculator {
         subtotal: 'Mezisoučet (1 noc)',
         total: 'Celkem za',
         nights: 'nocí',
-        grandTotal: 'Celková cena'
+        grandTotal: 'Celková cena',
       },
       en: {
         perRoom: 'Price per Room',
@@ -497,8 +524,8 @@ class PriceCalculator {
         subtotal: 'Subtotal (1 night)',
         total: 'Total for',
         nights: 'nights',
-        grandTotal: 'Total Price'
-      }
+        grandTotal: 'Total Price',
+      },
     };
 
     const t = translations[language] || translations.cs;
@@ -608,23 +635,33 @@ class PriceCalculator {
       guestNames = [],
       nights = 1,
       settings,
-      fallbackGuestType = 'external'
+      fallbackGuestType = 'external',
     } = options;
 
+    // CRITICAL: Validate required configuration exists - throw error instead of returning 0
     if (!settings || !settings.prices) {
-      console.warn('[PriceCalculator] Missing settings or prices configuration');
-      return 0;
+      const error = new Error('Chybí cenová konfigurace - nelze spočítat cenu');
+      console.error('[PriceCalculator] Missing settings or prices configuration', error);
+      throw error;
     }
 
     const { prices } = settings;
+
+    // Validate that prices configuration has required guest type keys
+    if (!prices.utia && !prices.external) {
+      const error = new Error('Chybí cenová konfigurace pro typy hostů');
+      console.error('[PriceCalculator] Missing utia/external price configuration', error);
+      throw error;
+    }
     let totalPrice = 0;
 
     // CRITICAL FIX: Determine actual guest type based on guest names
     // If at least ONE guest has guestPriceType 'utia', use ÚTIA pricing for empty room
     // Otherwise (all external or no guests yet), use external pricing
-    const hasUtiaGuest = guestNames && guestNames.length > 0
-      ? guestNames.some(guest => guest.guestPriceType === 'utia')
-      : false;
+    const hasUtiaGuest =
+      guestNames && guestNames.length > 0
+        ? guestNames.some((guest) => guest.guestPriceType === 'utia')
+        : false;
     const actualGuestType = hasUtiaGuest ? 'utia' : 'external';
 
     // Calculate empty room prices first
@@ -634,25 +671,31 @@ class PriceCalculator {
 
       // Use ACTUAL guest type (not fallback) to determine empty room price
       const guestKey = actualGuestType;
-      const roomPriceConfig = prices[guestKey]?.[roomType];
+
+      // CRITICAL: Validate price configuration exists for this guest type and room type
+      if (!prices[guestKey]) {
+        const error = new Error(`Chybějící cenová konfigurace pro typ hosta: ${guestKey}`);
+        console.error('[PriceCalculator]', error);
+        throw error;
+      }
+
+      const roomPriceConfig = prices[guestKey][roomType];
 
       if (!roomPriceConfig) {
-        console.warn(`[PriceCalculator] No price config for room type: ${roomType}`);
-        continue;
+        const error = new Error(
+          `Chybějící cenová konfigurace pro typ pokoje: ${roomType} (host: ${guestKey})`
+        );
+        console.error('[PriceCalculator]', error);
+        throw error;
       }
 
       // Empty room price (base accommodation cost)
-      const emptyRoomPrice = roomPriceConfig.empty !== undefined
-        ? roomPriceConfig.empty
-        : roomPriceConfig.base - roomPriceConfig.adult;
+      const emptyRoomPrice = this.getEmptyRoomPrice(roomPriceConfig);
 
       totalPrice += emptyRoomPrice * nights;
     }
 
     // Now add per-guest surcharges based on individual guest types
-    const utiaConfig = prices.utia || {};
-    const externalConfig = prices.external || {};
-
     // Count guests by type and pricing category
     let utiaAdults = 0;
     let utiaChildren = 0;
@@ -661,7 +704,7 @@ class PriceCalculator {
 
     for (const guest of guestNames) {
       const priceType = guest.guestPriceType || fallbackGuestType;
-      const personType = guest.personType;
+      const { personType } = guest;
 
       // Skip toddlers (they're free)
       if (personType === 'toddler') {
@@ -671,17 +714,16 @@ class PriceCalculator {
       // Count by pricing type and person type
       if (priceType === 'utia') {
         if (personType === 'adult') {
-          utiaAdults++;
+          utiaAdults += 1;
         } else if (personType === 'child') {
-          utiaChildren++;
+          utiaChildren += 1;
         }
-      } else {
-        // External
-        if (personType === 'adult') {
-          externalAdults++;
-        } else if (personType === 'child') {
-          externalChildren++;
-        }
+      } else if (personType === 'adult') {
+        // External adults
+        externalAdults += 1;
+      } else if (personType === 'child') {
+        // External children
+        externalChildren += 1;
       }
     }
 

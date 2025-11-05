@@ -566,6 +566,14 @@ class BookingApp {
         await this.singleRoomBooking.updatePriceForCurrentRoom();
       } catch (error) {
         console.error('Failed to update price after guest count change:', error);
+        // Notify user of price update failure
+        if (this.showNotification) {
+          this.showNotification(
+            'Nepodařilo se aktualizovat cenu. Zkuste obnovit stránku.',
+            'warning',
+            4000
+          );
+        }
       }
     }
   }
