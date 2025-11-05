@@ -175,7 +175,7 @@ class SingleRoomBookingModule {
     }
 
     // NEW 2025-11-04: Add default guest type to guests object
-    defaultGuests.guestType = 'utia'; // Default to ÚTIA employee
+    defaultGuests.guestType = 'external'; // Default to External guest
     this.app.roomGuests.set(roomId, defaultGuests);
 
     // Update display of guest counts
@@ -216,6 +216,9 @@ class SingleRoomBookingModule {
     const utiaRadio = document.querySelector('input[name="singleRoomGuestType"][value="utia"]');
     if (utiaRadio) {
       utiaRadio.checked = true;
+      // FIX 2025-11-05: Explicitly update roomGuestTypes Map to match radio button state
+      // This ensures price calculation uses correct guest type on initial modal open
+      this.app.roomGuestTypes.set(roomId, 'utia');
     }
 
     // NEW 2025-11-04: Set per-room guest type dropdown to current value
@@ -372,10 +375,6 @@ class SingleRoomBookingModule {
       return;
     }
 
-    // Get guest type
-    const guestTypeInput = document.querySelector('input[name="singleRoomGuestType"]:checked');
-    const guestType = guestTypeInput ? guestTypeInput.value : 'utia';
-
     // Get dates - use exactly what user selected
     const sortedDates = Array.from(this.app.selectedDates).sort();
     const startDate = sortedDates[0];
@@ -399,6 +398,15 @@ class SingleRoomBookingModule {
       return;
     }
 
+    // Get guest type (fallback for guests without individual type)
+    const guestTypeInput = document.querySelector('input[name="singleRoomGuestType"]:checked');
+    const fallbackGuestType = guestTypeInput ? guestTypeInput.value : 'external';
+
+    // Determine actual guest type for the booking:
+    // If at least ONE guest is ÚTIA, the entire booking uses ÚTIA pricing
+    const hasUtiaGuest = guestNames.some(guest => guest.guestPriceType === 'utia');
+    const guestType = hasUtiaGuest ? 'utia' : 'external';
+
     // Calculate price using per-guest pricing (NEW 2025-11-04)
     // Each guest can have their own pricing type (ÚTIA vs External)
     const settings = await dataManager.getSettings();
@@ -407,7 +415,7 @@ class SingleRoomBookingModule {
       guestNames: guestNames,
       nights: nights,
       settings: settings,
-      fallbackGuestType: guestType
+      fallbackGuestType: fallbackGuestType
     });
 
     // Validate guest names count matches total guests

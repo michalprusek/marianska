@@ -11,16 +11,17 @@ class PriceCalculator {
   /**
    * Get empty room price (base accommodation cost without guests)
    *
+   * CRITICAL FIX 2025-11-05: In NEW model (2025-11-04+), base IS the empty room price
+   * No need to subtract adult surcharge anymore
+   *
    * @param {Object} roomPriceConfig - Price configuration for specific room type
    * @returns {number} Empty room base price
    * @private
    */
   static getEmptyRoomPrice(roomPriceConfig) {
-    // If 'empty' price explicitly configured, use it
-    // Otherwise, fallback to old formula: base - adult surcharge
-    return roomPriceConfig.empty === undefined
-      ? roomPriceConfig.base - roomPriceConfig.adult
-      : roomPriceConfig.empty;
+    // NEW MODEL (2025-11-04+): base IS empty room price, use it directly
+    // This aligns with the room-size-based pricing model where admin sets empty room price
+    return roomPriceConfig.base;
   }
 
   /**
@@ -82,11 +83,11 @@ class PriceCalculator {
     }
 
     // LEGACY: Flat pricing model (backward compatibility)
-    // NEW 2025-10-17: Use same logic as room-size pricing for consistency
+    // CRITICAL FIX 2025-11-05: Use base directly as empty room price (NEW model)
     const roomsCount = rooms.length || 1;
 
-    // Empty room price = base - adult surcharge
-    const emptyRoomPrice = priceConfig.base - priceConfig.adult;
+    // Empty room price = base (already configured as empty room in NEW model)
+    const emptyRoomPrice = priceConfig.base;
     let totalPrice = emptyRoomPrice * roomsCount * nights;
 
     // Add surcharges for ALL guests
@@ -161,11 +162,13 @@ class PriceCalculator {
         // Fallback: if 'empty' not configured, use old formula for backward compatibility
         const emptyRoomPrice = this.getEmptyRoomPrice(roomPriceConfig);
 
-        totalPrice += emptyRoomPrice * nights;
+        const roomBaseTotal = emptyRoomPrice * nights;
+        const roomAdultsTotal = roomAdults * roomPriceConfig.adult * nights;
+        const roomChildrenTotal = roomChildren * roomPriceConfig.child * nights;
+        const roomTotal = roomBaseTotal + roomAdultsTotal + roomChildrenTotal;
 
-        // ALL adults and children pay surcharges
-        totalPrice += roomAdults * roomPriceConfig.adult * nights;
-        totalPrice += roomChildren * roomPriceConfig.child * nights;
+
+        totalPrice += roomTotal;
       }
     } else {
       // Legacy mode: Single guest type for all rooms (backward compatibility)
@@ -323,7 +326,8 @@ class PriceCalculator {
 
   /**
    * Get default price configuration
-   * NEW (2025-10-17): Room-size-based pricing structure
+   * NEW (2025-11-04): Room-size-based pricing structure with empty room model
+   * FIX (2025-11-05): Corrected to match NEW pricing model (empty room + ALL guests pay)
    *
    * @returns {Object} Default prices object
    */
@@ -331,26 +335,26 @@ class PriceCalculator {
     return {
       utia: {
         small: {
-          base: 300, // Small room, 1 person
-          adult: 50, // Per additional adult
+          base: 250, // Empty small room (0 guests) - NEW model 2025-11-04
+          adult: 50, // Per adult (ALL adults pay, no "first free")
           child: 25, // Per child (3-17 years)
         },
         large: {
-          base: 400, // Large room, 1 person
-          adult: 50, // Per additional adult
-          child: 25, // Per child (3-17 years)
+          base: 350, // Empty large room (0 guests) - NEW model 2025-11-04
+          adult: 70, // Per adult (ALL adults pay, no "first free")
+          child: 35, // Per child (3-17 years)
         },
       },
       external: {
         small: {
-          base: 500, // Small room, 1 person
-          adult: 100, // Per additional adult
+          base: 400, // Empty small room (0 guests) - NEW model 2025-11-04
+          adult: 100, // Per adult (ALL adults pay, no "first free")
           child: 50, // Per child (3-17 years)
         },
         large: {
-          base: 600, // Large room, 1 person
-          adult: 100, // Per additional adult
-          child: 50, // Per child (3-17 years)
+          base: 500, // Empty large room (0 guests) - NEW model 2025-11-04
+          adult: 120, // Per adult (ALL adults pay, no "first free")
+          child: 60, // Per child (3-17 years)
         },
       },
     };
@@ -633,6 +637,7 @@ class PriceCalculator {
     const {
       rooms = [],
       guestNames = [],
+      perRoomGuests = {}, // FIX #4: Per-room guest type data
       nights = 1,
       settings,
       fallbackGuestType = 'external',
@@ -655,41 +660,46 @@ class PriceCalculator {
     }
     let totalPrice = 0;
 
-    // CRITICAL FIX: Determine actual guest type based on guest names
-    // If at least ONE guest has guestPriceType 'utia', use ÚTIA pricing for empty room
-    // Otherwise (all external or no guests yet), use external pricing
-    const hasUtiaGuest =
-      guestNames && guestNames.length > 0
-        ? guestNames.some((guest) => guest.guestPriceType === 'utia')
-        : false;
-    const actualGuestType = hasUtiaGuest ? 'utia' : 'external';
-
-    // Calculate empty room prices first
+    // FIX #4: Calculate empty room prices PER-ROOM based on per-room guest types
+    // If perRoomGuests data available, use per-room guest types
+    // Otherwise fall back to booking-level logic (for backward compatibility)
     for (const roomId of rooms) {
       const room = settings.rooms?.find((r) => r.id === roomId);
       const roomType = room?.type || 'small';
 
-      // Use ACTUAL guest type (not fallback) to determine empty room price
-      const guestKey = actualGuestType;
+      // Determine guest type for THIS room specifically
+      let roomGuestType;
+
+      if (perRoomGuests && perRoomGuests[roomId] && perRoomGuests[roomId].guestType) {
+        // Use per-room guest type if available (NEW logic)
+        roomGuestType = perRoomGuests[roomId].guestType;
+      } else {
+        // Fallback: Use booking-level logic (OLD logic for backward compatibility)
+        const hasUtiaGuest =
+          guestNames && guestNames.length > 0
+            ? guestNames.some((guest) => guest.guestPriceType === 'utia')
+            : false;
+        roomGuestType = hasUtiaGuest ? 'utia' : 'external';
+      }
 
       // CRITICAL: Validate price configuration exists for this guest type and room type
-      if (!prices[guestKey]) {
-        const error = new Error(`Chybějící cenová konfigurace pro typ hosta: ${guestKey}`);
+      if (!prices[roomGuestType]) {
+        const error = new Error(`Chybějící cenová konfigurace pro typ hosta: ${roomGuestType}`);
         console.error('[PriceCalculator]', error);
         throw error;
       }
 
-      const roomPriceConfig = prices[guestKey][roomType];
+      const roomPriceConfig = prices[roomGuestType][roomType];
 
       if (!roomPriceConfig) {
         const error = new Error(
-          `Chybějící cenová konfigurace pro typ pokoje: ${roomType} (host: ${guestKey})`
+          `Chybějící cenová konfigurace pro typ pokoje: ${roomType} (host: ${roomGuestType})`
         );
         console.error('[PriceCalculator]', error);
         throw error;
       }
 
-      // Empty room price (base accommodation cost)
+      // Empty room price (base accommodation cost) - NOW PER-ROOM!
       const emptyRoomPrice = this.getEmptyRoomPrice(roomPriceConfig);
 
       totalPrice += emptyRoomPrice * nights;

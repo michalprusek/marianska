@@ -731,16 +731,29 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
           settings,
         });
       } else {
-        // Individual room booking: Use per-room pricing structure
-        bookingData.totalPrice = PriceCalculator.calculatePriceFromRooms({
-          rooms: bookingData.rooms,
-          guestType: actualGuestType,
-          adults: bookingData.adults,
-          children: bookingData.children || 0,
-          toddlers: bookingData.toddlers || 0,
-          nights,
-          settings,
-        });
+        // Individual room booking: Use per-guest pricing if guest names available
+        if (bookingData.guestNames && Array.isArray(bookingData.guestNames) && bookingData.guestNames.length > 0) {
+          // NEW: Per-guest pricing - correctly handles mixed ÚTIA/external guests
+          bookingData.totalPrice = PriceCalculator.calculatePerGuestPrice({
+            rooms: bookingData.rooms,
+            guestNames: bookingData.guestNames,
+            perRoomGuests: bookingData.perRoomGuests, // FIX #4: Pass per-room guest type data
+            nights,
+            settings,
+            fallbackGuestType: actualGuestType,
+          });
+        } else {
+          // FALLBACK: Legacy pricing for bookings without guest names
+          bookingData.totalPrice = PriceCalculator.calculatePriceFromRooms({
+            rooms: bookingData.rooms,
+            guestType: actualGuestType,
+            adults: bookingData.adults,
+            children: bookingData.children || 0,
+            toddlers: bookingData.toddlers || 0,
+            nights,
+            settings,
+          });
+        }
       }
 
       // Store the actual guest type (not the one from client request)
@@ -1183,16 +1196,28 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
           settings,
         });
       } else {
-        // Individual room booking: Use per-room pricing structure
-        bookingData.totalPrice = PriceCalculator.calculatePriceFromRooms({
-          rooms: bookingData.rooms,
-          guestType: bookingData.guestType,
-          adults: bookingData.adults,
-          children: bookingData.children || 0,
-          toddlers: bookingData.toddlers || 0,
-          nights,
-          settings,
-        });
+        // Individual room booking: Use per-guest pricing if guest names available
+        if (bookingData.guestNames && Array.isArray(bookingData.guestNames) && bookingData.guestNames.length > 0) {
+          // NEW: Per-guest pricing - correctly handles mixed ÚTIA/external guests
+          bookingData.totalPrice = PriceCalculator.calculatePerGuestPrice({
+            rooms: bookingData.rooms,
+            guestNames: bookingData.guestNames,
+            nights,
+            settings,
+            fallbackGuestType: bookingData.guestType,
+          });
+        } else {
+          // FALLBACK: Legacy pricing for bookings without guest names
+          bookingData.totalPrice = PriceCalculator.calculatePriceFromRooms({
+            rooms: bookingData.rooms,
+            guestType: bookingData.guestType,
+            adults: bookingData.adults,
+            children: bookingData.children || 0,
+            toddlers: bookingData.toddlers || 0,
+            nights,
+            settings,
+          });
+        }
       }
     } else {
       // Preserve original price in two scenarios:

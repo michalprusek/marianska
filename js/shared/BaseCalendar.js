@@ -454,6 +454,7 @@ class BaseCalendar {
     const classStr = classes.join(' ');
     const styleStr = styles.join(' ');
     const cursor = clickable ? 'pointer' : 'not-allowed';
+    const pointerEvents = clickable ? 'auto' : 'none'; // CRITICAL: Disable pointer events for non-clickable cells
     const baseStyle =
       'padding: 0.75rem; text-align: center; border-radius: 4px; font-weight: 500; user-select: none;';
 
@@ -467,7 +468,7 @@ class BaseCalendar {
         data-room="${roomId}"
         data-clickable="${clickable}"
         data-original-bg="${originalBg}"
-        style="${baseStyle} ${styleStr} cursor: ${cursor};"
+        style="${baseStyle} ${styleStr} cursor: ${cursor}; pointer-events: ${pointerEvents};"
       >
         ${content}
       </div>
@@ -571,7 +572,10 @@ class BaseCalendar {
       }
 
       // Create bound handlers
-      const clickHandler = () => this.handleDateClick(dateStr);
+      const clickHandler = (event) => {
+        event.stopPropagation(); // CRITICAL: Prevent event bubbling to parent elements
+        this.handleDateClick(dateStr);
+      };
       const enterHandler = () => {
         if (this.intervalState.firstClick && !this.intervalState.secondClick) {
           this.updatePreview(dateStr);
@@ -632,6 +636,45 @@ class BaseCalendar {
    * Handle date click - Two-click interval selection
    */
   async handleDateClick(dateStr) {
+    // CRITICAL GUARD: Re-validate that cell is still clickable (race condition prevention)
+    const cell = this.cellElements.get(dateStr);
+    if (!cell || cell.dataset.clickable !== 'true') {
+      // Cell is not clickable (occupied/blocked/past) - ignore click
+      return;
+    }
+
+    // CRITICAL GUARD: Real-time availability check (race condition prevention)
+    // Another user may have booked this date since render
+    if (this.config.mode !== BaseCalendar.MODES.BULK && this.config.roomId) {
+      const availability = await dataManager.getRoomAvailability(
+        new Date(dateStr),
+        this.config.roomId,
+        '',
+        this.config.currentEditingBookingId
+      );
+
+      if (availability.status === 'occupied' || availability.status === 'blocked') {
+        // Date is no longer available - show error and abort
+        if (this.config.app && this.config.app.utils) {
+          this.config.app.utils.showNotification(
+            'Tento termín již není dostupný. Kalendář se automaticky aktualizuje.',
+            'error',
+            4000
+          );
+        }
+        // Reset selection and re-render to show current state
+        this.selectedDates.clear();
+        this.intervalState.firstClick = null;
+        this.intervalState.secondClick = null;
+        this.intervalState.hoverDate = null;
+        if (this.config.app) {
+          this.config.app.selectedDates = this.selectedDates;
+        }
+        await this.render();
+        return;
+      }
+    }
+
     // Pokud je interval kompletní, smaž ho a začni nový
     if (this.intervalState.firstClick && this.intervalState.secondClick) {
       this.selectedDates.clear();
@@ -774,6 +817,14 @@ class BaseCalendar {
    */
   updatePreview(hoverDateStr) {
     if (!this.intervalState.firstClick) {
+      return;
+    }
+
+    // CRITICAL GUARD: Don't preview over non-clickable cells
+    const hoverCell = this.cellElements.get(hoverDateStr);
+    if (!hoverCell || hoverCell.dataset.clickable !== 'true') {
+      // Hovering over non-clickable cell - clear any existing preview
+      this.clearPreview();
       return;
     }
 

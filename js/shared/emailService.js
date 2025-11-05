@@ -205,7 +205,8 @@ class EmailService {
         const roomChildren = roomGuests.children || 0;
 
         // Calculate room price
-        const emptyRoomPrice = roomPriceConfig.base - roomPriceConfig.adult;
+        // CRITICAL FIX 2025-11-05: base IS empty room price in NEW model (no subtraction needed)
+        const emptyRoomPrice = roomPriceConfig.base;
         const basePrice = emptyRoomPrice * roomNights;
         const adultsPrice = roomAdults * roomPriceConfig.adult * roomNights;
         const childrenPrice = roomChildren * roomPriceConfig.child * roomNights;
@@ -223,7 +224,10 @@ class EmailService {
         totalPrice += roomTotal;
       }
 
-      breakdown += `CELKOVÁ CENA: ${totalPrice} Kč`;
+      // CRITICAL FIX: Use booking.totalPrice from database, not recalculated value
+      // The recalculated value might differ due to rounding or pricing model changes
+      const finalPrice = booking.totalPrice || totalPrice;
+      breakdown += `CELKOVÁ CENA: ${finalPrice} Kč`;
       return breakdown.trim();
     }
 
@@ -239,7 +243,8 @@ class EmailService {
 
       if (!roomPriceConfig) continue;
 
-      const emptyRoomPrice = roomPriceConfig.base - roomPriceConfig.adult;
+      // CRITICAL FIX 2025-11-05: base IS empty room price in NEW model (no subtraction needed)
+      const emptyRoomPrice = roomPriceConfig.base;
       const basePrice = emptyRoomPrice * nights;
 
       breakdown += `Pokoj ${roomId} (${roomBeds} lůžka)\n`;
@@ -281,7 +286,10 @@ class EmailService {
       breakdown += '\n';
     }
 
-    breakdown += `CELKOVÁ CENA: ${totalPrice} Kč`;
+    // CRITICAL FIX: Use booking.totalPrice from database, not recalculated value
+    // The recalculated value might differ due to rounding or pricing model changes
+    const finalPrice = booking.totalPrice || totalPrice;
+    breakdown += `CELKOVÁ CENA: ${finalPrice} Kč`;
     return breakdown.trim();
   }
 

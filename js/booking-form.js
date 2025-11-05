@@ -471,7 +471,11 @@ class BookingFormModule {
             totalToddlersLocal += tempReservation.guests.toddlers || 0;
             totalPriceLocal += tempReservation.totalPrice || 0;
             guestTypesSet.add(tempReservation.guestType);
-            roomGuestsMap[tempReservation.roomId] = tempReservation.guests;
+            // FIX 2025-11-05: Include per-room guestType for proper persistence
+            roomGuestsMap[tempReservation.roomId] = {
+              ...tempReservation.guests,
+              guestType: tempReservation.guestType
+            };
           }
 
           // Determine guest type (prefer 'utia' if mixed)
@@ -498,7 +502,7 @@ class BookingFormModule {
             notes,
             payFromBenefit,
             christmasCode,
-            roomGuests: roomGuestsMap,
+            perRoomGuests: roomGuestsMap, // FIX 2025-11-05: Changed from roomGuests to perRoomGuests (matches backend API)
             sessionId: this.app.sessionId,
             guestNames, // Include guest names - now matches total guest count
           };
