@@ -557,6 +557,17 @@ class BookingApp {
       guests.children,
       guests.toddlers
     );
+
+    // KRITICKÉ: Po změně počtu hostů přepočítat cenu v single room modalu
+    // Toto zajistí, že když uživatel odebere ÚTIA hosta a zůstane jen external,
+    // cena se automaticky přepočítá na external pricing
+    if (this.singleRoomBooking && this.singleRoomBooking.updatePriceForCurrentRoom) {
+      try {
+        await this.singleRoomBooking.updatePriceForCurrentRoom();
+      } catch (error) {
+        console.error('Failed to update price after guest count change:', error);
+      }
+    }
   }
 
   // Set guest type for current room (NEW 2025-11-04: Per-room guest type)
@@ -579,13 +590,6 @@ class BookingApp {
 
     // Update price calculation with new guest type
     await this.updatePriceCalculation();
-
-    // Log for debugging
-    console.log(
-      `[BookingApp] Set guest type for room ${this.currentBookingRoom}:`,
-      guestType,
-      guests
-    );
   }
 
   // Main booking modal
@@ -758,7 +762,8 @@ class BookingApp {
         const nextDay = new Date(currentEnd);
         nextDay.setDate(nextDay.getDate() + 1);
 
-        const isConsecutive = nextDay.toISOString().split('T')[0] === nextStart.toISOString().split('T')[0];
+        const isConsecutive =
+          nextDay.toISOString().split('T')[0] === nextStart.toISOString().split('T')[0];
 
         if (isConsecutive && current.guestType === next.guestType) {
           // Merge consecutive bookings
@@ -898,11 +903,15 @@ class BookingApp {
                   <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
                     👥 ${guestText.join(', ')}
                   </div>
-                  ${booking.guestNames && booking.guestNames.length > 0 ? `
+                  ${
+                    booking.guestNames && booking.guestNames.length > 0
+                      ? `
                   <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
                     👤 ${booking.guestNames[0].firstName} ${booking.guestNames[0].lastName}${booking.guestNames.length > 1 ? ` +${booking.guestNames.length - 1} ${this.currentLanguage === 'cs' ? 'další' : 'other'}` : ''}
                   </div>
-                  ` : ''}
+                  `
+                      : ''
+                  }
                   <div style="font-size: 0.9rem; color: var(--gray-600);">
                     🏷️ Typ: <span style="font-weight: 600;">${guestTypeText}</span>
                   </div>
@@ -944,11 +953,15 @@ class BookingApp {
                   <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
                     👥 ${guestText.join(', ')}
                   </div>
-                  ${booking.guestNames && booking.guestNames.length > 0 ? `
+                  ${
+                    booking.guestNames && booking.guestNames.length > 0
+                      ? `
                   <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
                     👤 ${booking.guestNames[0].firstName} ${booking.guestNames[0].lastName}${booking.guestNames.length > 1 ? ` +${booking.guestNames.length - 1} ${this.currentLanguage === 'cs' ? 'další' : 'other'}` : ''}
                   </div>
-                  ` : ''}
+                  `
+                      : ''
+                  }
                   <div style="font-size: 0.9rem; color: var(--gray-600);">
                     🏷️ Typ: <span style="font-weight: 600;">${guestTypeText}</span>
                   </div>
@@ -1205,19 +1218,6 @@ class BookingApp {
 
     this.bookingForm.checkAndShowChristmasCodeField(allDates, hasBulkBooking);
 
-    // Calculate total UNIQUE guests across all reservations
-    // Use consolidated bookings to avoid counting same guest multiple times
-    // when same room is booked on consecutive dates
-    let totalAdults = 0;
-    let totalChildren = 0;
-    let totalToddlers = 0;
-
-    displayReservations.forEach((reservation) => {
-      totalAdults += reservation.guests.adults || 0;
-      totalChildren += reservation.guests.children || 0;
-      totalToddlers += reservation.guests.toddlers || 0;
-    });
-
     // NOTE: Guest names are already collected in tempReservations during temp reservation creation
     // No need to generate input fields here - collectGuestNames() will read from tempReservations
 
@@ -1453,44 +1453,6 @@ class BookingApp {
 
     // Re-render calendar with new language
     this.renderCalendar();
-  }
-
-  // Finalize all temporary reservations (duplicate method - keeping for compatibility)
-  finalizeAllReservationsOld() {
-    if (!this.tempReservations || this.tempReservations.length === 0) {
-      this.showNotification(
-        this.currentLanguage === 'cs'
-          ? 'Nejsou žádné rezervace k dokončení'
-          : 'No reservations to finalize',
-        'warning'
-      );
-      return;
-    }
-
-    // Show the final booking modal
-    const modal = document.getElementById('finalBookingModal');
-    if (!modal) {
-      console.error('Final booking modal not found');
-      return;
-    }
-
-    // Populate the summary
-    this.populateFinalBookingSummary();
-
-    // Setup form submission
-    const form = document.getElementById('finalBookingForm');
-    if (form) {
-      // Remove any existing listener
-      form.onsubmit = null;
-      // Add new listener
-      form.onsubmit = (e) => {
-        e.preventDefault();
-        this.submitFinalBooking();
-      };
-    }
-
-    // Show modal
-    modal.classList.add('active');
   }
 
   populateFinalBookingSummary() {

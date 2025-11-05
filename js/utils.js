@@ -418,11 +418,10 @@ class UtilsModule {
 
     // Helper: Collect guest names with price types from current selection
     const collectGuestNamesFromDOM = () => {
-      const guestNames = [];
-
       // Try to get from single room modal if open
       if (window.app && window.app.singleRoomBooking) {
-        const collected = window.app.singleRoomBooking.collectGuestNames();
+        // Don't show validation errors during price updates (only during final submission)
+        const collected = window.app.singleRoomBooking.collectGuestNames(false);
         if (collected && collected.length > 0) {
           return collected;
         }
@@ -452,13 +451,15 @@ class UtilsModule {
     const guestKey = currentGuestType === 'utia' ? 'utia' : 'external';
     const priceConfig = prices[guestKey];
 
+    // Get rooms list (needed for room-size-based pricing)
+    const rooms = await dataManager.getRooms();
+
     // Check if room-size-based pricing is enabled
     const hasRoomSizes = priceConfig?.small && priceConfig?.large;
     let baseRoomPrice = 298; // Fallback
 
     if (hasRoomSizes && currentRoomId) {
       // NEW: Get room type (small/large) from settings
-      const rooms = await dataManager.getRooms();
       const room = rooms.find((r) => r.id === currentRoomId);
       const roomType = room?.type || 'small';
       const roomPriceConfig = priceConfig[roomType] || priceConfig.small;
@@ -503,36 +504,34 @@ class UtilsModule {
     }
 
     // Calculate price per room using PER-GUEST pricing
-    const roomPrices = await Promise.all(
-      Array.from(roomsToCalculate).map(async (roomId) => {
-        const guests = this.app.roomGuests.get(roomId) || { adults: 1, children: 0, toddlers: 0 };
-        const fallbackGuestType = this.app.roomGuestTypes.get(roomId) || 'utia';
+    const roomPrices = Array.from(roomsToCalculate).map((roomId) => {
+      const guests = this.app.roomGuests.get(roomId) || { adults: 1, children: 0, toddlers: 0 };
+      const fallbackGuestType = this.app.roomGuestTypes.get(roomId) || 'utia';
 
-        // Get individual guest names with price types
-        const guestNames = collectGuestNamesFromDOM();
+      // Get individual guest names with price types
+      const guestNames = collectGuestNamesFromDOM();
 
-        // If we have guest names with price types, use per-guest calculation
-        if (guestNames.length > 0) {
-          return PriceCalculator.calculatePerGuestPrice({
-            rooms: [roomId],
-            guestNames: guestNames,
-            nights: 1, // Per night calculation
-            settings: settings,
-            fallbackGuestType: fallbackGuestType,
-          });
-        }
-
-        // Fallback to old method if no guest names available
-        return dataManager.calculatePrice(
+      // If we have guest names with price types, use per-guest calculation
+      if (guestNames.length > 0) {
+        return PriceCalculator.calculatePerGuestPrice({
+          rooms: [roomId],
+          guestNames,
+          nights: 1, // Per night calculation
+          settings,
           fallbackGuestType,
-          guests.adults,
-          guests.children,
-          guests.toddlers,
-          1,
-          [roomId]
-        );
-      })
-    );
+        });
+      }
+
+      // Fallback to old method if no guest names available
+      return dataManager.calculatePrice(
+        fallbackGuestType,
+        guests.adults,
+        guests.children,
+        guests.toddlers,
+        1,
+        [roomId]
+      );
+    });
     pricePerNight = roomPrices.reduce((sum, price) => sum + price, 0);
 
     totalPrice = pricePerNight * nights;
@@ -637,6 +636,17 @@ class UtilsModule {
       const confirmBtn = document.getElementById('confirmSingleRoomBtn');
       if (confirmBtn) {
         confirmBtn.disabled = nights === 0;
+      }
+
+      // KRITICKÉ: Po změně data přepočítat cenu pomocí updatePriceForCurrentRoom()
+      // Toto zajistí konzistentní přepočet ceny podle aktuálních typů hostů
+      // (např. při změně data zachová informaci o ÚTIA/External hostech)
+      if (this.app.singleRoomBooking && this.app.singleRoomBooking.updatePriceForCurrentRoom) {
+        try {
+          await this.app.singleRoomBooking.updatePriceForCurrentRoom();
+        } catch (error) {
+          console.error('Failed to update price after date change:', error);
+        }
       }
     }
   }
