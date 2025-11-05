@@ -402,214 +402,278 @@ class UtilsModule {
       return;
     }
 
-    // Hide price breakdown if no dates selected
-    if (this.app.selectedDates.size === 0) {
+    try {
+      // Hide price breakdown if no dates selected
+      if (this.app.selectedDates.size === 0) {
+        if (priceBreakdownEl) {
+          priceBreakdownEl.style.display = 'none';
+        }
+        priceEl.textContent = '0 Kč';
+        return;
+      }
+
+      // Show price breakdown when dates are selected
       if (priceBreakdownEl) {
-        priceBreakdownEl.style.display = 'none';
+        priceBreakdownEl.style.display = 'block';
       }
-      priceEl.textContent = '0 Kč';
-      return;
-    }
 
-    // Show price breakdown when dates are selected
-    if (priceBreakdownEl) {
-      priceBreakdownEl.style.display = 'block';
-    }
-
-    // Get current settings and prices
-    const settings = await dataManager.getSettings();
-    const prices = settings.prices || PriceCalculator.getDefaultPrices();
-
-    // Determine the current guest type for base price display
-    let currentGuestType = 'utia';
-    let currentRoomId = null;
-    if (this.app.currentBookingRoom) {
-      currentGuestType = this.app.roomGuestTypes.get(this.app.currentBookingRoom) || 'utia';
-      currentRoomId = this.app.currentBookingRoom;
-    } else if (this.app.selectedRooms.size > 0) {
-      const firstRoom = Array.from(this.app.selectedRooms)[0];
-      currentGuestType = this.app.roomGuestTypes.get(firstRoom) || 'utia';
-      currentRoomId = firstRoom;
-    }
-
-    // Get base price based on current guest type AND room size (NEW 2025-10-17)
-    const guestKey = currentGuestType === 'utia' ? 'utia' : 'external';
-    const priceConfig = prices[guestKey];
-
-    // Check if room-size-based pricing is enabled
-    const hasRoomSizes = priceConfig?.small && priceConfig?.large;
-    let baseRoomPrice = 298; // Fallback
-
-    if (hasRoomSizes && currentRoomId) {
-      // NEW: Get room type (small/large) from settings
-      const rooms = await dataManager.getRooms();
-      const room = rooms.find((r) => r.id === currentRoomId);
-      const roomType = room?.type || 'small';
-      const roomPriceConfig = priceConfig[roomType] || priceConfig.small;
-      // Calculate base room price: price with 1 person minus adult surcharge
-      baseRoomPrice = roomPriceConfig.base - roomPriceConfig.adult;
-    } else if (priceConfig?.base && priceConfig?.adult) {
-      // LEGACY: Flat pricing model - also subtract adult surcharge
-      baseRoomPrice = priceConfig.base - priceConfig.adult;
-    }
-
-    // Always update base price display
-    if (basePriceEl) {
-      basePriceEl.textContent = `${baseRoomPrice.toLocaleString('cs-CZ')} Kč`;
-    }
-
-    // Calculate nights as selected days - 1
-    const nights = Math.max(0, this.app.selectedDates.size - 1);
-
-    if (nights === 0) {
-      priceEl.textContent = '0 Kč';
-      if (nightsEl) {
-        nightsEl.textContent = '0';
-      }
-      if (perNightEl) {
-        perNightEl.textContent = '0 Kč';
-      }
-      return;
-    }
-
-    // Calculate total price
-    let totalPrice = 0;
-    let pricePerNight = 0;
-
-    // Determine which rooms to calculate price for
-    let roomsToCalculate;
-    if (this.app.selectedRooms.size > 0) {
-      roomsToCalculate = this.app.selectedRooms;
-    } else if (this.app.currentBookingRoom) {
-      roomsToCalculate = new Set([this.app.currentBookingRoom]);
-    } else {
-      roomsToCalculate = new Set();
-    }
-
-    const rooms = await dataManager.getRooms();
-    const roomPrices = await Promise.all(
-      Array.from(roomsToCalculate).map((roomId) => {
-        const guests = this.app.roomGuests.get(roomId) || { adults: 1, children: 0, toddlers: 0 };
-        const guestType = this.app.roomGuestTypes.get(roomId) || 'utia';
-
-        const room = rooms.find((r) => r.id === roomId);
-        if (!room) {
-          return 0;
+      // Helper: Collect guest names with price types from current selection
+      const collectGuestNamesFromDOM = () => {
+        // Try to get from single room modal if open
+        if (window.app && window.app.singleRoomBooking) {
+          // Don't show validation errors during price updates (only during final submission)
+          const collected = window.app.singleRoomBooking.collectGuestNames(false);
+          if (collected && collected.length > 0) {
+            return collected;
+          }
         }
 
+        // Fallback: Return empty array (will use fallback guest type)
+        return [];
+      };
+
+      // Get current settings and prices
+      const settings = await dataManager.getSettings();
+      const prices = settings.prices || PriceCalculator.getDefaultPrices();
+
+      // Determine the current guest type for base price display
+      let currentGuestType = 'utia';
+      let currentRoomId = null;
+      if (this.app.currentBookingRoom) {
+        currentGuestType = this.app.roomGuestTypes.get(this.app.currentBookingRoom) || 'utia';
+        currentRoomId = this.app.currentBookingRoom;
+      } else if (this.app.selectedRooms.size > 0) {
+        const firstRoom = Array.from(this.app.selectedRooms)[0];
+        currentGuestType = this.app.roomGuestTypes.get(firstRoom) || 'utia';
+        currentRoomId = firstRoom;
+      }
+
+      // Get base price based on current guest type AND room size (NEW 2025-10-17)
+      const guestKey = currentGuestType === 'utia' ? 'utia' : 'external';
+      const priceConfig = prices[guestKey];
+
+      // Get rooms list (needed for room-size-based pricing)
+      const rooms = await dataManager.getRooms();
+
+      // Check if room-size-based pricing is enabled
+      const hasRoomSizes = priceConfig?.small && priceConfig?.large;
+      let baseRoomPrice = 298; // Fallback
+
+      if (hasRoomSizes && currentRoomId) {
+        // NEW: Get room type (small/large) from settings
+        const room = rooms.find((r) => r.id === currentRoomId);
+        const roomType = room?.type || 'small';
+        const roomPriceConfig = priceConfig[roomType] || priceConfig.small;
+        // Calculate base room price: price with 1 person minus adult surcharge
+        baseRoomPrice = roomPriceConfig.base - roomPriceConfig.adult;
+      } else if (priceConfig?.base && priceConfig?.adult) {
+        // LEGACY: Flat pricing model - also subtract adult surcharge
+        baseRoomPrice = priceConfig.base - priceConfig.adult;
+      }
+
+      // Always update base price display
+      if (basePriceEl) {
+        basePriceEl.textContent = `${baseRoomPrice.toLocaleString('cs-CZ')} Kč`;
+      }
+
+      // Calculate nights as selected days - 1
+      const nights = Math.max(0, this.app.selectedDates.size - 1);
+
+      if (nights === 0) {
+        priceEl.textContent = '0 Kč';
+        if (nightsEl) {
+          nightsEl.textContent = '0';
+        }
+        if (perNightEl) {
+          perNightEl.textContent = '0 Kč';
+        }
+        return;
+      }
+
+      // Calculate total price
+      let totalPrice = 0;
+      let pricePerNight = 0;
+
+      // Determine which rooms to calculate price for
+      let roomsToCalculate;
+      if (this.app.selectedRooms.size > 0) {
+        roomsToCalculate = this.app.selectedRooms;
+      } else if (this.app.currentBookingRoom) {
+        roomsToCalculate = new Set([this.app.currentBookingRoom]);
+      } else {
+        roomsToCalculate = new Set();
+      }
+
+      // Calculate price per room using PER-GUEST pricing
+      const roomPrices = Array.from(roomsToCalculate).map((roomId) => {
+        const guests = this.app.roomGuests.get(roomId) || { adults: 1, children: 0, toddlers: 0 };
+        const fallbackGuestType = this.app.roomGuestTypes.get(roomId) || 'utia';
+
+        // Get individual guest names with price types
+        const guestNames = collectGuestNamesFromDOM();
+
+        // If we have guest names with price types, use per-guest calculation
+        if (guestNames.length > 0) {
+          return PriceCalculator.calculatePerGuestPrice({
+            rooms: [roomId],
+            guestNames,
+            nights: 1, // Per night calculation
+            settings,
+            fallbackGuestType,
+          });
+        }
+
+        // Fallback to old method if no guest names available
         return dataManager.calculatePrice(
-          guestType,
+          fallbackGuestType,
           guests.adults,
           guests.children,
           guests.toddlers,
-          1, // nights per room calculation
-          [roomId] // Pass room ID array for room-size-based pricing
+          1,
+          [roomId]
         );
-      })
-    );
-    pricePerNight = roomPrices.reduce((sum, price) => sum + price, 0);
+      });
+      pricePerNight = roomPrices.reduce((sum, price) => sum + price, 0);
 
-    totalPrice = pricePerNight * nights;
+      totalPrice = pricePerNight * nights;
 
-    // Update all price displays
-    priceEl.textContent = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
-    if (nightsEl) {
-      nightsEl.textContent = nights;
-    }
-    if (perNightEl) {
-      perNightEl.textContent = `${pricePerNight.toLocaleString('cs-CZ')} Kč`;
-    }
-
-    // Also update single room modal price displays
-    const modal = document.getElementById('singleRoomBookingModal');
-    if (modal && modal.classList.contains('active')) {
-      // Find the "Celkem:" element in the modal and update its sibling
-      const modalTotalEl = modal.querySelector('#totalPrice');
-
-      if (modalTotalEl) {
-        modalTotalEl.textContent = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
+      // Update all price displays
+      priceEl.textContent = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
+      if (nightsEl) {
+        nightsEl.textContent = nights;
+      }
+      if (perNightEl) {
+        perNightEl.textContent = `${pricePerNight.toLocaleString('cs-CZ')} Kč`;
       }
 
-      // Update guest counts and surcharges display
-      if (this.app.currentBookingRoom) {
-        const guests = this.app.roomGuests.get(this.app.currentBookingRoom) || {
-          adults: 1,
-          children: 0,
-          toddlers: 0,
-        };
-        const guestType = this.app.roomGuestTypes.get(this.app.currentBookingRoom) || 'utia';
-        const roomGuestKey = guestType === 'utia' ? 'utia' : 'external';
-        let roomPriceConfig = prices[roomGuestKey];
+      // Also update single room modal price displays
+      const modal = document.getElementById('singleRoomBookingModal');
+      if (modal && modal.classList.contains('active')) {
+        // Find the "Celkem:" element in the modal and update its sibling
+        const modalTotalEl = modal.querySelector('#totalPrice');
 
-        // NEW 2025-10-17: Get room-size-specific price config
-        if (hasRoomSizes && currentRoomId) {
-          const roomToFind = rooms.find((r) => r.id === currentRoomId);
-          const roomTypeForSurcharge = roomToFind?.type || 'small';
-          roomPriceConfig = roomPriceConfig[roomTypeForSurcharge] || roomPriceConfig.small;
+        if (modalTotalEl) {
+          modalTotalEl.textContent = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
         }
 
-        // Update guest counts summary
-        const guestCountsSummary = document.getElementById('guestCountsSummary');
-        if (guestCountsSummary) {
-          const parts = [];
-          if (guests.adults > 0) {
-            parts.push(`${guests.adults} ${langManager.t('adultsShort')}`);
+        // Update guest counts and surcharges display
+        if (this.app.currentBookingRoom) {
+          const guests = this.app.roomGuests.get(this.app.currentBookingRoom) || {
+            adults: 1,
+            children: 0,
+            toddlers: 0,
+          };
+          const guestType = this.app.roomGuestTypes.get(this.app.currentBookingRoom) || 'utia';
+          const roomGuestKey = guestType === 'utia' ? 'utia' : 'external';
+          let roomPriceConfig = prices[roomGuestKey];
+
+          // NEW 2025-10-17: Get room-size-specific price config
+          if (hasRoomSizes && currentRoomId) {
+            const roomToFind = rooms.find((r) => r.id === currentRoomId);
+            const roomTypeForSurcharge = roomToFind?.type || 'small';
+            roomPriceConfig = roomPriceConfig[roomTypeForSurcharge] || roomPriceConfig.small;
           }
-          if (guests.children > 0) {
-            parts.push(`${guests.children} ${langManager.t('childrenShort')}`);
+
+          // Update guest counts summary
+          const guestCountsSummary = document.getElementById('guestCountsSummary');
+          if (guestCountsSummary) {
+            const parts = [];
+            if (guests.adults > 0) {
+              parts.push(`${guests.adults} ${langManager.t('adultsShort')}`);
+            }
+            if (guests.children > 0) {
+              parts.push(`${guests.children} ${langManager.t('childrenShort')}`);
+            }
+            if (guests.toddlers > 0) {
+              parts.push(`${guests.toddlers} ${langManager.t('toddlersShort')}`);
+            }
+            guestCountsSummary.textContent = parts.join(', ') || '0';
           }
-          if (guests.toddlers > 0) {
-            parts.push(`${guests.toddlers} ${langManager.t('toddlersShort')}`);
+
+          // Calculate and show adult surcharge
+          const adultsPrice = document.getElementById('adultsPrice');
+          const adultsSurcharge = document.getElementById('adultsSurcharge');
+          if (adultsPrice && adultsSurcharge && roomPriceConfig) {
+            // Count surcharge for ALL adults
+            const totalAdults = Math.max(0, guests.adults);
+            if (totalAdults > 0) {
+              const surcharge = totalAdults * roomPriceConfig.adult;
+              adultsSurcharge.textContent = `${surcharge.toLocaleString('cs-CZ')} Kč (${totalAdults} × ${roomPriceConfig.adult} Kč)`;
+              adultsPrice.style.display = 'flex';
+            } else {
+              adultsPrice.style.display = 'none';
+            }
           }
-          guestCountsSummary.textContent = parts.join(', ') || '0';
+
+          // Calculate and show children surcharge
+          const childrenPrice = document.getElementById('childrenPrice');
+          const childrenSurcharge = document.getElementById('childrenSurcharge');
+          if (childrenPrice && childrenSurcharge && roomPriceConfig) {
+            if (guests.children > 0) {
+              const surcharge = guests.children * roomPriceConfig.child;
+              childrenSurcharge.textContent = `${surcharge.toLocaleString('cs-CZ')} Kč (${guests.children} × ${roomPriceConfig.child} Kč)`;
+              childrenPrice.style.display = 'flex';
+            } else {
+              childrenPrice.style.display = 'none';
+            }
+          }
+
+          // Update toddlers info
+          const toddlersSummary = document.getElementById('toddlersSummary');
+          const toddlersInfo = document.getElementById('toddlersInfo');
+          if (toddlersSummary && toddlersInfo) {
+            if (guests.toddlers > 0) {
+              // Use translation for "free" label
+              const freeLabel = langManager.t('toddlersFreeLabel');
+              toddlersSummary.textContent = `${guests.toddlers} ${freeLabel}`;
+              toddlersInfo.style.display = 'flex';
+            } else {
+              toddlersInfo.style.display = 'none';
+            }
+          }
         }
 
-        // Calculate and show adult surcharge
-        const adultsPrice = document.getElementById('adultsPrice');
-        const adultsSurcharge = document.getElementById('adultsSurcharge');
-        if (adultsPrice && adultsSurcharge && roomPriceConfig) {
-          const extraAdults = Math.max(0, guests.adults - 1);
-          if (extraAdults > 0) {
-            const surcharge = extraAdults * roomPriceConfig.adult;
-            adultsSurcharge.textContent = `${surcharge.toLocaleString('cs-CZ')} Kč (${extraAdults} × ${roomPriceConfig.adult} Kč)`;
-            adultsPrice.style.display = 'flex';
-          } else {
-            adultsPrice.style.display = 'none';
-          }
+        // Also enable/disable the confirm button based on selection
+        const confirmBtn = document.getElementById('confirmSingleRoomBtn');
+        if (confirmBtn) {
+          confirmBtn.disabled = nights === 0;
         }
 
-        // Calculate and show children surcharge
-        const childrenPrice = document.getElementById('childrenPrice');
-        const childrenSurcharge = document.getElementById('childrenSurcharge');
-        if (childrenPrice && childrenSurcharge && roomPriceConfig) {
-          if (guests.children > 0) {
-            const surcharge = guests.children * roomPriceConfig.child;
-            childrenSurcharge.textContent = `${surcharge.toLocaleString('cs-CZ')} Kč (${guests.children} × ${roomPriceConfig.child} Kč)`;
-            childrenPrice.style.display = 'flex';
-          } else {
-            childrenPrice.style.display = 'none';
-          }
-        }
-
-        // Update toddlers info
-        const toddlersSummary = document.getElementById('toddlersSummary');
-        const toddlersInfo = document.getElementById('toddlersInfo');
-        if (toddlersSummary && toddlersInfo) {
-          if (guests.toddlers > 0) {
-            // Use translation for "free" label
-            const freeLabel = langManager.t('toddlersFreeLabel');
-            toddlersSummary.textContent = `${guests.toddlers} ${freeLabel}`;
-            toddlersInfo.style.display = 'flex';
-          } else {
-            toddlersInfo.style.display = 'none';
+        // KRITICKÉ: Po změně data přepočítat cenu pomocí updatePriceForCurrentRoom()
+        // Tato funkce čte aktuální stav UI (toggle přepínače ÚTIA/External)
+        // a přepočítá cenu podle aktuálně vybraných typů hostů.
+        // Přepínače zůstávají ve svém stavu díky DOM persistenci.
+        if (this.app.singleRoomBooking && this.app.singleRoomBooking.updatePriceForCurrentRoom) {
+          try {
+            await this.app.singleRoomBooking.updatePriceForCurrentRoom();
+          } catch (error) {
+            console.error('Failed to update price after date change:', error);
+            // User notification is handled in the outer catch block
           }
         }
       }
+    } catch (error) {
+      // CRITICAL: Handle all price calculation errors
+      console.error('Price calculation failed:', error);
 
-      // Also enable/disable the confirm button based on selection
-      const confirmBtn = document.getElementById('confirmSingleRoomBtn');
-      if (confirmBtn) {
-        confirmBtn.disabled = nights === 0;
+      // Show user-friendly error in price display
+      if (priceEl) {
+        priceEl.textContent = 'Chyba při výpočtu ceny';
+        priceEl.style.color = 'red';
+      }
+
+      // Show notification to user with action
+      if (this.showNotification) {
+        this.showNotification(
+          'Nepodařilo se spočítat cenu. Zkuste obnovit stránku nebo kontaktovat podporu.',
+          'error',
+          5000
+        );
+      }
+
+      // Hide price breakdown on error
+      if (priceBreakdownEl) {
+        priceBreakdownEl.style.display = 'none';
       }
     }
   }

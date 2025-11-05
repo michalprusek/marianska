@@ -611,97 +611,6 @@
               ></textarea>
             </div>
 
-            <!-- Guest Names Section (dynamically generated) -->
-            <div
-              id="guestNamesSection"
-              style="display: none; margin-top: 2rem"
-            >
-              <h3
-                style="margin-bottom: 1rem; color: var(--primary-color)"
-                data-translate="guestNamesTitle"
-              >
-                Jména hostů *
-              </h3>
-
-              <!-- Adults Section -->
-              <div
-                id="adultsNamesContainer"
-                style="margin-bottom: 1.5rem"
-              >
-                <h4
-                  style="
-                    margin-bottom: 0.75rem;
-                    font-size: 1rem;
-                    color: var(--gray-700);
-                    border-bottom: 2px solid var(--gray-200);
-                    padding-bottom: 0.5rem;
-                  "
-                  data-translate="adultsSectionTitle"
-                >
-                  Dospělí
-                </h4>
-                <div
-                  id="adultsNamesList"
-                  class="guest-names-grid"
-                  style="display: grid; gap: 1rem"
-                >
-                  <!-- Adult name inputs will be dynamically generated here -->
-                </div>
-              </div>
-
-              <!-- Children Section -->
-              <div
-                id="childrenNamesContainer"
-                style="display: none; margin-bottom: 1.5rem"
-              >
-                <h4
-                  style="
-                    margin-bottom: 0.75rem;
-                    font-size: 1rem;
-                    color: var(--gray-700);
-                    border-bottom: 2px solid var(--gray-200);
-                    padding-bottom: 0.5rem;
-                  "
-                  data-translate="childrenSectionTitle"
-                >
-                  Děti (3-17 let)
-                </h4>
-                <div
-                  id="childrenNamesList"
-                  class="guest-names-grid"
-                  style="display: grid; gap: 1rem"
-                >
-                  <!-- Children name inputs will be dynamically generated here -->
-                </div>
-              </div>
-
-              <!-- Toddlers Section -->
-              <div
-                id="toddlersNamesContainer"
-                style="display: none; margin-bottom: 1.5rem"
-              >
-                <h4
-                  style="
-                    margin-bottom: 0.75rem;
-                    font-size: 1rem;
-                    color: var(--gray-700);
-                    border-bottom: 2px solid var(--gray-200);
-                    padding-bottom: 0.5rem;
-                  "
-                  data-translate="toddlersSectionTitle"
-                >
-                  Batolata (0-2 roky)
-                </h4>
-                <div
-                  id="toddlersNamesList"
-                  class="guest-names-grid"
-                  style="display: grid; gap: 1rem"
-                >
-                  <!-- Toddler name inputs will be dynamically generated here -->
-                </div>
-              </div>
-            </div>
-
             <!-- Christmas Access Code (conditionally shown) -->
             <div
               class="input-group"
@@ -1053,97 +962,6 @@
               ></textarea>
             </div>
 
-            <!-- Guest Names Section for bookingFormModal (dynamically generated) -->
-            <div
-              id="bookingFormGuestNamesSection"
-              class="guest-names-section"
-              style="display: none; margin-top: 2rem"
-            >
-              <h3
-                style="margin-bottom: 1rem; color: var(--primary-color)"
-                data-translate="guestNamesTitle"
-              >
-                Jména hostů *
-              </h3>
-
-              <!-- Adults Section -->
-              <div
-                id="bookingFormAdultsNamesContainer"
-                style="margin-bottom: 1.5rem"
-              >
-                <h4
-                  style="
-                    margin-bottom: 0.75rem;
-                    font-size: 1rem;
-                    color: var(--gray-700);
-                    border-bottom: 2px solid var(--gray-200);
-                    padding-bottom: 0.5rem;
-                  "
-                  data-translate="adultsSectionTitle"
-                >
-                  Dospělí
-                </h4>
-                <div
-                  id="bookingFormAdultsNamesList"
-                  class="guest-names-grid"
-                  style="display: grid; gap: 1rem"
-                >
-                  <!-- Adult name inputs will be dynamically generated here -->
-                </div>
-              </div>
-
-              <!-- Children Section -->
-              <div
-                id="bookingFormChildrenNamesContainer"
-                style="display: none; margin-bottom: 1.5rem"
-              >
-                <h4
-                  style="
-                    margin-bottom: 0.75rem;
-                    font-size: 1rem;
-                    color: var(--gray-700);
-                    border-bottom: 2px solid var(--gray-200);
-                    padding-bottom: 0.5rem;
-                  "
-                  data-translate="childrenSectionTitle"
-                >
-                  Děti (3-17 let)
-                </h4>
-                <div
-                  id="bookingFormChildrenNamesList"
-                  class="guest-names-grid"
-                  style="display: grid; gap: 1rem"
-                >
-                  <!-- Children name inputs will be dynamically generated here -->
-                </div>
-              </div>
-
-              <!-- Toddlers Section -->
-              <div
-                id="bookingFormToddlersNamesContainer"
-                style="display: none; margin-bottom: 1.5rem"
-              >
-                <h4
-                  style="
-                    margin-bottom: 0.75rem;
-                    font-size: 1rem;
-                    color: var(--gray-700);
-                    border-bottom: 2px solid var(--gray-200);
-                    padding-bottom: 0.5rem;
-                  "
-                  data-translate="toddlersSectionTitle"
-                >
-                  Batolata (0-2 roky)
-                </h4>
-                <div
-                  id="bookingFormToddlersNamesList"
-                  class="guest-names-grid"
-                  style="display: grid; gap: 1rem"
-                >
-                  <!-- Toddler name inputs will be dynamically generated here -->
-                </div>
-              </div>
-            </div>
 
             <!-- Christmas Access Code (conditionally shown) -->
             <div
@@ -1290,56 +1108,6 @@
                 </div>
 
                 <h3 data-translate="guestTypeAndCount">Typ hosta a počet osob</h3>
-
-                <!-- Guest Type -->
-                <div
-                  style="
-                    display: grid;
-                    grid-template-columns: 1fr 1fr;
-                    gap: 0.5rem;
-                    margin-bottom: 1rem;
-                  "
-                >
-                  <label
-                    style="
-                      display: flex;
-                      align-items: center;
-                      padding: 0.75rem;
-                      background: white;
-                      border: 2px solid #e2e8f0;
-                      border-radius: 8px;
-                      cursor: pointer;
-                    "
-                  >
-                    <input
-                      type="radio"
-                      name="singleRoomGuestType"
-                      value="utia"
-                      checked
-                      style="margin-right: 0.5rem"
-                    />
-                    <span data-translate="employeeLabel">Zaměstnanec ÚTIA</span>
-                  </label>
-                  <label
-                    style="
-                      display: flex;
-                      align-items: center;
-                      padding: 0.75rem;
-                      background: white;
-                      border: 2px solid #e2e8f0;
-                      border-radius: 8px;
-                      cursor: pointer;
-                    "
-                  >
-                    <input
-                      type="radio"
-                      name="singleRoomGuestType"
-                      value="external"
-                      style="margin-right: 0.5rem"
-                    />
-                    <span data-translate="externalLabel">Externí host</span>
-                  </label>
-                </div>
 
                 <!-- Guest Count -->
                 <div
@@ -1518,6 +1286,79 @@
                     data-translate="capacityExceededRoom"
                     >⚠️ Překročena kapacita pokoje</span
                   >
+                </div>
+
+                <!-- Per-Room Guest Type Selection (HIDDEN - 2025-11-04: Now per-guest instead) -->
+                <div id="singleRoomPerRoomGuestTypeContainer" style="display: none;">
+                  <label>Typ hostů pro tento pokoj:</label>
+                  <select id="singleRoomPerRoomGuestType" onchange="window.app.setRoomGuestType(this.value)">
+                    <option value="utia">Zaměstnanec ÚTIA</option>
+                    <option value="external">Externí host</option>
+                  </select>
+                </div>
+
+                <!-- Guest Names Section (OPTIONAL - not required for adding to temp reservations) -->
+                <div
+                  id="singleRoomGuestNamesSection"
+                  style="
+                    display: none;
+                    margin-top: 1rem;
+                    padding: 1rem;
+                    background: #f0fdf4;
+                    border: 2px solid #10b981;
+                    border-radius: 8px;
+                  "
+                >
+                  <h4
+                    style="margin-bottom: 0.75rem; color: #065f46; font-size: 1rem"
+                    data-translate="guestNamesTitle"
+                  >
+                    👥 Jména ubytovaných osob
+                  </h4>
+                  <!-- Adults Names -->
+                  <div id="singleRoomAdultsNamesContainer">
+                    <h5
+                      style="font-size: 0.9rem; margin-bottom: 0.5rem; color: #374151"
+                    >
+                      Dospělí (18+ let)
+                    </h5>
+                    <div
+                      id="singleRoomAdultsNamesList"
+                      style="display: grid; gap: 0.5rem"
+                    ></div>
+                  </div>
+
+                  <!-- Children Names -->
+                  <div
+                    id="singleRoomChildrenNamesContainer"
+                    style="display: none; margin-top: 0.75rem"
+                  >
+                    <h5
+                      style="font-size: 0.9rem; margin-bottom: 0.5rem; color: #374151"
+                    >
+                      Děti (3-17 let)
+                    </h5>
+                    <div
+                      id="singleRoomChildrenNamesList"
+                      style="display: grid; gap: 0.5rem"
+                    ></div>
+                  </div>
+
+                  <!-- Toddlers Names -->
+                  <div
+                    id="singleRoomToddlersNamesContainer"
+                    style="display: none; margin-top: 0.75rem"
+                  >
+                    <h5
+                      style="font-size: 0.9rem; margin-bottom: 0.5rem; color: #374151"
+                    >
+                      Batolata (0-2 roky)
+                    </h5>
+                    <div
+                      id="singleRoomToddlersNamesList"
+                      style="display: grid; gap: 0.5rem"
+                    ></div>
+                  </div>
                 </div>
 
                 <!-- Price Summary -->
@@ -1898,56 +1739,6 @@
 
                 <h3 data-translate="guestTypeAndCount">Typ hosta a počet osob</h3>
 
-                <!-- Guest Type -->
-                <div
-                  style="
-                    display: grid;
-                    grid-template-columns: 1fr 1fr;
-                    gap: 0.5rem;
-                    margin-bottom: 1rem;
-                  "
-                >
-                  <label
-                    style="
-                      display: flex;
-                      align-items: center;
-                      padding: 0.75rem;
-                      background: white;
-                      border: 2px solid #e2e8f0;
-                      border-radius: 8px;
-                      cursor: pointer;
-                    "
-                  >
-                    <input
-                      type="radio"
-                      name="bulkGuestType"
-                      value="utia"
-                      checked
-                      style="margin-right: 0.5rem"
-                    />
-                    <span data-translate="employeeLabel">Zaměstnanec ÚTIA</span>
-                  </label>
-                  <label
-                    style="
-                      display: flex;
-                      align-items: center;
-                      padding: 0.75rem;
-                      background: white;
-                      border: 2px solid #e2e8f0;
-                      border-radius: 8px;
-                      cursor: pointer;
-                    "
-                  >
-                    <input
-                      type="radio"
-                      name="bulkGuestType"
-                      value="external"
-                      style="margin-right: 0.5rem"
-                    />
-                    <span data-translate="externalLabel">Externí host</span>
-                  </label>
-                </div>
-
                 <!-- Guest Count -->
                 <div
                   class="guest-counters"
@@ -2074,6 +1865,29 @@
                     data-translate="bulkCapacityExceededCottage"
                     >⚠️ Překročena kapacita chaty (maximum 26 lůžek)</span
                   >
+                </div>
+
+                <!-- Guest Names Section (REQUIRED before adding to temp reservations) -->
+                <div
+                  id="bulkGuestNamesSection"
+                  style="
+                    display: none;
+                    margin-top: 1rem;
+                    padding: 1rem;
+                    background: #f0fdf4;
+                    border: 2px solid #10b981;
+                    border-radius: 8px;
+                  "
+                >
+                  <h4
+                    style="margin-bottom: 0.75rem; color: #065f46; font-size: 1rem"
+                    data-translate="guestNamesSectionTitle"
+                  >
+                    👥 Jména ubytovaných osob
+                  </h4>
+                  <div id="bulkAdultsNamesContainer"></div>
+                  <div id="bulkChildrenNamesContainer"></div>
+                  <div id="bulkToddlersNamesContainer"></div>
                 </div>
 
                 <!-- Price Calculation Section -->

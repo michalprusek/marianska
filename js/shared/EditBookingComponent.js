@@ -905,8 +905,9 @@ class EditBookingComponent {
     const roomData = this.editSelectedRooms.get(roomId);
     if (roomData) {
       roomData.guestType = guestType;
-      // Only update price, don't re-render list
+      // Update price and re-render list to update guest list display
       this.updateTotalPrice();
+      this.renderPerRoomList();
     }
   }
 
@@ -1113,9 +1114,12 @@ class EditBookingComponent {
           const firstDates = Array.from(this.perRoomDates.values())[0];
           const nights = firstDates ? DateUtils.getDaysBetween(firstDates.startDate, firstDates.endDate) : 0;
 
-          // Get the guest type (assume same for all in regular pricing)
-          const firstRoom = Array.from(this.editSelectedRooms.values())[0];
-          const guestType = firstRoom?.guestType || 'utia';
+          // Determine guest type: ÚTIA if at least one room has ÚTIA guest, otherwise external
+          // This determines the empty room price (according to pricing rules)
+          const hasUtiaGuest = Array.from(this.editSelectedRooms.values()).some(
+            room => room.guestType === 'utia'
+          );
+          const guestType = hasUtiaGuest ? 'utia' : 'external';
 
           const perRoomPrices = PriceCalculator.calculatePerRoomPrices({
             guestType,
@@ -1583,6 +1587,7 @@ class EditBookingComponent {
                   style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
               </div>
             </div>
+            ${this.renderGuestListForRoom(room.id, roomData)}
           </div>
         `
             : ''
@@ -1591,6 +1596,133 @@ class EditBookingComponent {
 
       roomsList.appendChild(roomCard);
     }
+  }
+
+  /**
+   * Render guest list for a single room with color-coded badges
+   * @param {string} roomId - Room identifier
+   * @param {Object} roomData - Room data with guest info
+   * @returns {string} HTML string for guest list
+   */
+  renderGuestListForRoom(roomId, roomData) {
+    const adults = roomData.adults || 0;
+    const children = roomData.children || 0;
+    const toddlers = roomData.toddlers || 0;
+    const totalGuests = adults + children + toddlers;
+
+    if (totalGuests === 0) {
+      return '';
+    }
+
+    const guestTypeLabel = roomData.guestType === 'utia' ? 'Zaměstnanec ÚTIA' : 'Externí host';
+    const guestTypeBadgeColor = roomData.guestType === 'utia' ? '#10b981' : '#f59e0b';
+    const guestTypeBgColor = roomData.guestType === 'utia' ? '#d1fae5' : '#fef3c7';
+
+    let guestList = '';
+
+    // Add adults with badges
+    for (let i = 1; i <= adults; i++) {
+      guestList += `
+        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: white; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 0.875rem;">
+          <span style="padding: 0.25rem 0.5rem; background: ${guestTypeBgColor}; color: ${guestTypeBadgeColor}; border-radius: 4px; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">${guestTypeLabel}</span>
+          <span style="color: #6b7280;">👤 Dospělý ${i}</span>
+        </div>
+      `;
+    }
+
+    // Add children with badges
+    for (let i = 1; i <= children; i++) {
+      guestList += `
+        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: white; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 0.875rem;">
+          <span style="padding: 0.25rem 0.5rem; background: ${guestTypeBgColor}; color: ${guestTypeBadgeColor}; border-radius: 4px; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">${guestTypeLabel}</span>
+          <span style="color: #6b7280;">👶 Dítě ${i}</span>
+        </div>
+      `;
+    }
+
+    // Add toddlers (always free, no guest type badge needed)
+    for (let i = 1; i <= toddlers; i++) {
+      guestList += `
+        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: white; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 0.875rem;">
+          <span style="padding: 0.25rem 0.5rem; background: #e0f2fe; color: #0284c7; border-radius: 4px; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">Zdarma</span>
+          <span style="color: #6b7280;">🍼 Batole ${i}</span>
+        </div>
+      `;
+    }
+
+    return `
+      <div style="margin-top: 1rem;">
+        <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem; font-size: 0.875rem;">
+          👥 SEZNAM HOSTŮ (${totalGuests})
+        </label>
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+          ${guestList}
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Render guest list for bulk bookings with color-coded badges
+   * @param {number} totalAdults - Total number of adults
+   * @param {number} totalChildren - Total number of children
+   * @param {number} totalToddlers - Total number of toddlers
+   * @param {string} currentGuestType - Guest type ('utia' or 'external')
+   * @returns {string} HTML string for guest list
+   */
+  renderBulkGuestList(totalAdults, totalChildren, totalToddlers, currentGuestType) {
+    const totalGuests = totalAdults + totalChildren + totalToddlers;
+
+    if (totalGuests === 0) {
+      return '';
+    }
+
+    const guestTypeLabel = currentGuestType === 'utia' ? 'Zaměstnanec ÚTIA' : 'Externí host';
+    const guestTypeBadgeColor = currentGuestType === 'utia' ? '#10b981' : '#f59e0b';
+    const guestTypeBgColor = currentGuestType === 'utia' ? '#d1fae5' : '#fef3c7';
+
+    let guestList = '';
+
+    // Add adults with badges
+    for (let i = 1; i <= totalAdults; i++) {
+      guestList += `
+        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: white; border: 1px solid #d8b4fe; border-radius: 4px; font-size: 0.875rem;">
+          <span style="padding: 0.25rem 0.5rem; background: ${guestTypeBgColor}; color: ${guestTypeBadgeColor}; border-radius: 4px; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">${guestTypeLabel}</span>
+          <span style="color: #6b21a8;">👤 Dospělý ${i}</span>
+        </div>
+      `;
+    }
+
+    // Add children with badges
+    for (let i = 1; i <= totalChildren; i++) {
+      guestList += `
+        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: white; border: 1px solid #d8b4fe; border-radius: 4px; font-size: 0.875rem;">
+          <span style="padding: 0.25rem 0.5rem; background: ${guestTypeBgColor}; color: ${guestTypeBadgeColor}; border-radius: 4px; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">${guestTypeLabel}</span>
+          <span style="color: #6b21a8;">👶 Dítě ${i}</span>
+        </div>
+      `;
+    }
+
+    // Add toddlers (always free, no guest type badge needed)
+    for (let i = 1; i <= totalToddlers; i++) {
+      guestList += `
+        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: white; border: 1px solid #d8b4fe; border-radius: 4px; font-size: 0.875rem;">
+          <span style="padding: 0.25rem 0.5rem; background: #e0f2fe; color: #0284c7; border-radius: 4px; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">Zdarma</span>
+          <span style="color: #6b21a8;">🍼 Batole ${i}</span>
+        </div>
+      `;
+    }
+
+    return `
+      <div style="margin-top: 1.5rem;">
+        <label style="display: block; font-weight: 600; color: #6b21a8; margin-bottom: 0.75rem; font-size: 0.875rem;">
+          👥 SEZNAM HOSTŮ (${totalGuests})
+        </label>
+        <div style="max-height: 300px; overflow-y: auto; padding: 0.75rem; background: white; border: 1px solid #d8b4fe; border-radius: 8px; display: flex; flex-direction: column; gap: 0.5rem;">
+          ${guestList}
+        </div>
+      </div>
+    `;
   }
 
   /**
@@ -1796,6 +1928,8 @@ class EditBookingComponent {
         💡 <strong>Kapacita chaty:</strong> ${totalCapacity} lůžek<br>
         <span style="font-size: 0.8rem;">Batolata se nepočítají do kapacity lůžek.</span>
       </div>
+
+      ${this.renderBulkGuestList(totalAdults, totalChildren, totalToddlers, currentGuestType)}
     `;
 
     roomsList.appendChild(summaryCard);
@@ -1810,8 +1944,9 @@ class EditBookingComponent {
       roomData.guestType = newGuestType;
     }
 
-    // Update price
+    // Update price and re-render to update guest list display
     this.updateTotalPrice();
+    this.renderPerRoomList();
   }
 
   /**

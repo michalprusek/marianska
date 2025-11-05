@@ -502,6 +502,7 @@ class BookingApp {
       adults: 1,
       children: 0,
       toddlers: 0,
+      guestType: 'utia', // NEW 2025-11-04: Default guest type
     };
 
     // Calculate new value
@@ -548,6 +549,54 @@ class BookingApp {
       generalEl.value = guests[type].toString();
     }
 
+    await this.updatePriceCalculation();
+
+    // Regenerate guest name input fields with updated counts
+    this.singleRoomBooking.generateGuestNamesInputs(
+      guests.adults,
+      guests.children,
+      guests.toddlers
+    );
+
+    // KRITICKÉ: Po změně počtu hostů přepočítat cenu v single room modalu
+    // Toto zajistí, že když uživatel odebere ÚTIA hosta a zůstane jen external,
+    // cena se automaticky přepočítá na external pricing
+    if (this.singleRoomBooking && this.singleRoomBooking.updatePriceForCurrentRoom) {
+      try {
+        await this.singleRoomBooking.updatePriceForCurrentRoom();
+      } catch (error) {
+        console.error('Failed to update price after guest count change:', error);
+        // Notify user of price update failure
+        if (this.showNotification) {
+          this.showNotification(
+            'Nepodařilo se aktualizovat cenu. Zkuste obnovit stránku.',
+            'warning',
+            4000
+          );
+        }
+      }
+    }
+  }
+
+  // Set guest type for current room (NEW 2025-11-04: Per-room guest type)
+  async setRoomGuestType(guestType) {
+    if (!this.currentBookingRoom) {
+      return;
+    }
+
+    // Get current guests data
+    const guests = this.roomGuests.get(this.currentBookingRoom) || {
+      adults: 1,
+      children: 0,
+      toddlers: 0,
+      guestType: 'utia', // Default
+    };
+
+    // Update guest type
+    guests.guestType = guestType;
+    this.roomGuests.set(this.currentBookingRoom, guests);
+
+    // Update price calculation with new guest type
     await this.updatePriceCalculation();
   }
 
@@ -721,7 +770,8 @@ class BookingApp {
         const nextDay = new Date(currentEnd);
         nextDay.setDate(nextDay.getDate() + 1);
 
-        const isConsecutive = nextDay.toISOString().split('T')[0] === nextStart.toISOString().split('T')[0];
+        const isConsecutive =
+          nextDay.toISOString().split('T')[0] === nextStart.toISOString().split('T')[0];
 
         if (isConsecutive && current.guestType === next.guestType) {
           // Merge consecutive bookings
@@ -861,6 +911,15 @@ class BookingApp {
                   <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
                     👥 ${guestText.join(', ')}
                   </div>
+                  ${
+                    booking.guestNames && booking.guestNames.length > 0
+                      ? `
+                  <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
+                    👤 ${booking.guestNames[0].firstName} ${booking.guestNames[0].lastName}${booking.guestNames.length > 1 ? ` +${booking.guestNames.length - 1} ${this.currentLanguage === 'cs' ? 'další' : 'other'}` : ''}
+                  </div>
+                  `
+                      : ''
+                  }
                   <div style="font-size: 0.9rem; color: var(--gray-600);">
                     🏷️ Typ: <span style="font-weight: 600;">${guestTypeText}</span>
                   </div>
@@ -902,6 +961,15 @@ class BookingApp {
                   <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
                     👥 ${guestText.join(', ')}
                   </div>
+                  ${
+                    booking.guestNames && booking.guestNames.length > 0
+                      ? `
+                  <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
+                    👤 ${booking.guestNames[0].firstName} ${booking.guestNames[0].lastName}${booking.guestNames.length > 1 ? ` +${booking.guestNames.length - 1} ${this.currentLanguage === 'cs' ? 'další' : 'other'}` : ''}
+                  </div>
+                  `
+                      : ''
+                  }
                   <div style="font-size: 0.9rem; color: var(--gray-600);">
                     🏷️ Typ: <span style="font-weight: 600;">${guestTypeText}</span>
                   </div>
@@ -1158,21 +1226,8 @@ class BookingApp {
 
     this.bookingForm.checkAndShowChristmasCodeField(allDates, hasBulkBooking);
 
-    // Calculate total UNIQUE guests across all reservations
-    // Use consolidated bookings to avoid counting same guest multiple times
-    // when same room is booked on consecutive dates
-    let totalAdults = 0;
-    let totalChildren = 0;
-    let totalToddlers = 0;
-
-    displayReservations.forEach((reservation) => {
-      totalAdults += reservation.guests.adults || 0;
-      totalChildren += reservation.guests.children || 0;
-      totalToddlers += reservation.guests.toddlers || 0;
-    });
-
-    // Generate guest names input fields for bookingFormModal
-    this.bookingForm.generateGuestNamesInputs(totalAdults, totalChildren, totalToddlers, 'bookingForm');
+    // NOTE: Guest names are already collected in tempReservations during temp reservation creation
+    // No need to generate input fields here - collectGuestNames() will read from tempReservations
 
     // Show the modal
     modal.classList.add('active');
@@ -1283,7 +1338,7 @@ class BookingApp {
                         <div style="margin-bottom: 0.75rem; padding: 0.5rem; background: white; border-radius: 6px;">
                             <strong style="color: var(--gray-700);">${this.currentLanguage === 'cs' ? 'Malé pokoje' : 'Small rooms'} (12, 13, 22, 23, 42, 43):</strong>
                             <ul style="list-style: none; padding: 0; margin: 0; margin-top: 0.25rem;">
-                                <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceBasePrice')}: <strong>${prices.utia.small.base} Kč${t('perNight')}</strong></li>
+                                <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceBasePrice')}: <strong>${prices.utia.small.emptyRoomPrice || prices.utia.small.base} Kč${t('perNight')}</strong></li>
                                 <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceAdultSurcharge')}: <strong>${prices.utia.small.adult} Kč</strong></li>
                                 <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceChildSurcharge')}: <strong>${prices.utia.small.child} Kč</strong></li>
                             </ul>
@@ -1292,7 +1347,7 @@ class BookingApp {
                         <div style="padding: 0.5rem; background: white; border-radius: 6px;">
                             <strong style="color: var(--gray-700);">${this.currentLanguage === 'cs' ? 'Velké pokoje' : 'Large rooms'} (14, 24, 44):</strong>
                             <ul style="list-style: none; padding: 0; margin: 0; margin-top: 0.25rem;">
-                                <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceBasePrice')}: <strong>${prices.utia.large.base} Kč${t('perNight')}</strong></li>
+                                <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceBasePrice')}: <strong>${prices.utia.large.emptyRoomPrice || prices.utia.large.base} Kč${t('perNight')}</strong></li>
                                 <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceAdultSurcharge')}: <strong>${prices.utia.large.adult} Kč</strong></li>
                                 <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceChildSurcharge')}: <strong>${prices.utia.large.child} Kč</strong></li>
                             </ul>
@@ -1307,7 +1362,7 @@ class BookingApp {
                         <div style="margin-bottom: 0.75rem; padding: 0.5rem; background: white; border-radius: 6px;">
                             <strong style="color: var(--gray-700);">${this.currentLanguage === 'cs' ? 'Malé pokoje' : 'Small rooms'} (12, 13, 22, 23, 42, 43):</strong>
                             <ul style="list-style: none; padding: 0; margin: 0; margin-top: 0.25rem;">
-                                <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceBasePrice')}: <strong>${prices.external.small.base} Kč${t('perNight')}</strong></li>
+                                <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceBasePrice')}: <strong>${prices.external.small.emptyRoomPrice || prices.external.small.base} Kč${t('perNight')}</strong></li>
                                 <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceAdultSurcharge')}: <strong>${prices.external.small.adult} Kč</strong></li>
                                 <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceChildSurcharge')}: <strong>${prices.external.small.child} Kč</strong></li>
                             </ul>
@@ -1316,7 +1371,7 @@ class BookingApp {
                         <div style="padding: 0.5rem; background: white; border-radius: 6px;">
                             <strong style="color: var(--gray-700);">${this.currentLanguage === 'cs' ? 'Velké pokoje' : 'Large rooms'} (14, 24, 44):</strong>
                             <ul style="list-style: none; padding: 0; margin: 0; margin-top: 0.25rem;">
-                                <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceBasePrice')}: <strong>${prices.external.large.base} Kč${t('perNight')}</strong></li>
+                                <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceBasePrice')}: <strong>${prices.external.large.emptyRoomPrice || prices.external.large.base} Kč${t('perNight')}</strong></li>
                                 <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceAdultSurcharge')}: <strong>${prices.external.large.adult} Kč</strong></li>
                                 <li style="padding: 0.15rem 0; font-size: 0.9rem;">${t('regularPriceChildSurcharge')}: <strong>${prices.external.large.child} Kč</strong></li>
                             </ul>
@@ -1406,44 +1461,6 @@ class BookingApp {
 
     // Re-render calendar with new language
     this.renderCalendar();
-  }
-
-  // Finalize all temporary reservations (duplicate method - keeping for compatibility)
-  finalizeAllReservationsOld() {
-    if (!this.tempReservations || this.tempReservations.length === 0) {
-      this.showNotification(
-        this.currentLanguage === 'cs'
-          ? 'Nejsou žádné rezervace k dokončení'
-          : 'No reservations to finalize',
-        'warning'
-      );
-      return;
-    }
-
-    // Show the final booking modal
-    const modal = document.getElementById('finalBookingModal');
-    if (!modal) {
-      console.error('Final booking modal not found');
-      return;
-    }
-
-    // Populate the summary
-    this.populateFinalBookingSummary();
-
-    // Setup form submission
-    const form = document.getElementById('finalBookingForm');
-    if (form) {
-      // Remove any existing listener
-      form.onsubmit = null;
-      // Add new listener
-      form.onsubmit = (e) => {
-        e.preventDefault();
-        this.submitFinalBooking();
-      };
-    }
-
-    // Show modal
-    modal.classList.add('active');
   }
 
   populateFinalBookingSummary() {
@@ -1565,6 +1582,7 @@ class BookingApp {
         children: tempReservation.guests.children,
         toddlers: tempReservation.guests.toddlers,
         totalPrice: tempReservation.totalPrice,
+        guestNames: tempReservation.guestNames, // Guest names already validated when temp reservation was created
         sessionId: this.sessionId, // Include sessionId to exclude user's own proposals
       };
 
