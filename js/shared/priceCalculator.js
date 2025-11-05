@@ -167,7 +167,6 @@ class PriceCalculator {
         const roomChildrenTotal = roomChildren * roomPriceConfig.child * nights;
         const roomTotal = roomBaseTotal + roomAdultsTotal + roomChildrenTotal;
 
-
         totalPrice += roomTotal;
       }
     } else {
@@ -413,8 +412,7 @@ class PriceCalculator {
     const { guestType, nights = 1, settings, perRoomGuests = [] } = options;
 
     if (!settings || !settings.prices) {
-      console.warn('[PriceCalculator] Missing settings or prices configuration');
-      return { rooms: [], grandTotal: 0 };
+      throw new Error('Missing settings or prices configuration');
     }
 
     const { prices } = settings;
@@ -422,8 +420,7 @@ class PriceCalculator {
     const priceConfig = prices[guestKey];
 
     if (!priceConfig) {
-      console.warn(`[PriceCalculator] No price config found for guest type: ${guestType}`);
-      return { rooms: [], grandTotal: 0 };
+      throw new Error(`No price config found for guest type: ${guestType}`);
     }
 
     // Check if prices have room-size-based structure
@@ -446,8 +443,7 @@ class PriceCalculator {
         roomPriceConfig = priceConfig[roomType];
 
         if (!roomPriceConfig) {
-          console.warn(`[PriceCalculator] No price config for room type: ${roomType}`);
-          continue;
+          throw new Error(`No price config for room type: ${roomType}`);
         }
       } else {
         // LEGACY: Flat pricing model
@@ -674,12 +670,9 @@ class PriceCalculator {
         // Use per-room guest type if available (NEW logic)
         roomGuestType = perRoomGuests[roomId].guestType;
       } else {
-        // Fallback: Use booking-level logic (OLD logic for backward compatibility)
-        const hasUtiaGuest =
-          guestNames && guestNames.length > 0
-            ? guestNames.some((guest) => guest.guestPriceType === 'utia')
-            : false;
-        roomGuestType = hasUtiaGuest ? 'utia' : 'external';
+        // Fallback: Use booking-level guestType (when perRoomGuests data not available)
+        // This prevents incorrect pricing when mixing ÚTIA and external guests
+        roomGuestType = fallbackGuestType || 'external';
       }
 
       // CRITICAL: Validate price configuration exists for this guest type and room type

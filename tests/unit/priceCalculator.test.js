@@ -29,34 +29,31 @@ describe('PriceCalculator', () => {
   };
 
   // NEW: Room-size based pricing settings (2025-11-04)
+  // NEW MODEL: base = empty room price, adult/child = surcharges
   const mockSettingsWithRoomSizes = {
     prices: {
       utia: {
         small: {
-          base: 300,
-          adult: 50,
-          child: 25,
-          empty: 250, // Explicit empty room price
+          base: 250, // Empty room price
+          adult: 50, // Surcharge per adult
+          child: 25, // Surcharge per child
         },
         large: {
-          base: 420,
-          adult: 70,
-          child: 35,
-          empty: 350, // Explicit empty room price
+          base: 350, // Empty room price
+          adult: 70, // Surcharge per adult
+          child: 35, // Surcharge per child
         },
       },
       external: {
         small: {
-          base: 500,
-          adult: 100,
-          child: 50,
-          empty: 400, // Explicit empty room price
+          base: 400, // Empty room price
+          adult: 100, // Surcharge per adult
+          child: 50, // Surcharge per child
         },
         large: {
-          base: 620,
-          adult: 120,
-          child: 60,
-          empty: 500, // Explicit empty room price
+          base: 500, // Empty room price
+          adult: 120, // Surcharge per adult
+          child: 60, // Surcharge per child
         },
       },
     },

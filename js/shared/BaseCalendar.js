@@ -568,10 +568,31 @@ class BaseCalendar {
       this.cellElements.set(dateStr, cell);
 
       if (!clickable) {
+        // CRITICAL FIX: For non-clickable cells, add handler that blocks ALL interactions
+        const blockHandler = (event) => {
+          event.stopPropagation();
+          event.preventDefault();
+          // Silently block - no feedback needed as pointer-events: none should prevent this
+          return false;
+        };
+
+        this.boundHandlers.set(cell, {
+          click: blockHandler,
+          mousedown: blockHandler,
+          mouseup: blockHandler,
+          mouseenter: blockHandler,
+          mouseleave: blockHandler,
+        });
+
+        cell.addEventListener('click', blockHandler);
+        cell.addEventListener('mousedown', blockHandler);
+        cell.addEventListener('mouseup', blockHandler);
+        cell.addEventListener('mouseenter', blockHandler);
+        cell.addEventListener('mouseleave', blockHandler);
         return;
       }
 
-      // Create bound handlers
+      // Create bound handlers FOR CLICKABLE CELLS ONLY
       const clickHandler = (event) => {
         event.stopPropagation(); // CRITICAL: Prevent event bubbling to parent elements
         this.handleDateClick(dateStr);
@@ -611,6 +632,12 @@ class BaseCalendar {
       if (handlers.click) {
         element.removeEventListener('click', handlers.click);
       }
+      if (handlers.mousedown) {
+        element.removeEventListener('mousedown', handlers.mousedown);
+      }
+      if (handlers.mouseup) {
+        element.removeEventListener('mouseup', handlers.mouseup);
+      }
       if (handlers.mouseenter) {
         element.removeEventListener('mouseenter', handlers.mouseenter);
       }
@@ -639,38 +666,70 @@ class BaseCalendar {
     // CRITICAL GUARD: Re-validate that cell is still clickable (race condition prevention)
     const cell = this.cellElements.get(dateStr);
     if (!cell || cell.dataset.clickable !== 'true') {
-      // Cell is not clickable (occupied/blocked/past) - ignore click
+      // Cell is not clickable (occupied/blocked/past) - show feedback and ignore click
+      if (this.config.app && this.config.app.utils) {
+        const isPast = cell?.classList.contains('past-date');
+        const isOccupied = cell?.classList.contains('occupied');
+        const isBlocked = cell?.classList.contains('blocked');
+        const isProposed = cell?.classList.contains('proposed');
+
+        let message = 'Tento termín nelze vybrat.';
+
+        if (isPast) {
+          message = 'Nelze vybrat termín v minulosti.';
+        } else if (isOccupied) {
+          message = 'Tento termín je již obsazený.';
+        } else if (isBlocked) {
+          message = 'Tento termín je blokován administrátorem.';
+        } else if (isProposed) {
+          message = 'Na tento termín je dočasná rezervace jiného uživatele.';
+        }
+
+        this.config.app.utils.showNotification(message, 'warning', 3000);
+      }
       return;
     }
 
     // CRITICAL GUARD: Real-time availability check (race condition prevention)
     // Another user may have booked this date since render
     if (this.config.mode !== BaseCalendar.MODES.BULK && this.config.roomId) {
-      const availability = await dataManager.getRoomAvailability(
-        new Date(dateStr),
-        this.config.roomId,
-        '',
-        this.config.currentEditingBookingId
-      );
+      try {
+        const availability = await dataManager.getRoomAvailability(
+          new Date(dateStr),
+          this.config.roomId,
+          '',
+          this.config.currentEditingBookingId
+        );
 
-      if (availability.status === 'occupied' || availability.status === 'blocked') {
-        // Date is no longer available - show error and abort
+        if (availability.status === 'occupied' || availability.status === 'blocked') {
+          // Date is no longer available - show error and abort
+          if (this.config.app && this.config.app.utils) {
+            this.config.app.utils.showNotification(
+              'Tento termín již není dostupný. Kalendář se automaticky aktualizuje.',
+              'error',
+              4000
+            );
+          }
+          // Reset selection and re-render to show current state
+          this.selectedDates.clear();
+          this.intervalState.firstClick = null;
+          this.intervalState.secondClick = null;
+          this.intervalState.hoverDate = null;
+          if (this.config.app) {
+            this.config.app.selectedDates = this.selectedDates;
+          }
+          await this.render();
+          return;
+        }
+      } catch (error) {
+        console.error('[BaseCalendar] Availability check failed:', error);
         if (this.config.app && this.config.app.utils) {
           this.config.app.utils.showNotification(
-            'Tento termín již není dostupný. Kalendář se automaticky aktualizuje.',
+            'Chyba při kontrole dostupnosti. Zkuste to prosím znovu.',
             'error',
-            4000
+            3000
           );
         }
-        // Reset selection and re-render to show current state
-        this.selectedDates.clear();
-        this.intervalState.firstClick = null;
-        this.intervalState.secondClick = null;
-        this.intervalState.hoverDate = null;
-        if (this.config.app) {
-          this.config.app.selectedDates = this.selectedDates;
-        }
-        await this.render();
         return;
       }
     }
@@ -814,6 +873,7 @@ class BaseCalendar {
   /**
    * Update preview styling without re-render
    * PERFORMANCE FIX: Use cached elements, only update changed cells
+   * BUG FIX: Validate all cells in range are clickable before showing preview
    */
   updatePreview(hoverDateStr) {
     if (!this.intervalState.firstClick) {
@@ -828,11 +888,24 @@ class BaseCalendar {
       return;
     }
 
-    // Clear previous preview
-    this.clearPreview();
-
     // Calculate preview range
     const previewRange = this.getDateRangeBetween(this.intervalState.firstClick, hoverDateStr);
+
+    // CRITICAL FIX: Check if ALL cells in preview range are clickable
+    // If any cell is occupied/blocked/past, don't show preview at all
+    const allCellsClickable = previewRange.every((dateStr) => {
+      const cell = this.cellElements.get(dateStr);
+      return cell && cell.dataset.clickable === 'true';
+    });
+
+    if (!allCellsClickable) {
+      // Range contains non-clickable cells - don't show preview
+      this.clearPreview();
+      return;
+    }
+
+    // Clear previous preview
+    this.clearPreview();
 
     // Only update cells in range (not ALL cells)
     previewRange.forEach((dateStr) => {
