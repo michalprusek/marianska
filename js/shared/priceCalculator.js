@@ -673,6 +673,11 @@ class PriceCalculator {
         // Fallback: Use booking-level guestType (when perRoomGuests data not available)
         // This prevents incorrect pricing when mixing ÚTIA and external guests
         roomGuestType = fallbackGuestType || 'external';
+        // CODE REVIEW IMPROVEMENT: Log warning when using fallback
+        console.warn(
+          `[PriceCalculator] Using fallback guest type "${roomGuestType}" for room ${roomId}. ` +
+            `Per-room guest type not available in perRoomGuests data.`
+        );
       }
 
       // CRITICAL: Validate price configuration exists for this guest type and room type

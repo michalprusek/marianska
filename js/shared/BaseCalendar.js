@@ -104,6 +104,14 @@ class BaseCalendar {
     const container = document.getElementById(this.config.containerId);
     if (!container) {
       console.error(`Calendar container #${this.config.containerId} not found`);
+      // CODE REVIEW IMPROVEMENT: Add user notification
+      if (this.config.app && this.config.app.utils) {
+        this.config.app.utils.showNotification(
+          '⚠️ Chyba při inicializaci kalendáře. Obnovte stránku.',
+          'error',
+          5000
+        );
+      }
       return;
     }
 
@@ -539,6 +547,10 @@ class BaseCalendar {
   attachEventListeners() {
     const container = document.getElementById(this.config.containerId);
     if (!container) {
+      // CODE REVIEW IMPROVEMENT: Add logging for debugging
+      console.error(
+        `[BaseCalendar] Cannot attach event listeners - container #${this.config.containerId} not found`
+      );
       return;
     }
 
@@ -976,6 +988,14 @@ class BaseCalendar {
     const { minYear, maxYear } = this.getYearBoundaries();
 
     if (newYear < minYear || newYear > maxYear) {
+      // CODE REVIEW IMPROVEMENT: Add user notification for boundary exceeded
+      if (this.config.app && this.config.app.utils) {
+        const message =
+          newYear < minYear
+            ? `⚠️ Nelze zobrazit měsíce před rokem ${minYear}.`
+            : `⚠️ Nelze zobrazit měsíce po roce ${maxYear}.`;
+        this.config.app.utils.showNotification(message, 'warning', 3000);
+      }
       return;
     }
 
