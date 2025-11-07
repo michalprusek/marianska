@@ -227,21 +227,39 @@ class BulkBookingModule {
     const adults = parseInt(document.getElementById('bulkAdults')?.textContent, 10) || 1;
     const children = parseInt(document.getElementById('bulkChildren')?.textContent, 10) || 0;
 
-    // Determine guest type based on per-person selection
-    // If at least one ÚTIA guest, use ÚTIA pricing for all
-    let guestType = 'external'; // Default to external
+    // Count guests by type (ÚTIA vs External) for per-guest pricing
+    let utiaAdults = 0;
+    let utiaChildren = 0;
+    let externalAdults = 0;
+    let externalChildren = 0;
 
-    // Check for ÚTIA guests by looking at toggle switches directly (without name validation)
+    // Check for ÚTIA guests by looking at toggle switches
     const section = document.getElementById('bulkGuestNamesSection');
     if (section && section.style.display !== 'none') {
       const toggles = section.querySelectorAll('input[data-guest-price-type]');
-      const hasUtiaGuest = Array.from(toggles).some(toggle => {
-        return !toggle.checked; // Unchecked = ÚTIA, Checked = External
-      });
 
-      if (hasUtiaGuest) {
-        guestType = 'utia';
-      }
+      toggles.forEach((toggle) => {
+        const isUtia = !toggle.checked; // Unchecked = ÚTIA, Checked = External
+        const guestType = toggle.getAttribute('data-guest-type'); // 'adult' or 'child'
+
+        if (isUtia) {
+          if (guestType === 'adult') {
+            utiaAdults += 1;
+          } else if (guestType === 'child') {
+            utiaChildren += 1;
+          }
+        } else {
+          if (guestType === 'adult') {
+            externalAdults += 1;
+          } else if (guestType === 'child') {
+            externalChildren += 1;
+          }
+        }
+      });
+    } else {
+      // If no toggles visible (shouldn't happen), default all to external
+      externalAdults = adults;
+      externalChildren = children;
     }
 
     // Get pricing settings from admin configuration
@@ -262,10 +280,12 @@ class BulkBookingModule {
     // For bulk booking - use flat base price for entire chalet
     const totalBasePricePerNight = bulkPrices.basePrice;
 
-    // Calculate guest surcharges based on guest type
-    const guestKey = guestType === 'utia' ? 'utia' : 'external';
-    const adultSurcharge = adults * bulkPrices[`${guestKey}Adult`];
-    const childrenSurcharge = children * bulkPrices[`${guestKey}Child`];
+    // Calculate guest surcharges PER GUEST TYPE
+    const adultSurcharge =
+      utiaAdults * bulkPrices.utiaAdult + externalAdults * bulkPrices.externalAdult;
+
+    const childrenSurcharge =
+      utiaChildren * bulkPrices.utiaChild + externalChildren * bulkPrices.externalChild;
 
     // Calculate total
     const pricePerNight = totalBasePricePerNight + adultSurcharge + childrenSurcharge;
@@ -280,23 +300,133 @@ class BulkBookingModule {
       basePriceEl.textContent = `${totalBasePricePerNight.toLocaleString('cs-CZ')} Kč${perNightText}`;
     }
 
-    const adultsEl = document.getElementById('bulkAdultsSurcharge');
-    if (adultsEl) {
-      if (adults > 0 && adultSurcharge > 0) {
-        adultsEl.textContent = `+${adultSurcharge.toLocaleString('cs-CZ')} Kč${perNightText}`;
-        adultsEl.parentElement.style.display = 'flex';
-      } else {
-        adultsEl.parentElement.style.display = 'none';
+    // Hide old generic surcharge lines
+    const oldAdultsLine = document.getElementById('bulkAdultsPrice');
+    const oldChildrenLine = document.getElementById('bulkChildrenPrice');
+    if (oldAdultsLine) oldAdultsLine.style.display = 'none';
+    if (oldChildrenLine) oldChildrenLine.style.display = 'none';
+
+    // Create or get detailed surcharges container
+    let detailedContainer = document.getElementById('bulkDetailedSurcharges');
+    if (!detailedContainer) {
+      detailedContainer = document.createElement('div');
+      detailedContainer.id = 'bulkDetailedSurcharges';
+      detailedContainer.style.cssText = 'padding-left: 1rem;';
+
+      // Insert after base price line
+      const basePriceLine = basePriceEl?.parentElement;
+      if (basePriceLine && basePriceLine.parentElement) {
+        basePriceLine.parentElement.insertBefore(detailedContainer, basePriceLine.nextSibling);
       }
     }
 
-    const childrenEl = document.getElementById('bulkChildrenSurcharge');
-    if (childrenEl) {
-      if (children > 0 && childrenSurcharge > 0) {
-        childrenEl.textContent = `+${childrenSurcharge.toLocaleString('cs-CZ')} Kč${perNightText}`;
-        childrenEl.parentElement.style.display = 'flex';
+    // Clear previous detailed lines
+    detailedContainer.innerHTML = '';
+
+    // Helper function for pluralization
+    const getGuestLabel = (count, type) => {
+      if (type === 'adult') {
+        if (count === 1) return '1 dospělý';
+        if (count >= 2 && count <= 4) return `${count} dospělí`;
+        return `${count} dospělých`;
       } else {
-        childrenEl.parentElement.style.display = 'none';
+        if (count === 1) return '1 dítě';
+        if (count >= 2 && count <= 4) return `${count} děti`;
+        return `${count} dětí`;
+      }
+    };
+
+    // Add ÚTIA adults line (if any)
+    if (utiaAdults > 0) {
+      const line = document.createElement('div');
+      line.className = 'price-line';
+      line.style.cssText =
+        'display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.9rem;';
+
+      const label = document.createElement('span');
+      label.textContent = `ÚTIA hosté: ${getGuestLabel(utiaAdults, 'adult')} × ${bulkPrices.utiaAdult.toLocaleString('cs-CZ')} Kč${perNightText}`;
+      label.style.color = '#059669';
+
+      const value = document.createElement('span');
+      const utiaAdultTotal = utiaAdults * bulkPrices.utiaAdult;
+      value.textContent =
+        utiaAdultTotal > 0
+          ? `+${utiaAdultTotal.toLocaleString('cs-CZ')} Kč${perNightText}`
+          : `0 Kč${perNightText}`;
+      value.style.color = '#059669';
+
+      line.appendChild(label);
+      line.appendChild(value);
+      detailedContainer.appendChild(line);
+    }
+
+    // Add External adults line (if any)
+    if (externalAdults > 0) {
+      const line = document.createElement('div');
+      line.className = 'price-line';
+      line.style.cssText =
+        'display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.9rem;';
+
+      const label = document.createElement('span');
+      label.textContent = `Externí hosté: ${getGuestLabel(externalAdults, 'adult')} × ${bulkPrices.externalAdult.toLocaleString('cs-CZ')} Kč${perNightText}`;
+      label.style.color = '#dc2626';
+
+      const value = document.createElement('span');
+      const externalAdultTotal = externalAdults * bulkPrices.externalAdult;
+      value.textContent = `+${externalAdultTotal.toLocaleString('cs-CZ')} Kč${perNightText}`;
+      value.style.color = '#dc2626';
+
+      line.appendChild(label);
+      line.appendChild(value);
+      detailedContainer.appendChild(line);
+    }
+
+    // Add ÚTIA children line (if any and price > 0)
+    if (utiaChildren > 0) {
+      const utiaChildTotal = utiaChildren * bulkPrices.utiaChild;
+      if (utiaChildTotal > 0 || utiaChildren > 0) {
+        const line = document.createElement('div');
+        line.className = 'price-line';
+        line.style.cssText =
+          'display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.9rem;';
+
+        const label = document.createElement('span');
+        label.textContent = `ÚTIA děti: ${getGuestLabel(utiaChildren, 'child')} × ${bulkPrices.utiaChild.toLocaleString('cs-CZ')} Kč${perNightText}`;
+        label.style.color = '#059669';
+
+        const value = document.createElement('span');
+        value.textContent =
+          utiaChildTotal > 0
+            ? `+${utiaChildTotal.toLocaleString('cs-CZ')} Kč${perNightText}`
+            : `0 Kč${perNightText}`;
+        value.style.color = '#059669';
+
+        line.appendChild(label);
+        line.appendChild(value);
+        detailedContainer.appendChild(line);
+      }
+    }
+
+    // Add External children line (if any and price > 0)
+    if (externalChildren > 0) {
+      const externalChildTotal = externalChildren * bulkPrices.externalChild;
+      if (externalChildTotal > 0) {
+        const line = document.createElement('div');
+        line.className = 'price-line';
+        line.style.cssText =
+          'display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.9rem;';
+
+        const label = document.createElement('span');
+        label.textContent = `Externí děti: ${getGuestLabel(externalChildren, 'child')} × ${bulkPrices.externalChild.toLocaleString('cs-CZ')} Kč${perNightText}`;
+        label.style.color = '#dc2626';
+
+        const value = document.createElement('span');
+        value.textContent = `+${externalChildTotal.toLocaleString('cs-CZ')} Kč${perNightText}`;
+        value.style.color = '#dc2626';
+
+        line.appendChild(label);
+        line.appendChild(value);
+        detailedContainer.appendChild(line);
       }
     }
 
@@ -321,7 +451,7 @@ class BulkBookingModule {
       nightsDisplay.textContent = nights;
     }
 
-    // Add visual indicator for pricing category
+    // Add visual indicator for pricing breakdown
     let priceCategoryIndicator = document.getElementById('bulkPriceCategoryIndicator');
     if (!priceCategoryIndicator) {
       // Create indicator if it doesn't exist
@@ -329,20 +459,43 @@ class BulkBookingModule {
       if (priceBreakdown) {
         priceCategoryIndicator = document.createElement('div');
         priceCategoryIndicator.id = 'bulkPriceCategoryIndicator';
-        priceCategoryIndicator.style.cssText = 'margin-top: 0.75rem; padding: 0.5rem; border-radius: 4px; font-size: 0.85rem; text-align: center;';
+        priceCategoryIndicator.style.cssText =
+          'margin-top: 0.75rem; padding: 0.5rem; border-radius: 4px; font-size: 0.85rem;';
         priceBreakdown.insertBefore(priceCategoryIndicator, priceBreakdown.firstChild);
       }
     }
 
-    // Update indicator based on guest type
+    // Update indicator with per-guest breakdown
     if (priceCategoryIndicator) {
-      if (guestType === 'utia') {
-        priceCategoryIndicator.innerHTML = '✅ <strong>ÚTIA ceník</strong> (alespoň 1 zaměstnanec ÚTIA)';
+      const totalUtia = utiaAdults + utiaChildren;
+      const totalExternal = externalAdults + externalChildren;
+
+      if (totalUtia > 0 && totalExternal > 0) {
+        // Mixed guests
+        priceCategoryIndicator.innerHTML = `
+          <div style="text-align: center; margin-bottom: 0.25rem;">
+            <strong>📊 Smíšená skupina</strong>
+          </div>
+          <div style="display: flex; gap: 0.5rem; justify-content: center; font-size: 0.8rem;">
+            <span style="color: #059669;">✅ ${totalUtia} ÚTIA</span>
+            <span>+</span>
+            <span style="color: #dc2626;">👤 ${totalExternal} Externí</span>
+          </div>
+        `;
+        priceCategoryIndicator.style.backgroundColor = '#fef3c7';
+        priceCategoryIndicator.style.color = '#92400e';
+        priceCategoryIndicator.style.border = '1px solid #f59e0b';
+      } else if (totalUtia > 0) {
+        // All ÚTIA
+        priceCategoryIndicator.innerHTML =
+          '✅ <strong>ÚTIA ceník</strong> (všichni zaměstnanci ÚTIA)';
         priceCategoryIndicator.style.backgroundColor = '#d1fae5';
         priceCategoryIndicator.style.color = '#065f46';
         priceCategoryIndicator.style.border = '1px solid #10b981';
       } else {
-        priceCategoryIndicator.innerHTML = 'ℹ️ <strong>Externí ceník</strong> (žádný zaměstnanec ÚTIA)';
+        // All External
+        priceCategoryIndicator.innerHTML =
+          'ℹ️ <strong>Externí ceník</strong> (žádný zaměstnanec ÚTIA)';
         priceCategoryIndicator.style.backgroundColor = '#e0f2fe';
         priceCategoryIndicator.style.color = '#075985';
         priceCategoryIndicator.style.border = '1px solid #3b82f6';
@@ -836,6 +989,93 @@ class BulkBookingModule {
       return;
     }
 
+    // CAPTURE PHASE: Save existing guest data before clearing DOM
+    const savedGuestData = new Map();
+
+    // Capture adults
+    const existingAdultInputs = section.querySelectorAll('input[data-guest-type="adult"]');
+    existingAdultInputs.forEach((input) => {
+      const index = input.dataset.guestIndex;
+      const key = `adult-${index}`;
+      if (!savedGuestData.has(key)) {
+        savedGuestData.set(key, {});
+      }
+      const data = savedGuestData.get(key);
+      if (input.id.includes('FirstName')) {
+        data.firstName = input.value;
+      } else if (input.id.includes('LastName')) {
+        data.lastName = input.value;
+      }
+    });
+
+    // Capture adult toggle states
+    const existingAdultToggles = section.querySelectorAll(
+      'input[data-guest-type="adult"][data-guest-price-type]'
+    );
+    existingAdultToggles.forEach((toggle) => {
+      const index = toggle.dataset.guestIndex;
+      const key = `adult-${index}`;
+      if (savedGuestData.has(key)) {
+        savedGuestData.get(key).guestType = toggle.checked ? 'external' : 'utia';
+      }
+    });
+
+    // Capture children
+    const existingChildInputs = section.querySelectorAll('input[data-guest-type="child"]');
+    existingChildInputs.forEach((input) => {
+      const index = input.dataset.guestIndex;
+      const key = `child-${index}`;
+      if (!savedGuestData.has(key)) {
+        savedGuestData.set(key, {});
+      }
+      const data = savedGuestData.get(key);
+      if (input.id.includes('FirstName')) {
+        data.firstName = input.value;
+      } else if (input.id.includes('LastName')) {
+        data.lastName = input.value;
+      }
+    });
+
+    // Capture children toggle states
+    const existingChildToggles = section.querySelectorAll(
+      'input[data-guest-type="child"][data-guest-price-type]'
+    );
+    existingChildToggles.forEach((toggle) => {
+      const index = toggle.dataset.guestIndex;
+      const key = `child-${index}`;
+      if (savedGuestData.has(key)) {
+        savedGuestData.get(key).guestType = toggle.checked ? 'external' : 'utia';
+      }
+    });
+
+    // Capture toddlers
+    const existingToddlerInputs = section.querySelectorAll('input[data-guest-type="toddler"]');
+    existingToddlerInputs.forEach((input) => {
+      const index = input.dataset.guestIndex;
+      const key = `toddler-${index}`;
+      if (!savedGuestData.has(key)) {
+        savedGuestData.set(key, {});
+      }
+      const data = savedGuestData.get(key);
+      if (input.id.includes('FirstName')) {
+        data.firstName = input.value;
+      } else if (input.id.includes('LastName')) {
+        data.lastName = input.value;
+      }
+    });
+
+    // Capture toddler toggle states
+    const existingToddlerToggles = section.querySelectorAll(
+      'input[data-guest-type="toddler"][data-guest-price-type]'
+    );
+    existingToddlerToggles.forEach((toggle) => {
+      const index = toggle.dataset.guestIndex;
+      const key = `toddler-${index}`;
+      if (savedGuestData.has(key)) {
+        savedGuestData.get(key).guestType = toggle.checked ? 'external' : 'utia';
+      }
+    });
+
     const makeId = (prefix) => prefix;
 
     // Adults section
@@ -851,7 +1091,8 @@ class BulkBookingModule {
 
         for (let i = 1; i <= adults; i++) {
           const row = document.createElement('div');
-          row.style.cssText = 'display: flex; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center;';
+          row.style.cssText =
+            'display: flex; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center;';
 
           // First name input
           const firstNameInput = document.createElement('input');
@@ -863,7 +1104,8 @@ class BulkBookingModule {
           firstNameInput.required = true;
           firstNameInput.minLength = 2;
           firstNameInput.maxLength = 50;
-          firstNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
+          firstNameInput.style.cssText =
+            'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
 
           // Last name input
           const lastNameInput = document.createElement('input');
@@ -875,14 +1117,44 @@ class BulkBookingModule {
           lastNameInput.required = true;
           lastNameInput.minLength = 2;
           lastNameInput.maxLength = 50;
-          lastNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
+          lastNameInput.style.cssText =
+            'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
+
+          // Add input event listeners to clear red border when user types
+          firstNameInput.addEventListener('input', function () {
+            if (
+              this.style.borderColor === 'rgb(239, 68, 68)' ||
+              this.style.borderColor === '#ef4444'
+            ) {
+              this.style.borderColor = '#d1d5db';
+            }
+          });
+
+          lastNameInput.addEventListener('input', function () {
+            if (
+              this.style.borderColor === 'rgb(239, 68, 68)' ||
+              this.style.borderColor === '#ef4444'
+            ) {
+              this.style.borderColor = '#d1d5db';
+            }
+          });
+
+          // RESTORE PHASE: Restore saved data for this adult guest
+          const savedAdultKey = `adult-${i}`;
+          if (savedGuestData.has(savedAdultKey)) {
+            const saved = savedGuestData.get(savedAdultKey);
+            if (saved.firstName) firstNameInput.value = saved.firstName;
+            if (saved.lastName) lastNameInput.value = saved.lastName;
+          }
 
           // Toggle switch container
           const toggleContainer = document.createElement('div');
-          toggleContainer.style.cssText = 'display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; flex-shrink: 0;';
+          toggleContainer.style.cssText =
+            'display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; flex-shrink: 0;';
 
           const toggleLabel = document.createElement('label');
-          toggleLabel.style.cssText = 'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer;';
+          toggleLabel.style.cssText =
+            'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer;';
 
           const toggleInput = document.createElement('input');
           toggleInput.type = 'checkbox';
@@ -894,10 +1166,12 @@ class BulkBookingModule {
           toggleInput.style.cssText = 'opacity: 0; width: 0; height: 0;';
 
           const toggleSlider = document.createElement('span');
-          toggleSlider.style.cssText = 'position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #059669; transition: 0.3s; border-radius: 24px;';
+          toggleSlider.style.cssText =
+            'position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #059669; transition: 0.3s; border-radius: 24px;';
 
           const toggleThumb = document.createElement('span');
-          toggleThumb.style.cssText = 'position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%;';
+          toggleThumb.style.cssText =
+            'position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%;';
           toggleSlider.appendChild(toggleThumb);
 
           toggleLabel.appendChild(toggleInput);
@@ -905,7 +1179,29 @@ class BulkBookingModule {
 
           const toggleText = document.createElement('span');
           toggleText.textContent = 'ÚTIA';
-          toggleText.style.cssText = 'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px;';
+          toggleText.style.cssText =
+            'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px;';
+
+          // RESTORE PHASE: Restore toggle state for this adult guest
+          if (savedGuestData.has(savedAdultKey)) {
+            const saved = savedGuestData.get(savedAdultKey);
+            if (saved.guestType) {
+              const isExternal = saved.guestType === 'external';
+              toggleInput.checked = isExternal;
+              // Trigger visual update
+              if (isExternal) {
+                toggleSlider.style.backgroundColor = '#dc2626';
+                toggleThumb.style.transform = 'translateX(20px)';
+                toggleText.textContent = 'EXT';
+                toggleText.style.color = '#dc2626';
+              } else {
+                toggleSlider.style.backgroundColor = '#059669';
+                toggleThumb.style.transform = 'translateX(0)';
+                toggleText.textContent = 'ÚTIA';
+                toggleText.style.color = '#059669';
+              }
+            }
+          }
 
           toggleContainer.appendChild(toggleLabel);
           toggleContainer.appendChild(toggleText);
@@ -953,7 +1249,8 @@ class BulkBookingModule {
 
         for (let i = 1; i <= children; i++) {
           const row = document.createElement('div');
-          row.style.cssText = 'display: flex; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center;';
+          row.style.cssText =
+            'display: flex; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center;';
 
           // First name input
           const firstNameInput = document.createElement('input');
@@ -965,7 +1262,8 @@ class BulkBookingModule {
           firstNameInput.required = true;
           firstNameInput.minLength = 2;
           firstNameInput.maxLength = 50;
-          firstNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
+          firstNameInput.style.cssText =
+            'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
 
           // Last name input
           const lastNameInput = document.createElement('input');
@@ -977,14 +1275,44 @@ class BulkBookingModule {
           lastNameInput.required = true;
           lastNameInput.minLength = 2;
           lastNameInput.maxLength = 50;
-          lastNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
+          lastNameInput.style.cssText =
+            'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
+
+          // Add input event listeners to clear red border when user types
+          firstNameInput.addEventListener('input', function () {
+            if (
+              this.style.borderColor === 'rgb(239, 68, 68)' ||
+              this.style.borderColor === '#ef4444'
+            ) {
+              this.style.borderColor = '#d1d5db';
+            }
+          });
+
+          lastNameInput.addEventListener('input', function () {
+            if (
+              this.style.borderColor === 'rgb(239, 68, 68)' ||
+              this.style.borderColor === '#ef4444'
+            ) {
+              this.style.borderColor = '#d1d5db';
+            }
+          });
+
+          // RESTORE PHASE: Restore saved data for this child guest
+          const savedChildKey = `child-${i}`;
+          if (savedGuestData.has(savedChildKey)) {
+            const saved = savedGuestData.get(savedChildKey);
+            if (saved.firstName) firstNameInput.value = saved.firstName;
+            if (saved.lastName) lastNameInput.value = saved.lastName;
+          }
 
           // Toggle switch container
           const toggleContainer = document.createElement('div');
-          toggleContainer.style.cssText = 'display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; flex-shrink: 0;';
+          toggleContainer.style.cssText =
+            'display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; flex-shrink: 0;';
 
           const toggleLabel = document.createElement('label');
-          toggleLabel.style.cssText = 'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer;';
+          toggleLabel.style.cssText =
+            'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer;';
 
           const toggleInput = document.createElement('input');
           toggleInput.type = 'checkbox';
@@ -996,10 +1324,12 @@ class BulkBookingModule {
           toggleInput.style.cssText = 'opacity: 0; width: 0; height: 0;';
 
           const toggleSlider = document.createElement('span');
-          toggleSlider.style.cssText = 'position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #059669; transition: 0.3s; border-radius: 24px;';
+          toggleSlider.style.cssText =
+            'position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #059669; transition: 0.3s; border-radius: 24px;';
 
           const toggleThumb = document.createElement('span');
-          toggleThumb.style.cssText = 'position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%;';
+          toggleThumb.style.cssText =
+            'position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%;';
           toggleSlider.appendChild(toggleThumb);
 
           toggleLabel.appendChild(toggleInput);
@@ -1007,7 +1337,29 @@ class BulkBookingModule {
 
           const toggleText = document.createElement('span');
           toggleText.textContent = 'ÚTIA';
-          toggleText.style.cssText = 'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px;';
+          toggleText.style.cssText =
+            'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px;';
+
+          // RESTORE PHASE: Restore toggle state for this child guest
+          if (savedGuestData.has(savedChildKey)) {
+            const saved = savedGuestData.get(savedChildKey);
+            if (saved.guestType) {
+              const isExternal = saved.guestType === 'external';
+              toggleInput.checked = isExternal;
+              // Trigger visual update
+              if (isExternal) {
+                toggleSlider.style.backgroundColor = '#dc2626';
+                toggleThumb.style.transform = 'translateX(20px)';
+                toggleText.textContent = 'EXT';
+                toggleText.style.color = '#dc2626';
+              } else {
+                toggleSlider.style.backgroundColor = '#059669';
+                toggleThumb.style.transform = 'translateX(0)';
+                toggleText.textContent = 'ÚTIA';
+                toggleText.style.color = '#059669';
+              }
+            }
+          }
 
           toggleContainer.appendChild(toggleLabel);
           toggleContainer.appendChild(toggleText);
@@ -1081,6 +1433,40 @@ class BulkBookingModule {
             />
           `;
           toddlersContainer.appendChild(row);
+
+          // Add input event listeners to clear red border when user types
+          const toddlerFirstName = row.querySelector(`input[id*="FirstName"]`);
+          const toddlerLastName = row.querySelector(`input[id*="LastName"]`);
+
+          // RESTORE PHASE: Restore saved data for this toddler guest
+          const savedToddlerKey = `toddler-${i}`;
+          if (savedGuestData.has(savedToddlerKey)) {
+            const saved = savedGuestData.get(savedToddlerKey);
+            if (saved.firstName && toddlerFirstName) toddlerFirstName.value = saved.firstName;
+            if (saved.lastName && toddlerLastName) toddlerLastName.value = saved.lastName;
+          }
+
+          if (toddlerFirstName) {
+            toddlerFirstName.addEventListener('input', function () {
+              if (
+                this.style.borderColor === 'rgb(239, 68, 68)' ||
+                this.style.borderColor === '#ef4444'
+              ) {
+                this.style.borderColor = '#d1d5db';
+              }
+            });
+          }
+
+          if (toddlerLastName) {
+            toddlerLastName.addEventListener('input', function () {
+              if (
+                this.style.borderColor === 'rgb(239, 68, 68)' ||
+                this.style.borderColor === '#ef4444'
+              ) {
+                this.style.borderColor = '#d1d5db';
+              }
+            });
+          }
         }
       } else {
         toddlersContainer.style.display = 'none';
