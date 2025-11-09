@@ -838,6 +838,7 @@ class DatabaseManager {
         personType: row.person_type,
         firstName: row.first_name,
         lastName: row.last_name,
+        guestPriceType: row.guest_type, // Per-guest pricing type (utia/external)
       }));
 
       // Convert snake_case to camelCase
@@ -933,6 +934,7 @@ class DatabaseManager {
         personType: row.person_type,
         firstName: row.first_name,
         lastName: row.last_name,
+        guestPriceType: row.guest_type, // Per-guest pricing type (utia/external)
       }));
 
       // Convert snake_case to camelCase
@@ -1052,6 +1054,7 @@ class DatabaseManager {
         personType: row.person_type,
         firstName: row.first_name,
         lastName: row.last_name,
+        guestPriceType: row.guest_type, // Per-guest pricing type (utia/external)
       }));
 
       return {

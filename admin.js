@@ -72,9 +72,9 @@ class AdminPanel {
 
     // Organize guest names by room
     const perRoomGuestNames =
-      typeof GuestNameUtils !== 'undefined'
-        ? GuestNameUtils.organizeByRoom(booking.guestNames, perRoomGuests, rooms)
-        : null;
+      typeof GuestNameUtils === 'undefined'
+        ? null
+        : GuestNameUtils.organizeByRoom(booking.guestNames, perRoomGuests, rooms); // eslint-disable-line no-undef
 
     // If we have per-room organization AND multiple rooms, display by room
     if (
@@ -1261,9 +1261,41 @@ class AdminPanel {
           return;
         }
 
+        // Get button element and store original content
+        const deleteBtn = document.getElementById('bulkDeleteBtn');
+        const originalHTML = deleteBtn ? deleteBtn.innerHTML : null;
+
+        // Disable button and show loading state
+        if (deleteBtn) {
+          deleteBtn.disabled = true;
+          deleteBtn.style.opacity = '0.6';
+          deleteBtn.style.cursor = 'not-allowed';
+          deleteBtn.innerHTML = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+              <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+              <path d="M12 2a10 10 0 0 1 10 10" stroke-opacity="0.75"/>
+            </svg>
+            Mazání...
+          `;
+
+          // Add spin animation if not already present
+          if (!document.getElementById('spinAnimation')) {
+            const style = document.createElement('style');
+            style.id = 'spinAnimation';
+            style.textContent = `
+              @keyframes spin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+              }
+            `;
+            document.head.appendChild(style);
+          }
+        }
+
         const sessionToken = localStorage.getItem('adminSessionToken');
         let successCount = 0;
         let errorCount = 0;
+        const successfullyDeleted = [];
 
         try {
           // Delete bookings one by one
@@ -1277,12 +1309,13 @@ class AdminPanel {
               });
 
               if (response.ok) {
-                successCount++;
+                successCount += 1;
+                successfullyDeleted.push(bookingId);
               } else {
-                errorCount++;
+                errorCount += 1;
               }
             } catch (error) {
-              errorCount++;
+              errorCount += 1;
               console.error(`Chyba při mazání rezervace ${bookingId}:`, error);
             }
           }
@@ -1290,8 +1323,12 @@ class AdminPanel {
           // Sync with server to get updated data
           await dataManager.syncWithServer();
 
-          // Reload bookings table
+          // Reload bookings table (this will update the UI)
           await this.loadBookings();
+
+          // Clear only successfully deleted bookings from selection
+          successfullyDeleted.forEach((id) => this.selectedBookings.delete(id));
+          this.updateBulkActionButtons();
 
           // Show result message
           if (errorCount === 0) {
@@ -1305,6 +1342,14 @@ class AdminPanel {
         } catch (error) {
           console.error('Chyba při hromadném mazání:', error);
           this.showToast(`Chyba: ${error.message}`, 'error');
+        } finally {
+          // Re-enable button and restore original content
+          if (deleteBtn && originalHTML) {
+            deleteBtn.disabled = false;
+            deleteBtn.style.opacity = '1';
+            deleteBtn.style.cursor = 'pointer';
+            deleteBtn.innerHTML = originalHTML;
+          }
         }
       }
     );
