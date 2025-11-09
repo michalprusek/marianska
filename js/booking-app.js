@@ -1105,6 +1105,17 @@ class BookingApp {
     );
   }
 
+  /**
+   * Edit a temporary reservation by re-opening the booking modal with pre-filled data.
+   *
+   * Flow:
+   * 1. Find and remove the temp reservation from the list
+   * 2. Delete associated proposed booking from database
+   * 3. Restore booking modal state (dates, rooms, guests)
+   * 4. Pre-fill guest names after DOM is ready
+   *
+   * @param {string} bookingId - The temporary reservation ID to edit
+   */
   async editTempReservation(bookingId) {
     if (!this.tempReservations) {
       return;
@@ -1113,6 +1124,14 @@ class BookingApp {
     // Find the reservation to edit
     const reservationToEdit = this.tempReservations.find((b) => b.id === bookingId);
     if (!reservationToEdit) {
+      console.error('Temporary reservation not found at index:', bookingId);
+      this.showNotification(
+        this.currentLanguage === 'cs'
+          ? 'Dočasná rezervace nebyla nalezena. Zkuste obnovit stránku.'
+          : 'Temporary reservation not found. Please refresh the page.',
+        'error',
+        3000
+      );
       return;
     }
 
@@ -1121,7 +1140,15 @@ class BookingApp {
       try {
         await dataManager.deleteProposedBooking(reservationToEdit.proposalId);
       } catch (error) {
-        console.error('Failed to delete proposed booking:', error);
+        console.error(`Failed to delete proposed booking ${reservationToEdit.proposalId}:`, error);
+        this.showNotification(
+          this.currentLanguage === 'cs'
+            ? 'Varování: Nepodařilo se odstranit dočasnou rezervaci. Zkuste to znovu.'
+            : 'Warning: Could not remove temporary hold. Please try again.',
+          'warning',
+          3000
+        );
+        // Continue with edit - user can still modify the reservation
       }
     }
 
@@ -1135,7 +1162,9 @@ class BookingApp {
     if (reservationToEdit.isBulkBooking) {
       // Open bulk booking modal with pre-filled data
       const bulkBooking = this.bulkBooking;
-      if (bulkBooking) {
+      const modal = document.getElementById('bulkBookingModal');
+
+      if (bulkBooking && modal) {
         // Set the dates
         bulkBooking.selectedStartDate = reservationToEdit.startDate;
         bulkBooking.selectedEndDate = reservationToEdit.endDate;
@@ -1145,13 +1174,20 @@ class BookingApp {
         bulkBooking.currentGuestType = reservationToEdit.guestType || 'external';
 
         // Open the modal
-        const modal = document.getElementById('bulkBookingModal');
-        if (modal) {
-          modal.classList.add('active');
-        }
+        modal.classList.add('active');
 
         // Trigger date confirmation to show the form
         await bulkBooking.confirmBulkDates();
+      } else {
+        console.error('Bulk booking modal or module not available');
+        this.showNotification(
+          this.currentLanguage === 'cs'
+            ? 'Nelze otevřít hromadnou rezervaci. Zkuste obnovit stránku.'
+            : 'Cannot open bulk booking. Please refresh the page.',
+          'error',
+          3000
+        );
+        return;
       }
     } else {
       // Open single room booking modal with pre-filled data
@@ -1164,14 +1200,15 @@ class BookingApp {
 
         // Clear and populate selectedDates Set with all dates in the range
         this.selectedDates.clear();
-        const start = new Date(`${reservationToEdit.startDate}T12:00:00`);
-        const end = new Date(`${reservationToEdit.endDate}T12:00:00`);
-        const current = new Date(start);
+        const startDate = new Date(`${reservationToEdit.startDate}T12:00:00`);
+        const endDate = new Date(`${reservationToEdit.endDate}T12:00:00`);
+        const dayCount = Math.floor((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
 
-        while (current <= end) {
-          const dateStr = DateUtils.formatDate(current);
+        for (let i = 0; i < dayCount; i += 1) {
+          const currentDate = new Date(startDate);
+          currentDate.setDate(startDate.getDate() + i);
+          const dateStr = DateUtils.formatDate(currentDate);
           this.selectedDates.add(dateStr);
-          current.setDate(current.getDate() + 1);
         }
 
         // Add room to selectedRooms
@@ -1235,8 +1272,11 @@ class BookingApp {
         );
 
         // Pre-fill guest names if available
+        // Note: requestAnimationFrame ensures DOM elements are rendered before we try to populate them.
+        // This is more reliable than setTimeout with arbitrary delays, as it waits for the next browser
+        // paint cycle when the DOM is guaranteed to be ready.
         if (reservationToEdit.guestNames && reservationToEdit.guestNames.length > 0) {
-          setTimeout(() => {
+          requestAnimationFrame(() => {
             reservationToEdit.guestNames.forEach((guestName, index) => {
               const input = document.querySelector(`[data-guest-index="${index}"]`);
               if (input) {
@@ -1249,7 +1289,7 @@ class BookingApp {
                 }
               }
             });
-          }, 100);
+          });
         }
       }
     }

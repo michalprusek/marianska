@@ -72,9 +72,9 @@ class AdminPanel {
 
     // Organize guest names by room
     const perRoomGuestNames =
-      typeof GuestNameUtils !== 'undefined'
-        ? GuestNameUtils.organizeByRoom(booking.guestNames, perRoomGuests, rooms)
-        : null;
+      typeof GuestNameUtils === 'undefined'
+        ? null
+        : GuestNameUtils.organizeByRoom(booking.guestNames, perRoomGuests, rooms); // eslint-disable-line no-undef
 
     // If we have per-room organization AND multiple rooms, display by room
     if (
@@ -1295,6 +1295,7 @@ class AdminPanel {
         const sessionToken = localStorage.getItem('adminSessionToken');
         let successCount = 0;
         let errorCount = 0;
+        const successfullyDeleted = [];
 
         try {
           // Delete bookings one by one
@@ -1308,12 +1309,13 @@ class AdminPanel {
               });
 
               if (response.ok) {
-                successCount++;
+                successCount += 1;
+                successfullyDeleted.push(bookingId);
               } else {
-                errorCount++;
+                errorCount += 1;
               }
             } catch (error) {
-              errorCount++;
+              errorCount += 1;
               console.error(`Chyba při mazání rezervace ${bookingId}:`, error);
             }
           }
@@ -1324,8 +1326,8 @@ class AdminPanel {
           // Reload bookings table (this will update the UI)
           await this.loadBookings();
 
-          // Clear selection after successful deletion
-          this.selectedBookings.clear();
+          // Clear only successfully deleted bookings from selection
+          successfullyDeleted.forEach((id) => this.selectedBookings.delete(id));
           this.updateBulkActionButtons();
 
           // Show result message
