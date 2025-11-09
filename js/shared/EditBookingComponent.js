@@ -295,15 +295,17 @@ class EditBookingComponent {
     for (let i = 1; i <= adults; i++) {
       const guestDiv = document.createElement('div');
       guestDiv.className = 'guest-name-row';
-      guestDiv.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;';
+      guestDiv.style.cssText = 'display: flex; align-items: end; gap: 0.75rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;';
 
       // First name input
       const firstNameGroup = document.createElement('div');
       firstNameGroup.className = 'input-group';
+      firstNameGroup.style.cssText = 'flex: 1; min-width: 0;';
 
       const firstNameLabel = document.createElement('label');
       firstNameLabel.setAttribute('for', `editAdultFirstName${i}`);
-      firstNameLabel.textContent = `Křestní jméno ${i}. dospělého *`;
+      firstNameLabel.textContent = `Křestní jméno *`;
+      firstNameLabel.style.cssText = 'display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;';
       firstNameGroup.appendChild(firstNameLabel);
 
       const firstNameInput = document.createElement('input');
@@ -317,15 +319,18 @@ class EditBookingComponent {
       firstNameInput.placeholder = 'např. Jan';
       firstNameInput.setAttribute('data-guest-type', 'adult');
       firstNameInput.setAttribute('data-guest-index', i);
+      firstNameInput.style.cssText = 'width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
       firstNameGroup.appendChild(firstNameInput);
 
       // Last name input
       const lastNameGroup = document.createElement('div');
       lastNameGroup.className = 'input-group';
+      lastNameGroup.style.cssText = 'flex: 1; min-width: 0;';
 
       const lastNameLabel = document.createElement('label');
       lastNameLabel.setAttribute('for', `editAdultLastName${i}`);
-      lastNameLabel.textContent = `Příjmení ${i}. dospělého *`;
+      lastNameLabel.textContent = `Příjmení *`;
+      lastNameLabel.style.cssText = 'display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;';
       lastNameGroup.appendChild(lastNameLabel);
 
       const lastNameInput = document.createElement('input');
@@ -339,10 +344,66 @@ class EditBookingComponent {
       lastNameInput.placeholder = 'např. Novák';
       lastNameInput.setAttribute('data-guest-type', 'adult');
       lastNameInput.setAttribute('data-guest-index', i);
+      lastNameInput.style.cssText = 'width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
       lastNameGroup.appendChild(lastNameInput);
+
+      // Toggle switch container for ÚTIA/External
+      const toggleContainer = document.createElement('div');
+      toggleContainer.style.cssText = 'display: flex; flex-direction: column; align-items: center; gap: 0.25rem; flex-shrink: 0;';
+
+      const toggleLabel = document.createElement('label');
+      toggleLabel.style.cssText = 'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer; margin-top: 1.5rem;';
+
+      const toggleInput = document.createElement('input');
+      toggleInput.type = 'checkbox';
+      toggleInput.id = `editAdult${i}GuestTypeToggle`;
+      toggleInput.setAttribute('data-guest-type', 'adult');
+      toggleInput.setAttribute('data-guest-index', i);
+      toggleInput.setAttribute('data-guest-price-type', 'true');
+      toggleInput.checked = false; // Unchecked = ÚTIA, Checked = External
+      toggleInput.style.cssText = 'opacity: 0; width: 0; height: 0;';
+
+      const toggleSlider = document.createElement('span');
+      toggleSlider.style.cssText = `
+        position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+        background-color: #059669; transition: 0.3s; border-radius: 24px;
+      `;
+
+      const toggleThumb = document.createElement('span');
+      toggleThumb.style.cssText = `
+        position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px;
+        background-color: white; transition: 0.3s; border-radius: 50%;
+      `;
+      toggleSlider.appendChild(toggleThumb);
+
+      // Toggle state change handler
+      toggleInput.addEventListener('change', function() {
+        if (this.checked) {
+          toggleSlider.style.backgroundColor = '#dc2626'; // Red for External
+          toggleThumb.style.transform = 'translateX(20px)';
+          toggleText.textContent = 'EXT';
+          toggleText.style.color = '#dc2626';
+        } else {
+          toggleSlider.style.backgroundColor = '#059669'; // Green for ÚTIA
+          toggleThumb.style.transform = 'translateX(0)';
+          toggleText.textContent = 'ÚTIA';
+          toggleText.style.color = '#059669';
+        }
+      });
+
+      toggleLabel.appendChild(toggleInput);
+      toggleLabel.appendChild(toggleSlider);
+
+      const toggleText = document.createElement('span');
+      toggleText.textContent = 'ÚTIA';
+      toggleText.style.cssText = 'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px; text-align: center;';
+
+      toggleContainer.appendChild(toggleLabel);
+      toggleContainer.appendChild(toggleText);
 
       guestDiv.appendChild(firstNameGroup);
       guestDiv.appendChild(lastNameGroup);
+      guestDiv.appendChild(toggleContainer);
       adultsNamesList.appendChild(guestDiv);
     }
 
@@ -352,15 +413,17 @@ class EditBookingComponent {
       for (let i = 1; i <= children; i++) {
         const guestDiv = document.createElement('div');
         guestDiv.className = 'guest-name-row';
-        guestDiv.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;';
+        guestDiv.style.cssText = 'display: flex; align-items: end; gap: 0.75rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;';
 
         // First name input
         const firstNameGroup = document.createElement('div');
         firstNameGroup.className = 'input-group';
+        firstNameGroup.style.cssText = 'flex: 1; min-width: 0;';
 
         const firstNameLabel = document.createElement('label');
         firstNameLabel.setAttribute('for', `editChildFirstName${i}`);
-        firstNameLabel.textContent = `Křestní jméno ${i}. dítěte *`;
+        firstNameLabel.textContent = `Křestní jméno *`;
+        firstNameLabel.style.cssText = 'display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;';
         firstNameGroup.appendChild(firstNameLabel);
 
         const firstNameInput = document.createElement('input');
@@ -374,15 +437,18 @@ class EditBookingComponent {
         firstNameInput.placeholder = 'např. Anna';
         firstNameInput.setAttribute('data-guest-type', 'child');
         firstNameInput.setAttribute('data-guest-index', i);
+        firstNameInput.style.cssText = 'width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
         firstNameGroup.appendChild(firstNameInput);
 
         // Last name input
         const lastNameGroup = document.createElement('div');
         lastNameGroup.className = 'input-group';
+        lastNameGroup.style.cssText = 'flex: 1; min-width: 0;';
 
         const lastNameLabel = document.createElement('label');
         lastNameLabel.setAttribute('for', `editChildLastName${i}`);
-        lastNameLabel.textContent = `Příjmení ${i}. dítěte *`;
+        lastNameLabel.textContent = `Příjmení *`;
+        lastNameLabel.style.cssText = 'display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;';
         lastNameGroup.appendChild(lastNameLabel);
 
         const lastNameInput = document.createElement('input');
@@ -396,10 +462,66 @@ class EditBookingComponent {
         lastNameInput.placeholder = 'např. Nováková';
         lastNameInput.setAttribute('data-guest-type', 'child');
         lastNameInput.setAttribute('data-guest-index', i);
+        lastNameInput.style.cssText = 'width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
         lastNameGroup.appendChild(lastNameInput);
+
+        // Toggle switch container for ÚTIA/External
+        const toggleContainer = document.createElement('div');
+        toggleContainer.style.cssText = 'display: flex; flex-direction: column; align-items: center; gap: 0.25rem; flex-shrink: 0;';
+
+        const toggleLabel = document.createElement('label');
+        toggleLabel.style.cssText = 'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer; margin-top: 1.5rem;';
+
+        const toggleInput = document.createElement('input');
+        toggleInput.type = 'checkbox';
+        toggleInput.id = `editChild${i}GuestTypeToggle`;
+        toggleInput.setAttribute('data-guest-type', 'child');
+        toggleInput.setAttribute('data-guest-index', i);
+        toggleInput.setAttribute('data-guest-price-type', 'true');
+        toggleInput.checked = false; // Unchecked = ÚTIA, Checked = External
+        toggleInput.style.cssText = 'opacity: 0; width: 0; height: 0;';
+
+        const toggleSlider = document.createElement('span');
+        toggleSlider.style.cssText = `
+          position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+          background-color: #059669; transition: 0.3s; border-radius: 24px;
+        `;
+
+        const toggleThumb = document.createElement('span');
+        toggleThumb.style.cssText = `
+          position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px;
+          background-color: white; transition: 0.3s; border-radius: 50%;
+        `;
+        toggleSlider.appendChild(toggleThumb);
+
+        // Toggle state change handler
+        toggleInput.addEventListener('change', function() {
+          if (this.checked) {
+            toggleSlider.style.backgroundColor = '#dc2626'; // Red for External
+            toggleThumb.style.transform = 'translateX(20px)';
+            toggleText.textContent = 'EXT';
+            toggleText.style.color = '#dc2626';
+          } else {
+            toggleSlider.style.backgroundColor = '#059669'; // Green for ÚTIA
+            toggleThumb.style.transform = 'translateX(0)';
+            toggleText.textContent = 'ÚTIA';
+            toggleText.style.color = '#059669';
+          }
+        });
+
+        toggleLabel.appendChild(toggleInput);
+        toggleLabel.appendChild(toggleSlider);
+
+        const toggleText = document.createElement('span');
+        toggleText.textContent = 'ÚTIA';
+        toggleText.style.cssText = 'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px; text-align: center;';
+
+        toggleContainer.appendChild(toggleLabel);
+        toggleContainer.appendChild(toggleText);
 
         guestDiv.appendChild(firstNameGroup);
         guestDiv.appendChild(lastNameGroup);
+        guestDiv.appendChild(toggleContainer);
         childrenNamesList.appendChild(guestDiv);
       }
     } else {
@@ -487,27 +609,53 @@ class EditBookingComponent {
       const childNames = this.currentBooking.guestNames.filter((g) => g.personType === 'child');
       const toddlerNames = this.currentBooking.guestNames.filter((g) => g.personType === 'toddler');
 
-      // Populate adult names
+      // Populate adult names and guest types
       adultNames.forEach((guest, index) => {
         const firstNameInput = document.getElementById(`editAdultFirstName${index + 1}`);
         const lastNameInput = document.getElementById(`editAdultLastName${index + 1}`);
+        const toggleInput = document.getElementById(`editAdult${index + 1}GuestTypeToggle`);
+
         if (firstNameInput) {
           firstNameInput.value = guest.firstName || '';
         }
         if (lastNameInput) {
           lastNameInput.value = guest.lastName || '';
+        }
+
+        // Set toggle switch based on guestPriceType
+        if (toggleInput) {
+          const guestPriceType = guest.guestPriceType || 'utia'; // Default to ÚTIA
+          const isExternal = guestPriceType === 'external';
+          toggleInput.checked = isExternal;
+
+          // Trigger change event to update visual state
+          const event = new Event('change');
+          toggleInput.dispatchEvent(event);
         }
       });
 
-      // Populate child names
+      // Populate child names and guest types
       childNames.forEach((guest, index) => {
         const firstNameInput = document.getElementById(`editChildFirstName${index + 1}`);
         const lastNameInput = document.getElementById(`editChildLastName${index + 1}`);
+        const toggleInput = document.getElementById(`editChild${index + 1}GuestTypeToggle`);
+
         if (firstNameInput) {
           firstNameInput.value = guest.firstName || '';
         }
         if (lastNameInput) {
           lastNameInput.value = guest.lastName || '';
+        }
+
+        // Set toggle switch based on guestPriceType
+        if (toggleInput) {
+          const guestPriceType = guest.guestPriceType || 'utia';
+          const isExternal = guestPriceType === 'external';
+          toggleInput.checked = isExternal;
+
+          // Trigger change event to update visual state
+          const event = new Event('change');
+          toggleInput.dispatchEvent(event);
         }
       });
 
@@ -544,10 +692,15 @@ class EditBookingComponent {
       const firstName = adultFirstNames[i].value.trim();
       const lastName = adultLastNames[i].value.trim();
       if (firstName && lastName) {
+        // Get toggle switch to determine guestPriceType
+        const toggleInput = document.getElementById(`editAdult${i + 1}GuestTypeToggle`);
+        const guestPriceType = toggleInput && toggleInput.checked ? 'external' : 'utia';
+
         guestNames.push({
           personType: 'adult',
           firstName,
           lastName,
+          guestPriceType,
         });
       }
     }
@@ -564,10 +717,15 @@ class EditBookingComponent {
       const firstName = childFirstNames[i].value.trim();
       const lastName = childLastNames[i].value.trim();
       if (firstName && lastName) {
+        // Get toggle switch to determine guestPriceType
+        const toggleInput = document.getElementById(`editChild${i + 1}GuestTypeToggle`);
+        const guestPriceType = toggleInput && toggleInput.checked ? 'external' : 'utia';
+
         guestNames.push({
           personType: 'child',
           firstName,
           lastName,
+          guestPriceType,
         });
       }
     }
@@ -588,6 +746,7 @@ class EditBookingComponent {
           personType: 'toddler',
           firstName,
           lastName,
+          guestPriceType: 'utia', // Default for toddlers (always free, no toggle switch)
         });
       }
     }

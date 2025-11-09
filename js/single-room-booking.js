@@ -598,16 +598,6 @@ class SingleRoomBookingModule {
       }
     });
 
-    // Capture toddler toggle states
-    const existingToddlerToggles = section.querySelectorAll('input[data-guest-type="toddler"][data-guest-price-type]');
-    existingToddlerToggles.forEach(toggle => {
-      const index = toggle.dataset.guestIndex;
-      const key = `toddler-${index}`;
-      if (savedGuestData.has(key)) {
-        savedGuestData.get(key).guestType = toggle.checked ? 'external' : 'utia';
-      }
-    });
-
     const makeId = (prefix) => prefix;
 
     // Adults section
@@ -948,91 +938,12 @@ class SingleRoomBookingModule {
           lastNameInput.maxLength = 50;
           lastNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
 
-          // Toggle switch container (toddlers are free, but we track type for reporting)
-          const toggleContainer = document.createElement('div');
-          toggleContainer.style.cssText = 'display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; flex-shrink: 0;';
-
-          const toggleLabel = document.createElement('label');
-          toggleLabel.style.cssText = 'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer;';
-
-          const toggleInput = document.createElement('input');
-          toggleInput.type = 'checkbox';
-          toggleInput.id = `toddler${i}GuestTypeToggle`;
-          toggleInput.setAttribute('data-guest-type', 'toddler');
-          toggleInput.setAttribute('data-guest-index', i);
-          toggleInput.setAttribute('data-guest-price-type', 'true');
-          toggleInput.checked = false; // Unchecked = ÚTIA, Checked = External
-          toggleInput.style.cssText = 'opacity: 0; width: 0; height: 0;';
-
-          const toggleSlider = document.createElement('span');
-          toggleSlider.style.cssText = `
-            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #059669; transition: 0.3s; border-radius: 24px;
-          `;
-
-          const toggleThumb = document.createElement('span');
-          toggleThumb.style.cssText = `
-            position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px;
-            background-color: white; transition: 0.3s; border-radius: 50%;
-          `;
-          toggleSlider.appendChild(toggleThumb);
-
-          // Toggle state change handler
-          toggleInput.addEventListener('change', async function() {
-            if (this.checked) {
-              toggleSlider.style.backgroundColor = '#dc2626'; // Red for External
-              toggleThumb.style.transform = 'translateX(20px)';
-              toggleText.textContent = 'EXT';
-              toggleText.style.color = '#dc2626';
-            } else {
-              toggleSlider.style.backgroundColor = '#059669'; // Green for ÚTIA
-              toggleThumb.style.transform = 'translateX(0)';
-              toggleText.textContent = 'ÚTIA';
-              toggleText.style.color = '#059669';
-            }
-
-            // NOVÝ KÓD - Přepočet ceny po změně typu hosta:
-            if (window.app && window.app.singleRoomBooking) {
-              try {
-                await window.app.singleRoomBooking.updatePriceForCurrentRoom();
-              } catch (error) {
-                console.error('Failed to update price after guest type change:', error);
-              }
-            }
-          });
-
-          toggleLabel.appendChild(toggleInput);
-          toggleLabel.appendChild(toggleSlider);
-
-          const toggleText = document.createElement('span');
-          toggleText.textContent = 'ÚTIA';
-          toggleText.style.cssText = 'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px;';
-
-          toggleContainer.appendChild(toggleLabel);
-          toggleContainer.appendChild(toggleText);
-
           // RESTORE PHASE: Restore saved data for this guest
           const savedKey = `toddler-${i}`;
           if (savedGuestData.has(savedKey)) {
             const saved = savedGuestData.get(savedKey);
             if (saved.firstName) firstNameInput.value = saved.firstName;
             if (saved.lastName) lastNameInput.value = saved.lastName;
-            if (saved.guestType) {
-              const isExternal = saved.guestType === 'external';
-              toggleInput.checked = isExternal;
-              // Trigger visual update
-              if (isExternal) {
-                toggleSlider.style.backgroundColor = '#dc2626';
-                toggleThumb.style.transform = 'translateX(20px)';
-                toggleText.textContent = 'EXT';
-                toggleText.style.color = '#dc2626';
-              } else {
-                toggleSlider.style.backgroundColor = '#059669';
-                toggleThumb.style.transform = 'translateX(0)';
-                toggleText.textContent = 'ÚTIA';
-                toggleText.style.color = '#059669';
-              }
-            }
           }
 
           // Add input event listeners to remove red border when user starts typing
@@ -1053,11 +964,10 @@ class SingleRoomBookingModule {
           // Free label
           const freeLabel = document.createElement('span');
           freeLabel.textContent = '(zdarma)';
-          freeLabel.style.cssText = 'font-size: 0.7rem; color: #6b7280; white-space: nowrap;';
+          freeLabel.style.cssText = 'font-size: 0.7rem; color: #6b7280; white-space: nowrap; flex-shrink: 0;';
 
           row.appendChild(firstNameInput);
           row.appendChild(lastNameInput);
-          row.appendChild(toggleContainer);
           row.appendChild(freeLabel);
           toddlersContainer.appendChild(row);
         }
@@ -1083,10 +993,10 @@ class SingleRoomBookingModule {
 
     // If NOT showing validation errors (price update mode), collect only checkboxes
     if (!showValidationErrors) {
-      // Collect guest type from toggle switches (checkboxes) only
+      // Collect guest type from toggle switches (checkboxes) for adults and children
       const guestTypeInputs = section.querySelectorAll('input[data-guest-price-type]');
       guestTypeInputs.forEach((input) => {
-        const guestType = input.dataset.guestType; // adult, child, toddler
+        const guestType = input.dataset.guestType; // adult, child
         // UI logic: Unchecked (false) = ÚTIA, Checked (true) = External
         const guestPriceType = input.checked ? 'external' : 'utia';
 
@@ -1094,6 +1004,26 @@ class SingleRoomBookingModule {
         guestNames.push({
           personType: guestType,
           guestPriceType: guestPriceType,
+          firstName: '', // Empty for price update mode
+          lastName: ''
+        });
+      });
+
+      // For toddlers, count the number of toddler name inputs and add them with default price type
+      const toddlerInputs = section.querySelectorAll('input[data-guest-type="toddler"]');
+      // Count unique toddler indices (each toddler has 2 inputs: firstName and lastName)
+      const toddlerIndices = new Set();
+      toddlerInputs.forEach((input) => {
+        if (input.dataset.guestIndex) {
+          toddlerIndices.add(input.dataset.guestIndex);
+        }
+      });
+
+      // Add a dummy guest for each toddler
+      toddlerIndices.forEach(() => {
+        guestNames.push({
+          personType: 'toddler',
+          guestPriceType: 'utia', // Default for toddlers (free anyway)
           firstName: '', // Empty for price update mode
           lastName: ''
         });
@@ -1164,8 +1094,8 @@ class SingleRoomBookingModule {
         return null; // Incomplete guest data
       }
 
-      // Validate that guest type is set
-      if (!guest.guestPriceType) {
+      // Validate that guest type is set (skip for toddlers - they have no toggle)
+      if (!guest.guestPriceType && guest.personType !== 'toddler') {
         this.app.showNotification(
           this.app.currentLanguage === 'cs'
             ? 'Vyberte typ hosta (ÚTIA/Externí) pro všechny hosty'
@@ -1173,6 +1103,11 @@ class SingleRoomBookingModule {
           'error'
         );
         return null; // Missing guest type
+      }
+
+      // For toddlers without guestPriceType, set default (doesn't matter for price)
+      if (guest.personType === 'toddler' && !guest.guestPriceType) {
+        guest.guestPriceType = 'utia'; // Default for toddlers (free anyway)
       }
 
       guestNames.push(guest);

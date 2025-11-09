@@ -944,15 +944,26 @@ class BookingApp {
                   </div>
                 </div>
               </div>
-              <button
-                onclick="window.app.removeTempReservation('${booking.id}')"
-                style="padding: 0.5rem; background: white; color: var(--danger-color); border: 1px solid var(--danger-color); border-radius: 6px; cursor: pointer; transition: all 0.2s; min-width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;"
-                title="${this.currentLanguage === 'cs' ? 'Odebrat rezervaci' : 'Remove reservation'}"
-                onmouseover="this.style.background='var(--danger-color)'; this.style.color='white';"
-                onmouseout="this.style.background='white'; this.style.color='var(--danger-color)';"
-              >
-                ×
-              </button>
+              <div style="display: flex; gap: 0.5rem; align-items: start;">
+                <button
+                  onclick="window.app.editTempReservation('${booking.id}')"
+                  style="padding: 0.5rem 0.75rem; background: white; color: #8b5cf6; border: 1px solid #8b5cf6; border-radius: 6px; cursor: pointer; transition: all 0.2s; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 600;"
+                  title="${this.currentLanguage === 'cs' ? 'Upravit rezervaci' : 'Edit reservation'}"
+                  onmouseover="this.style.background='#8b5cf6'; this.style.color='white';"
+                  onmouseout="this.style.background='white'; this.style.color='#8b5cf6';"
+                >
+                  ✏️
+                </button>
+                <button
+                  onclick="window.app.removeTempReservation('${booking.id}')"
+                  style="padding: 0.5rem; background: white; color: var(--danger-color); border: 1px solid var(--danger-color); border-radius: 6px; cursor: pointer; transition: all 0.2s; min-width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;"
+                  title="${this.currentLanguage === 'cs' ? 'Odebrat rezervaci' : 'Remove reservation'}"
+                  onmouseover="this.style.background='var(--danger-color)'; this.style.color='white';"
+                  onmouseout="this.style.background='white'; this.style.color='var(--danger-color)';"
+                >
+                  ×
+                </button>
+              </div>
             </div>
           </div>
         `;
@@ -994,15 +1005,26 @@ class BookingApp {
                   </div>
                 </div>
               </div>
-              <button
-                onclick="window.app.removeTempReservation('${booking.id}')"
-                style="padding: 0.5rem; background: white; color: var(--danger-color); border: 1px solid var(--danger-color); border-radius: 6px; cursor: pointer; transition: all 0.2s; min-width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;"
-                title="${this.currentLanguage === 'cs' ? 'Odebrat rezervaci' : 'Remove reservation'}"
-                onmouseover="this.style.background='var(--danger-color)'; this.style.color='white';"
-                onmouseout="this.style.background='white'; this.style.color='var(--danger-color)';"
-              >
-                ×
-              </button>
+              <div style="display: flex; gap: 0.5rem; align-items: start;">
+                <button
+                  onclick="window.app.editTempReservation('${booking.id}')"
+                  style="padding: 0.5rem 0.75rem; background: white; color: var(--primary-color); border: 1px solid var(--primary-color); border-radius: 6px; cursor: pointer; transition: all 0.2s; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 600;"
+                  title="${this.currentLanguage === 'cs' ? 'Upravit rezervaci' : 'Edit reservation'}"
+                  onmouseover="this.style.background='var(--primary-color)'; this.style.color='white';"
+                  onmouseout="this.style.background='white'; this.style.color='var(--primary-color)';"
+                >
+                  ✏️
+                </button>
+                <button
+                  onclick="window.app.removeTempReservation('${booking.id}')"
+                  style="padding: 0.5rem; background: white; color: var(--danger-color); border: 1px solid var(--danger-color); border-radius: 6px; cursor: pointer; transition: all 0.2s; min-width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;"
+                  title="${this.currentLanguage === 'cs' ? 'Odebrat rezervaci' : 'Remove reservation'}"
+                  onmouseover="this.style.background='var(--danger-color)'; this.style.color='white';"
+                  onmouseout="this.style.background='white'; this.style.color='var(--danger-color)';"
+                >
+                  ×
+                </button>
+              </div>
             </div>
           </div>
         `;
@@ -1080,6 +1102,165 @@ class BookingApp {
         ? `Rezervace pokoje ${roomName} byla odebrána`
         : `Reservation for room ${roomName} has been removed`,
       'info'
+    );
+  }
+
+  async editTempReservation(bookingId) {
+    if (!this.tempReservations) {
+      return;
+    }
+
+    // Find the reservation to edit
+    const reservationToEdit = this.tempReservations.find((b) => b.id === bookingId);
+    if (!reservationToEdit) {
+      return;
+    }
+
+    // Delete the proposed booking from database if it has a proposalId
+    if (reservationToEdit.proposalId) {
+      try {
+        await dataManager.deleteProposedBooking(reservationToEdit.proposalId);
+      } catch (error) {
+        console.error('Failed to delete proposed booking:', error);
+      }
+    }
+
+    // Remove it from the list
+    this.tempReservations = this.tempReservations.filter((b) => b.id !== bookingId);
+
+    // Update the display
+    await this.displayTempReservations();
+
+    // Check if this is a bulk booking or single room
+    if (reservationToEdit.isBulkBooking) {
+      // Open bulk booking modal with pre-filled data
+      const bulkBooking = this.bulkBooking;
+      if (bulkBooking) {
+        // Set the dates
+        bulkBooking.selectedStartDate = reservationToEdit.startDate;
+        bulkBooking.selectedEndDate = reservationToEdit.endDate;
+
+        // Set guest data
+        bulkBooking.currentGuests = reservationToEdit.guests;
+        bulkBooking.currentGuestType = reservationToEdit.guestType || 'external';
+
+        // Open the modal
+        const modal = document.getElementById('bulkBookingModal');
+        if (modal) {
+          modal.classList.add('active');
+        }
+
+        // Trigger date confirmation to show the form
+        await bulkBooking.confirmBulkDates();
+      }
+    } else {
+      // Open single room booking modal with pre-filled data
+      const singleRoomBooking = this.singleRoomBooking;
+      if (singleRoomBooking) {
+        const roomId = reservationToEdit.roomId;
+
+        // Set the current booking room on app
+        this.currentBookingRoom = roomId;
+
+        // Clear and populate selectedDates Set with all dates in the range
+        this.selectedDates.clear();
+        const start = new Date(`${reservationToEdit.startDate}T12:00:00`);
+        const end = new Date(`${reservationToEdit.endDate}T12:00:00`);
+        const current = new Date(start);
+
+        while (current <= end) {
+          const dateStr = DateUtils.formatDate(current);
+          this.selectedDates.add(dateStr);
+          current.setDate(current.getDate() + 1);
+        }
+
+        // Add room to selectedRooms
+        this.selectedRooms.clear();
+        this.selectedRooms.add(roomId);
+
+        // Set roomGuests Map with guest counts
+        this.roomGuests.set(roomId, {
+          adults: reservationToEdit.guests.adults || 0,
+          children: reservationToEdit.guests.children || 0,
+          toddlers: reservationToEdit.guests.toddlers || 0,
+          guestType: reservationToEdit.guestType || 'external'
+        });
+
+        // Set roomGuestTypes Map
+        this.roomGuestTypes.set(roomId, reservationToEdit.guestType || 'external');
+
+        // Open the modal
+        const modal = document.getElementById('singleRoomBookingModal');
+        if (modal) {
+          const modalTitle = document.getElementById('roomBookingTitle');
+          const rooms = await dataManager.getRooms();
+          const room = rooms.find((r) => r.id === roomId);
+
+          if (room && modalTitle) {
+            const roomName = this.currentLanguage === 'cs' ? room.name : room.name.replace('Pokoj', 'Room');
+            modalTitle.textContent = `${this.currentLanguage === 'cs' ? 'Rezervace' : 'Book'} ${roomName}`;
+          }
+
+          modal.classList.add('active');
+        }
+
+        // Render the mini calendar
+        await singleRoomBooking.renderMiniCalendar(roomId);
+
+        // Update displays
+        await this.updateSelectedDatesDisplay();
+        await this.updatePriceCalculation();
+
+        // Update guest count displays
+        const adultsEl = document.getElementById('singleRoomAdults');
+        const childrenEl = document.getElementById('singleRoomChildren');
+        const toddlersEl = document.getElementById('singleRoomToddlers');
+
+        if (adultsEl) adultsEl.textContent = (reservationToEdit.guests.adults || 0).toString();
+        if (childrenEl) childrenEl.textContent = (reservationToEdit.guests.children || 0).toString();
+        if (toddlersEl) toddlersEl.textContent = (reservationToEdit.guests.toddlers || 0).toString();
+
+        // Set guest type radio button
+        const guestType = reservationToEdit.guestType || 'external';
+        const radioButton = document.querySelector(`input[name="singleRoomGuestType"][value="${guestType}"]`);
+        if (radioButton) {
+          radioButton.checked = true;
+        }
+
+        // Generate guest name inputs
+        singleRoomBooking.generateGuestNamesInputs(
+          reservationToEdit.guests.adults || 0,
+          reservationToEdit.guests.children || 0,
+          reservationToEdit.guests.toddlers || 0
+        );
+
+        // Pre-fill guest names if available
+        if (reservationToEdit.guestNames && reservationToEdit.guestNames.length > 0) {
+          setTimeout(() => {
+            reservationToEdit.guestNames.forEach((guestName, index) => {
+              const input = document.querySelector(`[data-guest-index="${index}"]`);
+              if (input) {
+                input.value = guestName.name || '';
+
+                // Set guest type dropdown if it exists
+                const guestTypeDropdown = document.querySelector(`[data-guest-type-index="${index}"]`);
+                if (guestTypeDropdown) {
+                  guestTypeDropdown.value = guestName.guestPriceType || 'external';
+                }
+              }
+            });
+          }, 100);
+        }
+      }
+    }
+
+    // Show notification
+    this.showNotification(
+      this.currentLanguage === 'cs'
+        ? `Upravujete rezervaci - změňte data a přidejte znovu`
+        : `Editing reservation - modify data and add again`,
+      'info',
+      4000
     );
   }
 
