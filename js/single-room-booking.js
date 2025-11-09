@@ -919,7 +919,7 @@ class SingleRoomBookingModule {
           const firstNameInput = document.createElement('input');
           firstNameInput.type = 'text';
           firstNameInput.id = `${makeId('singleRoomToddlerFirstName')}${i}`;
-          firstNameInput.placeholder = langManager.t('firstNamePlaceholder');
+          firstNameInput.placeholder = langManager.t('firstNameToddlerPlaceholder');
           firstNameInput.setAttribute('data-guest-type', 'toddler');
           firstNameInput.setAttribute('data-guest-index', i);
           firstNameInput.required = true;
@@ -930,7 +930,7 @@ class SingleRoomBookingModule {
           const lastNameInput = document.createElement('input');
           lastNameInput.type = 'text';
           lastNameInput.id = `${makeId('singleRoomToddlerLastName')}${i}`;
-          lastNameInput.placeholder = langManager.t('lastNamePlaceholder');
+          lastNameInput.placeholder = langManager.t('lastNameToddlerPlaceholder');
           lastNameInput.setAttribute('data-guest-type', 'toddler');
           lastNameInput.setAttribute('data-guest-index', i);
           lastNameInput.required = true;
@@ -963,7 +963,7 @@ class SingleRoomBookingModule {
 
           // Free label
           const freeLabel = document.createElement('span');
-          freeLabel.textContent = '(zdarma)';
+          freeLabel.textContent = `(${langManager.t('toddlersFreeLabel')})`;
           freeLabel.style.cssText = 'font-size: 0.7rem; color: #6b7280; white-space: nowrap; flex-shrink: 0;';
 
           row.appendChild(firstNameInput);
@@ -1271,9 +1271,9 @@ class SingleRoomBookingModule {
     // Update guest counts summary
     const guestCountsElement = document.getElementById('guestCountsSummary');
     if (guestCountsElement) {
-      let text = `${totalAdults} dosp.`;
-      if (totalChildren > 0) text += `, ${totalChildren} děti`;
-      if (toddlers > 0) text += `, ${toddlers} bat.`;
+      let text = `${totalAdults} ${langManager.t('adultsShort')}`;
+      if (totalChildren > 0) text += `, ${totalChildren} ${langManager.t('childrenShort')}`;
+      if (toddlers > 0) text += `, ${toddlers} ${langManager.t('toddlersShort')}`;
       guestCountsElement.textContent = text;
     }
 
@@ -1360,9 +1360,9 @@ class SingleRoomBookingModule {
     // Also update the guest summary in modal header if it exists
     const guestSummary = document.querySelector('#singleRoomBookingModal .guest-summary');
     if (guestSummary) {
-      let text = `${totalAdults} dosp.`;
-      if (totalChildren > 0) text += `, ${totalChildren} děti`;
-      if (toddlers > 0) text += `, ${toddlers} bat.`;
+      let text = `${totalAdults} ${langManager.t('adultsShort')}`;
+      if (totalChildren > 0) text += `, ${totalChildren} ${langManager.t('childrenShort')}`;
+      if (toddlers > 0) text += `, ${toddlers} ${langManager.t('toddlersShort')}`;
       guestSummary.textContent = text;
     }
 
