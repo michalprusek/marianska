@@ -442,23 +442,15 @@ class UtilsModule {
       if (this.app.currentBookingRoom) {
         currentGuestType = this.app.roomGuestTypes.get(this.app.currentBookingRoom) || 'utia';
         currentRoomId = this.app.currentBookingRoom;
-        console.log('[UTILS DEBUG] currentBookingRoom:', this.app.currentBookingRoom);
-        console.log('[UTILS DEBUG] roomGuestTypes.get():', this.app.roomGuestTypes.get(this.app.currentBookingRoom));
-        console.log('[UTILS DEBUG] currentGuestType:', currentGuestType);
       } else if (this.app.selectedRooms.size > 0) {
         const firstRoom = Array.from(this.app.selectedRooms)[0];
         currentGuestType = this.app.roomGuestTypes.get(firstRoom) || 'utia';
         currentRoomId = firstRoom;
-        console.log('[UTILS DEBUG] Using firstRoom:', firstRoom);
-        console.log('[UTILS DEBUG] roomGuestTypes.get(firstRoom):', this.app.roomGuestTypes.get(firstRoom));
-        console.log('[UTILS DEBUG] currentGuestType:', currentGuestType);
       }
 
       // Get base price based on current guest type AND room size (NEW 2025-10-17)
       const guestKey = currentGuestType === 'utia' ? 'utia' : 'external';
       const priceConfig = prices[guestKey];
-      console.log('[UTILS DEBUG] guestKey:', guestKey);
-      console.log('[UTILS DEBUG] priceConfig:', priceConfig);
 
       // Get rooms list (needed for room-size-based pricing)
       const rooms = await dataManager.getRooms();
@@ -483,18 +475,14 @@ class UtilsModule {
         baseRoomPrice = priceConfig.base;
       }
 
-      // Fallback if we couldn't determine price
-      if (baseRoomPrice === null || baseRoomPrice === undefined) {
+      // Fallback if we couldn't determine price - ensure valid number
+      if (baseRoomPrice === null || baseRoomPrice === undefined || isNaN(baseRoomPrice)) {
         // Use room-type-specific fallback based on currentRoomId
         const room = rooms.find((r) => r.id === currentRoomId);
         const roomType = room?.type || 'small';
         const isSmall = roomType === 'small';
         baseRoomPrice = currentGuestType === 'utia' ? (isSmall ? 250 : 350) : (isSmall ? 400 : 500);
-        console.log('[UTILS DEBUG] Used fallback price:', baseRoomPrice);
       }
-
-      console.log('[UTILS DEBUG] Final baseRoomPrice:', baseRoomPrice);
-      console.log('[UTILS DEBUG] Will display as:', currentGuestType === 'utia' ? 'ÚTIA' : 'EXT');
 
       // Always update base price display
       if (basePriceEl) {

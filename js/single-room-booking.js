@@ -1227,14 +1227,10 @@ class SingleRoomBookingModule {
 
       // FIX: Determine actual guest type based on whether ANY guest is ÚTIA
       // This MUST be calculated BEFORE creating perRoomGuests
-      console.log('[GUEST TYPE DEBUG] guestNames:', guestNames);
-      console.log('[GUEST TYPE DEBUG] guestNames.length:', guestNames?.length);
       const hasUtiaGuest = guestNames && guestNames.length > 0
         ? guestNames.some(guest => guest.guestPriceType === 'utia')
         : true;  // FIX 2025-11-07: Default to ÚTIA when no guests yet (matches default radio selection)
-      console.log('[GUEST TYPE DEBUG] hasUtiaGuest after calculation:', hasUtiaGuest);
       const actualGuestType = hasUtiaGuest ? 'utia' : 'external';
-      console.log('[GUEST TYPE DEBUG] actualGuestType:', actualGuestType);
 
       // FIX 2025-11-07: Store actualGuestType in app.roomGuestTypes so utils.js can access it
       this.app.roomGuestTypes.set(roomId, actualGuestType);
@@ -1248,9 +1244,6 @@ class SingleRoomBookingModule {
           guestType: actualGuestType  // FIX: Use actualGuestType instead of fallbackGuestType
         }
       };
-
-      // DEBUG: Log the perRoomGuests structure
-      console.log('[SingleRoomBooking] updatePriceForCurrentRoom - roomId:', roomId, 'perRoomGuests:', perRoomGuests);
 
       // Calculate price using PER-GUEST method
       const price = PriceCalculator.calculatePerGuestPrice({
@@ -1328,25 +1321,15 @@ class SingleRoomBookingModule {
     const utiaPrices = settings.prices?.utia?.[roomType] || {};
     const externalPrices = settings.prices?.external?.[roomType] || {};
 
-    console.log('[PRICE DEBUG] actualGuestType:', actualGuestType);
-    console.log('[PRICE DEBUG] hasUtiaGuest:', hasUtiaGuest);
-    console.log('[PRICE DEBUG] roomType:', roomType);
-    console.log('[PRICE DEBUG] utiaPrices:', utiaPrices);
-    console.log('[PRICE DEBUG] externalPrices:', externalPrices);
-
     // Get empty room price (NEW MODEL: base/empty = prázdný pokoj)
     const actualPriceConfig = actualGuestType === 'utia' ? utiaPrices : externalPrices;
     // FIX 2025-11-07: Try both 'base' and 'empty' property names for backward compatibility
     const emptyRoomPrice = actualPriceConfig.base ?? actualPriceConfig.empty ?? 0;
 
-    console.log('[PRICE DEBUG] actualPriceConfig:', actualPriceConfig);
-    console.log('[PRICE DEBUG] emptyRoomPrice:', emptyRoomPrice);
-
     // Update base price display
     const basePriceElement = document.getElementById('basePrice');
     if (basePriceElement) {
       const basePriceText = `${emptyRoomPrice.toLocaleString('cs-CZ')} Kč${hasUtiaGuest ? ' (ÚTIA)' : ' (EXT)'}`;
-      console.log('[PRICE DEBUG] basePriceText being set:', basePriceText);
       basePriceElement.textContent = basePriceText;
     }
 
