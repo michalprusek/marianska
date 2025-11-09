@@ -95,10 +95,30 @@ class EditBookingComponent {
     // If perRoomGuests is available, use it directly. Otherwise, fall back to distribution.
     const defaultGuestType = booking.guestType || 'external';
 
-    // FIX: Check if perRoomGuests has data for ALL rooms (not just exists)
+
+    // FIX: Verify perRoomGuests totals match booking totals
+    let totalPerRoomAdults = 0;
+    let totalPerRoomChildren = 0;
+    let totalPerRoomToddlers = 0;
+
+    if (booking.perRoomGuests) {
+      Object.values(booking.perRoomGuests).forEach(roomGuests => {
+        totalPerRoomAdults += roomGuests.adults || 0;
+        totalPerRoomChildren += roomGuests.children || 0;
+        totalPerRoomToddlers += roomGuests.toddlers || 0;
+      });
+    }
+
+    const perRoomTotalsMatch =
+      totalPerRoomAdults === (booking.adults || 0) &&
+      totalPerRoomChildren === (booking.children || 0) &&
+      totalPerRoomToddlers === (booking.toddlers || 0);
+
+    // FIX: Check if perRoomGuests has data for ALL rooms AND totals match
     const hasCompletePerRoomGuests =
       booking.perRoomGuests &&
-      Object.keys(booking.perRoomGuests).length === (booking.rooms || []).length;
+      Object.keys(booking.perRoomGuests).length === (booking.rooms || []).length &&
+      perRoomTotalsMatch;
 
     if (hasCompletePerRoomGuests) {
       // Use per-room guest data from database
@@ -180,11 +200,8 @@ class EditBookingComponent {
     // Populate form fields
     this.populateForm();
 
-    // Use per-room list UI
+    // Use per-room list UI (now includes guest name fields generation)
     this.renderPerRoomList();
-
-    // Populate existing guest names into the new input fields
-    this.populateGuestNamesInRooms();
 
     // Calendar is hidden by default (will be shown when user clicks "Změnit termín")
     const calendarHeader = document.getElementById('editCalendarHeader');
@@ -766,21 +783,21 @@ class EditBookingComponent {
     if (adultNames.length !== expectedAdults) {
       return {
         valid: false,
-        error: `Vyplňte jména všech ${expectedAdults} dospělých v záložce "Fakturační údaje"`,
+        error: `Vyplňte jména všech ${expectedAdults} dospělých v záložce "Jména ubytovaných osob"`,
       };
     }
 
     if (childNames.length !== expectedChildren) {
       return {
         valid: false,
-        error: `Vyplňte jména všech ${expectedChildren} dětí v záložce "Fakturační údaje"`,
+        error: `Vyplňte jména všech ${expectedChildren} dětí v záložce "Jména ubytovaných osob"`,
       };
     }
 
     if (toddlerNames.length !== expectedToddlers) {
       return {
         valid: false,
-        error: `Vyplňte jména všech ${expectedToddlers} batolat v záložce "Fakturační údaje"`,
+        error: `Vyplňte jména všech ${expectedToddlers} batolat v záložce "Jména ubytovaných osob"`,
       };
     }
 
@@ -789,13 +806,13 @@ class EditBookingComponent {
       if (guest.firstName.length < 2) {
         return {
           valid: false,
-          error: 'Všechna křestní jména musí mít alespoň 2 znaky (záložka "Fakturační údaje")',
+          error: 'Všechna křestní jména musí mít alespoň 2 znaky (záložka "Jména ubytovaných osob")',
         };
       }
       if (guest.lastName.length < 2) {
         return {
           valid: false,
-          error: 'Všechna příjmení musí mít alespoň 2 znaky (záložka "Fakturační údaje")',
+          error: 'Všechna příjmení musí mít alespoň 2 znaky (záložka "Jména ubytovaných osob")',
         };
       }
     }
@@ -2240,7 +2257,28 @@ class EditBookingComponent {
       `;
 
       roomsList.appendChild(roomCard);
+
+      // Generate guest name input fields immediately for selected rooms
+      if (isSelected) {
+        const guestNamesHTML = this.renderGuestListForRoom(room.id, roomData);
+        if (guestNamesHTML) {
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = guestNamesHTML;
+          const guestNamesContainer = tempDiv.firstElementChild;
+
+          // Find the guest configuration section (grid with spinbuttons)
+          const guestConfigSection = roomCard.querySelector('div[style*="display: grid"]');
+          if (guestConfigSection) {
+            guestConfigSection.insertAdjacentElement('afterend', guestNamesContainer);
+          }
+        }
+      }
     }
+
+    // Populate existing guest names after rendering all rooms
+    setTimeout(() => {
+      this.populateGuestNamesInRooms();
+    }, 50);
   }
 
   /**

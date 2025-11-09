@@ -941,6 +941,9 @@ class AdminPanel {
   }
 
   async editBooking(bookingId) {
+    // Force fresh data from server (bypass cache)
+    await dataManager.syncWithServer(true);
+
     const booking = await dataManager.getBooking(bookingId);
     if (!booking) {
       return;
