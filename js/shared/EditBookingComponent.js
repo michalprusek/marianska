@@ -459,7 +459,7 @@ class EditBookingComponent {
         // Validation is handled by validateGuestNames() method instead
         lastNameInput.minLength = 2;
         lastNameInput.maxLength = 50;
-        lastNameInput.placeholder = 'např. Nováková';
+        lastNameInput.placeholder = 'e.g. Smith';
         lastNameInput.setAttribute('data-guest-type', 'child');
         lastNameInput.setAttribute('data-guest-index', i);
         lastNameInput.style.cssText = 'width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
@@ -551,7 +551,7 @@ class EditBookingComponent {
         firstNameInput.name = `editToddlerFirstName${i}`;
         firstNameInput.minLength = 2;
         firstNameInput.maxLength = 50;
-        firstNameInput.placeholder = 'např. Eliška';
+        firstNameInput.placeholder = 'e.g. Emma';
         firstNameInput.setAttribute('data-guest-type', 'toddler');
         firstNameInput.setAttribute('data-guest-index', i);
         firstNameGroup.appendChild(firstNameInput);
@@ -571,7 +571,7 @@ class EditBookingComponent {
         lastNameInput.name = `editToddlerLastName${i}`;
         lastNameInput.minLength = 2;
         lastNameInput.maxLength = 50;
-        lastNameInput.placeholder = 'např. Nováková';
+        lastNameInput.placeholder = 'e.g. Smith';
         lastNameInput.setAttribute('data-guest-type', 'toddler');
         lastNameInput.setAttribute('data-guest-index', i);
         lastNameGroup.appendChild(lastNameInput);
@@ -1803,7 +1803,7 @@ class EditBookingComponent {
     for (let i = 1; i <= toddlers; i++) {
       guestList += `
         <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: white; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 0.875rem;">
-          <span style="padding: 0.25rem 0.5rem; background: #e0f2fe; color: #0284c7; border-radius: 4px; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">Zdarma</span>
+          <span style="padding: 0.25rem 0.5rem; background: #e0f2fe; color: #0284c7; border-radius: 4px; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">Zdarma (free)</span>
           <span style="color: #6b7280;">🍼 Batole <span style="color: #9ca3af; font-size: 0.75rem;">(Toddler)</span> ${i}</span>
         </div>
       `;
@@ -1866,7 +1866,7 @@ class EditBookingComponent {
     for (let i = 1; i <= totalToddlers; i++) {
       guestList += `
         <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: white; border: 1px solid #d8b4fe; border-radius: 4px; font-size: 0.875rem;">
-          <span style="padding: 0.25rem 0.5rem; background: #e0f2fe; color: #0284c7; border-radius: 4px; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">Zdarma</span>
+          <span style="padding: 0.25rem 0.5rem; background: #e0f2fe; color: #0284c7; border-radius: 4px; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">Zdarma (free)</span>
           <span style="color: #6b21a8;">🍼 Batole <span style="color: #9ca3af; font-size: 0.75rem;">(Toddler)</span> ${i}</span>
         </div>
       `;
