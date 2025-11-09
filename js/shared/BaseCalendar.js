@@ -517,13 +517,32 @@ class BaseCalendar {
     }
 
     // Check for edge days (at least one room has edge status)
-    const edgeAvailability = availabilities.find((a) => a.status === 'edge');
-    if (edgeAvailability) {
+    const edgeRooms = availabilities.filter((a) => a.status === 'edge');
+    if (edgeRooms.length > 0) {
+      // Aggregate night types across all edge rooms
+      // Priority: confirmed > proposed > available
+      const aggregateType = (types) => {
+        if (types.some((t) => t === 'confirmed')) return 'confirmed';
+        if (types.some((t) => t === 'proposed')) return 'proposed';
+        return 'available';
+      };
+
+      const nightBeforeTypes = edgeRooms
+        .filter((r) => r.nightBefore)
+        .map((r) => r.nightBeforeType || 'available');
+
+      const nightAfterTypes = edgeRooms
+        .filter((r) => r.nightAfter)
+        .map((r) => r.nightAfterType || 'available');
+
       return {
         status: 'edge',
-        email: edgeAvailability.email || null,
-        nightBefore: edgeAvailability.nightBefore,
-        nightAfter: edgeAvailability.nightAfter,
+        email: edgeRooms[0].email || null,
+        nightBefore: edgeRooms.some((r) => r.nightBefore),
+        nightAfter: edgeRooms.some((r) => r.nightAfter),
+        nightBeforeType:
+          nightBeforeTypes.length > 0 ? aggregateType(nightBeforeTypes) : 'available',
+        nightAfterType: nightAfterTypes.length > 0 ? aggregateType(nightAfterTypes) : 'available',
       };
     }
 

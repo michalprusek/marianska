@@ -11,17 +11,18 @@ class PriceCalculator {
   /**
    * Get empty room price (base accommodation cost without guests)
    *
-   * CRITICAL FIX 2025-11-05: In NEW model (2025-11-04+), base IS the empty room price
-   * No need to subtract adult surcharge anymore
+   * NEW MODEL (2025-11-06): base field IS the empty room price (without any guests)
+   * Admin sets this value in price settings - it represents accommodation cost for 0 guests.
    *
    * @param {Object} roomPriceConfig - Price configuration for specific room type
    * @returns {number} Empty room base price
    * @private
    */
   static getEmptyRoomPrice(roomPriceConfig) {
-    // NEW MODEL (2025-11-04+): base IS empty room price, use it directly
-    // This aligns with the room-size-based pricing model where admin sets empty room price
-    return roomPriceConfig.base;
+    // NEW MODEL: empty = prázdný pokoj (empty room, no guests)
+    // Admin nastavuje v ceníku: empty + surcharges for ALL guests
+    // FIX 2025-11-06: Changed from .base to .empty (correct settings key)
+    return roomPriceConfig.empty || 0;
   }
 
   /**
@@ -450,10 +451,11 @@ class PriceCalculator {
         roomPriceConfig = priceConfig;
       }
 
-      // Calculate empty room price (base - adult surcharge)
-      const emptyRoomPrice = roomPriceConfig.base - roomPriceConfig.adult;
+      // FIX 2025-11-06: Use NEW pricing model - base IS empty room price
+      // No need to subtract adult surcharge (that was OLD model)
+      const emptyRoomPrice = this.getEmptyRoomPrice(roomPriceConfig);
 
-      // Calculate surcharges
+      // Calculate surcharges for ALL guests (NEW model: no "first person free")
       const adultsPrice = adults * roomPriceConfig.adult;
       const childrenPrice = children * roomPriceConfig.child;
 
@@ -656,6 +658,14 @@ class PriceCalculator {
     }
     let totalPrice = 0;
 
+    console.log(`[DEBUG] calculatePerGuestPrice called with:`, {
+      rooms,
+      guestNames: guestNames.length + ' guests',
+      perRoomGuests,
+      nights,
+      fallbackGuestType
+    });
+
     // FIX #4: Calculate empty room prices PER-ROOM based on per-room guest types
     // If perRoomGuests data available, use per-room guest types
     // Otherwise fall back to booking-level logic (for backward compatibility)
@@ -666,13 +676,17 @@ class PriceCalculator {
       // Determine guest type for THIS room specifically
       let roomGuestType;
 
+      console.log(`[DEBUG] Room ${roomId}: perRoomGuests[${roomId}] =`, perRoomGuests[roomId]);
+
       if (perRoomGuests && perRoomGuests[roomId] && perRoomGuests[roomId].guestType) {
         // Use per-room guest type if available (NEW logic)
         roomGuestType = perRoomGuests[roomId].guestType;
+        console.log(`[DEBUG] Room ${roomId}: Using per-room guest type: ${roomGuestType}`);
       } else {
         // Fallback: Use booking-level guestType (when perRoomGuests data not available)
         // This prevents incorrect pricing when mixing ÚTIA and external guests
         roomGuestType = fallbackGuestType || 'external';
+        console.log(`[DEBUG] Room ${roomId}: Using fallback guest type: ${roomGuestType} (fallbackGuestType=${fallbackGuestType})`);
         // CODE REVIEW IMPROVEMENT: Log warning when using fallback
         console.warn(
           `[PriceCalculator] Using fallback guest type "${roomGuestType}" for room ${roomId}. ` +
@@ -700,7 +714,12 @@ class PriceCalculator {
       // Empty room price (base accommodation cost) - NOW PER-ROOM!
       const emptyRoomPrice = this.getEmptyRoomPrice(roomPriceConfig);
 
+      console.log(`[DEBUG] Room ${roomId}: emptyRoomPrice = ${emptyRoomPrice}, nights = ${nights}`);
+      console.log(`[DEBUG] Room ${roomId}: Adding ${emptyRoomPrice * nights} to totalPrice (was ${totalPrice})`);
+
       totalPrice += emptyRoomPrice * nights;
+
+      console.log(`[DEBUG] Room ${roomId}: totalPrice after empty room = ${totalPrice}`);
     }
 
     // Now add per-guest surcharges based on individual guest types
@@ -740,13 +759,31 @@ class PriceCalculator {
     const avgUtiaRates = this.getAverageRoomPriceConfig(rooms, settings, 'utia');
     const avgExternalRates = this.getAverageRoomPriceConfig(rooms, settings, 'external');
 
+    console.log(`[DEBUG] Guest counts: utiaAdults=${utiaAdults}, utiaChildren=${utiaChildren}, externalAdults=${externalAdults}, externalChildren=${externalChildren}`);
+    console.log(`[DEBUG] Average ÚTIA rates:`, avgUtiaRates);
+    console.log(`[DEBUG] Average External rates:`, avgExternalRates);
+    console.log(`[DEBUG] totalPrice before surcharges: ${totalPrice}`);
+
     // Add ÚTIA guest surcharges
-    totalPrice += utiaAdults * avgUtiaRates.adult * nights;
-    totalPrice += utiaChildren * avgUtiaRates.child * nights;
+    const utiaAdultSurcharge = utiaAdults * avgUtiaRates.adult * nights;
+    const utiaChildSurcharge = utiaChildren * avgUtiaRates.child * nights;
+    console.log(`[DEBUG] ÚTIA adult surcharge: ${utiaAdults} × ${avgUtiaRates.adult} × ${nights} = ${utiaAdultSurcharge}`);
+    console.log(`[DEBUG] ÚTIA child surcharge: ${utiaChildren} × ${avgUtiaRates.child} × ${nights} = ${utiaChildSurcharge}`);
+
+    totalPrice += utiaAdultSurcharge;
+    totalPrice += utiaChildSurcharge;
 
     // Add External guest surcharges
-    totalPrice += externalAdults * avgExternalRates.adult * nights;
-    totalPrice += externalChildren * avgExternalRates.child * nights;
+    const externalAdultSurcharge = externalAdults * avgExternalRates.adult * nights;
+    const externalChildSurcharge = externalChildren * avgExternalRates.child * nights;
+    console.log(`[DEBUG] External adult surcharge: ${externalAdults} × ${avgExternalRates.adult} × ${nights} = ${externalAdultSurcharge}`);
+    console.log(`[DEBUG] External child surcharge: ${externalChildren} × ${avgExternalRates.child} × ${nights} = ${externalChildSurcharge}`);
+
+    totalPrice += externalAdultSurcharge;
+    totalPrice += externalChildSurcharge;
+
+    console.log(`[DEBUG] FINAL totalPrice before rounding: ${totalPrice}`);
+    console.log(`[DEBUG] FINAL totalPrice after rounding: ${Math.round(totalPrice)}`);
 
     return Math.round(totalPrice);
   }

@@ -39,6 +39,40 @@ cp .env.example .env     # Create environment config
 npm run dev              # Start dev server with auto-reload
 ```
 
+## Directory Structure
+
+```
+/
+├── js/                      # Frontend JavaScript
+│   ├── shared/             # SSOT shared utilities (KRITICKÉ!)
+│   ├── booking-app.js      # Main app orchestrator
+│   ├── booking-form.js     # Multi-step form handler
+│   ├── bulk-booking.js     # Bulk booking logic
+│   ├── calendar.js         # Calendar rendering
+│   ├── single-room-booking.js  # Single room flow
+│   ├── edit-page.js        # User edit page
+│   └── utils.js            # General utilities
+│
+├── docs/                    # Documentation
+│   ├── analysis/           # Code analysis reports
+│   └── [feature docs]      # Feature-specific documentation
+│
+├── tests/                   # Test files
+│   ├── e2e/                # E2E tests (Playwright)
+│   ├── manual/             # Manual test scripts
+│   └── [unit tests]        # Jest unit tests
+│
+├── migrations/              # SQL schema migrations
+│   └── *.sql
+│
+├── data/                    # Runtime data
+│   └── bookings.db         # SQLite database
+│
+└── [root files]            # Production-critical files only
+```
+
+**⚠️ Důležité**: Root directory obsahuje POUZE produkční soubory. Test skripty → `tests/manual/`, analýzy → `docs/analysis/`, SQL → `migrations/`
+
 ## Testing & Code Quality
 
 ```bash
@@ -49,7 +83,7 @@ npm run pre-commit           # Lint + format + duplicate check (PŘED commitem!)
 
 **Target:** 70-80% coverage
 
-**SSOT Enforcement:** Max 5% duplikátů povoleno (jscpd). Pokud se kód opakuje 2x+ → přesuňte do `js/shared/`
+**SSOT Enforcement:** Max 5% duplikátů povoleno (jscpd). **Aktuální: 1.1%** ✅ (last checked: 2025-11-06)
 
 ## Architektura
 
@@ -186,13 +220,15 @@ Jednotný kalendářní komponent s 4 režimy:
 
 Vzorec: `prázdný_pokoj + (VŠICHNI dospělí × příplatek) + (VŠECHNY děti × příplatek)`
 
-**Výchozí ceny (room-size based):**
+**📊 AKTUÁLNÍ CENÍK (nastavený vedením, ověřeno 2025-11-06):**
 
-ÚTIA:
+**Individuální rezervace (room-size based pricing):**
+
+ÚTIA zaměstnanci:
 - Malý pokoj (prázdný): 250 Kč/noc + 50 Kč/dospělý + 25 Kč/dítě
 - Velký pokoj (prázdný): 350 Kč/noc + 70 Kč/dospělý + 35 Kč/dítě
 
-Externí:
+Externí hosté:
 - Malý pokoj (prázdný): 400 Kč/noc + 100 Kč/dospělý + 50 Kč/dítě
 - Velký pokoj (prázdný): 500 Kč/noc + 120 Kč/dospělý + 60 Kč/dítě
 

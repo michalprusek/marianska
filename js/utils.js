@@ -442,34 +442,59 @@ class UtilsModule {
       if (this.app.currentBookingRoom) {
         currentGuestType = this.app.roomGuestTypes.get(this.app.currentBookingRoom) || 'utia';
         currentRoomId = this.app.currentBookingRoom;
+        console.log('[UTILS DEBUG] currentBookingRoom:', this.app.currentBookingRoom);
+        console.log('[UTILS DEBUG] roomGuestTypes.get():', this.app.roomGuestTypes.get(this.app.currentBookingRoom));
+        console.log('[UTILS DEBUG] currentGuestType:', currentGuestType);
       } else if (this.app.selectedRooms.size > 0) {
         const firstRoom = Array.from(this.app.selectedRooms)[0];
         currentGuestType = this.app.roomGuestTypes.get(firstRoom) || 'utia';
         currentRoomId = firstRoom;
+        console.log('[UTILS DEBUG] Using firstRoom:', firstRoom);
+        console.log('[UTILS DEBUG] roomGuestTypes.get(firstRoom):', this.app.roomGuestTypes.get(firstRoom));
+        console.log('[UTILS DEBUG] currentGuestType:', currentGuestType);
       }
 
       // Get base price based on current guest type AND room size (NEW 2025-10-17)
       const guestKey = currentGuestType === 'utia' ? 'utia' : 'external';
       const priceConfig = prices[guestKey];
+      console.log('[UTILS DEBUG] guestKey:', guestKey);
+      console.log('[UTILS DEBUG] priceConfig:', priceConfig);
 
       // Get rooms list (needed for room-size-based pricing)
       const rooms = await dataManager.getRooms();
 
       // Check if room-size-based pricing is enabled
       const hasRoomSizes = priceConfig?.small && priceConfig?.large;
-      let baseRoomPrice = 298; // Fallback
+      let baseRoomPrice = null; // Start with null to detect if we got a valid price
 
       if (hasRoomSizes && currentRoomId) {
         // NEW: Get room type (small/large) from settings
         const room = rooms.find((r) => r.id === currentRoomId);
         const roomType = room?.type || 'small';
         const roomPriceConfig = priceConfig[roomType] || priceConfig.small;
-        // Calculate base room price: price with 1 person minus adult surcharge
-        baseRoomPrice = roomPriceConfig.base - roomPriceConfig.adult;
-      } else if (priceConfig?.base && priceConfig?.adult) {
-        // LEGACY: Flat pricing model - also subtract adult surcharge
-        baseRoomPrice = priceConfig.base - priceConfig.adult;
+        // FIX 2025-11-06: Use NEW pricing model - base IS empty room price
+        // Use 'base' property if it exists (even if 0)
+        if (roomPriceConfig && 'base' in roomPriceConfig) {
+          baseRoomPrice = roomPriceConfig.base;
+        }
+      } else if (priceConfig && ('base' in priceConfig)) {
+        // LEGACY: Flat pricing model - base IS empty room price (NEW model)
+        // Check for property existence, not truthiness (0 is valid)
+        baseRoomPrice = priceConfig.base;
       }
+
+      // Fallback if we couldn't determine price
+      if (baseRoomPrice === null || baseRoomPrice === undefined) {
+        // Use room-type-specific fallback based on currentRoomId
+        const room = rooms.find((r) => r.id === currentRoomId);
+        const roomType = room?.type || 'small';
+        const isSmall = roomType === 'small';
+        baseRoomPrice = currentGuestType === 'utia' ? (isSmall ? 250 : 350) : (isSmall ? 400 : 500);
+        console.log('[UTILS DEBUG] Used fallback price:', baseRoomPrice);
+      }
+
+      console.log('[UTILS DEBUG] Final baseRoomPrice:', baseRoomPrice);
+      console.log('[UTILS DEBUG] Will display as:', currentGuestType === 'utia' ? 'ÚTIA' : 'EXT');
 
       // Always update base price display
       if (basePriceEl) {

@@ -366,30 +366,31 @@ class DatabaseManager {
       insertSetting.run('christmasPeriodStart', '2024-12-23');
       insertSetting.run('christmasPeriodEnd', '2025-01-02');
 
-      // Individual room prices (NEW 2025-10-17: Room-size-based pricing)
+      // Individual room prices (NEW 2025-11-06: Fixed to match documentation)
+      // Empty room = room with 0 guests, then add per-guest charges
       const prices = {
         utia: {
           small: {
-            base: 300, // Small room, 1 person
-            adult: 50, // Per additional adult
+            empty: 250, // Empty small room base price
+            adult: 50, // Per adult
             child: 25, // Per child (3-17 years)
           },
           large: {
-            base: 400, // Large room, 1 person
-            adult: 50, // Per additional adult
-            child: 25, // Per child (3-17 years)
+            empty: 350, // Empty large room base price
+            adult: 70, // Per adult
+            child: 35, // Per child (3-17 years)
           },
         },
         external: {
           small: {
-            base: 500, // Small room, 1 person
-            adult: 100, // Per additional adult
+            empty: 400, // Empty small room base price
+            adult: 100, // Per adult
             child: 50, // Per child (3-17 years)
           },
           large: {
-            base: 600, // Large room, 1 person
-            adult: 100, // Per additional adult
-            child: 50, // Per child (3-17 years)
+            empty: 500, // Empty large room base price
+            adult: 120, // Per adult
+            child: 60, // Per child (3-17 years)
           },
         },
       };
