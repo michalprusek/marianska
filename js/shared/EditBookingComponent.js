@@ -542,7 +542,7 @@ class EditBookingComponent {
 
         const firstNameLabel = document.createElement('label');
         firstNameLabel.setAttribute('for', `editToddlerFirstName${i}`);
-        firstNameLabel.textContent = `Křestní jméno ${i}. batolete *`;
+        firstNameLabel.innerHTML = `Křestní jméno ${i}. batolete <span style="color: #9ca3af; font-size: 0.875rem;">(Toddler)</span> *`;
         firstNameGroup.appendChild(firstNameLabel);
 
         const firstNameInput = document.createElement('input');
@@ -562,7 +562,7 @@ class EditBookingComponent {
 
         const lastNameLabel = document.createElement('label');
         lastNameLabel.setAttribute('for', `editToddlerLastName${i}`);
-        lastNameLabel.textContent = `Příjmení ${i}. batolete *`;
+        lastNameLabel.innerHTML = `Příjmení ${i}. batolete <span style="color: #9ca3af; font-size: 0.875rem;">(Toddler)</span> *`;
         lastNameGroup.appendChild(lastNameLabel);
 
         const lastNameInput = document.createElement('input');
@@ -1804,7 +1804,7 @@ class EditBookingComponent {
       guestList += `
         <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: white; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 0.875rem;">
           <span style="padding: 0.25rem 0.5rem; background: #e0f2fe; color: #0284c7; border-radius: 4px; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">Zdarma</span>
-          <span style="color: #6b7280;">🍼 Batole ${i}</span>
+          <span style="color: #6b7280;">🍼 Batole <span style="color: #9ca3af; font-size: 0.75rem;">(Toddler)</span> ${i}</span>
         </div>
       `;
     }
@@ -1867,7 +1867,7 @@ class EditBookingComponent {
       guestList += `
         <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: white; border: 1px solid #d8b4fe; border-radius: 4px; font-size: 0.875rem;">
           <span style="padding: 0.25rem 0.5rem; background: #e0f2fe; color: #0284c7; border-radius: 4px; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">Zdarma</span>
-          <span style="color: #6b21a8;">🍼 Batole ${i}</span>
+          <span style="color: #6b21a8;">🍼 Batole <span style="color: #9ca3af; font-size: 0.75rem;">(Toddler)</span> ${i}</span>
         </div>
       `;
     }
