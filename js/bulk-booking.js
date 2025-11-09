@@ -450,57 +450,6 @@ class BulkBookingModule {
     if (nightsDisplay) {
       nightsDisplay.textContent = nights;
     }
-
-    // Add visual indicator for pricing breakdown
-    let priceCategoryIndicator = document.getElementById('bulkPriceCategoryIndicator');
-    if (!priceCategoryIndicator) {
-      // Create indicator if it doesn't exist
-      const priceBreakdown = document.getElementById('bulkPriceBreakdown');
-      if (priceBreakdown) {
-        priceCategoryIndicator = document.createElement('div');
-        priceCategoryIndicator.id = 'bulkPriceCategoryIndicator';
-        priceCategoryIndicator.style.cssText =
-          'margin-top: 0.75rem; padding: 0.5rem; border-radius: 4px; font-size: 0.85rem;';
-        priceBreakdown.insertBefore(priceCategoryIndicator, priceBreakdown.firstChild);
-      }
-    }
-
-    // Update indicator with per-guest breakdown
-    if (priceCategoryIndicator) {
-      const totalUtia = utiaAdults + utiaChildren;
-      const totalExternal = externalAdults + externalChildren;
-
-      if (totalUtia > 0 && totalExternal > 0) {
-        // Mixed guests
-        priceCategoryIndicator.innerHTML = `
-          <div style="text-align: center; margin-bottom: 0.25rem;">
-            <strong>📊 Smíšená skupina</strong>
-          </div>
-          <div style="display: flex; gap: 0.5rem; justify-content: center; font-size: 0.8rem;">
-            <span style="color: #059669;">✅ ${totalUtia} ÚTIA</span>
-            <span>+</span>
-            <span style="color: #dc2626;">👤 ${totalExternal} Externí</span>
-          </div>
-        `;
-        priceCategoryIndicator.style.backgroundColor = '#fef3c7';
-        priceCategoryIndicator.style.color = '#92400e';
-        priceCategoryIndicator.style.border = '1px solid #f59e0b';
-      } else if (totalUtia > 0) {
-        // All ÚTIA
-        priceCategoryIndicator.innerHTML =
-          '✅ <strong>ÚTIA ceník</strong> (všichni zaměstnanci ÚTIA)';
-        priceCategoryIndicator.style.backgroundColor = '#d1fae5';
-        priceCategoryIndicator.style.color = '#065f46';
-        priceCategoryIndicator.style.border = '1px solid #10b981';
-      } else {
-        // All External
-        priceCategoryIndicator.innerHTML =
-          'ℹ️ <strong>Externí ceník</strong> (žádný zaměstnanec ÚTIA)';
-        priceCategoryIndicator.style.backgroundColor = '#e0f2fe';
-        priceCategoryIndicator.style.color = '#075985';
-        priceCategoryIndicator.style.border = '1px solid #3b82f6';
-      }
-    }
   }
 
   updateBulkCapacityCheck() {

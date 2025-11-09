@@ -95,10 +95,30 @@ class EditBookingComponent {
     // If perRoomGuests is available, use it directly. Otherwise, fall back to distribution.
     const defaultGuestType = booking.guestType || 'external';
 
-    // FIX: Check if perRoomGuests has data for ALL rooms (not just exists)
+
+    // FIX: Verify perRoomGuests totals match booking totals
+    let totalPerRoomAdults = 0;
+    let totalPerRoomChildren = 0;
+    let totalPerRoomToddlers = 0;
+
+    if (booking.perRoomGuests) {
+      Object.values(booking.perRoomGuests).forEach(roomGuests => {
+        totalPerRoomAdults += roomGuests.adults || 0;
+        totalPerRoomChildren += roomGuests.children || 0;
+        totalPerRoomToddlers += roomGuests.toddlers || 0;
+      });
+    }
+
+    const perRoomTotalsMatch =
+      totalPerRoomAdults === (booking.adults || 0) &&
+      totalPerRoomChildren === (booking.children || 0) &&
+      totalPerRoomToddlers === (booking.toddlers || 0);
+
+    // FIX: Check if perRoomGuests has data for ALL rooms AND totals match
     const hasCompletePerRoomGuests =
       booking.perRoomGuests &&
-      Object.keys(booking.perRoomGuests).length === (booking.rooms || []).length;
+      Object.keys(booking.perRoomGuests).length === (booking.rooms || []).length &&
+      perRoomTotalsMatch;
 
     if (hasCompletePerRoomGuests) {
       // Use per-room guest data from database
@@ -180,7 +200,7 @@ class EditBookingComponent {
     // Populate form fields
     this.populateForm();
 
-    // Use per-room list UI
+    // Use per-room list UI (now includes guest name fields generation)
     this.renderPerRoomList();
 
     // Calendar is hidden by default (will be shown when user clicks "Změnit termín")
@@ -273,403 +293,15 @@ class EditBookingComponent {
       toddlersNamesList.textContent = '';
     }
 
-    // Show/hide section based on guest counts
-    // CRITICAL FIX: Always show section if there are ANY guests across all rooms
-    // This prevents HTML5 "invalid form control is not focusable" errors
-    if (adults + children + toddlers > 0) {
-      guestNamesSection.style.display = 'block';
-    } else {
-      // Hide section and ensure no required fields remain in DOM
-      guestNamesSection.style.display = 'none';
-      // Clear children container visibility as well
-      if (childrenContainer) {
-        childrenContainer.style.display = 'none';
-      }
-      if (toddlersContainer) {
-        toddlersContainer.style.display = 'none';
-      }
-      return;
-    }
-
-    // Generate adult name inputs using safe DOM methods
-    for (let i = 1; i <= adults; i++) {
-      const guestDiv = document.createElement('div');
-      guestDiv.className = 'guest-name-row';
-      guestDiv.style.cssText = 'display: flex; align-items: end; gap: 0.75rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;';
-
-      // First name input
-      const firstNameGroup = document.createElement('div');
-      firstNameGroup.className = 'input-group';
-      firstNameGroup.style.cssText = 'flex: 1; min-width: 0;';
-
-      const firstNameLabel = document.createElement('label');
-      firstNameLabel.setAttribute('for', `editAdultFirstName${i}`);
-      firstNameLabel.textContent = `Křestní jméno *`;
-      firstNameLabel.style.cssText = 'display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;';
-      firstNameGroup.appendChild(firstNameLabel);
-
-      const firstNameInput = document.createElement('input');
-      firstNameInput.type = 'text';
-      firstNameInput.id = `editAdultFirstName${i}`;
-      firstNameInput.name = `editAdultFirstName${i}`;
-      // Note: removed required=true to prevent HTML5 validation errors when field is in hidden tab
-      // Validation is handled by validateGuestNames() method instead
-      firstNameInput.minLength = 2;
-      firstNameInput.maxLength = 50;
-      firstNameInput.placeholder = 'např. Jan';
-      firstNameInput.setAttribute('data-guest-type', 'adult');
-      firstNameInput.setAttribute('data-guest-index', i);
-      firstNameInput.style.cssText = 'width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
-      firstNameGroup.appendChild(firstNameInput);
-
-      // Last name input
-      const lastNameGroup = document.createElement('div');
-      lastNameGroup.className = 'input-group';
-      lastNameGroup.style.cssText = 'flex: 1; min-width: 0;';
-
-      const lastNameLabel = document.createElement('label');
-      lastNameLabel.setAttribute('for', `editAdultLastName${i}`);
-      lastNameLabel.textContent = `Příjmení *`;
-      lastNameLabel.style.cssText = 'display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;';
-      lastNameGroup.appendChild(lastNameLabel);
-
-      const lastNameInput = document.createElement('input');
-      lastNameInput.type = 'text';
-      lastNameInput.id = `editAdultLastName${i}`;
-      lastNameInput.name = `editAdultLastName${i}`;
-      // Note: removed required=true to prevent HTML5 validation errors when field is in hidden tab
-      // Validation is handled by validateGuestNames() method instead
-      lastNameInput.minLength = 2;
-      lastNameInput.maxLength = 50;
-      lastNameInput.placeholder = 'např. Novák';
-      lastNameInput.setAttribute('data-guest-type', 'adult');
-      lastNameInput.setAttribute('data-guest-index', i);
-      lastNameInput.style.cssText = 'width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
-      lastNameGroup.appendChild(lastNameInput);
-
-      // Toggle switch container for ÚTIA/External
-      const toggleContainer = document.createElement('div');
-      toggleContainer.style.cssText = 'display: flex; flex-direction: column; align-items: center; gap: 0.25rem; flex-shrink: 0;';
-
-      const toggleLabel = document.createElement('label');
-      toggleLabel.style.cssText = 'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer; margin-top: 1.5rem;';
-
-      const toggleInput = document.createElement('input');
-      toggleInput.type = 'checkbox';
-      toggleInput.id = `editAdult${i}GuestTypeToggle`;
-      toggleInput.setAttribute('data-guest-type', 'adult');
-      toggleInput.setAttribute('data-guest-index', i);
-      toggleInput.setAttribute('data-guest-price-type', 'true');
-      toggleInput.checked = false; // Unchecked = ÚTIA, Checked = External
-      toggleInput.style.cssText = 'opacity: 0; width: 0; height: 0;';
-
-      const toggleSlider = document.createElement('span');
-      toggleSlider.style.cssText = `
-        position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-        background-color: #059669; transition: 0.3s; border-radius: 24px;
-      `;
-
-      const toggleThumb = document.createElement('span');
-      toggleThumb.style.cssText = `
-        position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px;
-        background-color: white; transition: 0.3s; border-radius: 50%;
-      `;
-      toggleSlider.appendChild(toggleThumb);
-
-      // Toggle state change handler
-      toggleInput.addEventListener('change', function() {
-        if (this.checked) {
-          toggleSlider.style.backgroundColor = '#dc2626'; // Red for External
-          toggleThumb.style.transform = 'translateX(20px)';
-          toggleText.textContent = 'EXT';
-          toggleText.style.color = '#dc2626';
-        } else {
-          toggleSlider.style.backgroundColor = '#059669'; // Green for ÚTIA
-          toggleThumb.style.transform = 'translateX(0)';
-          toggleText.textContent = 'ÚTIA';
-          toggleText.style.color = '#059669';
-        }
-      });
-
-      toggleLabel.appendChild(toggleInput);
-      toggleLabel.appendChild(toggleSlider);
-
-      const toggleText = document.createElement('span');
-      toggleText.textContent = 'ÚTIA';
-      toggleText.style.cssText = 'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px; text-align: center;';
-
-      toggleContainer.appendChild(toggleLabel);
-      toggleContainer.appendChild(toggleText);
-
-      guestDiv.appendChild(firstNameGroup);
-      guestDiv.appendChild(lastNameGroup);
-      guestDiv.appendChild(toggleContainer);
-      adultsNamesList.appendChild(guestDiv);
-    }
-
-    // Generate children name inputs
-    if (children > 0) {
-      childrenContainer.style.display = 'block';
-      for (let i = 1; i <= children; i++) {
-        const guestDiv = document.createElement('div');
-        guestDiv.className = 'guest-name-row';
-        guestDiv.style.cssText = 'display: flex; align-items: end; gap: 0.75rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;';
-
-        // First name input
-        const firstNameGroup = document.createElement('div');
-        firstNameGroup.className = 'input-group';
-        firstNameGroup.style.cssText = 'flex: 1; min-width: 0;';
-
-        const firstNameLabel = document.createElement('label');
-        firstNameLabel.setAttribute('for', `editChildFirstName${i}`);
-        firstNameLabel.textContent = `Křestní jméno *`;
-        firstNameLabel.style.cssText = 'display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;';
-        firstNameGroup.appendChild(firstNameLabel);
-
-        const firstNameInput = document.createElement('input');
-        firstNameInput.type = 'text';
-        firstNameInput.id = `editChildFirstName${i}`;
-        firstNameInput.name = `editChildFirstName${i}`;
-        // Note: removed required=true to prevent HTML5 validation errors when field is in hidden tab
-        // Validation is handled by validateGuestNames() method instead
-        firstNameInput.minLength = 2;
-        firstNameInput.maxLength = 50;
-        firstNameInput.placeholder = 'např. Anna';
-        firstNameInput.setAttribute('data-guest-type', 'child');
-        firstNameInput.setAttribute('data-guest-index', i);
-        firstNameInput.style.cssText = 'width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
-        firstNameGroup.appendChild(firstNameInput);
-
-        // Last name input
-        const lastNameGroup = document.createElement('div');
-        lastNameGroup.className = 'input-group';
-        lastNameGroup.style.cssText = 'flex: 1; min-width: 0;';
-
-        const lastNameLabel = document.createElement('label');
-        lastNameLabel.setAttribute('for', `editChildLastName${i}`);
-        lastNameLabel.textContent = `Příjmení *`;
-        lastNameLabel.style.cssText = 'display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;';
-        lastNameGroup.appendChild(lastNameLabel);
-
-        const lastNameInput = document.createElement('input');
-        lastNameInput.type = 'text';
-        lastNameInput.id = `editChildLastName${i}`;
-        lastNameInput.name = `editChildLastName${i}`;
-        // Note: removed required=true to prevent HTML5 validation errors when field is in hidden tab
-        // Validation is handled by validateGuestNames() method instead
-        lastNameInput.minLength = 2;
-        lastNameInput.maxLength = 50;
-        lastNameInput.placeholder = 'e.g. Smith';
-        lastNameInput.setAttribute('data-guest-type', 'child');
-        lastNameInput.setAttribute('data-guest-index', i);
-        lastNameInput.style.cssText = 'width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
-        lastNameGroup.appendChild(lastNameInput);
-
-        // Toggle switch container for ÚTIA/External
-        const toggleContainer = document.createElement('div');
-        toggleContainer.style.cssText = 'display: flex; flex-direction: column; align-items: center; gap: 0.25rem; flex-shrink: 0;';
-
-        const toggleLabel = document.createElement('label');
-        toggleLabel.style.cssText = 'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer; margin-top: 1.5rem;';
-
-        const toggleInput = document.createElement('input');
-        toggleInput.type = 'checkbox';
-        toggleInput.id = `editChild${i}GuestTypeToggle`;
-        toggleInput.setAttribute('data-guest-type', 'child');
-        toggleInput.setAttribute('data-guest-index', i);
-        toggleInput.setAttribute('data-guest-price-type', 'true');
-        toggleInput.checked = false; // Unchecked = ÚTIA, Checked = External
-        toggleInput.style.cssText = 'opacity: 0; width: 0; height: 0;';
-
-        const toggleSlider = document.createElement('span');
-        toggleSlider.style.cssText = `
-          position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-          background-color: #059669; transition: 0.3s; border-radius: 24px;
-        `;
-
-        const toggleThumb = document.createElement('span');
-        toggleThumb.style.cssText = `
-          position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px;
-          background-color: white; transition: 0.3s; border-radius: 50%;
-        `;
-        toggleSlider.appendChild(toggleThumb);
-
-        // Toggle state change handler
-        toggleInput.addEventListener('change', function() {
-          if (this.checked) {
-            toggleSlider.style.backgroundColor = '#dc2626'; // Red for External
-            toggleThumb.style.transform = 'translateX(20px)';
-            toggleText.textContent = 'EXT';
-            toggleText.style.color = '#dc2626';
-          } else {
-            toggleSlider.style.backgroundColor = '#059669'; // Green for ÚTIA
-            toggleThumb.style.transform = 'translateX(0)';
-            toggleText.textContent = 'ÚTIA';
-            toggleText.style.color = '#059669';
-          }
-        });
-
-        toggleLabel.appendChild(toggleInput);
-        toggleLabel.appendChild(toggleSlider);
-
-        const toggleText = document.createElement('span');
-        toggleText.textContent = 'ÚTIA';
-        toggleText.style.cssText = 'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px; text-align: center;';
-
-        toggleContainer.appendChild(toggleLabel);
-        toggleContainer.appendChild(toggleText);
-
-        guestDiv.appendChild(firstNameGroup);
-        guestDiv.appendChild(lastNameGroup);
-        guestDiv.appendChild(toggleContainer);
-        childrenNamesList.appendChild(guestDiv);
-      }
-    } else {
+    // ALWAYS hide guest names section in edit window
+    // Guest names are now collected from per-room inputs in "Termín a pokoje" tab
+    // (generated by renderGuestListForRoom() method)
+    guestNamesSection.style.display = 'none';
+    if (childrenContainer) {
       childrenContainer.style.display = 'none';
     }
-
-    // Generate toddler name inputs
-    if (toddlers > 0 && toddlersNamesList && toddlersContainer) {
-      toddlersContainer.style.display = 'block';
-      for (let i = 1; i <= toddlers; i++) {
-        const guestDiv = document.createElement('div');
-        guestDiv.className = 'guest-name-row';
-        guestDiv.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;';
-
-        // First name input
-        const firstNameGroup = document.createElement('div');
-        firstNameGroup.className = 'input-group';
-
-        const firstNameLabel = document.createElement('label');
-        firstNameLabel.setAttribute('for', `editToddlerFirstName${i}`);
-        firstNameLabel.innerHTML = `Křestní jméno ${i}. batolete <span style="color: #9ca3af; font-size: 0.875rem;">(Toddler)</span> *`;
-        firstNameGroup.appendChild(firstNameLabel);
-
-        const firstNameInput = document.createElement('input');
-        firstNameInput.type = 'text';
-        firstNameInput.id = `editToddlerFirstName${i}`;
-        firstNameInput.name = `editToddlerFirstName${i}`;
-        firstNameInput.minLength = 2;
-        firstNameInput.maxLength = 50;
-        firstNameInput.placeholder = 'e.g. Emma';
-        firstNameInput.setAttribute('data-guest-type', 'toddler');
-        firstNameInput.setAttribute('data-guest-index', i);
-        firstNameGroup.appendChild(firstNameInput);
-
-        // Last name input
-        const lastNameGroup = document.createElement('div');
-        lastNameGroup.className = 'input-group';
-
-        const lastNameLabel = document.createElement('label');
-        lastNameLabel.setAttribute('for', `editToddlerLastName${i}`);
-        lastNameLabel.innerHTML = `Příjmení ${i}. batolete <span style="color: #9ca3af; font-size: 0.875rem;">(Toddler)</span> *`;
-        lastNameGroup.appendChild(lastNameLabel);
-
-        const lastNameInput = document.createElement('input');
-        lastNameInput.type = 'text';
-        lastNameInput.id = `editToddlerLastName${i}`;
-        lastNameInput.name = `editToddlerLastName${i}`;
-        lastNameInput.minLength = 2;
-        lastNameInput.maxLength = 50;
-        lastNameInput.placeholder = 'e.g. Smith';
-        lastNameInput.setAttribute('data-guest-type', 'toddler');
-        lastNameInput.setAttribute('data-guest-index', i);
-        lastNameGroup.appendChild(lastNameInput);
-
-        guestDiv.appendChild(firstNameGroup);
-        guestDiv.appendChild(lastNameGroup);
-        toddlersNamesList.appendChild(guestDiv);
-      }
-    } else if (toddlersContainer) {
+    if (toddlersContainer) {
       toddlersContainer.style.display = 'none';
-    }
-  }
-
-  /**
-   * Populate guest names from existing booking data
-   */
-  populateGuestNames() {
-    // Calculate total guests from per-room configuration
-    let totalAdults = 0;
-    let totalChildren = 0;
-    let totalToddlers = 0;
-
-    for (const roomData of this.editSelectedRooms.values()) {
-      totalAdults += roomData.adults || 0;
-      totalChildren += roomData.children || 0;
-      totalToddlers += roomData.toddlers || 0;
-    }
-
-    // Generate input fields
-    this.generateGuestNamesInputs(totalAdults, totalChildren, totalToddlers);
-
-    // Populate existing names if available
-    if (this.currentBooking.guestNames && Array.isArray(this.currentBooking.guestNames)) {
-      const adultNames = this.currentBooking.guestNames.filter((g) => g.personType === 'adult');
-      const childNames = this.currentBooking.guestNames.filter((g) => g.personType === 'child');
-      const toddlerNames = this.currentBooking.guestNames.filter((g) => g.personType === 'toddler');
-
-      // Populate adult names and guest types
-      adultNames.forEach((guest, index) => {
-        const firstNameInput = document.getElementById(`editAdultFirstName${index + 1}`);
-        const lastNameInput = document.getElementById(`editAdultLastName${index + 1}`);
-        const toggleInput = document.getElementById(`editAdult${index + 1}GuestTypeToggle`);
-
-        if (firstNameInput) {
-          firstNameInput.value = guest.firstName || '';
-        }
-        if (lastNameInput) {
-          lastNameInput.value = guest.lastName || '';
-        }
-
-        // Set toggle switch based on guestPriceType
-        if (toggleInput) {
-          const guestPriceType = guest.guestPriceType || 'utia'; // Default to ÚTIA
-          const isExternal = guestPriceType === 'external';
-          toggleInput.checked = isExternal;
-
-          // Trigger change event to update visual state
-          const event = new Event('change');
-          toggleInput.dispatchEvent(event);
-        }
-      });
-
-      // Populate child names and guest types
-      childNames.forEach((guest, index) => {
-        const firstNameInput = document.getElementById(`editChildFirstName${index + 1}`);
-        const lastNameInput = document.getElementById(`editChildLastName${index + 1}`);
-        const toggleInput = document.getElementById(`editChild${index + 1}GuestTypeToggle`);
-
-        if (firstNameInput) {
-          firstNameInput.value = guest.firstName || '';
-        }
-        if (lastNameInput) {
-          lastNameInput.value = guest.lastName || '';
-        }
-
-        // Set toggle switch based on guestPriceType
-        if (toggleInput) {
-          const guestPriceType = guest.guestPriceType || 'utia';
-          const isExternal = guestPriceType === 'external';
-          toggleInput.checked = isExternal;
-
-          // Trigger change event to update visual state
-          const event = new Event('change');
-          toggleInput.dispatchEvent(event);
-        }
-      });
-
-      // Populate toddler names
-      toddlerNames.forEach((guest, index) => {
-        const firstNameInput = document.getElementById(`editToddlerFirstName${index + 1}`);
-        const lastNameInput = document.getElementById(`editToddlerLastName${index + 1}`);
-        if (firstNameInput) {
-          firstNameInput.value = guest.firstName || '';
-        }
-        if (lastNameInput) {
-          lastNameInput.value = guest.lastName || '';
-        }
-      });
     }
   }
 
@@ -680,62 +312,82 @@ class EditBookingComponent {
   collectGuestNames() {
     const guestNames = [];
 
-    // Collect adult names
+    // Collect adult names from per-room inputs (format: room12AdultFirstName1)
     const adultFirstNames = document.querySelectorAll(
-      'input[data-guest-type="adult"][id^="editAdultFirstName"]'
+      'input[data-guest-type="adult"][id*="AdultFirstName"]'
     );
     const adultLastNames = document.querySelectorAll(
-      'input[data-guest-type="adult"][id^="editAdultLastName"]'
+      'input[data-guest-type="adult"][id*="AdultLastName"]'
     );
 
     for (let i = 0; i < adultFirstNames.length; i++) {
       const firstName = adultFirstNames[i].value.trim();
       const lastName = adultLastNames[i].value.trim();
       if (firstName && lastName) {
-        // Get toggle switch to determine guestPriceType
-        const toggleInput = document.getElementById(`editAdult${i + 1}GuestTypeToggle`);
-        const guestPriceType = toggleInput && toggleInput.checked ? 'external' : 'utia';
+        // Extract room ID and guest index from input ID (format: room12AdultFirstName1)
+        const inputId = adultFirstNames[i].id;
+        const roomIdMatch = inputId.match(/room(\d+)/);
+        const guestIndexMatch = inputId.match(/AdultFirstName(\d+)/);
 
-        guestNames.push({
-          personType: 'adult',
-          firstName,
-          lastName,
-          guestPriceType,
-        });
+        if (roomIdMatch && guestIndexMatch) {
+          const roomId = roomIdMatch[1];
+          const guestIndex = guestIndexMatch[1];
+
+          // Get toggle switch to determine guestPriceType
+          const toggleInput = document.getElementById(`room${roomId}Adult${guestIndex}GuestTypeToggle`);
+          const guestPriceType = toggleInput && toggleInput.checked ? 'external' : 'utia';
+
+          guestNames.push({
+            personType: 'adult',
+            firstName,
+            lastName,
+            guestPriceType,
+          });
+        }
       }
     }
 
-    // Collect children names
+    // Collect children names from per-room inputs (format: room12ChildFirstName1)
     const childFirstNames = document.querySelectorAll(
-      'input[data-guest-type="child"][id^="editChildFirstName"]'
+      'input[data-guest-type="child"][id*="ChildFirstName"]'
     );
     const childLastNames = document.querySelectorAll(
-      'input[data-guest-type="child"][id^="editChildLastName"]'
+      'input[data-guest-type="child"][id*="ChildLastName"]'
     );
 
     for (let i = 0; i < childFirstNames.length; i++) {
       const firstName = childFirstNames[i].value.trim();
       const lastName = childLastNames[i].value.trim();
       if (firstName && lastName) {
-        // Get toggle switch to determine guestPriceType
-        const toggleInput = document.getElementById(`editChild${i + 1}GuestTypeToggle`);
-        const guestPriceType = toggleInput && toggleInput.checked ? 'external' : 'utia';
+        // Extract room ID and guest index from input ID (format: room12ChildFirstName1)
+        const inputId = childFirstNames[i].id;
+        const roomIdMatch = inputId.match(/room(\d+)/);
+        const guestIndexMatch = inputId.match(/ChildFirstName(\d+)/);
 
-        guestNames.push({
-          personType: 'child',
-          firstName,
-          lastName,
-          guestPriceType,
-        });
+        if (roomIdMatch && guestIndexMatch) {
+          const roomId = roomIdMatch[1];
+          const guestIndex = guestIndexMatch[1];
+
+          // Get toggle switch to determine guestPriceType
+          const toggleInput = document.getElementById(`room${roomId}Child${guestIndex}GuestTypeToggle`);
+          const guestPriceType = toggleInput && toggleInput.checked ? 'external' : 'utia';
+
+          guestNames.push({
+            personType: 'child',
+            firstName,
+            lastName,
+            guestPriceType,
+          });
+        }
       }
     }
 
-    // Collect toddler names
+    // Collect toddler names from per-room inputs (format: room12ToddlerFirstName1)
     const toddlerFirstNames = document.querySelectorAll(
-      'input[data-guest-type="toddler"][id^="editToddlerFirstName"]'
+      'input[data-guest-type="toddler"][id*="ToddlerFirstName"]'
     );
     const toddlerLastNames = document.querySelectorAll(
-      'input[data-guest-type="toddler"][id^="editToddlerLastName"]'
+      'input[data-guest-type="toddler"][id*="ToddlerLastName"]'
     );
 
     for (let i = 0; i < toddlerFirstNames.length; i++) {
@@ -771,21 +423,21 @@ class EditBookingComponent {
     if (adultNames.length !== expectedAdults) {
       return {
         valid: false,
-        error: `Vyplňte jména všech ${expectedAdults} dospělých v záložce "Fakturační údaje"`,
+        error: `Vyplňte jména všech ${expectedAdults} dospělých v záložce "Termín a pokoje" (v kartách jednotlivých pokojů)`,
       };
     }
 
     if (childNames.length !== expectedChildren) {
       return {
         valid: false,
-        error: `Vyplňte jména všech ${expectedChildren} dětí v záložce "Fakturační údaje"`,
+        error: `Vyplňte jména všech ${expectedChildren} dětí v záložce "Termín a pokoje" (v kartách jednotlivých pokojů)`,
       };
     }
 
     if (toddlerNames.length !== expectedToddlers) {
       return {
         valid: false,
-        error: `Vyplňte jména všech ${expectedToddlers} batolat v záložce "Fakturační údaje"`,
+        error: `Vyplňte jména všech ${expectedToddlers} batolat v záložce "Termín a pokoje" (v kartách jednotlivých pokojů)`,
       };
     }
 
@@ -794,13 +446,13 @@ class EditBookingComponent {
       if (guest.firstName.length < 2) {
         return {
           valid: false,
-          error: 'Všechna křestní jména musí mít alespoň 2 znaky (záložka "Fakturační údaje")',
+          error: 'Všechna křestní jména musí mít alespoň 2 znaky (zkontrolujte záložku "Termín a pokoje")',
         };
       }
       if (guest.lastName.length < 2) {
         return {
           valid: false,
-          error: 'Všechna příjmení musí mít alespoň 2 znaky (záložka "Fakturační údaje")',
+          error: 'Všechna příjmení musí mít alespoň 2 znaky (zkontrolujte záložku "Termín a pokoje")',
         };
       }
     }
@@ -1145,8 +797,410 @@ class EditBookingComponent {
     roomData[field] = numValue;
     // Update price
     this.updateTotalPrice();
-    // Update guest names fields to match new guest counts
-    this.populateGuestNames();
+    // Update guest names fields for this room in real-time
+    this.updateGuestNamesForRoom(roomId, roomData);
+  }
+
+  /**
+   * Update guest names section for a specific room in real-time
+   * @param {string} roomId - Room ID
+   * @param {Object} roomData - Room data with guest counts
+   */
+  updateGuestNamesForRoom(roomId, roomData) {
+    let container = document.getElementById(`guestNamesRoom${roomId}`);
+
+    // If container doesn't exist, we need to find the room card and insert guest names
+    if (!container) {
+      // Find the room card by looking for inputs with onchange attribute containing the roomId
+      const allInputs = document.querySelectorAll('input[type="number"]');
+      let adultsInput = null;
+      for (const input of allInputs) {
+        const onchange = input.getAttribute('onchange');
+        if (onchange && onchange.includes(`'${roomId}'`) && onchange.includes('adults')) {
+          adultsInput = input;
+          break;
+        }
+      }
+
+      if (!adultsInput) {
+        this.renderPerRoomList();
+        setTimeout(() => {
+          this.populateGuestNamesInRooms();
+        }, 50);
+        return;
+      }
+
+      const roomCard = adultsInput.closest('div[style*="border: 2px solid"]');
+
+      if (!roomCard) {
+        this.renderPerRoomList();
+        setTimeout(() => {
+          this.populateGuestNamesInRooms();
+        }, 50);
+        return;
+      }
+
+      // Generate and insert guest names HTML for the first time
+      const newGuestNamesHTML = this.renderGuestListForRoom(roomId, roomData);
+
+      if (newGuestNamesHTML) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = newGuestNamesHTML;
+        const newContainer = tempDiv.firstElementChild;
+
+        // Find the guest configuration section (grid with spinbuttons)
+        const guestConfigSection = roomCard.querySelector('div[style*="display: grid"]');
+
+        if (guestConfigSection) {
+          guestConfigSection.insertAdjacentElement('afterend', newContainer);
+
+          // Populate existing names after inserting
+          setTimeout(() => {
+            this.populateGuestNamesInRooms();
+          }, 10);
+        }
+      }
+      return;
+    }
+
+    // Container exists - update it
+
+    // ⚠️ CRITICAL: Find ALL DOM references BEFORE removing container!
+    // Once removed, closest() and querySelector() may fail.
+
+    // Find the parent room card (go up TWO levels from container)
+    const parent = container.parentElement;
+    if (!parent) {
+      return;
+    }
+
+    // Room card is one more level up
+    const roomCard = parent.parentElement;
+    if (!roomCard) {
+      return;
+    }
+
+    // Find the guest configuration section (grid with spinbuttons) BEFORE removing container
+    // Strategy: Find the adults spinbutton and walk up to find the grid parent
+    let guestConfigSection = null;
+
+    const allInputs = roomCard.querySelectorAll('input[type="number"]');
+    const adultsInput = Array.from(allInputs).find(inp => {
+      const onchange = inp.getAttribute('onchange');
+      return onchange && onchange.includes(`'${roomId}'`) && onchange.includes('adults');
+    });
+
+    if (adultsInput) {
+      // Walk up the DOM tree to find grid parent
+      let current = adultsInput.parentElement;
+      let depth = 0;
+      while (current && depth < 5) {
+        const style = current.getAttribute('style') || '';
+        if (style.includes('display: grid') && style.includes('repeat(3')) {
+          guestConfigSection = current;
+          break;
+        }
+        current = current.parentElement;
+        depth++;
+      }
+    }
+
+    if (!guestConfigSection) {
+      return;
+    }
+
+    // ⚠️ CRITICAL: Save current input values BEFORE removing container!
+    const currentValues = {};
+    const existingInputs = container.querySelectorAll('input[type="text"], input[type="checkbox"]');
+    existingInputs.forEach(input => {
+      if (input.type === 'checkbox') {
+        currentValues[input.id] = input.checked;
+      } else {
+        currentValues[input.id] = input.value;
+      }
+    });
+
+    // Generate new guest names HTML
+    const newGuestNamesHTML = this.renderGuestListForRoom(roomId, roomData);
+
+    // NOW we can safely remove old guest names section
+    container.remove();
+
+    // Append new guest names section if there are guests
+    if (newGuestNamesHTML) {
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = newGuestNamesHTML;
+      const newContainer = tempDiv.firstElementChild;
+
+      // Insert after the guest config section we found earlier
+      guestConfigSection.insertAdjacentElement('afterend', newContainer);
+
+      // Restore saved input values to new inputs
+      setTimeout(() => {
+        let restoredCount = 0;
+        Object.keys(currentValues).forEach(inputId => {
+          const input = document.getElementById(inputId);
+          if (input) {
+            if (input.type === 'checkbox') {
+              input.checked = currentValues[inputId];
+            } else {
+              input.value = currentValues[inputId];
+            }
+            restoredCount++;
+          }
+        });
+
+        // Then populate any missing names from stored data
+        this.populateGuestNamesInRooms();
+      }, 10);
+    }
+  }
+
+  /**
+   * Populate existing guest names into room-specific input fields
+   * Called after renderPerRoomList() to fill in existing names
+   */
+  populateGuestNamesInRooms() {
+    if (!this.currentBooking || !this.currentBooking.guestNames || !Array.isArray(this.currentBooking.guestNames)) {
+      return;
+    }
+
+    const allGuestNames = this.currentBooking.guestNames;
+
+    // Separate guests by type
+    const adultNames = allGuestNames.filter((g) => g.personType === 'adult');
+    const childNames = allGuestNames.filter((g) => g.personType === 'child');
+    const toddlerNames = allGuestNames.filter((g) => g.personType === 'toddler');
+
+    // Distribute guests across rooms
+    let adultIndex = 0;
+    let childIndex = 0;
+    let toddlerIndex = 0;
+
+    for (const [roomId, roomData] of this.editSelectedRooms.entries()) {
+      // Populate adults for this room
+      for (let i = 1; i <= roomData.adults; i++) {
+        const guest = adultNames[adultIndex++];
+        if (!guest) continue;
+
+        const firstNameInput = document.getElementById(`room${roomId}AdultFirstName${i}`);
+        const lastNameInput = document.getElementById(`room${roomId}AdultLastName${i}`);
+        const toggleInput = document.getElementById(`room${roomId}Adult${i}GuestTypeToggle`);
+        const toggleText = document.getElementById(`room${roomId}Adult${i}ToggleText`);
+
+        // Only populate if input is empty (preserve user edits)
+        if (firstNameInput && !firstNameInput.value) firstNameInput.value = guest.firstName || '';
+        if (lastNameInput && !lastNameInput.value) lastNameInput.value = guest.lastName || '';
+
+        if (toggleInput && guest.guestType) {
+          const isExternal = guest.guestType === 'external';
+          toggleInput.checked = isExternal;
+
+          // Trigger visual update
+          const label = toggleInput.closest('label');
+          if (label) {
+            const slider = label.querySelector('span[style*="background-color"]');
+            const thumb = slider?.querySelector('span[style*="border-radius: 50%"]');
+
+            if (slider && thumb) {
+              if (isExternal) {
+                slider.style.backgroundColor = '#dc2626';
+                thumb.style.transform = 'translateX(20px)';
+                if (toggleText) {
+                  toggleText.textContent = 'EXT';
+                  toggleText.style.color = '#dc2626';
+                }
+              } else {
+                slider.style.backgroundColor = '#059669';
+                thumb.style.transform = 'translateX(0)';
+                if (toggleText) {
+                  toggleText.textContent = 'ÚTIA';
+                  toggleText.style.color = '#059669';
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Populate children for this room
+      for (let i = 1; i <= roomData.children; i++) {
+        const guest = childNames[childIndex++];
+        if (!guest) continue;
+
+        const firstNameInput = document.getElementById(`room${roomId}ChildFirstName${i}`);
+        const lastNameInput = document.getElementById(`room${roomId}ChildLastName${i}`);
+        const toggleInput = document.getElementById(`room${roomId}Child${i}GuestTypeToggle`);
+        const toggleText = document.getElementById(`room${roomId}Child${i}ToggleText`);
+
+        // Only populate if input is empty (preserve user edits)
+        if (firstNameInput && !firstNameInput.value) firstNameInput.value = guest.firstName || '';
+        if (lastNameInput && !lastNameInput.value) lastNameInput.value = guest.lastName || '';
+
+        if (toggleInput && guest.guestType) {
+          const isExternal = guest.guestType === 'external';
+          toggleInput.checked = isExternal;
+
+          // Trigger visual update
+          const label = toggleInput.closest('label');
+          if (label) {
+            const slider = label.querySelector('span[style*="background-color"]');
+            const thumb = slider?.querySelector('span[style*="border-radius: 50%"]');
+
+            if (slider && thumb) {
+              if (isExternal) {
+                slider.style.backgroundColor = '#dc2626';
+                thumb.style.transform = 'translateX(20px)';
+                if (toggleText) {
+                  toggleText.textContent = 'EXT';
+                  toggleText.style.color = '#dc2626';
+                }
+              } else {
+                slider.style.backgroundColor = '#059669';
+                thumb.style.transform = 'translateX(0)';
+                if (toggleText) {
+                  toggleText.textContent = 'ÚTIA';
+                  toggleText.style.color = '#059669';
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Populate toddlers for this room
+      for (let i = 1; i <= roomData.toddlers; i++) {
+        const guest = toddlerNames[toddlerIndex++];
+        if (!guest) continue;
+
+        const firstNameInput = document.getElementById(`room${roomId}ToddlerFirstName${i}`);
+        const lastNameInput = document.getElementById(`room${roomId}ToddlerLastName${i}`);
+
+        // Only populate if input is empty (preserve user edits)
+        if (firstNameInput && !firstNameInput.value) firstNameInput.value = guest.firstName || '';
+        if (lastNameInput && !lastNameInput.value) lastNameInput.value = guest.lastName || '';
+      }
+    }
+  }
+
+  /**
+   * Toggle guest type between ÚTIA and External for individual guest
+   * @param {string} roomId - Room ID
+   * @param {string} guestType - 'adult' or 'child'
+   * @param {number} index - Guest index (1-based)
+   * @param {boolean} isExternal - true for External, false for ÚTIA
+   */
+  toggleGuestType(roomId, guestType, index, isExternal) {
+    const toggleId = `room${roomId}${guestType.charAt(0).toUpperCase() + guestType.slice(1)}${index}GuestTypeToggle`;
+    const toggleTextId = `room${roomId}${guestType.charAt(0).toUpperCase() + guestType.slice(1)}${index}ToggleText`;
+
+    const toggle = document.getElementById(toggleId);
+    const toggleText = document.getElementById(toggleTextId);
+
+    if (!toggle || !toggleText) {
+      return;
+    }
+
+    // Find the toggle slider (parent label -> span child)
+    const label = toggle.closest('label');
+    if (!label) {
+      return;
+    }
+    const slider = label.querySelector('span[style*="background-color"]');
+    const thumb = slider?.querySelector('span[style*="border-radius: 50%"]');
+
+    if (!slider || !thumb) {
+      return;
+    }
+
+    // Update visual state
+    if (isExternal) {
+      slider.style.backgroundColor = '#dc2626'; // Red for External
+      thumb.style.transform = 'translateX(20px)';
+      toggleText.textContent = 'EXT';
+      toggleText.style.color = '#dc2626';
+    } else {
+      slider.style.backgroundColor = '#059669'; // Green for ÚTIA
+      thumb.style.transform = 'translateX(0)';
+      toggleText.textContent = 'ÚTIA';
+      toggleText.style.color = '#059669';
+    }
+
+    // ⚠️ CRITICAL: Update room-level guest type based on per-guest toggles
+    // Rule: If at least 1 guest is ÚTIA → room is ÚTIA, otherwise External
+    this.updateRoomGuestTypeFromToggles(roomId);
+
+    // Recalculate price with updated room guest type
+    this.updateTotalPrice();
+  }
+
+  /**
+   * Update room-level guest type based on per-guest toggles
+   * Rule: If at least 1 guest is ÚTIA (toggle unchecked) → room is 'utia', otherwise 'external'
+   * @param {string} roomId - Room ID
+   */
+  updateRoomGuestTypeFromToggles(roomId) {
+    const roomData = this.editSelectedRooms.get(roomId);
+    if (!roomData) {
+      return;
+    }
+
+    let hasUtiaGuest = false;
+
+    // Check adult toggles
+    const totalAdults = roomData.adults || 0;
+    for (let i = 1; i <= totalAdults; i++) {
+      const toggleId = `room${roomId}Adult${i}GuestTypeToggle`;
+      const toggle = document.getElementById(toggleId);
+      if (toggle && !toggle.checked) {
+        // Unchecked = ÚTIA
+        hasUtiaGuest = true;
+        break;
+      }
+    }
+
+    // Check children toggles if no ÚTIA adult found
+    if (!hasUtiaGuest) {
+      const totalChildren = roomData.children || 0;
+      for (let i = 1; i <= totalChildren; i++) {
+        const toggleId = `room${roomId}Child${i}GuestTypeToggle`;
+        const toggle = document.getElementById(toggleId);
+        if (toggle && !toggle.checked) {
+          // Unchecked = ÚTIA
+          hasUtiaGuest = true;
+          break;
+        }
+      }
+    }
+
+    // Check toddler toggles if no ÚTIA guest found yet
+    if (!hasUtiaGuest) {
+      const totalToddlers = roomData.toddlers || 0;
+      for (let i = 1; i <= totalToddlers; i++) {
+        const toggleId = `room${roomId}Toddler${i}GuestTypeToggle`;
+        const toggle = document.getElementById(toggleId);
+        if (toggle && !toggle.checked) {
+          // Unchecked = ÚTIA
+          hasUtiaGuest = true;
+          break;
+        }
+      }
+    }
+
+    // Update room-level guest type
+    const newGuestType = hasUtiaGuest ? 'utia' : 'external';
+    if (roomData.guestType !== newGuestType) {
+      roomData.guestType = newGuestType;
+      this.editSelectedRooms.set(roomId, roomData);
+
+      // Also update the room-level guest type dropdown if it exists
+      const roomGuestTypeSelect = document.querySelector(
+        `select[onchange*="updateRoomGuestType('${roomId}'"]`
+      );
+      if (roomGuestTypeSelect) {
+        roomGuestTypeSelect.value = newGuestType;
+      }
+    }
   }
 
   /**
@@ -1257,17 +1311,51 @@ class EditBookingComponent {
 
         totalPrice += price;
 
-        // Add to per-room data
+        // Count ÚTIA vs External guests for this room
+        let utiaAdults = 0;
+        let externalAdults = 0;
+        let utiaChildren = 0;
+        let externalChildren = 0;
+
+        // Count adults
+        const totalAdults = roomData.adults || 0;
+        for (let i = 1; i <= totalAdults; i++) {
+          const toggleId = `room${roomId}Adult${i}GuestTypeToggle`;
+          const toggle = document.getElementById(toggleId);
+          if (toggle && toggle.checked) {
+            externalAdults++;
+          } else {
+            utiaAdults++;
+          }
+        }
+
+        // Count children
+        const totalChildren = roomData.children || 0;
+        for (let i = 1; i <= totalChildren; i++) {
+          const toggleId = `room${roomId}Child${i}GuestTypeToggle`;
+          const toggle = document.getElementById(toggleId);
+          if (toggle && toggle.checked) {
+            externalChildren++;
+          } else {
+            utiaChildren++;
+          }
+        }
+
+        // Add to per-room data with ÚTIA/External breakdown
         perRoomGuests.push({
           roomId,
           adults: roomData.adults || 0,
           children: roomData.children || 0,
           toddlers: roomData.toddlers || 0,
+          utiaAdults,
+          externalAdults,
+          utiaChildren,
+          externalChildren,
         });
       }
 
-      // Generate per-room price breakdown if we have multiple rooms
-      if (perRoomGuests.length > 1 && typeof PriceCalculator !== 'undefined') {
+      // Generate per-room price breakdown (for both single and multi-room bookings)
+      if (perRoomGuests.length >= 1 && typeof PriceCalculator !== 'undefined') {
         try {
           // Get the first room's dates to calculate common nights
           const firstDates = Array.from(this.perRoomDates.values())[0];
@@ -1294,9 +1382,6 @@ class EditBookingComponent {
       }
     }
 
-    // Update total price display
-    priceContainer.innerHTML = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
-
     // Add per-room breakdown if available (insert after the total price container)
     const priceSection = priceContainer.closest('div[style*="background: #fef3c7"]');
     if (priceSection) {
@@ -1308,9 +1393,25 @@ class EditBookingComponent {
 
       // Add new breakdown if available
       if (perRoomPriceHtml) {
+        // Hide the "Total Price" label and value when breakdown is shown
+        const totalPriceLabel = priceSection.querySelector('strong');
+        if (totalPriceLabel) {
+          totalPriceLabel.style.display = 'none';
+        }
+        priceContainer.style.display = 'none';
+
+        // Add breakdown
         const breakdownContainer = document.createElement('div');
         breakdownContainer.innerHTML = perRoomPriceHtml;
         priceSection.appendChild(breakdownContainer.firstElementChild);
+      } else {
+        // Show total price if no breakdown available
+        const totalPriceLabel = priceSection.querySelector('strong');
+        if (totalPriceLabel) {
+          totalPriceLabel.style.display = '';
+        }
+        priceContainer.style.display = '';
+        priceContainer.innerHTML = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
       }
     }
   }
@@ -1633,22 +1734,65 @@ class EditBookingComponent {
     // Filter rooms to show ONLY those in the original booking
     const roomsToShow = this.settings.rooms.filter((r) => this.originalRooms.includes(r.id));
 
-    // Show informational notice about edit restrictions
+    // Show informational banner about edit restrictions
     if (roomsToShow.length < this.settings.rooms.length) {
-      const notice = document.createElement('div');
-      notice.style.cssText = `
-        padding: 1rem;
-        margin-bottom: 1rem;
-        background: #e0f2fe;
-        border: 2px solid #0284c7;
+      const infoBanner = document.createElement('div');
+      infoBanner.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        padding: 1rem 1.25rem;
+        background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+        color: white;
         border-radius: 8px;
-        color: #075985;
-        font-weight: 500;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border-left: 4px solid #0369a1;
       `;
-      notice.textContent =
-        'ℹ️ Režim editace: Zobrazeny jsou pouze pokoje z původní rezervace. ' +
-        'V editaci nelze přidávat ani odebírat pokoje.';
-      roomsList.appendChild(notice);
+
+      const iconContainer = document.createElement('div');
+      iconContainer.style.cssText = `
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        font-size: 20px;
+        flex-shrink: 0;
+      `;
+      iconContainer.textContent = 'ℹ️';
+
+      const textContainer = document.createElement('div');
+      textContainer.style.cssText = `
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      `;
+
+      const title = document.createElement('div');
+      title.style.cssText = `
+        font-weight: 600;
+        font-size: 15px;
+      `;
+      title.textContent = 'Režim editace';
+
+      const description = document.createElement('div');
+      description.style.cssText = `
+        font-size: 14px;
+        opacity: 0.95;
+        line-height: 1.4;
+      `;
+      description.textContent =
+        'Zobrazeny jsou pouze pokoje z původní rezervace. V editaci nelze přidávat ani odebírat pokoje.';
+
+      textContainer.appendChild(title);
+      textContainer.appendChild(description);
+      infoBanner.appendChild(iconContainer);
+      infoBanner.appendChild(textContainer);
+      roomsList.appendChild(infoBanner);
     }
 
     // Show ONLY rooms from original booking with per-room configuration
@@ -1746,7 +1890,6 @@ class EditBookingComponent {
                   style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
               </div>
             </div>
-            ${this.renderGuestListForRoom(room.id, roomData)}
           </div>
         `
             : ''
@@ -1754,14 +1897,35 @@ class EditBookingComponent {
       `;
 
       roomsList.appendChild(roomCard);
+
+      // Generate guest name input fields immediately for selected rooms
+      if (isSelected) {
+        const guestNamesHTML = this.renderGuestListForRoom(room.id, roomData);
+        if (guestNamesHTML) {
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = guestNamesHTML;
+          const guestNamesContainer = tempDiv.firstElementChild;
+
+          // Find the guest configuration section (grid with spinbuttons)
+          const guestConfigSection = roomCard.querySelector('div[style*="display: grid"]');
+          if (guestConfigSection) {
+            guestConfigSection.insertAdjacentElement('afterend', guestNamesContainer);
+          }
+        }
+      }
     }
+
+    // Populate existing guest names after rendering all rooms
+    setTimeout(() => {
+      this.populateGuestNamesInRooms();
+    }, 50);
   }
 
   /**
-   * Render guest list for a single room with color-coded badges
+   * Render guest names input fields for a single room
    * @param {string} roomId - Room identifier
    * @param {Object} roomData - Room data with guest info
-   * @returns {string} HTML string for guest list
+   * @returns {string} HTML string for guest names inputs
    */
   renderGuestListForRoom(roomId, roomData) {
     const adults = roomData.adults || 0;
@@ -1773,50 +1937,166 @@ class EditBookingComponent {
       return '';
     }
 
-    const guestTypeLabel = roomData.guestType === 'utia' ? 'Zaměstnanec ÚTIA' : 'Externí host';
-    const guestTypeBadgeColor = roomData.guestType === 'utia' ? '#10b981' : '#f59e0b';
-    const guestTypeBgColor = roomData.guestType === 'utia' ? '#d1fae5' : '#fef3c7';
+    const onChangePrefix = this.mode === 'admin' ? 'adminPanel' : 'editPage';
+    let guestInputs = '';
 
-    let guestList = '';
-
-    // Add adults with badges
-    for (let i = 1; i <= adults; i++) {
-      guestList += `
-        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: white; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 0.875rem;">
-          <span style="padding: 0.25rem 0.5rem; background: ${guestTypeBgColor}; color: ${guestTypeBadgeColor}; border-radius: 4px; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">${guestTypeLabel}</span>
-          <span style="color: #6b7280;">👤 Dospělý ${i}</span>
-        </div>
+    // Generate adult name inputs with toggle switches
+    if (adults > 0) {
+      guestInputs += `
+        <div style="margin-bottom: 1rem;">
+          <h4 style="font-size: 0.875rem; font-weight: 600; color: #059669; margin-bottom: 0.5rem;">Dospělí (18+ let)</h4>
       `;
+
+      for (let i = 1; i <= adults; i++) {
+        guestInputs += `
+          <div style="display: flex; align-items: end; gap: 0.75rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;">
+            <div style="flex: 1; min-width: 0;">
+              <label style="display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;">Křestní jméno *</label>
+              <input type="text"
+                id="room${roomId}AdultFirstName${i}"
+                placeholder="např. Jan"
+                minlength="2"
+                maxlength="50"
+                data-room-id="${roomId}"
+                data-guest-type="adult"
+                data-guest-index="${i}"
+                style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
+            </div>
+            <div style="flex: 1; min-width: 0;">
+              <label style="display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;">Příjmení *</label>
+              <input type="text"
+                id="room${roomId}AdultLastName${i}"
+                placeholder="např. Novák"
+                minlength="2"
+                maxlength="50"
+                data-room-id="${roomId}"
+                data-guest-type="adult"
+                data-guest-index="${i}"
+                style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 0.25rem; flex-shrink: 0;">
+              <label style="position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer; margin-top: 1.5rem;">
+                <input type="checkbox"
+                  id="room${roomId}Adult${i}GuestTypeToggle"
+                  data-room-id="${roomId}"
+                  data-guest-type="adult"
+                  data-guest-index="${i}"
+                  onchange="${onChangePrefix}.editComponent.toggleGuestType('${roomId}', 'adult', ${i}, this.checked)"
+                  style="opacity: 0; width: 0; height: 0;" />
+                <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #059669; transition: 0.3s; border-radius: 24px;">
+                  <span style="position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%;"></span>
+                </span>
+              </label>
+              <span id="room${roomId}Adult${i}ToggleText" style="font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px; text-align: center;">ÚTIA</span>
+            </div>
+          </div>
+        `;
+      }
+
+      guestInputs += `</div>`;
     }
 
-    // Add children with badges
-    for (let i = 1; i <= children; i++) {
-      guestList += `
-        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: white; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 0.875rem;">
-          <span style="padding: 0.25rem 0.5rem; background: ${guestTypeBgColor}; color: ${guestTypeBadgeColor}; border-radius: 4px; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">${guestTypeLabel}</span>
-          <span style="color: #6b7280;">👶 Dítě ${i}</span>
-        </div>
+    // Generate children name inputs with toggle switches
+    if (children > 0) {
+      guestInputs += `
+        <div style="margin-bottom: 1rem;">
+          <h4 style="font-size: 0.875rem; font-weight: 600; color: #059669; margin-bottom: 0.5rem;">Děti (3-17 let)</h4>
       `;
+
+      for (let i = 1; i <= children; i++) {
+        guestInputs += `
+          <div style="display: flex; align-items: end; gap: 0.75rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;">
+            <div style="flex: 1; min-width: 0;">
+              <label style="display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;">Křestní jméno *</label>
+              <input type="text"
+                id="room${roomId}ChildFirstName${i}"
+                placeholder="např. Anna"
+                minlength="2"
+                maxlength="50"
+                data-room-id="${roomId}"
+                data-guest-type="child"
+                data-guest-index="${i}"
+                style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
+            </div>
+            <div style="flex: 1; min-width: 0;">
+              <label style="display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;">Příjmení *</label>
+              <input type="text"
+                id="room${roomId}ChildLastName${i}"
+                placeholder="např. Nováková"
+                minlength="2"
+                maxlength="50"
+                data-room-id="${roomId}"
+                data-guest-type="child"
+                data-guest-index="${i}"
+                style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 0.25rem; flex-shrink: 0;">
+              <label style="position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer; margin-top: 1.5rem;">
+                <input type="checkbox"
+                  id="room${roomId}Child${i}GuestTypeToggle"
+                  data-room-id="${roomId}"
+                  data-guest-type="child"
+                  data-guest-index="${i}"
+                  onchange="${onChangePrefix}.editComponent.toggleGuestType('${roomId}', 'child', ${i}, this.checked)"
+                  style="opacity: 0; width: 0; height: 0;" />
+                <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #059669; transition: 0.3s; border-radius: 24px;">
+                  <span style="position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%;"></span>
+                </span>
+              </label>
+              <span id="room${roomId}Child${i}ToggleText" style="font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px; text-align: center;">ÚTIA</span>
+            </div>
+          </div>
+        `;
+      }
+
+      guestInputs += `</div>`;
     }
 
-    // Add toddlers (always free, no guest type badge needed)
-    for (let i = 1; i <= toddlers; i++) {
-      guestList += `
-        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: white; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 0.875rem;">
-          <span style="padding: 0.25rem 0.5rem; background: #e0f2fe; color: #0284c7; border-radius: 4px; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">Zdarma (free)</span>
-          <span style="color: #6b7280;">🍼 Batole <span style="color: #9ca3af; font-size: 0.75rem;">(Toddler)</span> ${i}</span>
-        </div>
+    // Generate toddler name inputs (no toggle - always free)
+    if (toddlers > 0) {
+      guestInputs += `
+        <div style="margin-bottom: 1rem;">
+          <h4 style="font-size: 0.875rem; font-weight: 600; color: #0284c7; margin-bottom: 0.5rem;">Batolata (0-3 roky) - Zdarma</h4>
       `;
+
+      for (let i = 1; i <= toddlers; i++) {
+        guestInputs += `
+          <div style="display: flex; align-items: end; gap: 0.75rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e0f2fe; border-radius: 6px; background-color: #f0f9ff;">
+            <div style="flex: 1; min-width: 0;">
+              <label style="display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;">Křestní jméno *</label>
+              <input type="text"
+                id="room${roomId}ToddlerFirstName${i}"
+                placeholder="např. Tomáš"
+                minlength="2"
+                maxlength="50"
+                data-room-id="${roomId}"
+                data-guest-type="toddler"
+                data-guest-index="${i}"
+                style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
+            </div>
+            <div style="flex: 1; min-width: 0;">
+              <label style="display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;">Příjmení *</label>
+              <input type="text"
+                id="room${roomId}ToddlerLastName${i}"
+                placeholder="např. Novák"
+                minlength="2"
+                maxlength="50"
+                data-room-id="${roomId}"
+                data-guest-type="toddler"
+                data-guest-index="${i}"
+                style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
+            </div>
+          </div>
+        `;
+      }
+
+      guestInputs += `</div>`;
     }
 
     return `
-      <div style="margin-top: 1rem;">
-        <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem; font-size: 0.875rem;">
-          👥 SEZNAM HOSTŮ (${totalGuests})
-        </label>
-        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-          ${guestList}
-        </div>
+      <div id="guestNamesRoom${roomId}" style="margin-top: 1rem; padding: 1rem; background: #f0fdf4; border: 2px solid #10b981; border-radius: 8px;">
+        <h3 style="margin: 0 0 1rem 0; color: #047857; font-size: 0.9375rem;">👥 Jména ubytovaných osob</h3>
+        ${guestInputs}
       </div>
     `;
   }
