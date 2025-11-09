@@ -13,7 +13,7 @@
 --   Large: 500 Kč (empty) + 120 Kč/adult + 60 Kč/child
 
 UPDATE settings
-SET value = json('{"utia":{"small":{"base":250,"adult":50,"child":25},"large":{"base":350,"adult":70,"child":35}},"external":{"small":{"base":400,"adult":100,"child":50},"large":{"base":500,"adult":120,"child":60}}}')
+SET value = json('{"utia":{"small":{"empty":250,"adult":50,"child":25},"large":{"empty":350,"adult":70,"child":35}},"external":{"small":{"empty":400,"adult":100,"child":50},"large":{"empty":500,"adult":120,"child":60}}}')
 WHERE key = 'prices';
 
 -- Verify the update
