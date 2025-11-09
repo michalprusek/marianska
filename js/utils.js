@@ -457,18 +457,31 @@ class UtilsModule {
 
       // Check if room-size-based pricing is enabled
       const hasRoomSizes = priceConfig?.small && priceConfig?.large;
-      let baseRoomPrice = 298; // Fallback
+      let baseRoomPrice = null; // Start with null to detect if we got a valid price
 
       if (hasRoomSizes && currentRoomId) {
         // NEW: Get room type (small/large) from settings
         const room = rooms.find((r) => r.id === currentRoomId);
         const roomType = room?.type || 'small';
         const roomPriceConfig = priceConfig[roomType] || priceConfig.small;
-        // Calculate base room price: price with 1 person minus adult surcharge
-        baseRoomPrice = roomPriceConfig.base - roomPriceConfig.adult;
-      } else if (priceConfig?.base && priceConfig?.adult) {
-        // LEGACY: Flat pricing model - also subtract adult surcharge
-        baseRoomPrice = priceConfig.base - priceConfig.adult;
+        // FIX 2025-11-06: Use NEW pricing model - base IS empty room price
+        // Use 'base' property if it exists (even if 0)
+        if (roomPriceConfig && 'base' in roomPriceConfig) {
+          baseRoomPrice = roomPriceConfig.base;
+        }
+      } else if (priceConfig && ('base' in priceConfig)) {
+        // LEGACY: Flat pricing model - base IS empty room price (NEW model)
+        // Check for property existence, not truthiness (0 is valid)
+        baseRoomPrice = priceConfig.base;
+      }
+
+      // Fallback if we couldn't determine price - ensure valid number
+      if (baseRoomPrice === null || baseRoomPrice === undefined || isNaN(baseRoomPrice)) {
+        // Use room-type-specific fallback based on currentRoomId
+        const room = rooms.find((r) => r.id === currentRoomId);
+        const roomType = room?.type || 'small';
+        const isSmall = roomType === 'small';
+        baseRoomPrice = currentGuestType === 'utia' ? (isSmall ? 250 : 350) : (isSmall ? 400 : 500);
       }
 
       // Always update base price display

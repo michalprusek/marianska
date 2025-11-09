@@ -407,6 +407,16 @@ class SingleRoomBookingModule {
     const hasUtiaGuest = guestNames.some(guest => guest.guestPriceType === 'utia');
     const guestType = hasUtiaGuest ? 'utia' : 'external';
 
+    // FIX 2025-11-06: Construct perRoomGuests with guestType BEFORE price calculation
+    const perRoomGuests = {
+      [this.app.currentBookingRoom]: {
+        adults: guests.adults || 0,
+        children: guests.children || 0,
+        toddlers: guests.toddlers || 0,
+        guestType: guestType  // Use the determined guestType (ÚTIA if ANY guest is ÚTIA)
+      }
+    };
+
     // Calculate price using per-guest pricing (NEW 2025-11-04)
     // Each guest can have their own pricing type (ÚTIA vs External)
     const settings = await dataManager.getSettings();
@@ -415,7 +425,8 @@ class SingleRoomBookingModule {
       guestNames: guestNames,
       nights: nights,
       settings: settings,
-      fallbackGuestType: fallbackGuestType
+      fallbackGuestType: fallbackGuestType,
+      perRoomGuests: perRoomGuests  // FIX 2025-11-06: Pass perRoomGuests to avoid fallback
     });
 
     // Validate guest names count matches total guests
@@ -1209,10 +1220,36 @@ class SingleRoomBookingModule {
       const guestTypeInput = document.querySelector('input[name="singleRoomGuestType"]:checked');
       const fallbackGuestType = guestTypeInput ? guestTypeInput.value : 'external';
 
+      // Count guests from guestNames
+      const adults = guestNames.filter(g => g.type === 'adult').length;
+      const children = guestNames.filter(g => g.type === 'child').length;
+      const toddlers = guestNames.filter(g => g.type === 'toddler').length;
+
+      // FIX: Determine actual guest type based on whether ANY guest is ÚTIA
+      // This MUST be calculated BEFORE creating perRoomGuests
+      const hasUtiaGuest = guestNames && guestNames.length > 0
+        ? guestNames.some(guest => guest.guestPriceType === 'utia')
+        : true;  // FIX 2025-11-07: Default to ÚTIA when no guests yet (matches default radio selection)
+      const actualGuestType = hasUtiaGuest ? 'utia' : 'external';
+
+      // FIX 2025-11-07: Store actualGuestType in app.roomGuestTypes so utils.js can access it
+      this.app.roomGuestTypes.set(roomId, actualGuestType);
+
+      // Construct perRoomGuests object for single room
+      const perRoomGuests = {
+        [roomId]: {
+          adults,
+          children,
+          toddlers,
+          guestType: actualGuestType  // FIX: Use actualGuestType instead of fallbackGuestType
+        }
+      };
+
       // Calculate price using PER-GUEST method
       const price = PriceCalculator.calculatePerGuestPrice({
         rooms: [roomId],
         guestNames: guestNames,
+        perRoomGuests: perRoomGuests, // FIX: Pass per-room guest type data to prevent fallback warning
         nights: nights,
         settings: settings,
         fallbackGuestType: fallbackGuestType
@@ -1242,7 +1279,7 @@ class SingleRoomBookingModule {
     // Determine actual guest type based on whether ANY guest is ÚTIA
     const hasUtiaGuest = guestNames && guestNames.length > 0
       ? guestNames.some(guest => guest.guestPriceType === 'utia')
-      : false;
+      : true;  // FIX 2025-11-07: Default to ÚTIA when no guests yet (matches default radio selection)
     const actualGuestType = hasUtiaGuest ? 'utia' : 'external';
 
     // Count guests by person type and price type
@@ -1284,13 +1321,12 @@ class SingleRoomBookingModule {
     const utiaPrices = settings.prices?.utia?.[roomType] || {};
     const externalPrices = settings.prices?.external?.[roomType] || {};
 
-    // Calculate empty room price (match PriceCalculator logic)
+    // Get empty room price (NEW MODEL: base/empty = prázdný pokoj)
     const actualPriceConfig = actualGuestType === 'utia' ? utiaPrices : externalPrices;
-    const emptyRoomPrice = actualPriceConfig.empty !== undefined
-      ? actualPriceConfig.empty
-      : (actualPriceConfig.base || 0) - (actualPriceConfig.adult || 0);
+    // FIX 2025-11-07: Try both 'base' and 'empty' property names for backward compatibility
+    const emptyRoomPrice = actualPriceConfig.base ?? actualPriceConfig.empty ?? 0;
 
-    // Update base price
+    // Update base price display
     const basePriceElement = document.getElementById('basePrice');
     if (basePriceElement) {
       const basePriceText = `${emptyRoomPrice.toLocaleString('cs-CZ')} Kč${hasUtiaGuest ? ' (ÚTIA)' : ' (EXT)'}`;

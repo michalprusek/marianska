@@ -382,7 +382,12 @@ class BookingApp {
       radio.addEventListener('change', async () => {
         if (this.currentBookingRoom) {
           this.roomGuestTypes.set(this.currentBookingRoom, radio.value);
-          await this.updatePriceCalculation();
+          // FIX 2025-11-06: Use single room booking price update method
+          if (this.singleRoomBooking) {
+            await this.singleRoomBooking.updatePriceForCurrentRoom();
+          } else {
+            await this.updatePriceCalculation();
+          }
         }
       });
     });
@@ -549,14 +554,22 @@ class BookingApp {
       generalEl.value = guests[type].toString();
     }
 
-    await this.updatePriceCalculation();
+    // FIX 2025-11-06: Use single room booking price update method instead of general updatePriceCalculation
+    // This ensures correct price calculation using NEW pricing model (empty room + ALL guests pay)
+    if (this.currentBookingRoom && this.singleRoomBooking) {
+      // Regenerate guest name input fields FIRST (before price update)
+      this.singleRoomBooking.generateGuestNamesInputs(
+        guests.adults,
+        guests.children,
+        guests.toddlers
+      );
 
-    // Regenerate guest name input fields with updated counts
-    this.singleRoomBooking.generateGuestNamesInputs(
-      guests.adults,
-      guests.children,
-      guests.toddlers
-    );
+      // Then update price using single room booking method
+      await this.singleRoomBooking.updatePriceForCurrentRoom();
+    } else {
+      // Fallback to general price calculation if not in single room booking mode
+      await this.updatePriceCalculation();
+    }
 
     // KRITICKÉ: Po změně počtu hostů přepočítat cenu v single room modalu
     // Toto zajistí, že když uživatel odebere ÚTIA hosta a zůstane jen external,

@@ -11,17 +11,18 @@ class PriceCalculator {
   /**
    * Get empty room price (base accommodation cost without guests)
    *
-   * CRITICAL FIX 2025-11-05: In NEW model (2025-11-04+), base IS the empty room price
-   * No need to subtract adult surcharge anymore
+   * NEW MODEL (2025-11-06): base field IS the empty room price (without any guests)
+   * Admin sets this value in price settings - it represents accommodation cost for 0 guests.
    *
    * @param {Object} roomPriceConfig - Price configuration for specific room type
    * @returns {number} Empty room base price
    * @private
    */
   static getEmptyRoomPrice(roomPriceConfig) {
-    // NEW MODEL (2025-11-04+): base IS empty room price, use it directly
-    // This aligns with the room-size-based pricing model where admin sets empty room price
-    return roomPriceConfig.base;
+    // NEW MODEL: empty = prázdný pokoj (empty room, no guests)
+    // Admin nastavuje v ceníku: empty + surcharges for ALL guests
+    // FIX 2025-11-06: Changed from .base to .empty (correct settings key)
+    return roomPriceConfig.empty || 0;
   }
 
   /**
@@ -450,10 +451,11 @@ class PriceCalculator {
         roomPriceConfig = priceConfig;
       }
 
-      // Calculate empty room price (base - adult surcharge)
-      const emptyRoomPrice = roomPriceConfig.base - roomPriceConfig.adult;
+      // FIX 2025-11-06: Use NEW pricing model - base IS empty room price
+      // No need to subtract adult surcharge (that was OLD model)
+      const emptyRoomPrice = this.getEmptyRoomPrice(roomPriceConfig);
 
-      // Calculate surcharges
+      // Calculate surcharges for ALL guests (NEW model: no "first person free")
       const adultsPrice = adults * roomPriceConfig.adult;
       const childrenPrice = children * roomPriceConfig.child;
 
@@ -741,12 +743,18 @@ class PriceCalculator {
     const avgExternalRates = this.getAverageRoomPriceConfig(rooms, settings, 'external');
 
     // Add ÚTIA guest surcharges
-    totalPrice += utiaAdults * avgUtiaRates.adult * nights;
-    totalPrice += utiaChildren * avgUtiaRates.child * nights;
+    const utiaAdultSurcharge = utiaAdults * avgUtiaRates.adult * nights;
+    const utiaChildSurcharge = utiaChildren * avgUtiaRates.child * nights;
+
+    totalPrice += utiaAdultSurcharge;
+    totalPrice += utiaChildSurcharge;
 
     // Add External guest surcharges
-    totalPrice += externalAdults * avgExternalRates.adult * nights;
-    totalPrice += externalChildren * avgExternalRates.child * nights;
+    const externalAdultSurcharge = externalAdults * avgExternalRates.adult * nights;
+    const externalChildSurcharge = externalChildren * avgExternalRates.child * nights;
+
+    totalPrice += externalAdultSurcharge;
+    totalPrice += externalChildSurcharge;
 
     return Math.round(totalPrice);
   }

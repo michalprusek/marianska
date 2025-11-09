@@ -1581,10 +1581,144 @@ function validateFieldLengths(data) {
   return { valid: true };
 }
 
+/**
+ * Validate price structure for admin settings
+ * Ensures all required fields exist, are numbers, and within valid ranges
+ * @param {Object} prices - Price object from settings
+ * @returns {Object} {valid: boolean, error?: string}
+ */
+function validatePriceStructure(prices) {
+  if (!prices || typeof prices !== 'object') {
+    return { valid: false, error: 'Ceny musí být objekt' };
+  }
+
+  const requiredKeys = ['utia', 'external'];
+  const requiredSizes = ['small', 'large'];
+  const requiredPriceFields = ['empty', 'adult', 'child'];
+
+  for (const guestType of requiredKeys) {
+    if (!prices[guestType] || typeof prices[guestType] !== 'object') {
+      return { valid: false, error: `Chybí ceny pro typ ${guestType}` };
+    }
+
+    for (const roomSize of requiredSizes) {
+      if (!prices[guestType][roomSize] || typeof prices[guestType][roomSize] !== 'object') {
+        return {
+          valid: false,
+          error: `Chybí ceny pro ${guestType} pokoje velikosti ${roomSize}`,
+        };
+      }
+
+      for (const priceField of requiredPriceFields) {
+        const value = prices[guestType][roomSize][priceField];
+
+        // Check if value exists and is a number
+        if (value === undefined || value === null) {
+          return {
+            valid: false,
+            error: `Chybí hodnota ${guestType}.${roomSize}.${priceField}`,
+          };
+        }
+
+        if (typeof value !== 'number') {
+          return {
+            valid: false,
+            error: `Hodnota ${guestType}.${roomSize}.${priceField} musí být číslo, je ${typeof value}`,
+          };
+        }
+
+        // Check range: 0 to 100000 CZK
+        if (value < 0 || value > 100000) {
+          return {
+            valid: false,
+            error: `Hodnota ${guestType}.${roomSize}.${priceField} (${value}) je mimo povolený rozsah 0-100000 Kč`,
+          };
+        }
+
+        // Check for decimal places (prices should be whole numbers in CZK)
+        if (!Number.isInteger(value)) {
+          return {
+            valid: false,
+            error: `Cena ${guestType}.${roomSize}.${priceField} (${value}) musí být celé číslo`,
+          };
+        }
+      }
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate bulk prices structure
+ * @param {Object} bulkPrices - Bulk price object from settings
+ * @returns {Object} {valid: boolean, error?: string}
+ */
+function validateBulkPrices(bulkPrices) {
+  if (!bulkPrices || typeof bulkPrices !== 'object') {
+    return { valid: false, error: 'Bulk ceny musí být objekt' };
+  }
+
+  const requiredFields = ['basePrice', 'utiaAdult', 'utiaChild', 'externalAdult', 'externalChild'];
+
+  for (const field of requiredFields) {
+    const value = bulkPrices[field];
+
+    if (value === undefined || value === null) {
+      return { valid: false, error: `Chybí hodnota bulkPrices.${field}` };
+    }
+
+    if (typeof value !== 'number') {
+      return {
+        valid: false,
+        error: `Hodnota bulkPrices.${field} musí být číslo, je ${typeof value}`,
+      };
+    }
+
+    if (value < 0 || value > 100000) {
+      return {
+        valid: false,
+        error: `Hodnota bulkPrices.${field} (${value}) je mimo povolený rozsah 0-100000 Kč`,
+      };
+    }
+
+    if (!Number.isInteger(value)) {
+      return {
+        valid: false,
+        error: `Cena bulkPrices.${field} (${value}) musí být celé číslo`,
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
 // Protected admin endpoint - update settings
 app.post('/api/admin/settings', requireSession, async (req, res) => {
   try {
     const settings = req.body;
+
+    // Validate prices if provided
+    if (settings.prices) {
+      const priceValidation = validatePriceStructure(settings.prices);
+      if (!priceValidation.valid) {
+        logger.warn('Price validation failed:', priceValidation.error);
+        return res.status(400).json({
+          error: `Neplatná struktura cen: ${priceValidation.error}`,
+        });
+      }
+    }
+
+    // Validate bulk prices if provided
+    if (settings.bulkPrices) {
+      const bulkPriceValidation = validateBulkPrices(settings.bulkPrices);
+      if (!bulkPriceValidation.valid) {
+        logger.warn('Bulk price validation failed:', bulkPriceValidation.error);
+        return res.status(400).json({
+          error: `Neplatná struktura bulk cen: ${bulkPriceValidation.error}`,
+        });
+      }
+    }
 
     // Hash admin password if provided
     if (settings.adminPassword) {
@@ -1593,6 +1727,9 @@ app.post('/api/admin/settings', requireSession, async (req, res) => {
     }
 
     db.updateSettings(settings);
+    logger.info('Settings updated successfully', {
+      updatedFields: Object.keys(settings).filter((k) => k !== 'adminPassword'),
+    });
 
     return res.json({ success: true });
   } catch (error) {

@@ -1505,7 +1505,12 @@ class BookingFormModule {
       children: tempReservation.guests.children,
       toddlers: tempReservation.guests.toddlers,
       totalPrice: tempReservation.totalPrice,
-      perRoomGuests: { [tempReservation.roomId]: tempReservation.guests }, // FIX: Changed from roomGuests to perRoomGuests
+      perRoomGuests: {
+        [tempReservation.roomId]: {
+          ...tempReservation.guests,
+          guestType: tempReservation.guestType  // FIX 2025-11-06: Add guestType to perRoomGuests
+        }
+      },
       sessionId: this.app.sessionId,
       guestNames,
     };
