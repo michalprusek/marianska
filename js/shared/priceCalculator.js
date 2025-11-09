@@ -432,7 +432,16 @@ class PriceCalculator {
 
     // Calculate price for each room
     for (const roomGuests of perRoomGuests) {
-      const { roomId, adults = 0, children = 0, toddlers = 0 } = roomGuests;
+      const {
+        roomId,
+        adults = 0,
+        children = 0,
+        toddlers = 0,
+        utiaAdults = 0,
+        externalAdults = 0,
+        utiaChildren = 0,
+        externalChildren = 0,
+      } = roomGuests;
 
       let roomPriceConfig;
       let roomType = 'standard';
@@ -455,9 +464,32 @@ class PriceCalculator {
       // No need to subtract adult surcharge (that was OLD model)
       const emptyRoomPrice = this.getEmptyRoomPrice(roomPriceConfig);
 
-      // Calculate surcharges for ALL guests (NEW model: no "first person free")
-      const adultsPrice = adults * roomPriceConfig.adult;
-      const childrenPrice = children * roomPriceConfig.child;
+      // Calculate surcharges - if ÚTIA/External breakdown is provided, use it
+      let adultsPrice;
+      let childrenPrice;
+      let utiaAdultsPrice = 0;
+      let externalAdultsPrice = 0;
+      let utiaChildrenPrice = 0;
+      let externalChildrenPrice = 0;
+
+      if (utiaAdults > 0 || externalAdults > 0 || utiaChildren > 0 || externalChildren > 0) {
+        // Use ÚTIA/External breakdown for precise pricing
+        const utiaPrices = settings.prices?.utia?.[roomType] || settings.prices?.utia || {};
+        const externalPrices =
+          settings.prices?.external?.[roomType] || settings.prices?.external || {};
+
+        utiaAdultsPrice = utiaAdults * (utiaPrices.adult || 0);
+        externalAdultsPrice = externalAdults * (externalPrices.adult || 0);
+        adultsPrice = utiaAdultsPrice + externalAdultsPrice;
+
+        utiaChildrenPrice = utiaChildren * (utiaPrices.child || 0);
+        externalChildrenPrice = externalChildren * (externalPrices.child || 0);
+        childrenPrice = utiaChildrenPrice + externalChildrenPrice;
+      } else {
+        // Fallback: use simple calculation (for backward compatibility)
+        adultsPrice = adults * roomPriceConfig.adult;
+        childrenPrice = children * roomPriceConfig.child;
+      }
 
       // Subtotal for one night
       const subtotal = emptyRoomPrice + adultsPrice + childrenPrice;
@@ -477,6 +509,15 @@ class PriceCalculator {
         toddlers,
         adultsPrice,
         childrenPrice,
+        // ÚTIA/External breakdown
+        utiaAdults,
+        externalAdults,
+        utiaChildren,
+        externalChildren,
+        utiaAdultsPrice,
+        externalAdultsPrice,
+        utiaChildrenPrice,
+        externalChildrenPrice,
         subtotal,
         total,
         nights,
@@ -550,19 +591,75 @@ class PriceCalculator {
       html += `<span style="font-weight: 500;">${room.emptyRoomPrice.toLocaleString('cs-CZ')} Kč</span>`;
       html += `</div>`;
 
-      // Adults
+      // Adults - show ÚTIA/External breakdown if available
       if (room.adults > 0) {
         html += `<div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">`;
-        html += `<span>${t.adults} (${room.adults}×):</span>`;
-        html += `<span style="font-weight: 500;">+${room.adultsPrice.toLocaleString('cs-CZ')} Kč</span>`;
+
+        // Check if we have ÚTIA/External breakdown
+        if (
+          (room.utiaAdults > 0 || room.externalAdults > 0) &&
+          (room.utiaAdultsPrice !== undefined || room.externalAdultsPrice !== undefined)
+        ) {
+          // Show breakdown
+          if (room.utiaAdults > 0 && room.externalAdults > 0) {
+            // Mixed: both ÚTIA and External
+            const utiaRate = room.utiaAdultsPrice / room.utiaAdults;
+            const externalRate = room.externalAdultsPrice / room.externalAdults;
+            html += `<span>${t.adults}:</span>`;
+            html += `<span style="font-weight: 500;">+${room.adultsPrice.toLocaleString('cs-CZ')} Kč <span style="font-size: 0.85em; color: #666;">(${room.utiaAdults} ÚTIA × ${utiaRate} Kč + ${room.externalAdults} EXT × ${externalRate} Kč)</span></span>`;
+          } else if (room.utiaAdults > 0) {
+            // All ÚTIA
+            const utiaRate = room.utiaAdultsPrice / room.utiaAdults;
+            html += `<span>${t.adults}:</span>`;
+            html += `<span style="font-weight: 500;">+${room.adultsPrice.toLocaleString('cs-CZ')} Kč <span style="font-size: 0.85em; color: #666;">(${room.utiaAdults} × ${utiaRate} Kč)</span></span>`;
+          } else {
+            // All External
+            const externalRate = room.externalAdultsPrice / room.externalAdults;
+            html += `<span>${t.adults}:</span>`;
+            html += `<span style="font-weight: 500;">+${room.adultsPrice.toLocaleString('cs-CZ')} Kč <span style="font-size: 0.85em; color: #666;">(${room.externalAdults} × ${externalRate} Kč)</span></span>`;
+          }
+        } else {
+          // Fallback: simple display without breakdown
+          html += `<span>${t.adults} (${room.adults}×):</span>`;
+          html += `<span style="font-weight: 500;">+${room.adultsPrice.toLocaleString('cs-CZ')} Kč</span>`;
+        }
+
         html += `</div>`;
       }
 
-      // Children
+      // Children - show ÚTIA/External breakdown if available
       if (room.children > 0) {
         html += `<div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">`;
-        html += `<span>${t.children} (${room.children}×):</span>`;
-        html += `<span style="font-weight: 500;">+${room.childrenPrice.toLocaleString('cs-CZ')} Kč</span>`;
+
+        // Check if we have ÚTIA/External breakdown
+        if (
+          (room.utiaChildren > 0 || room.externalChildren > 0) &&
+          (room.utiaChildrenPrice !== undefined || room.externalChildrenPrice !== undefined)
+        ) {
+          // Show breakdown
+          if (room.utiaChildren > 0 && room.externalChildren > 0) {
+            // Mixed: both ÚTIA and External
+            const utiaRate = room.utiaChildrenPrice / room.utiaChildren;
+            const externalRate = room.externalChildrenPrice / room.externalChildren;
+            html += `<span>${t.children}:</span>`;
+            html += `<span style="font-weight: 500;">+${room.childrenPrice.toLocaleString('cs-CZ')} Kč <span style="font-size: 0.85em; color: #666;">(${room.utiaChildren} ÚTIA × ${utiaRate} Kč + ${room.externalChildren} EXT × ${externalRate} Kč)</span></span>`;
+          } else if (room.utiaChildren > 0) {
+            // All ÚTIA
+            const utiaRate = room.utiaChildrenPrice / room.utiaChildren;
+            html += `<span>${t.children}:</span>`;
+            html += `<span style="font-weight: 500;">+${room.childrenPrice.toLocaleString('cs-CZ')} Kč <span style="font-size: 0.85em; color: #666;">(${room.utiaChildren} × ${utiaRate} Kč)</span></span>`;
+          } else {
+            // All External
+            const externalRate = room.externalChildrenPrice / room.externalChildren;
+            html += `<span>${t.children}:</span>`;
+            html += `<span style="font-weight: 500;">+${room.childrenPrice.toLocaleString('cs-CZ')} Kč <span style="font-size: 0.85em; color: #666;">(${room.externalChildren} × ${externalRate} Kč)</span></span>`;
+          }
+        } else {
+          // Fallback: simple display without breakdown
+          html += `<span>${t.children} (${room.children}×):</span>`;
+          html += `<span style="font-weight: 500;">+${room.childrenPrice.toLocaleString('cs-CZ')} Kč</span>`;
+        }
+
         html += `</div>`;
       }
 
