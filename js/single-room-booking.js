@@ -1156,9 +1156,9 @@ class SingleRoomBookingModule {
       const fallbackGuestType = guestTypeInput ? guestTypeInput.value : 'external';
 
       // Count guests from guestNames
-      const adults = guestNames.filter(g => g.type === 'adult').length;
-      const children = guestNames.filter(g => g.type === 'child').length;
-      const toddlers = guestNames.filter(g => g.type === 'toddler').length;
+      const adults = guestNames.filter(g => g.personType === 'adult').length;
+      const children = guestNames.filter(g => g.personType === 'child').length;
+      const toddlers = guestNames.filter(g => g.personType === 'toddler').length;
 
       // FIX: Determine actual guest type based on whether ANY guest is ÚTIA
       // This MUST be calculated BEFORE creating perRoomGuests
@@ -1256,10 +1256,9 @@ class SingleRoomBookingModule {
     const utiaPrices = settings.prices?.utia?.[roomType] || {};
     const externalPrices = settings.prices?.external?.[roomType] || {};
 
-    // Get empty room price (NEW MODEL: base/empty = prázdný pokoj)
+    // Get empty room price (NEW MODEL 2025-11-10: Only 'empty' field)
     const actualPriceConfig = actualGuestType === 'utia' ? utiaPrices : externalPrices;
-    // FIX 2025-11-07: Try both 'base' and 'empty' property names for backward compatibility
-    const emptyRoomPrice = actualPriceConfig.base ?? actualPriceConfig.empty ?? 0;
+    const emptyRoomPrice = actualPriceConfig.empty || 0;
 
     // Update base price display
     const basePriceElement = document.getElementById('basePrice');

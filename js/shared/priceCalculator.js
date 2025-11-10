@@ -11,7 +11,7 @@ class PriceCalculator {
   /**
    * Get empty room price (base accommodation cost without guests)
    *
-   * NEW MODEL (2025-11-06): base field IS the empty room price (without any guests)
+   * NEW MODEL (2025-11-10): Only 'empty' field (room-size based pricing)
    * Admin sets this value in price settings - it represents accommodation cost for 0 guests.
    *
    * @param {Object} roomPriceConfig - Price configuration for specific room type
@@ -19,10 +19,13 @@ class PriceCalculator {
    * @private
    */
   static getEmptyRoomPrice(roomPriceConfig) {
-    // NEW MODEL: empty = prázdný pokoj (empty room, no guests)
-    // Admin nastavuje v ceníku: empty + surcharges for ALL guests
-    // FIX 2025-11-06: Changed from .base to .empty (correct settings key)
-    return roomPriceConfig.empty || 0;
+    // NEW MODEL 2025-11-10: Only 'empty' field - no fallbacks
+    if (!roomPriceConfig || typeof roomPriceConfig.empty !== 'number') {
+      throw new Error(
+        'Chybí nastavení ceny prázdného pokoje ("empty"). Nakonfigurujte ji v administraci.'
+      );
+    }
+    return roomPriceConfig.empty;
   }
 
   /**
@@ -75,27 +78,18 @@ class PriceCalculator {
       throw error;
     }
 
-    // NEW: Check if prices have room-size-based structure
+    // NEW MODEL 2025-11-10: Always use room-size-based pricing
+    // No legacy flat pricing support - admin must have configured room sizes
     const hasRoomSizes = priceConfig.small && priceConfig.large;
 
-    if (hasRoomSizes) {
-      // NEW PRICING MODEL: Room-size-based pricing
-      return this.calculateRoomSizeBasedPrice(options);
+    if (!hasRoomSizes) {
+      throw new Error(
+        'Chybí konfigurace velikostí pokojů (small/large). ' +
+          'Nastavte ceny v administraci pro malé a velké pokoje.'
+      );
     }
 
-    // LEGACY: Flat pricing model (backward compatibility)
-    // CRITICAL FIX 2025-11-05: Use base directly as empty room price (NEW model)
-    const roomsCount = rooms.length || 1;
-
-    // Empty room price = base (already configured as empty room in NEW model)
-    const emptyRoomPrice = priceConfig.base;
-    let totalPrice = emptyRoomPrice * roomsCount * nights;
-
-    // Add surcharges for ALL guests
-    totalPrice += adults * priceConfig.adult * nights;
-    totalPrice += children * priceConfig.child * nights;
-
-    return Math.round(totalPrice);
+    return this.calculateRoomSizeBasedPrice(options);
   }
 
   /**
@@ -160,7 +154,6 @@ class PriceCalculator {
         }
 
         // Empty room price (admin-configured, no implicit guests included)
-        // Fallback: if 'empty' not configured, use old formula for backward compatibility
         const emptyRoomPrice = this.getEmptyRoomPrice(roomPriceConfig);
 
         const roomBaseTotal = emptyRoomPrice * nights;
@@ -188,7 +181,6 @@ class PriceCalculator {
         }
 
         // Empty room price (admin-configured)
-        // Fallback: if 'empty' not configured, use old formula for backward compatibility
         const emptyRoomPrice = this.getEmptyRoomPrice(roomPriceConfig);
 
         totalPrice += emptyRoomPrice * nights;
@@ -326,8 +318,7 @@ class PriceCalculator {
 
   /**
    * Get default price configuration
-   * NEW (2025-11-04): Room-size-based pricing structure with empty room model
-   * FIX (2025-11-05): Corrected to match NEW pricing model (empty room + ALL guests pay)
+   * NEW MODEL (2025-11-10): Room-size-based pricing with 'empty' field only
    *
    * @returns {Object} Default prices object
    */
@@ -335,26 +326,26 @@ class PriceCalculator {
     return {
       utia: {
         small: {
-          base: 250, // Empty small room (0 guests) - NEW model 2025-11-04
+          empty: 250, // Empty small room (0 guests)
           adult: 50, // Per adult (ALL adults pay, no "first free")
           child: 25, // Per child (3-17 years)
         },
         large: {
-          base: 350, // Empty large room (0 guests) - NEW model 2025-11-04
-          adult: 70, // Per adult (ALL adults pay, no "first free")
-          child: 35, // Per child (3-17 years)
+          empty: 350, // Empty large room (0 guests)
+          adult: 50, // Per adult (ALL adults pay, no "first free")
+          child: 25, // Per child (3-17 years)
         },
       },
       external: {
         small: {
-          base: 400, // Empty small room (0 guests) - NEW model 2025-11-04
+          empty: 400, // Empty small room (0 guests)
           adult: 100, // Per adult (ALL adults pay, no "first free")
           child: 50, // Per child (3-17 years)
         },
         large: {
-          base: 500, // Empty large room (0 guests) - NEW model 2025-11-04
-          adult: 120, // Per adult (ALL adults pay, no "first free")
-          child: 60, // Per child (3-17 years)
+          empty: 500, // Empty large room (0 guests)
+          adult: 100, // Per adult (ALL adults pay, no "first free")
+          child: 50, // Per child (3-17 years)
         },
       },
     };
@@ -502,7 +493,7 @@ class PriceCalculator {
       roomPrices.push({
         roomId,
         roomType,
-        basePrice: roomPriceConfig.base,
+        basePrice: emptyRoomPrice, // Use calculated empty room price (not legacy .base)
         emptyRoomPrice,
         adults,
         children,

@@ -117,18 +117,6 @@ class DatabaseManager {
             )
         `);
 
-    // Keep old blocked_dates table for backward compatibility during migration
-    this.db.exec(`
-            CREATE TABLE IF NOT EXISTS blocked_dates_legacy (
-                blockage_id TEXT,
-                date TEXT NOT NULL,
-                room_id TEXT NOT NULL,
-                reason TEXT,
-                blocked_at TEXT NOT NULL,
-                UNIQUE(date, room_id)
-            )
-        `);
-
     // Create settings table (key-value store)
     this.db.exec(`
             CREATE TABLE IF NOT EXISTS settings (
@@ -1297,13 +1285,19 @@ class DatabaseManager {
     // Get christmas access codes
     settings.christmasAccessCodes = this.statements.getAllChristmasCodes.all().map((c) => c.code);
 
-    // Get prices
+    // Get prices (NEW 2025-11-05: Room-size based pricing model)
     const pricesJson = this.getSetting('prices');
     settings.prices = pricesJson
       ? JSON.parse(pricesJson)
       : {
-          utia: { base: 298, adult: 49, child: 24 },
-          external: { base: 499, adult: 99, child: 49 },
+          utia: {
+            small: { empty: 250, adult: 50, child: 25 },
+            large: { empty: 350, adult: 50, child: 25 },
+          },
+          external: {
+            small: { empty: 400, adult: 100, child: 50 },
+            large: { empty: 500, adult: 100, child: 50 },
+          },
         };
 
     // Get bulk prices

@@ -264,8 +264,8 @@ class EditBookingComponent {
     document.getElementById('editPayFromBenefit').checked =
       this.currentBooking.payFromBenefit || false;
 
-    // Populate guest names section
-    this.populateGuestNames();
+    // NOTE: Guest names are populated in renderPerRoomList() after inputs are created
+    // DO NOT call populateGuestNamesInRooms() here - inputs don't exist yet!
   }
 
   /**
@@ -992,8 +992,9 @@ class EditBookingComponent {
         if (firstNameInput && !firstNameInput.value) firstNameInput.value = guest.firstName || '';
         if (lastNameInput && !lastNameInput.value) lastNameInput.value = guest.lastName || '';
 
-        if (toggleInput && guest.guestType) {
-          const isExternal = guest.guestType === 'external';
+        if (toggleInput && (guest.guestPriceType || guest.guestType)) {
+          const type = guest.guestPriceType ?? guest.guestType;
+          const isExternal = type === 'external';
           toggleInput.checked = isExternal;
 
           // Trigger visual update
@@ -1037,8 +1038,9 @@ class EditBookingComponent {
         if (firstNameInput && !firstNameInput.value) firstNameInput.value = guest.firstName || '';
         if (lastNameInput && !lastNameInput.value) lastNameInput.value = guest.lastName || '';
 
-        if (toggleInput && guest.guestType) {
-          const isExternal = guest.guestType === 'external';
+        if (toggleInput && (guest.guestPriceType || guest.guestType)) {
+          const type = guest.guestPriceType ?? guest.guestType;
+          const isExternal = type === 'external';
           toggleInput.checked = isExternal;
 
           // Trigger visual update
@@ -1589,6 +1591,7 @@ class EditBookingComponent {
           adults: roomData.adults,
           children: roomData.children,
           nights,
+          rooms: [roomId], // CRITICAL: PriceCalculator needs rooms array for room-size-based pricing
           roomsCount: 1,
           settings: this.settings,
         });
@@ -2514,7 +2517,7 @@ class EditBookingComponent {
     this.updateTotalPrice();
 
     // Update guest names fields to match new guest counts
-    this.populateGuestNames();
+    this.populateGuestNamesInRooms();
   }
 
   /**
