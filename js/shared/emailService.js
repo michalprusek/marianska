@@ -205,8 +205,8 @@ class EmailService {
         const roomChildren = roomGuests.children || 0;
 
         // Calculate room price
-        // CRITICAL FIX 2025-11-05: base IS empty room price in NEW model (no subtraction needed)
-        const emptyRoomPrice = roomPriceConfig.base;
+        // NEW MODEL 2025-11-10: Only 'empty' field (room-size based pricing)
+        const emptyRoomPrice = roomPriceConfig.empty;
         const basePrice = emptyRoomPrice * roomNights;
         const adultsPrice = roomAdults * roomPriceConfig.adult * roomNights;
         const childrenPrice = roomChildren * roomPriceConfig.child * roomNights;
@@ -243,8 +243,8 @@ class EmailService {
 
       if (!roomPriceConfig) continue;
 
-      // CRITICAL FIX 2025-11-05: base IS empty room price in NEW model (no subtraction needed)
-      const emptyRoomPrice = roomPriceConfig.base;
+      // NEW MODEL 2025-11-10: Only 'empty' field (room-size based pricing)
+      const emptyRoomPrice = roomPriceConfig.empty;
       const basePrice = emptyRoomPrice * nights;
 
       breakdown += `Pokoj ${roomId} (${roomBeds} lůžka)\n`;

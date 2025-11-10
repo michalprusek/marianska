@@ -83,7 +83,7 @@ npm run pre-commit           # Lint + format + duplicate check (PŘED commitem!)
 
 **Target:** 70-80% coverage
 
-**SSOT Enforcement:** Max 5% duplikátů povoleno (jscpd). **Aktuální: 1.1%** ✅ (last checked: 2025-11-06)
+**SSOT Enforcement:** Max 5% duplikátů povoleno (jscpd). **Aktuální: 2.59%** ✅ (last checked: 2025-11-10)
 
 ## Architektura
 
@@ -102,16 +102,38 @@ npm run pre-commit           # Lint + format + duplicate check (PŘED commitem!)
 7. **ChristmasUtils.js** - Vánoční logika (detekce období, validace kódů, pravidla)
 8. **AccessLogger.js** - HTTP logování s IP detekcí (formát: `[timestamp] IP user METHOD /path STATUS time`)
 9. **EmailService.js** - Email notifikace (vytvoření/změna/zrušení rezervace, kontaktní formulář)
+10. **EditBookingComponent.js** - Unified komponent pro editaci rezervací (user edit page + admin panel)
+11. **GuestNameUtils.js** - Správa jmen hostů (validace, formátování, distribuce mezi pokoje)
+12. **BookingDisplayUtils.js** - Utility pro zobrazení booking detailů (formátování dat, statusy)
+13. **BookingUtils.js** - Obecné booking utility (konsolidace, validace)
+14. **DomUtils.js** - DOM manipulation helpers (element creation, event handling)
+15. **Logger.js** - Strukturované logování (levels: DEBUG, INFO, WARN, ERROR)
+16. **Errors.js** - Custom error classes (ValidationError, AuthenticationError, NotFoundError, ConflictError)
 
 #### Příklad použití:
 
 ```javascript
 // ✅ Použijte shared komponenty
-new BaseCalendar({ mode: BaseCalendar.MODES.EDIT });
-ValidationUtils.validateEmail(email);
-DateUtils.formatDate(date);
 
-// NEW 2025-11-04: Room-size based pricing with per-room guest types
+// Kalendář
+new BaseCalendar({ mode: BaseCalendar.MODES.EDIT });
+
+// Validace
+ValidationUtils.validateEmail(email);
+ValidationUtils.formatPhone(phone);
+
+// Datum utility
+DateUtils.formatDate(date);
+DateUtils.getNightsBetween(startDate, endDate);
+
+// Booking logika
+BookingLogic.checkConflict(booking1, booking2);
+
+// ID generování
+IdGenerator.generateBookingId();
+IdGenerator.generateEditToken();
+
+// Room-size based pricing with per-room guest types (NEW 2025-11-04)
 const price = PriceCalculator.calculatePriceFromRooms({
   rooms: ['12', '13'],
   guestType: 'utia',  // Default (can be overridden per room)
@@ -125,7 +147,27 @@ const price = PriceCalculator.calculatePriceFromRooms({
   settings
 });
 
+// Vánoční logika
+const { codeRequired, bulkBlocked } = ChristmasUtils.checkChristmasAccessRequirement(
+  new Date(),
+  christmasPeriodStart,
+  isBulkBooking
+);
+
+// Email notifikace
 await emailService.sendBookingConfirmation(booking, { settings });
+
+// Edit komponent
+const editComponent = new EditBookingComponent(dataManager, settings);
+await editComponent.loadBooking(bookingId, editToken);
+
+// Guest names
+GuestNameUtils.validateGuestNames(guestNames, totalGuests);
+GuestNameUtils.distributeGuestNames(guestNames, perRoomGuests);
+
+// Logging
+logger.info('Booking created', { bookingId, email });
+logger.error('Validation failed', { errors });
 
 // ❌ NIKDY nevytvářejte vlastní implementace!
 ```
@@ -136,12 +178,29 @@ Express server na portu 3000 s **dual storage**: SQLite (`data/bookings.db`) + L
 
 **Hlavní endpointy:**
 
-- `GET/POST /api/data` - CRUD operace
+**Public API:**
+- `GET /api/data` - Získání všech dat (bookings, settings, blockedDates)
 - `POST /api/booking` - Vytvoření rezervace
-- `PUT /api/booking/:id` - Úprava rezervace
-- `DELETE /api/booking/:id` - Smazání rezervace
-- `POST /api/admin/login` - Admin auth
-- Proposed bookings API (dočasné rezervace, 15min expirace)
+- `PUT /api/booking/:id` - Úprava rezervace (vyžaduje edit token nebo admin session)
+- `DELETE /api/booking/:id` - Smazání rezervace (vyžaduje edit token nebo admin session)
+- `GET /api/health` - Health check endpoint
+- `POST /api/contact` - Kontaktní formulář
+
+**Proposed Bookings API (dočasné rezervace, 15min expirace):**
+- `GET /api/proposed-bookings` - Seznam všech aktivních proposals
+- `POST /api/proposed-bookings` - Vytvoření proposed booking
+- `DELETE /api/proposed-booking/:proposalId` - Smazání konkrétní proposed booking
+- `DELETE /api/proposed-bookings/session/:sessionId` - Smazání všech proposals pro session
+
+**Admin API (vyžaduje session token):**
+- `POST /api/admin/login` - Admin přihlášení (vrací sessionToken)
+- `POST /api/admin/logout` - Admin odhlášení
+- `POST /api/admin/refresh-session` - Obnovení session (prodloužení o 7 dní)
+- `POST /api/admin/settings` - Aktualizace nastavení systému
+- `POST /api/admin/update-password` - Změna admin hesla
+- `POST /api/admin/test-email` - Testovací email (rate limited: 10/hour)
+- `POST /api/admin/block-date` - Blokování termínů
+- `DELETE /api/admin/block-date/:id` - Odblokování termínů
 
 ### Klíčové komponenty
 
@@ -220,20 +279,20 @@ Jednotný kalendářní komponent s 4 režimy:
 
 Vzorec: `prázdný_pokoj + (VŠICHNI dospělí × příplatek) + (VŠECHNY děti × příplatek)`
 
-**📊 AKTUÁLNÍ CENÍK (nastavený vedením, ověřeno 2025-11-06):**
+**📊 AKTUÁLNÍ CENÍK (nastavený vedením, ověřeno 2025-11-10):**
 
 **Individuální rezervace (room-size based pricing):**
 
 ÚTIA zaměstnanci:
 - Malý pokoj (prázdný): 250 Kč/noc + 50 Kč/dospělý + 25 Kč/dítě
-- Velký pokoj (prázdný): 350 Kč/noc + 70 Kč/dospělý + 35 Kč/dítě
+- Velký pokoj (prázdný): 350 Kč/noc + 50 Kč/dospělý + 25 Kč/dítě
 
 Externí hosté:
 - Malý pokoj (prázdný): 400 Kč/noc + 100 Kč/dospělý + 50 Kč/dítě
-- Velký pokoj (prázdný): 500 Kč/noc + 120 Kč/dospělý + 60 Kč/dítě
+- Velký pokoj (prázdný): 500 Kč/noc + 100 Kč/dospělý + 50 Kč/dítě
 
 **Pokoje:**
-- Malé pokoje (3 lůžka): P12, P13, P22, P23, P42, P43
+- Malé pokoje (2-3 lůžka): P12, P13, P22, P23, P42, P43
 - Velké pokoje (4 lůžka): P14, P24, P44
 
 **Per-Room Guest Type:**
@@ -299,6 +358,23 @@ _Děti do 3 let (toddlers) vždy zdarma_
 - Patro 2: 22 (2), 23 (3), 24 (4)
 - Patro 3: 42 (2), 43 (2), 44 (4)
 
+### Edit a zrušení rezervace
+
+**⚠️ 3-denní lhůta pro úpravu/zrušení**
+
+- ✅ **Uživatelé mohou upravovat/rušit rezervaci**: ≥ 3 dny před začátkem
+- ❌ **Uživatelé NEMOHOU upravovat/rušit**: < 3 dny před začátkem
+- ✅ **Administrátoři mohou vždy**: upravovat/rušit bez omezení
+- 📧 **Kontakt**: Pro změny v "locked" období kontaktovat admin na `chata@utia.cas.cz`
+
+**Omezení editace pokojů:**
+
+- V editačním okně **NELZE přidávat ani odebírat pokoje**
+- Lze měnit pouze: termíny, počty hostů, typ hostů, jména, fakturační údaje
+- Platí pro user i admin edit mode
+
+**Dokumentace:** Viz `/docs/EDIT_DEADLINE_FEATURE.md` a `/docs/EDIT-ROOM-RESTRICTIONS.md`
+
 ## Bezpečnost
 
 1. **Edit tokeny** (30 znaků) - Unikátní tokeny pro úpravu rezervací
@@ -357,13 +433,28 @@ WHERE ? < end_date
 - ✅ `.env.example` obsahuje šablonu s bezpečnými výchozími hodnotami
 - ⚠️ **Při nasazení vždy změňte všechny secrets!**
 
-Povinné změny před produkcí:
+**Povinné změny před produkcí:**
 
 ```bash
-# Vygenerujte silná hesla pro:
-ADMIN_PASSWORD=<change-this>
-API_KEY=<change-this>
-SESSION_SECRET=<change-this>
+# Security - CHANGE ALL THESE VALUES
+ADMIN_PASSWORD=<your-secure-admin-password>
+API_KEY=<generate-a-long-random-api-key>
+SESSION_SECRET=<generate-a-long-random-session-secret>
+
+# Server Configuration
+NODE_ENV=production
+PORT=3000
+
+# CORS Configuration (comma-separated origins)
+ALLOWED_ORIGINS=http://localhost:3000,https://chata.utia.cas.cz
+
+# Rate Limiting
+RATE_LIMIT_WINDOW_MS=900000  # 15 minutes
+RATE_LIMIT_MAX_REQUESTS=100
+
+# Booking Settings
+MAX_BOOKING_DAYS_AHEAD=365
+MIN_BOOKING_DAYS_AHEAD=0
 
 # Email konfigurace (již nastaveno pro produkci):
 SMTP_HOST=hermes.utia.cas.cz
@@ -371,6 +462,11 @@ SMTP_PORT=25
 SMTP_SECURE=false
 EMAIL_FROM=noreply@chata.utia.cas.cz
 APP_URL=http://chata.utia.cas.cz
+
+# Christmas Period (konfigurovatelné z admin panelu)
+CHRISTMAS_START=2024-12-23
+CHRISTMAS_END=2025-01-02
+CHRISTMAS_ACCESS_CODES=XMAS2024,VIP2024
 ```
 
 ### Backup Strategy

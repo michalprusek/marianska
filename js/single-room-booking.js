@@ -1256,10 +1256,9 @@ class SingleRoomBookingModule {
     const utiaPrices = settings.prices?.utia?.[roomType] || {};
     const externalPrices = settings.prices?.external?.[roomType] || {};
 
-    // Get empty room price (NEW MODEL: base/empty = prázdný pokoj)
+    // Get empty room price (NEW MODEL 2025-11-10: Only 'empty' field)
     const actualPriceConfig = actualGuestType === 'utia' ? utiaPrices : externalPrices;
-    // FIX 2025-11-07: Try both 'base' and 'empty' property names for backward compatibility
-    const emptyRoomPrice = actualPriceConfig.base ?? actualPriceConfig.empty ?? 0;
+    const emptyRoomPrice = actualPriceConfig.empty;
 
     // Update base price display
     const basePriceElement = document.getElementById('basePrice');

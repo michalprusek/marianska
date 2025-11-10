@@ -460,23 +460,19 @@ class UtilsModule {
       let baseRoomPrice = null; // Start with null to detect if we got a valid price
 
       if (hasRoomSizes && currentRoomId) {
-        // NEW: Get room type (small/large) from settings
+        // NEW MODEL 2025-11-10: Get room type (small/large) and use 'empty' field
         const room = rooms.find((r) => r.id === currentRoomId);
         const roomType = room?.type || 'small';
         const roomPriceConfig = priceConfig[roomType] || priceConfig.small;
-        // FIX 2025-11-06: Use NEW pricing model - base IS empty room price
-        // Use 'base' property if it exists (even if 0)
-        if (roomPriceConfig && 'base' in roomPriceConfig) {
-          baseRoomPrice = roomPriceConfig.base;
+        // Use 'empty' property (NEW MODEL - no fallbacks)
+        if (roomPriceConfig && 'empty' in roomPriceConfig) {
+          baseRoomPrice = roomPriceConfig.empty;
         }
-      } else if (priceConfig && ('base' in priceConfig)) {
-        // LEGACY: Flat pricing model - base IS empty room price (NEW model)
-        // Check for property existence, not truthiness (0 is valid)
-        baseRoomPrice = priceConfig.base;
       }
 
-      // Fallback if we couldn't determine price - ensure valid number
+      // Fallback if we couldn't determine price (should not happen with proper configuration)
       if (baseRoomPrice === null || baseRoomPrice === undefined || isNaN(baseRoomPrice)) {
+        console.warn('[utils.js] Missing empty room price configuration, using hardcoded fallback');
         // Use room-type-specific fallback based on currentRoomId
         const room = rooms.find((r) => r.id === currentRoomId);
         const roomType = room?.type || 'small';

@@ -264,8 +264,8 @@ class EditBookingComponent {
     document.getElementById('editPayFromBenefit').checked =
       this.currentBooking.payFromBenefit || false;
 
-    // Populate guest names section
-    this.populateGuestNames();
+    // NOTE: Guest names are populated in renderPerRoomList() after inputs are created
+    // DO NOT call populateGuestNamesInRooms() here - inputs don't exist yet!
   }
 
   /**
@@ -2514,7 +2514,7 @@ class EditBookingComponent {
     this.updateTotalPrice();
 
     // Update guest names fields to match new guest counts
-    this.populateGuestNames();
+    this.populateGuestNamesInRooms();
   }
 
   /**
