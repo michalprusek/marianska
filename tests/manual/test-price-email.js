@@ -4,7 +4,7 @@
  * Tests that prices are correctly displayed in email (no undefined values)
  */
 
-const EmailService = require('./js/shared/emailService');
+const EmailService = require('../../js/shared/emailService');
 
 // Create email service
 const emailService = new EmailService();

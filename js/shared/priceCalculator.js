@@ -327,8 +327,8 @@ class PriceCalculator {
         },
         large: {
           empty: 350, // Empty large room (0 guests)
-          adult: 70, // Per adult (ALL adults pay, no "first free")
-          child: 35, // Per child (3-17 years)
+          adult: 50, // Per adult (ALL adults pay, no "first free")
+          child: 25, // Per child (3-17 years)
         },
       },
       external: {
@@ -339,8 +339,8 @@ class PriceCalculator {
         },
         large: {
           empty: 500, // Empty large room (0 guests)
-          adult: 120, // Per adult (ALL adults pay, no "first free")
-          child: 60, // Per child (3-17 years)
+          adult: 100, // Per adult (ALL adults pay, no "first free")
+          child: 50, // Per child (3-17 years)
         },
       },
     };

@@ -206,10 +206,10 @@ class EmailService {
 
         // Calculate room price
         // NEW MODEL 2025-11-10: Only 'empty' field (room-size based pricing)
-        const emptyRoomPrice = roomPriceConfig.empty;
+        const emptyRoomPrice = roomPriceConfig.empty || 0;
         const basePrice = emptyRoomPrice * roomNights;
-        const adultsPrice = roomAdults * roomPriceConfig.adult * roomNights;
-        const childrenPrice = roomChildren * roomPriceConfig.child * roomNights;
+        const adultsPrice = roomAdults * (roomPriceConfig.adult || 0) * roomNights;
+        const childrenPrice = roomChildren * (roomPriceConfig.child || 0) * roomNights;
         const roomTotal = basePrice + adultsPrice + childrenPrice;
 
         breakdown += `Pokoj ${roomId} (${roomBeds} lůžka)\n`;
@@ -244,7 +244,7 @@ class EmailService {
       if (!roomPriceConfig) continue;
 
       // NEW MODEL 2025-11-10: Only 'empty' field (room-size based pricing)
-      const emptyRoomPrice = roomPriceConfig.empty;
+      const emptyRoomPrice = roomPriceConfig.empty || 0;
       const basePrice = emptyRoomPrice * nights;
 
       breakdown += `Pokoj ${roomId} (${roomBeds} lůžka)\n`;

@@ -1305,7 +1305,7 @@ class BookingApp {
   }
 
   // Finalize all temporary reservations - show booking form modal for contact details
-  finalizeAllReservations() {
+  async finalizeAllReservations() {
     // Check if we have any temporary reservations
     if (!this.tempReservations || this.tempReservations.length === 0) {
       this.showNotification(
@@ -1458,7 +1458,7 @@ class BookingApp {
       }
     });
 
-    this.bookingForm.checkAndShowChristmasCodeField(allDates, hasBulkBooking);
+    await this.bookingForm.checkAndShowChristmasCodeField(allDates, hasBulkBooking);
 
     // NOTE: Guest names are already collected in tempReservations during temp reservation creation
     // No need to generate input fields here - collectGuestNames() will read from tempReservations

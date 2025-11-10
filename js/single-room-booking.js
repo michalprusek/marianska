@@ -1258,7 +1258,7 @@ class SingleRoomBookingModule {
 
     // Get empty room price (NEW MODEL 2025-11-10: Only 'empty' field)
     const actualPriceConfig = actualGuestType === 'utia' ? utiaPrices : externalPrices;
-    const emptyRoomPrice = actualPriceConfig.empty;
+    const emptyRoomPrice = actualPriceConfig.empty || 0;
 
     // Update base price display
     const basePriceElement = document.getElementById('basePrice');
