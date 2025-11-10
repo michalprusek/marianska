@@ -1156,9 +1156,9 @@ class SingleRoomBookingModule {
       const fallbackGuestType = guestTypeInput ? guestTypeInput.value : 'external';
 
       // Count guests from guestNames
-      const adults = guestNames.filter(g => g.type === 'adult').length;
-      const children = guestNames.filter(g => g.type === 'child').length;
-      const toddlers = guestNames.filter(g => g.type === 'toddler').length;
+      const adults = guestNames.filter(g => g.personType === 'adult').length;
+      const children = guestNames.filter(g => g.personType === 'child').length;
+      const toddlers = guestNames.filter(g => g.personType === 'toddler').length;
 
       // FIX: Determine actual guest type based on whether ANY guest is ÚTIA
       // This MUST be calculated BEFORE creating perRoomGuests

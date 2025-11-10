@@ -20,6 +20,11 @@ class PriceCalculator {
    */
   static getEmptyRoomPrice(roomPriceConfig) {
     // NEW MODEL 2025-11-10: Only 'empty' field - no fallbacks
+    if (!roomPriceConfig || typeof roomPriceConfig.empty !== 'number') {
+      throw new Error(
+        'Chybí nastavení ceny prázdného pokoje ("empty"). Nakonfigurujte ji v administraci.'
+      );
+    }
     return roomPriceConfig.empty;
   }
 
