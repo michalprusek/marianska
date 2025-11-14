@@ -587,14 +587,28 @@ class AdminPanel {
 
     bookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    // NEW 2025-11-14: Pre-calculate prices for all bookings
+    // Pre-calculate all booking prices in parallel to avoid N+1 query problem.
+    // Fetch settings once and pass to all calculations for better performance.
+    const settings = await dataManager.getSettings();
     const bookingPrices = new Map();
+
     const pricePromises = bookings.map(async (booking) => ({
       id: booking.id,
-      price: await this.calculateActualPrice(booking)
+      price: await this.calculateActualPrice(booking, settings)
     }));
-    const priceResults = await Promise.all(pricePromises);
-    priceResults.forEach(({ id, price }) => bookingPrices.set(id, price));
+
+    // Use Promise.allSettled to handle failures gracefully without breaking entire table
+    const priceResults = await Promise.allSettled(pricePromises);
+    priceResults.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        bookingPrices.set(result.value.id, result.value.price);
+      } else {
+        // Fallback to stored price if calculation fails
+        const booking = bookings[index];
+        bookingPrices.set(booking.id, booking.totalPrice || 0);
+        console.error(`Price calculation failed for booking ${booking.id}:`, result.reason);
+      }
+    });
 
     // Process bookings to create table rows
     for (const booking of bookings) {
@@ -708,60 +722,114 @@ class AdminPanel {
     this.updateBulkActionsUI();
   }
 
-  // NEW 2025-11-14: Calculate actual total price from per-room breakdown
-  async calculateActualPrice(booking) {
-    // FIXED 2025-11-14: Use camelCase property names (database transforms snake_case to camelCase)
-    // If price-locked, use the stored totalPrice
+  /**
+   * Calculate the current total price for a booking using latest settings.
+   *
+   * For price-locked bookings (created before 2025-11-04), returns the stored totalPrice
+   * to honor legacy pricing model where first adult was free. For new bookings, dynamically
+   * calculates from per-room breakdown to reflect current price settings.
+   *
+   * @param {Object} booking - Booking object with perRoomDates, perRoomGuests, priceLocked
+   * @param {Object} settings - Settings object (optional, will fetch if not provided)
+   * @returns {Promise<number>} Total price in CZK (Czech Koruna), never negative
+   *
+   * @example
+   * // Price-locked booking (legacy)
+   * const oldBooking = { priceLocked: true, totalPrice: 1500 };
+   * await calculateActualPrice(oldBooking); // Returns 1500 (stored price)
+   *
+   * @example
+   * // Dynamic pricing (new booking)
+   * const newBooking = {
+   *   priceLocked: false,
+   *   perRoomDates: { '12': { startDate: '2025-10-15', endDate: '2025-10-18' } },
+   *   perRoomGuests: { '12': { adults: 2, children: 1, guestType: 'utia' } }
+   * };
+   * await calculateActualPrice(newBooking, settings); // Calculates from current settings
+   */
+  async calculateActualPrice(booking, settings = null) {
+    // Price-locked bookings (created before 2025-11-04) use old pricing model
+    // where first adult was free. We must honor their locked totalPrice to avoid
+    // retroactively overcharging customers. See CLAUDE.md "Backward Compatibility"
     if (booking.priceLocked) {
       return booking.totalPrice || 0;
     }
 
-    // If no per-room data, fall back to stored price
+    // Bulk bookings and legacy single-room bookings don't have per-room breakdown.
+    // Fall back to stored totalPrice which was calculated correctly at creation time.
+    // Dynamic recalculation only applies to new bookings with perRoomDates structure.
     if (!booking.perRoomDates || Object.keys(booking.perRoomDates).length === 0) {
       return booking.totalPrice || 0;
     }
 
-    const settings = await dataManager.getSettings();
+    // Fetch settings if not provided (for backward compatibility with existing calls)
+    if (!settings) {
+      settings = await dataManager.getSettings();
+    }
 
     // Calculate price using per-room breakdown
     let grandTotal = 0;
 
     for (const [roomId, dates] of Object.entries(booking.perRoomDates)) {
+      // Legacy bookings may lack perRoomGuests data (created before 2025-11-04).
+      // Fallback to minimum valid booking (1 adult) at external pricing to avoid
+      // undercharging. Admin should manually verify and correct if needed.
       const roomGuests = booking.perRoomGuests?.[roomId] || {
         adults: 1,
         children: 0,
         toddlers: 0,
-        guestType: 'external'
+        guestType: 'external' // Conservative default - never undercharge
       };
 
+      // Validate date structure to prevent NaN calculations
+      if (!dates.startDate || !dates.endDate) {
+        console.warn(`Missing dates for room ${roomId} in booking ${booking.id}, skipping room`);
+        continue;
+      }
+
+      // Calculate nights using inclusive date model (checkout day counts as occupied)
       const startDate = new Date(dates.startDate);
       const endDate = new Date(dates.endDate);
       const nights = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
 
-      // Find room size
-      const room = settings.rooms.find(r => r.id === roomId);
-      const isLargeRoom = room && room.capacity >= 4;
+      // Validate nights calculation
+      if (isNaN(nights) || nights <= 0) {
+        console.warn(`Invalid nights calculation (${nights}) for room ${roomId} in booking ${booking.id}, skipping room`);
+        continue;
+      }
 
-      // Get base price for room size and guest type
-      const priceKey = roomGuests.guestType === 'utia'
-        ? (isLargeRoom ? 'largeRoomBaseUtia' : 'smallRoomBaseUtia')
-        : (isLargeRoom ? 'largeRoomBaseExternal' : 'smallRoomBaseExternal');
+      // Find room configuration to determine size (small <4 beds, large ≥4 beds)
+      const room = settings.rooms.find((r) => r.id === roomId);
+      if (!room) {
+        console.warn(`Room ${roomId} not found in settings for booking ${booking.id}, using stored price`);
+        return booking.totalPrice || 0;
+      }
 
-      const basePrice = settings.prices[priceKey] || 0;
+      // Room size determines base price tier
+      const isLargeRoom = room.capacity >= 4;
 
-      // Get per-person charges
-      const adultCharge = roomGuests.guestType === 'utia'
-        ? settings.prices.adultUtia
-        : settings.prices.adultExternal;
-      const childCharge = roomGuests.guestType === 'utia'
-        ? settings.prices.childUtia
-        : settings.prices.childExternal;
+      // Get price configuration for guest type and room size
+      // Structure: settings.prices[guestType][roomSize] = { empty, adult, child }
+      const guestTypeKey = roomGuests.guestType === 'utia' ? 'utia' : 'external';
+      const roomSizeKey = isLargeRoom ? 'large' : 'small';
+      const roomPriceConfig = settings.prices[guestTypeKey]?.[roomSizeKey];
 
-      // Calculate room total
-      const perNight = basePrice +
-        (roomGuests.adults * adultCharge) +
-        (roomGuests.children * childCharge);
+      if (!roomPriceConfig) {
+        console.error(`Missing price config for ${guestTypeKey}/${roomSizeKey} in booking ${booking.id}`);
+        return booking.totalPrice || 0;
+      }
 
+      // Extract price components from configuration
+      const basePrice = roomPriceConfig.empty || 0;
+      const adultCharge = roomPriceConfig.adult || 0;
+      const childCharge = roomPriceConfig.child || 0;
+
+      // Calculate per-night price: base (empty room) + all adults + all children
+      // Note: In new pricing model (post 2025-11-04), ALL adults are charged
+      const perNight =
+        basePrice + roomGuests.adults * adultCharge + roomGuests.children * childCharge;
+
+      // Add this room's total to grand total
       grandTotal += perNight * nights;
     }
 
