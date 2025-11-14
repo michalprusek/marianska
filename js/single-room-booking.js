@@ -277,12 +277,16 @@ class SingleRoomBookingModule {
           await this.app.updatePriceCalculation();
         },
       });
+
+      // IMPORTANT: Sync prefilled dates immediately after calendar creation
+      // This ensures localStorage prefilled dates are properly transferred to miniCalendar
+      this.miniCalendar.selectedDates = this.app.selectedDates;
     }
 
     // Update roomId if changed
     this.miniCalendar.config.roomId = roomId;
 
-    // Sync app's selectedDates with calendar's selectedDates
+    // Sync app's selectedDates with calendar's selectedDates (for subsequent opens)
     this.miniCalendar.selectedDates = this.app.selectedDates;
 
     // Render calendar

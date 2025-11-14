@@ -10,11 +10,16 @@
  * - Conflict detection and display
  * - Price calculation
  * - Tab switching (Dates/Billing)
+ * - Custom modal dialogs for confirmations
+ * - Undo functionality for room removal
  *
  * Configuration options allow for admin vs user differences:
  * - Admin: no edit deadline, session validation, allowPast dates
  * - User: 3-day deadline, token-based auth, read-only mode
  */
+
+// Import ModalDialog for custom confirmations
+/* global modalDialog */
 
 // Notification timeout constants (milliseconds)
 const NOTIFICATION_TIMEOUT = {
@@ -63,6 +68,11 @@ class EditBookingComponent {
 
     // Session ID for proposed bookings (consistent across edit session)
     this.sessionId = null;
+
+    // Undo functionality for room removal
+    this.undoStack = []; // Stack of removed room states
+    this.undoTimeouts = new Map(); // roomId -> timeout ID for auto-expire
+    this.UNDO_TIME_LIMIT = 30000; // 30 seconds to undo
   }
 
   /**
@@ -635,7 +645,7 @@ class EditBookingComponent {
 
   /**
    * Toggle room selection
-   * ⚠️ EDIT MODE RESTRICTION: Users can ONLY edit rooms that were in the original booking
+   * ⚠️ EDIT MODE: Users can now REMOVE rooms (with confirmation) but not ADD new ones
    */
   toggleRoom(roomId) {
     // Prevent room toggle for bulk bookings
@@ -649,64 +659,243 @@ class EditBookingComponent {
       return;
     }
 
-    // ⚠️ NEW: Prevent adding or removing rooms in edit mode
-    // Users can only edit dates/guests for rooms that are already in the booking
-    if (!this.originalRooms.includes(roomId)) {
+    // 1. Check if ADDING a new room (keep this restriction)
+    if (!this.editSelectedRooms.has(roomId) && !this.originalRooms.includes(roomId)) {
       this.showNotification(
         '⚠️ V editaci nelze přidávat nové pokoje. ' +
-          'Můžete měnit pouze termíny a počty hostů u již rezervovaných pokojů.',
-        'warning',
-        4000
-      );
-      // Revert checkbox state using requestAnimationFrame for smoother UX
-      requestAnimationFrame(() => this.renderPerRoomList());
-      return;
-    }
-
-    // ⚠️ NEW: Prevent removing rooms that are in the original booking
-    if (this.editSelectedRooms.has(roomId) && this.originalRooms.includes(roomId)) {
-      this.showNotification(
-        '⚠️ V editaci nelze odebírat pokoje z rezervace. ' +
           'Můžete měnit pouze termíny a počty hostů.',
         'warning',
         4000
       );
-      // Revert checkbox state using requestAnimationFrame for smoother UX
       requestAnimationFrame(() => this.renderPerRoomList());
       return;
     }
 
-    // This code should now be unreachable due to above restrictions
-    if (this.editSelectedRooms.has(roomId)) {
-      // Uncheck - remove room
-      this.editSelectedRooms.delete(roomId);
-      this.perRoomDates.delete(roomId);
-    } else {
-      // Check - add room with default guest data
-      this.editSelectedRooms.set(roomId, {
-        guestType: 'external',
-        adults: 1,
-        children: 0,
-        toddlers: 0,
-      });
-
-      // Add default dates (from original booking or first selected room)
-      let defaultDates = {
-        startDate: this.currentBooking.startDate,
-        endDate: this.currentBooking.endDate,
-      };
-
-      // If there are other selected rooms, use their dates
-      if (this.perRoomDates.size > 0) {
-        const firstRoomDates = this.perRoomDates.values().next().value;
-        defaultDates = firstRoomDates;
+    // 2. Check if REMOVING an existing room (NEW: allow with confirmation)
+    if (this.editSelectedRooms.has(roomId) && this.originalRooms.includes(roomId)) {
+      // Last room check: removing would delete entire booking
+      if (this.editSelectedRooms.size === 1) {
+        this.handleLastRoomRemoval();
+        return;
       }
 
-      this.perRoomDates.set(roomId, defaultDates);
+      // Normal room removal: show confirmation dialog
+      this.confirmRoomRemoval(roomId);
+      return;
     }
 
+    // 3. ADDING back a previously removed room (toggle on again)
+    if (!this.editSelectedRooms.has(roomId) && this.originalRooms.includes(roomId)) {
+      this.addRoomBack(roomId);
+      return;
+    }
+  }
+
+  /**
+   * Confirm and handle room removal
+   * Shows custom modal dialog with room name, price impact, and remaining rooms
+   */
+  async confirmRoomRemoval(roomId) {
+    const room = this.settings.rooms.find((r) => r.id === roomId);
+    const roomData = this.editSelectedRooms.get(roomId);
+    const dates = this.perRoomDates.get(roomId);
+
+    if (!room || !roomData || !dates) {
+      console.error('Missing room data for removal:', roomId);
+      return;
+    }
+
+    // Calculate price impact
+    const nights = DateUtils.getDaysBetween(dates.startDate, dates.endDate);
+    const roomPrice = PriceCalculator.calculatePrice({
+      guestType: roomData.guestType,
+      adults: roomData.adults,
+      children: roomData.children,
+      toddlers: roomData.toddlers || 0,
+      nights,
+      rooms: [roomId],
+      roomsCount: 1,
+      settings: this.settings,
+    });
+
+    const remainingRooms = this.editSelectedRooms.size - 1;
+
+    // Show custom modal dialog
+    const confirmed = await modalDialog.confirm({
+      title: `Odebrat pokoj ${room.name}?`,
+      icon: '🗑️',
+      type: 'warning',
+      message: `Opravdu chcete odebrat tento pokoj z rezervace?\n\nJména hostů přiřazená k tomuto pokoji budou odstraněna.`,
+      details: [
+        { label: 'Cena pokoje', value: `${roomPrice.toLocaleString('cs-CZ')} Kč` },
+        {
+          label: 'Hosté',
+          value: `${roomData.adults} dospělých, ${roomData.children} dětí`,
+        },
+        { label: 'Zbývající pokoje', value: remainingRooms.toString() },
+      ],
+      confirmText: 'Odebrat pokoj',
+      cancelText: 'Zrušit',
+    });
+
+    if (!confirmed) {
+      // User cancelled - revert checkbox
+      requestAnimationFrame(() => this.renderPerRoomList());
+      return;
+    }
+
+    // Remove the room
+    this.removeRoom(roomId);
+  }
+
+  /**
+   * Handle removal of last room (deletes entire booking)
+   * Shows special danger warning about booking deletion
+   */
+  async handleLastRoomRemoval() {
+    // Show custom danger modal
+    const confirmed = await modalDialog.confirm({
+      title: 'VAROVÁNÍ: Smazání celé rezervace',
+      icon: '⚠️',
+      type: 'danger',
+      message:
+        'Odebíráte poslední pokoj z rezervace!\n\n' +
+        'Tato akce SMAŽE celou rezervaci včetně všech údajů.\n\n' +
+        'Opravdu chcete pokračovat?',
+      confirmText: 'Ano, smazat rezervaci',
+      cancelText: 'Zrušit',
+    });
+
+    if (!confirmed) {
+      // User cancelled - revert checkbox
+      requestAnimationFrame(() => this.renderPerRoomList());
+      return;
+    }
+
+    // Delegate to onDelete callback (same as "Delete Booking" button)
+    if (this.onDelete && typeof this.onDelete === 'function') {
+      try {
+        await this.onDelete(this.currentBooking.id);
+        // Callback handles success notification + redirect
+      } catch (error) {
+        this.showNotification('❌ Chyba při mazání rezervace: ' + error.message, 'error', 5000);
+      }
+    }
+  }
+
+  /**
+   * Remove room from booking (after confirmation)
+   * Handles cleanup: state, guest names, proposed bookings, price
+   * Saves state to undo stack for 30-second restore window
+   */
+  removeRoom(roomId) {
+    // 0. Save room state to undo stack BEFORE removing
+    const roomData = this.editSelectedRooms.get(roomId);
+    const roomDates = this.perRoomDates.get(roomId);
+
+    if (roomData && roomDates) {
+      // Store complete room state
+      const undoState = {
+        roomId,
+        roomData: { ...roomData }, // Deep copy
+        roomDates: { ...roomDates }, // Deep copy
+        timestamp: Date.now(),
+      };
+
+      this.undoStack.push(undoState);
+
+      // Set auto-expire timeout (30 seconds)
+      const timeoutId = setTimeout(() => {
+        this.expireUndo(roomId);
+      }, this.UNDO_TIME_LIMIT);
+
+      this.undoTimeouts.set(roomId, timeoutId);
+
+      // Create audit log for room removal
+      this.logRoomChange('room_removed', roomId, {
+        beforeState: { roomData, roomDates },
+        afterState: null,
+        changeDetails: `Room ${roomId} removed from booking`,
+      });
+    }
+
+    // 1. Remove from selected rooms Map
+    this.editSelectedRooms.delete(roomId);
+
+    // 2. Remove from per-room dates Map
+    this.perRoomDates.delete(roomId);
+
+    // 3. Clean up proposed booking for this room (if any)
+    // Fire-and-forget: non-blocking cleanup
+    if (this.sessionId && typeof dataManager !== 'undefined') {
+      dataManager.clearSessionProposedBookings(this.sessionId).catch((err) => {
+        console.warn('Failed to clean proposed bookings:', err);
+        // Non-critical error, continue
+      });
+    }
+
+    // 4. Update global booking dates
     this.updateGlobalBookingDates();
+
+    // 5. Recalculate total price
+    this.updateTotalPrice();
+
+    // 6. Re-render room list UI
     this.renderPerRoomList();
+
+    // 7. Show success notification with UNDO button
+    const room = this.settings.rooms.find((r) => r.id === roomId);
+    const roomName = room ? room.name : `Pokoj ${roomId}`;
+
+    this.showNotificationWithUndo(
+      `✅ ${roomName} byl odebrán z rezervace`,
+      roomId,
+      'success',
+      this.UNDO_TIME_LIMIT
+    );
+  }
+
+  /**
+   * Add previously removed room back to booking
+   * Uses same defaults as when room was initially added
+   */
+  addRoomBack(roomId) {
+    // Get room info
+    const room = this.settings.rooms.find((r) => r.id === roomId);
+    if (!room) {
+      console.error('Room not found:', roomId);
+      return;
+    }
+
+    // Add to selected rooms with default guest data
+    this.editSelectedRooms.set(roomId, {
+      guestType: 'utia', // Default to ÚTIA
+      adults: 1, // Default to 1 adult
+      children: 0,
+      toddlers: 0,
+    });
+
+    // Copy dates from other rooms (or use booking defaults)
+    let defaultDates = {
+      startDate: this.editStartDate,
+      endDate: this.editEndDate,
+    };
+
+    // If other rooms exist, copy their dates for consistency
+    if (this.perRoomDates.size > 0) {
+      const firstRoomDates = this.perRoomDates.values().next().value;
+      defaultDates = firstRoomDates;
+    }
+
+    this.perRoomDates.set(roomId, defaultDates);
+
+    // Update UI and price
+    this.updateGlobalBookingDates();
+    this.updateTotalPrice();
+    this.renderPerRoomList();
+
+    // Success notification
+    this.showNotification(`✅ ${room.name} byl přidán zpět do rezervace`, 'success', 3000);
   }
 
   /**
@@ -1648,11 +1837,22 @@ class EditBookingComponent {
       info: 'ℹ',
     };
 
-    notification.innerHTML = `
-      <span class="notification-icon">${iconMap[type] || iconMap.info}</span>
-      <span class="notification-content">${message}</span>
-      <span class="notification-close">×</span>
-    `;
+    // Safe DOM construction
+    const icon = document.createElement('span');
+    icon.className = 'notification-icon';
+    icon.textContent = iconMap[type] || iconMap.info;
+
+    const content = document.createElement('span');
+    content.className = 'notification-content';
+    content.textContent = message;
+
+    const closeBtn = document.createElement('span');
+    closeBtn.className = 'notification-close';
+    closeBtn.textContent = '×';
+
+    notification.appendChild(icon);
+    notification.appendChild(content);
+    notification.appendChild(closeBtn);
 
     const container =
       document.getElementById('notificationContainer') ||
@@ -1665,10 +1865,13 @@ class EditBookingComponent {
 
     container.appendChild(notification);
 
-    notification.addEventListener('click', () => {
+    const handleClose = () => {
       notification.classList.add('removing');
       setTimeout(() => notification.remove(), 300);
-    });
+    };
+
+    closeBtn.addEventListener('click', handleClose);
+    notification.addEventListener('click', handleClose);
 
     requestAnimationFrame(() => notification.classList.add('show'));
 
@@ -1678,6 +1881,172 @@ class EditBookingComponent {
         setTimeout(() => notification.remove(), 300);
       }
     }, duration);
+  }
+
+  /**
+   * Show notification with UNDO button for room removal
+   * Provides 30-second window to restore removed room
+   */
+  showNotificationWithUndo(message, roomId, type = 'success', duration = 30000) {
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.style.setProperty('--duration', `${duration / 1000}s`);
+    notification.dataset.roomId = roomId;
+
+    const iconMap = {
+      success: '✓',
+      error: '✕',
+      warning: '⚠',
+      info: 'ℹ',
+    };
+
+    // Safe DOM construction
+    const icon = document.createElement('span');
+    icon.className = 'notification-icon';
+    icon.textContent = iconMap[type] || iconMap.info;
+
+    const content = document.createElement('span');
+    content.className = 'notification-content';
+    content.textContent = message;
+
+    const undoBtn = document.createElement('button');
+    undoBtn.className = 'notification-undo-btn';
+    undoBtn.textContent = 'Vrátit zpět';
+    Object.assign(undoBtn.style, {
+      marginLeft: '12px',
+      padding: '4px 12px',
+      background: 'white',
+      color: '#28a745',
+      border: '1px solid white',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      fontWeight: '600',
+      fontSize: '13px',
+    });
+
+    const closeBtn = document.createElement('span');
+    closeBtn.className = 'notification-close';
+    closeBtn.textContent = '×';
+
+    notification.appendChild(icon);
+    notification.appendChild(content);
+    notification.appendChild(undoBtn);
+    notification.appendChild(closeBtn);
+
+    const container =
+      document.getElementById('notificationContainer') ||
+      (() => {
+        const c = document.createElement('div');
+        c.id = 'notificationContainer';
+        document.body.appendChild(c);
+        return c;
+      })();
+
+    container.appendChild(notification);
+
+    // Undo button click handler
+    undoBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.undoRoomRemoval(roomId);
+      notification.classList.add('removing');
+      setTimeout(() => notification.remove(), 300);
+    });
+
+    // Close button click handler
+    const handleClose = () => {
+      notification.classList.add('removing');
+      setTimeout(() => notification.remove(), 300);
+    };
+
+    closeBtn.addEventListener('click', handleClose);
+
+    requestAnimationFrame(() => notification.classList.add('show'));
+
+    // Auto-remove after duration
+    setTimeout(() => {
+      if (notification.parentElement) {
+        notification.classList.add('removing');
+        setTimeout(() => notification.remove(), 300);
+      }
+    }, duration);
+  }
+
+  /**
+   * Undo room removal - restore room from undo stack
+   */
+  undoRoomRemoval(roomId) {
+    // Find undo state for this room
+    const undoStateIndex = this.undoStack.findIndex((state) => state.roomId === roomId);
+
+    if (undoStateIndex === -1) {
+      this.showNotification('⚠️ Nelze vrátit zpět - časový limit vypršel', 'warning', 3000);
+      return;
+    }
+
+    const undoState = this.undoStack[undoStateIndex];
+
+    // Clear timeout for this room
+    const timeoutId = this.undoTimeouts.get(roomId);
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      this.undoTimeouts.delete(roomId);
+    }
+
+    // Restore room state
+    this.editSelectedRooms.set(roomId, undoState.roomData);
+    this.perRoomDates.set(roomId, undoState.roomDates);
+
+    // Remove from undo stack
+    this.undoStack.splice(undoStateIndex, 1);
+
+    // Create audit log for room restoration
+    this.logRoomChange('room_restored', roomId, {
+      beforeState: null,
+      afterState: { roomData: undoState.roomData, roomDates: undoState.roomDates },
+      changeDetails: `Room ${roomId} restored via undo`,
+    });
+
+    // Update UI and price
+    this.updateGlobalBookingDates();
+    this.updateTotalPrice();
+    this.renderPerRoomList();
+
+    // Success notification
+    const room = this.settings.rooms.find((r) => r.id === roomId);
+    const roomName = room ? room.name : `Pokoj ${roomId}`;
+    this.showNotification(`✅ ${roomName} byl vrácen zpět do rezervace`, 'success', 3000);
+  }
+
+  /**
+   * Expire undo state after timeout
+   * Removes undo option after 30 seconds
+   */
+  expireUndo(roomId) {
+    // Remove from undo stack
+    const undoStateIndex = this.undoStack.findIndex((state) => state.roomId === roomId);
+    if (undoStateIndex !== -1) {
+      this.undoStack.splice(undoStateIndex, 1);
+    }
+
+    // Remove timeout reference
+    this.undoTimeouts.delete(roomId);
+
+    // Note: Don't show notification - silent expiry is better UX
+  }
+
+  /**
+   * Clear undo stack when booking is saved
+   * Call this after successful save to prevent undoing saved changes
+   */
+  clearUndoStack() {
+    // Clear all timeouts
+    for (const timeoutId of this.undoTimeouts.values()) {
+      clearTimeout(timeoutId);
+    }
+
+    // Clear maps and arrays
+    this.undoStack = [];
+    this.undoTimeouts.clear();
   }
 
   /**
@@ -1789,7 +2158,7 @@ class EditBookingComponent {
         line-height: 1.4;
       `;
       description.textContent =
-        'Zobrazeny jsou pouze pokoje z původní rezervace. V editaci nelze přidávat ani odebírat pokoje.';
+        'Režim editace: Pokoje lze odebrat kliknutím na zatržítko (zobrazí se potvrzení). Nové pokoje nelze přidávat.';
 
       textContainer.appendChild(title);
       textContainer.appendChild(description);
@@ -3188,6 +3557,57 @@ class EditBookingComponent {
         'error',
         NOTIFICATION_TIMEOUT.ERROR
       );
+    }
+  }
+
+  /**
+   * Log room change for audit trail
+   * Sends audit log to server for persistence
+   * @param {string} actionType - Type of action (room_removed, room_restored, etc.)
+   * @param {string} roomId - Room ID
+   * @param {object} options - Additional options (beforeState, afterState, changeDetails)
+   */
+  logRoomChange(actionType, roomId, options = {}) {
+    // Determine user type and identifier
+    let userType = 'user';
+    let userIdentifier = null;
+
+    // Check if editing via admin session or edit token
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      const adminSession = window.sessionStorage.getItem('adminSessionToken');
+      if (adminSession) {
+        userType = 'admin';
+        userIdentifier = adminSession.substring(0, 8); // First 8 chars
+      } else if (this.editToken) {
+        userType = 'user';
+        userIdentifier = this.editToken.substring(0, 8); // First 8 chars
+      }
+    }
+
+    // Prepare audit log data
+    const auditData = {
+      bookingId: this.bookingId,
+      actionType,
+      userType,
+      userIdentifier,
+      roomId,
+      beforeState: options.beforeState || null,
+      afterState: options.afterState || null,
+      changeDetails: options.changeDetails || null,
+    };
+
+    // Send to server (fire-and-forget, non-blocking)
+    if (typeof fetch !== 'undefined') {
+      fetch('/api/audit-log', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(auditData),
+      }).catch((error) => {
+        // Log error but don't block user action
+        console.warn('Failed to create audit log:', error);
+      });
     }
   }
 

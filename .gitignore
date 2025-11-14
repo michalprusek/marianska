@@ -76,6 +76,10 @@ report/
 .playwright-mcp/
 *.backup
 
+# Test results
+test-results/
+playwright-report/
+
 # Generated code duplication reports
 jscpd-report.json/
 

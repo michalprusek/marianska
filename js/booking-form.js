@@ -441,120 +441,94 @@ class BookingFormModule {
       let successCount = 0;
       let errorCount = 0;
 
-      // FIX: When creating multiple separate per-room bookings, we need to merge them into ONE booking
-      // BUT only if all rooms have the SAME date range - otherwise we can't consolidate
+      // NEW 2025-11-14: ALWAYS consolidate multi-room bookings into ONE booking
+      // Use perRoomDates to handle different date ranges per room
       if (
         this.app.tempReservations.length > 1 &&
         !this.app.tempReservations.some((r) => r.isBulkBooking)
       ) {
-        // Check if all temp reservations have the same start and end dates
-        const firstReservation = this.app.tempReservations[0];
-        const allSameDates = this.app.tempReservations.every(
-          (r) =>
-            r.startDate === firstReservation.startDate && r.endDate === firstReservation.endDate
-        );
+        // Multiple rooms - create a SINGLE consolidated booking with perRoomDates
+        const allRoomIds = [];
+        let totalAdultsLocal = 0;
+        let totalChildrenLocal = 0;
+        let totalToddlersLocal = 0;
+        let totalPriceLocal = 0;
+        const guestTypesSet = new Set();
+        const roomGuestsMap = {};
+        const perRoomDatesMap = {};
 
-        if (allSameDates) {
-          // Multiple rooms with SAME date range - create a SINGLE consolidated booking
-          const allRoomIds = [];
-          let totalAdultsLocal = 0;
-          let totalChildrenLocal = 0;
-          let totalToddlersLocal = 0;
-          let totalPriceLocal = 0;
-          const guestTypesSet = new Set();
-          const roomGuestsMap = {};
+        // Calculate min/max dates across all rooms
+        let minStartDate = null;
+        let maxEndDate = null;
 
-          for (const tempReservation of this.app.tempReservations) {
-            allRoomIds.push(tempReservation.roomId);
-            totalAdultsLocal += tempReservation.guests.adults || 0;
-            totalChildrenLocal += tempReservation.guests.children || 0;
-            totalToddlersLocal += tempReservation.guests.toddlers || 0;
-            totalPriceLocal += tempReservation.totalPrice || 0;
-            guestTypesSet.add(tempReservation.guestType);
-            // FIX 2025-11-05: Include per-room guestType for proper persistence
-            roomGuestsMap[tempReservation.roomId] = {
-              ...tempReservation.guests,
-              guestType: tempReservation.guestType
-            };
-          }
+        for (const tempReservation of this.app.tempReservations) {
+          allRoomIds.push(tempReservation.roomId);
+          totalAdultsLocal += tempReservation.guests.adults || 0;
+          totalChildrenLocal += tempReservation.guests.children || 0;
+          totalToddlersLocal += tempReservation.guests.toddlers || 0;
+          totalPriceLocal += tempReservation.totalPrice || 0;
+          guestTypesSet.add(tempReservation.guestType);
 
-          // Determine guest type (prefer 'utia' if mixed)
-          const finalGuestType = guestTypesSet.has('utia') ? 'utia' : 'external';
-
-          const booking = {
-            name,
-            email,
-            phone,
-            company,
-            address,
-            city,
-            zip,
-            ico,
-            dic,
-            startDate: firstReservation.startDate,
-            endDate: firstReservation.endDate,
-            rooms: allRoomIds,
-            guestType: finalGuestType,
-            adults: totalAdultsLocal,
-            children: totalChildrenLocal,
-            toddlers: totalToddlersLocal,
-            totalPrice: totalPriceLocal,
-            notes,
-            payFromBenefit,
-            christmasCode,
-            perRoomGuests: roomGuestsMap, // FIX 2025-11-05: Changed from roomGuests to perRoomGuests (matches backend API)
-            sessionId: this.app.sessionId,
-            guestNames, // Include guest names - now matches total guest count
+          // Store per-room guest data
+          roomGuestsMap[tempReservation.roomId] = {
+            ...tempReservation.guests,
+            guestType: tempReservation.guestType
           };
 
-          try {
-            await dataManager.createBooking(booking);
-            successCount = 1;
-          } catch (error) {
-            console.error('Error creating consolidated booking', error);
-            errorCount = 1;
-          }
-        } else {
-          // Multiple rooms with DIFFERENT date ranges - create separate bookings
-          // Distribute guest names among bookings based on guest counts
-          let guestNameIndex = 0;
-          const formData = {
-            name,
-            email,
-            phone,
-            company,
-            address,
-            city,
-            zip,
-            ico,
-            dic,
-            notes,
-            payFromBenefit,
-            christmasCode,
+          // Store per-room dates
+          perRoomDatesMap[tempReservation.roomId] = {
+            startDate: tempReservation.startDate,
+            endDate: tempReservation.endDate
           };
 
-          for (const tempReservation of this.app.tempReservations) {
-            // Include toddlers in guest count for name distribution
-            const bookingGuestCount =
-              (tempReservation.guests.adults || 0) +
-              (tempReservation.guests.children || 0) +
-              (tempReservation.guests.toddlers || 0);
-            const bookingGuestNames = guestNames.slice(
-              guestNameIndex,
-              guestNameIndex + bookingGuestCount
-            );
-            guestNameIndex += bookingGuestCount;
+          // Track min/max dates
+          const roomStart = new Date(tempReservation.startDate);
+          const roomEnd = new Date(tempReservation.endDate);
 
-            // eslint-disable-next-line no-await-in-loop -- Sequential processing required: each booking must check room availability before creating
-            const result = await this.processTempReservation(
-              tempReservation,
-              formData,
-              bookingGuestNames
-            );
-            // Use ternary to avoid max-depth violation
-            successCount += result.success ? 1 : 0;
-            errorCount += result.success ? 0 : 1;
+          if (!minStartDate || roomStart < new Date(minStartDate)) {
+            minStartDate = tempReservation.startDate;
           }
+          if (!maxEndDate || roomEnd > new Date(maxEndDate)) {
+            maxEndDate = tempReservation.endDate;
+          }
+        }
+
+        // Determine guest type (prefer 'utia' if mixed)
+        const finalGuestType = guestTypesSet.has('utia') ? 'utia' : 'external';
+
+        const booking = {
+          name,
+          email,
+          phone,
+          company,
+          address,
+          city,
+          zip,
+          ico,
+          dic,
+          startDate: minStartDate,  // Global min date
+          endDate: maxEndDate,      // Global max date
+          rooms: allRoomIds,
+          guestType: finalGuestType,
+          adults: totalAdultsLocal,
+          children: totalChildrenLocal,
+          toddlers: totalToddlersLocal,
+          totalPrice: totalPriceLocal,
+          notes,
+          payFromBenefit,
+          christmasCode,
+          perRoomGuests: roomGuestsMap,
+          perRoomDates: perRoomDatesMap,  // NEW: Per-room date ranges
+          sessionId: this.app.sessionId,
+          guestNames,
+        };
+
+        try {
+          await dataManager.createBooking(booking);
+          successCount = 1;
+        } catch (error) {
+          console.error('Error creating consolidated booking', error);
+          errorCount = 1;
         }
       } else {
         // Single booking or bulk booking - handle normally

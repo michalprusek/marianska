@@ -590,10 +590,22 @@ class AdminPanel {
     bookings.forEach((booking) => {
       // Format date range display
       let dateRangeDisplay = '';
+      let isCompositeBooking = false; // NEW 2025-11-14: Track composite bookings
+
       if (booking.perRoomDates && Object.keys(booking.perRoomDates).length > 0) {
         // Calculate overall range from per-room dates
         let minStart = booking.startDate;
         let maxEnd = booking.endDate;
+
+        // Check if rooms have different date ranges (composite booking)
+        const roomDates = Object.values(booking.perRoomDates);
+        if (roomDates.length > 1) {
+          const firstStart = roomDates[0].startDate;
+          const firstEnd = roomDates[0].endDate;
+          isCompositeBooking = roomDates.some(
+            (dates) => dates.startDate !== firstStart || dates.endDate !== firstEnd
+          );
+        }
 
         Object.values(booking.perRoomDates).forEach((dates) => {
           if (!minStart || dates.startDate < minStart) {
@@ -605,6 +617,11 @@ class AdminPanel {
         });
 
         dateRangeDisplay = `${new Date(minStart).toLocaleDateString('cs-CZ')} - ${new Date(maxEnd).toLocaleDateString('cs-CZ')}`;
+
+        // NEW 2025-11-14: Add "složená rezervace" indicator for composite bookings
+        if (isCompositeBooking) {
+          dateRangeDisplay += '<br><span style="display: inline-block; margin-top: 0.25rem; padding: 0.2rem 0.5rem; background: #f59e0b; color: white; border-radius: 3px; font-size: 0.75rem; font-weight: 600;">📅 Složená rezervace</span>';
+        }
       } else {
         // Fallback to booking-level dates
         dateRangeDisplay = `${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}`;
@@ -862,22 +879,40 @@ class AdminPanel {
                     }
 
                     ${
-                      await this.generatePerRoomPriceBreakdown(booking)
+                      // NEW 2025-11-14: Show per-room breakdown for new bookings (not price-locked)
+                      !booking.priceLocked && (await this.generatePerRoomPriceBreakdown(booking))
                         ? `
                     <div style="margin-bottom: 1rem;">
                         ${await this.generatePerRoomPriceBreakdown(booking)}
                     </div>
                     `
-                        : ''
+                        : `
+                    <!-- Price-locked booking: Show simple total price -->
+                    <div style="margin-bottom: 1rem;">
+                      <div style="padding: 1rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; color: white;">
+                        <div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: 700;">
+                          <span>Celková cena:</span>
+                          <span>${booking.totalPrice.toLocaleString('cs-CZ')} Kč</span>
+                        </div>
+                      </div>
+                    </div>
+                    `
                     }
 
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                        ${
+                          // Show "Celková cena rezervace" only if no per-room breakdown was shown
+                          false
+                            ? `
                         <div>
                             <strong style="color: var(--gray-600); font-size: 0.9rem;">Celková cena rezervace:</strong>
                             <div style="margin-top: 0.25rem; font-size: 1.25rem; font-weight: 600; color: var(--primary-color);">
                                 ${booking.totalPrice.toLocaleString('cs-CZ')} Kč
                             </div>
                         </div>
+                        `
+                            : ''
+                        }
                         ${
                           booking.payFromBenefit
                             ? `
@@ -3156,10 +3191,11 @@ class AdminPanel {
         return '';
       }
 
-      // Calculate nights
-      const startDate = new Date(booking.startDate);
-      const endDate = new Date(booking.endDate);
-      const nights = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+      // NEW 2025-11-14: Calculate nights per room using perRoomDates if available
+      // Fallback to booking-level dates for backward compatibility
+      const nights = booking.perRoomDates
+        ? null // Will be calculated per room by PriceCalculator
+        : Math.ceil((new Date(booking.endDate) - new Date(booking.startDate)) / (1000 * 60 * 60 * 24));
 
       // Calculate per-room prices
       const perRoomPrices = PriceCalculator.calculatePerRoomPrices({
@@ -3167,6 +3203,7 @@ class AdminPanel {
         nights,
         settings,
         perRoomGuests,
+        perRoomDates: booking.perRoomDates || null, // NEW: Pass per-room dates
       });
 
       // Format HTML
