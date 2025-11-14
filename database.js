@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const IdGenerator = require('./js/shared/idGenerator');
 const DateUtils = require('./js/shared/dateUtils');
+const { logger } = require('./js/shared/logger');
 
 class DatabaseManager {
   constructor() {
@@ -220,7 +221,7 @@ class DatabaseManager {
           .run();
 
         if (updated.changes > 0) {
-          console.log(`[Migration] Locked prices for ${updated.changes} existing bookings`);
+          logger.info(`Locked prices for ${updated.changes} existing bookings`, { component: 'Migration' });
         }
       }
     } catch (error) {
@@ -278,14 +279,14 @@ class DatabaseManager {
     // Migration: Add guest_type column if it doesn't exist (NEW 2025-11-04: per-guest pricing)
     try {
       const columns = this.db.prepare('PRAGMA table_info(guest_names)').all();
-      const hasGuestType = columns.some((col) => col.name === 'guest_type');
+      const hasGuestTypeColumn = columns.some((col) => col.name === 'guest_type');
 
-      if (!hasGuestType) {
+      if (!hasGuestTypeColumn) {
         this.db.exec('ALTER TABLE guest_names ADD COLUMN guest_type TEXT DEFAULT NULL');
-        console.log('[Database] Added guest_type column to guest_names table for per-guest pricing support');
+        logger.info('Added guest_type column to guest_names table for per-guest pricing support', { component: 'Database' });
       }
-    } catch (error) {
-      console.warn('[Database] Failed to add guest_type column (may already exist):', error.message);
+    } catch (_error) {
+      // Column might already exist - safe to ignore
     }
 
     // Create indexes for guest names performance
@@ -322,6 +323,31 @@ class DatabaseManager {
     // Create index for session expiration cleanup
     this.db.exec(`
             CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expires_at);
+        `);
+
+    // Create audit logs table for tracking booking changes
+    this.db.exec(`
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                log_id TEXT PRIMARY KEY,
+                booking_id TEXT NOT NULL,
+                action_type TEXT NOT NULL CHECK(action_type IN ('room_added', 'room_removed', 'room_restored', 'booking_created', 'booking_updated', 'booking_deleted')),
+                user_type TEXT NOT NULL CHECK(user_type IN ('user', 'admin')),
+                user_identifier TEXT,
+                room_id TEXT,
+                before_state TEXT,
+                after_state TEXT,
+                change_details TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE
+            )
+        `);
+
+    // Create indexes for audit logs
+    this.db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_audit_logs_booking ON audit_logs(booking_id);
+            CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
+            CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action_type);
+            CREATE INDEX IF NOT EXISTS idx_audit_logs_room ON audit_logs(room_id);
         `);
 
     // Create all indexes for performance - AFTER all tables are created
@@ -582,6 +608,30 @@ class DatabaseManager {
           room_id NULLS LAST,
           CASE person_type WHEN 'adult' THEN 1 WHEN 'child' THEN 2 WHEN 'toddler' THEN 3 END,
           order_index
+      `),
+
+      // Audit logs
+      insertAuditLog: this.db.prepare(`
+        INSERT INTO audit_logs (log_id, booking_id, action_type, user_type, user_identifier, room_id, before_state, after_state, change_details, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `),
+
+      getAuditLogsByBooking: this.db.prepare(`
+        SELECT * FROM audit_logs
+        WHERE booking_id = ?
+        ORDER BY created_at DESC
+      `),
+
+      getAuditLogsByRoom: this.db.prepare(`
+        SELECT * FROM audit_logs
+        WHERE room_id = ?
+        ORDER BY created_at DESC
+      `),
+
+      getAllAuditLogs: this.db.prepare(`
+        SELECT * FROM audit_logs
+        ORDER BY created_at DESC
+        LIMIT ?
       `),
     };
   }
@@ -1066,6 +1116,7 @@ class DatabaseManager {
         children: booking.children,
         toddlers: booking.toddlers,
         totalPrice: booking.total_price,
+        priceLocked: Boolean(booking.price_locked), // NEW 2025-11-14: Include price_locked flag
         notes: booking.notes,
         paid: Boolean(booking.paid),
         payFromBenefit: Boolean(booking.pay_from_benefit),
@@ -1958,6 +2009,60 @@ class DatabaseManager {
     `
       )
       .all();
+  }
+
+  // Audit log operations
+  createAuditLog(auditData) {
+    const logId = IdGenerator.generateSessionId(); // Reuse session ID generator for unique IDs
+    const timestamp = new Date().toISOString();
+
+    this.statements.insertAuditLog.run(
+      logId,
+      auditData.bookingId,
+      auditData.actionType, // 'room_added', 'room_removed', 'room_restored', etc.
+      auditData.userType, // 'user' or 'admin'
+      auditData.userIdentifier || null, // edit token fragment or admin session ID
+      auditData.roomId || null,
+      auditData.beforeState ? JSON.stringify(auditData.beforeState) : null,
+      auditData.afterState ? JSON.stringify(auditData.afterState) : null,
+      auditData.changeDetails || null,
+      timestamp
+    );
+
+    return { logId, createdAt: timestamp };
+  }
+
+  getAuditLogsByBooking(bookingId) {
+    const logs = this.statements.getAuditLogsByBooking.all(bookingId);
+
+    // Parse JSON fields
+    return logs.map((log) => ({
+      ...log,
+      beforeState: log.before_state ? JSON.parse(log.before_state) : null,
+      afterState: log.after_state ? JSON.parse(log.after_state) : null,
+    }));
+  }
+
+  getAuditLogsByRoom(roomId) {
+    const logs = this.statements.getAuditLogsByRoom.all(roomId);
+
+    // Parse JSON fields
+    return logs.map((log) => ({
+      ...log,
+      beforeState: log.before_state ? JSON.parse(log.before_state) : null,
+      afterState: log.after_state ? JSON.parse(log.after_state) : null,
+    }));
+  }
+
+  getAllAuditLogs(limit = 100) {
+    const logs = this.statements.getAllAuditLogs.all(limit);
+
+    // Parse JSON fields
+    return logs.map((log) => ({
+      ...log,
+      beforeState: log.before_state ? JSON.parse(log.before_state) : null,
+      afterState: log.after_state ? JSON.parse(log.after_state) : null,
+    }));
   }
 
   // Close database connection

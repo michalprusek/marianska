@@ -97,13 +97,17 @@ class PriceCalculator {
    * NEW 2025-11-04: Admin directly sets empty room price
    * Formula: empty_room + (ALL adults × adult_rate) + (ALL children × child_rate)
    *
+   * NEW 2025-11-14: Support per-room date ranges for multi-room bookings with different dates
+   *
    * @param {Object} options - Pricing options
    * @param {string} options.guestType - Guest type: 'utia' or 'external' (used if no per-room types)
    * @param {number} options.adults - Total number of adults (used if no per-room breakdown)
    * @param {number} options.children - Total number of children (used if no per-room breakdown)
-   * @param {number} options.nights - Number of nights
+   * @param {number} options.nights - Number of nights (used if no per-room dates)
    * @param {Array<string>} options.rooms - Array of room IDs
    * @param {Array<Object>} options.perRoomGuests - Per-room guest breakdown (optional)
+   * @param {Object} options.perRoomDates - Per-room date ranges (optional)
+   *   Example: { '12': { startDate: '2025-11-15', endDate: '2025-11-18' }, '13': { ... } }
    * @param {Object} options.settings - Settings object with prices and room configs
    * @returns {number} Total price in CZK
    * @private
@@ -116,6 +120,7 @@ class PriceCalculator {
       nights = 1,
       rooms = [],
       perRoomGuests = null,
+      perRoomDates = null,
       settings,
     } = options;
 
@@ -153,12 +158,21 @@ class PriceCalculator {
           throw error;
         }
 
+        // NEW 2025-11-14: Calculate nights per room if perRoomDates provided
+        let roomNights = nights; // Default to booking-level nights
+        if (perRoomDates && perRoomDates[roomId]) {
+          const { startDate, endDate } = perRoomDates[roomId];
+          const start = new Date(startDate);
+          const end = new Date(endDate);
+          roomNights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+        }
+
         // Empty room price (admin-configured, no implicit guests included)
         const emptyRoomPrice = this.getEmptyRoomPrice(roomPriceConfig);
 
-        const roomBaseTotal = emptyRoomPrice * nights;
-        const roomAdultsTotal = roomAdults * roomPriceConfig.adult * nights;
-        const roomChildrenTotal = roomChildren * roomPriceConfig.child * nights;
+        const roomBaseTotal = emptyRoomPrice * roomNights;
+        const roomAdultsTotal = roomAdults * roomPriceConfig.adult * roomNights;
+        const roomChildrenTotal = roomChildren * roomPriceConfig.child * roomNights;
         const roomTotal = roomBaseTotal + roomAdultsTotal + roomChildrenTotal;
 
         totalPrice += roomTotal;
@@ -372,15 +386,19 @@ class PriceCalculator {
    * This method provides granular pricing information for each room in a booking,
    * showing the cost breakdown per room including the room base price and guest surcharges.
    *
+   * NEW 2025-11-14: Support per-room date ranges for multi-room bookings with different dates
+   *
    * @param {Object} options - Pricing options
    * @param {string} options.guestType - 'utia' or 'external'
-   * @param {number} options.nights - Number of nights
+   * @param {number} options.nights - Number of nights (fallback if no per-room dates)
    * @param {Object} options.settings - Settings object with prices configuration
    * @param {Array<Object>} options.perRoomGuests - Array of room guest configurations
    *   Example: [
    *     { roomId: '12', adults: 2, children: 1, toddlers: 0 },
    *     { roomId: '13', adults: 1, children: 0, toddlers: 0 }
    *   ]
+   * @param {Object} options.perRoomDates - Per-room date ranges (optional)
+   *   Example: { '12': { startDate: '2025-11-15', endDate: '2025-11-18' }, '13': { ... } }
    * @returns {Object} Per-room price breakdown
    *   {
    *     rooms: [
@@ -401,7 +419,7 @@ class PriceCalculator {
    *   }
    */
   static calculatePerRoomPrices(options) {
-    const { guestType, nights = 1, settings, perRoomGuests = [] } = options;
+    const { guestType, nights = 1, settings, perRoomGuests = [], perRoomDates = null } = options;
 
     if (!settings || !settings.prices) {
       throw new Error('Missing settings or prices configuration');
@@ -451,6 +469,15 @@ class PriceCalculator {
         roomPriceConfig = priceConfig;
       }
 
+      // NEW 2025-11-14: Calculate nights per room if perRoomDates provided
+      let roomNights = nights; // Default to booking-level nights
+      if (perRoomDates && perRoomDates[roomId]) {
+        const { startDate, endDate } = perRoomDates[roomId];
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        roomNights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+      }
+
       // FIX 2025-11-06: Use NEW pricing model - base IS empty room price
       // No need to subtract adult surcharge (that was OLD model)
       const emptyRoomPrice = this.getEmptyRoomPrice(roomPriceConfig);
@@ -485,8 +512,8 @@ class PriceCalculator {
       // Subtotal for one night
       const subtotal = emptyRoomPrice + adultsPrice + childrenPrice;
 
-      // Total for all nights
-      const total = subtotal * nights;
+      // Total for all nights (using per-room nights)
+      const total = subtotal * roomNights;
 
       grandTotal += total;
 
@@ -511,7 +538,7 @@ class PriceCalculator {
         externalChildrenPrice,
         subtotal,
         total,
-        nights,
+        nights: roomNights, // Use per-room nights (not booking-level nights)
       });
     }
 
@@ -724,6 +751,7 @@ class PriceCalculator {
       rooms = [],
       guestNames = [],
       perRoomGuests = {}, // FIX #4: Per-room guest type data
+      perRoomDates = null, // NEW 2025-11-14: Per-room date ranges for composite bookings
       nights = 1,
       settings,
       fallbackGuestType = 'external',
@@ -790,59 +818,106 @@ class PriceCalculator {
       // Empty room price (base accommodation cost) - NOW PER-ROOM!
       const emptyRoomPrice = this.getEmptyRoomPrice(roomPriceConfig);
 
-      totalPrice += emptyRoomPrice * nights;
+      // NEW 2025-11-14: Calculate nights per room if perRoomDates provided
+      let roomNights = nights; // Default to booking-level nights
+      if (perRoomDates && perRoomDates[roomId]) {
+        const { startDate, endDate } = perRoomDates[roomId];
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        roomNights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+      }
+
+      totalPrice += emptyRoomPrice * roomNights;
     }
 
     // Now add per-guest surcharges based on individual guest types
-    // Count guests by type and pricing category
-    let utiaAdults = 0;
-    let utiaChildren = 0;
-    let externalAdults = 0;
-    let externalChildren = 0;
 
-    for (const guest of guestNames) {
-      const priceType = guest.guestPriceType || fallbackGuestType;
-      const { personType } = guest;
+    // NEW 2025-11-14: If perRoomDates available, calculate surcharges per room
+    // Otherwise use the original global averaging approach for backward compatibility
+    if (perRoomDates && perRoomGuests && Object.keys(perRoomGuests).length > 0) {
+      // Per-room surcharge calculation (for composite bookings)
+      for (const roomId of rooms) {
+        const room = settings.rooms?.find((r) => r.id === roomId);
+        const roomType = room?.type || 'small';
 
-      // Skip toddlers (they're free)
-      if (personType === 'toddler') {
-        continue;
-      }
+        // Get per-room guest counts
+        const roomGuests = perRoomGuests[roomId] || {};
+        const roomAdults = roomGuests.adults || 0;
+        const roomChildren = roomGuests.children || 0;
+        const roomGuestType = roomGuests.guestType || fallbackGuestType;
 
-      // Count by pricing type and person type
-      if (priceType === 'utia') {
-        if (personType === 'adult') {
-          utiaAdults += 1;
-        } else if (personType === 'child') {
-          utiaChildren += 1;
+        // Get price config for this room's guest type
+        const roomPriceConfig = prices[roomGuestType]?.[roomType];
+        if (!roomPriceConfig) {
+          console.warn(`[PriceCalculator] Missing price config for room ${roomId} (${roomGuestType}/${roomType})`);
+          continue;
         }
-      } else if (personType === 'adult') {
-        // External adults
-        externalAdults += 1;
-      } else if (personType === 'child') {
-        // External children
-        externalChildren += 1;
+
+        // Calculate nights for THIS room
+        let roomNights = nights;
+        if (perRoomDates[roomId]) {
+          const { startDate, endDate } = perRoomDates[roomId];
+          const start = new Date(startDate);
+          const end = new Date(endDate);
+          roomNights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+        }
+
+        // Add surcharges for this room
+        totalPrice += roomAdults * roomPriceConfig.adult * roomNights;
+        totalPrice += roomChildren * roomPriceConfig.child * roomNights;
       }
+    } else {
+      // Original global averaging approach (backward compatibility)
+      // Count guests by type and pricing category
+      let utiaAdults = 0;
+      let utiaChildren = 0;
+      let externalAdults = 0;
+      let externalChildren = 0;
+
+      for (const guest of guestNames) {
+        const priceType = guest.guestPriceType || fallbackGuestType;
+        const { personType } = guest;
+
+        // Skip toddlers (they're free)
+        if (personType === 'toddler') {
+          continue;
+        }
+
+        // Count by pricing type and person type
+        if (priceType === 'utia') {
+          if (personType === 'adult') {
+            utiaAdults += 1;
+          } else if (personType === 'child') {
+            utiaChildren += 1;
+          }
+        } else if (personType === 'adult') {
+          // External adults
+          externalAdults += 1;
+        } else if (personType === 'child') {
+          // External children
+          externalChildren += 1;
+        }
+      }
+
+      // Calculate average surcharge rates across all rooms
+      // (This handles multi-room bookings where rooms might be different sizes)
+      const avgUtiaRates = this.getAverageRoomPriceConfig(rooms, settings, 'utia');
+      const avgExternalRates = this.getAverageRoomPriceConfig(rooms, settings, 'external');
+
+      // Add ÚTIA guest surcharges
+      const utiaAdultSurcharge = utiaAdults * avgUtiaRates.adult * nights;
+      const utiaChildSurcharge = utiaChildren * avgUtiaRates.child * nights;
+
+      totalPrice += utiaAdultSurcharge;
+      totalPrice += utiaChildSurcharge;
+
+      // Add External guest surcharges
+      const externalAdultSurcharge = externalAdults * avgExternalRates.adult * nights;
+      const externalChildSurcharge = externalChildren * avgExternalRates.child * nights;
+
+      totalPrice += externalAdultSurcharge;
+      totalPrice += externalChildSurcharge;
     }
-
-    // Calculate average surcharge rates across all rooms
-    // (This handles multi-room bookings where rooms might be different sizes)
-    const avgUtiaRates = this.getAverageRoomPriceConfig(rooms, settings, 'utia');
-    const avgExternalRates = this.getAverageRoomPriceConfig(rooms, settings, 'external');
-
-    // Add ÚTIA guest surcharges
-    const utiaAdultSurcharge = utiaAdults * avgUtiaRates.adult * nights;
-    const utiaChildSurcharge = utiaChildren * avgUtiaRates.child * nights;
-
-    totalPrice += utiaAdultSurcharge;
-    totalPrice += utiaChildSurcharge;
-
-    // Add External guest surcharges
-    const externalAdultSurcharge = externalAdults * avgExternalRates.adult * nights;
-    const externalChildSurcharge = externalChildren * avgExternalRates.child * nights;
-
-    totalPrice += externalAdultSurcharge;
-    totalPrice += externalChildSurcharge;
 
     return Math.round(totalPrice);
   }

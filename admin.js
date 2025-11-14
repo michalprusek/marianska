@@ -587,13 +587,49 @@ class AdminPanel {
 
     bookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    bookings.forEach((booking) => {
+    // Pre-calculate all booking prices in parallel to avoid N+1 query problem.
+    // Fetch settings once and pass to all calculations for better performance.
+    const settings = await dataManager.getSettings();
+    const bookingPrices = new Map();
+
+    const pricePromises = bookings.map(async (booking) => ({
+      id: booking.id,
+      price: await this.calculateActualPrice(booking, settings)
+    }));
+
+    // Use Promise.allSettled to handle failures gracefully without breaking entire table
+    const priceResults = await Promise.allSettled(pricePromises);
+    priceResults.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        bookingPrices.set(result.value.id, result.value.price);
+      } else {
+        // Fallback to stored price if calculation fails
+        const booking = bookings[index];
+        bookingPrices.set(booking.id, booking.totalPrice || 0);
+        console.error(`Price calculation failed for booking ${booking.id}:`, result.reason);
+      }
+    });
+
+    // Process bookings to create table rows
+    for (const booking of bookings) {
       // Format date range display
       let dateRangeDisplay = '';
+      let isCompositeBooking = false; // NEW 2025-11-14: Track composite bookings
+
       if (booking.perRoomDates && Object.keys(booking.perRoomDates).length > 0) {
         // Calculate overall range from per-room dates
         let minStart = booking.startDate;
         let maxEnd = booking.endDate;
+
+        // Check if rooms have different date ranges (composite booking)
+        const roomDates = Object.values(booking.perRoomDates);
+        if (roomDates.length > 1) {
+          const firstStart = roomDates[0].startDate;
+          const firstEnd = roomDates[0].endDate;
+          isCompositeBooking = roomDates.some(
+            (dates) => dates.startDate !== firstStart || dates.endDate !== firstEnd
+          );
+        }
 
         Object.values(booking.perRoomDates).forEach((dates) => {
           if (!minStart || dates.startDate < minStart) {
@@ -605,6 +641,11 @@ class AdminPanel {
         });
 
         dateRangeDisplay = `${new Date(minStart).toLocaleDateString('cs-CZ')} - ${new Date(maxEnd).toLocaleDateString('cs-CZ')}`;
+
+        // NEW 2025-11-14: Add "složená rezervace" indicator for composite bookings
+        if (isCompositeBooking) {
+          dateRangeDisplay += '<br><span style="display: inline-block; margin-top: 0.25rem; padding: 0.2rem 0.5rem; background: #f59e0b; color: white; border-radius: 3px; font-size: 0.75rem; font-weight: 600;">📅 Složená rezervace</span>';
+        }
       } else {
         // Fallback to booking-level dates
         dateRangeDisplay = `${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}`;
@@ -631,7 +672,7 @@ class AdminPanel {
                 <td>${dateRangeDisplay}</td>
                 <td>${booking.rooms.map((roomId) => this.createRoomBadge(roomId, true)).join('')}</td>
                 <td>
-                    ${booking.totalPrice} Kč
+                    ${bookingPrices.get(booking.id).toLocaleString('cs-CZ')} Kč
                 </td>
                 <td style="text-align: center;">
                     <label style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; cursor: pointer; user-select: none;">
@@ -674,11 +715,125 @@ class AdminPanel {
                 </td>
             `;
       tbody.appendChild(row);
-    });
+    }
 
     // Reset selection state
     this.selectedBookings.clear();
     this.updateBulkActionsUI();
+  }
+
+  /**
+   * Calculate the current total price for a booking using latest settings.
+   *
+   * For price-locked bookings (created before 2025-11-04), returns the stored totalPrice
+   * to honor legacy pricing model where first adult was free. For new bookings, dynamically
+   * calculates from per-room breakdown to reflect current price settings.
+   *
+   * @param {Object} booking - Booking object with perRoomDates, perRoomGuests, priceLocked
+   * @param {Object} settings - Settings object (optional, will fetch if not provided)
+   * @returns {Promise<number>} Total price in CZK (Czech Koruna), never negative
+   *
+   * @example
+   * // Price-locked booking (legacy)
+   * const oldBooking = { priceLocked: true, totalPrice: 1500 };
+   * await calculateActualPrice(oldBooking); // Returns 1500 (stored price)
+   *
+   * @example
+   * // Dynamic pricing (new booking)
+   * const newBooking = {
+   *   priceLocked: false,
+   *   perRoomDates: { '12': { startDate: '2025-10-15', endDate: '2025-10-18' } },
+   *   perRoomGuests: { '12': { adults: 2, children: 1, guestType: 'utia' } }
+   * };
+   * await calculateActualPrice(newBooking, settings); // Calculates from current settings
+   */
+  async calculateActualPrice(booking, settings = null) {
+    // Price-locked bookings (created before 2025-11-04) use old pricing model
+    // where first adult was free. We must honor their locked totalPrice to avoid
+    // retroactively overcharging customers. See CLAUDE.md "Backward Compatibility"
+    if (booking.priceLocked) {
+      return booking.totalPrice || 0;
+    }
+
+    // Bulk bookings and legacy single-room bookings don't have per-room breakdown.
+    // Fall back to stored totalPrice which was calculated correctly at creation time.
+    // Dynamic recalculation only applies to new bookings with perRoomDates structure.
+    if (!booking.perRoomDates || Object.keys(booking.perRoomDates).length === 0) {
+      return booking.totalPrice || 0;
+    }
+
+    // Fetch settings if not provided (for backward compatibility with existing calls)
+    if (!settings) {
+      settings = await dataManager.getSettings();
+    }
+
+    // Calculate price using per-room breakdown
+    let grandTotal = 0;
+
+    for (const [roomId, dates] of Object.entries(booking.perRoomDates)) {
+      // Legacy bookings may lack perRoomGuests data (created before 2025-11-04).
+      // Fallback to minimum valid booking (1 adult) at external pricing to avoid
+      // undercharging. Admin should manually verify and correct if needed.
+      const roomGuests = booking.perRoomGuests?.[roomId] || {
+        adults: 1,
+        children: 0,
+        toddlers: 0,
+        guestType: 'external' // Conservative default - never undercharge
+      };
+
+      // Validate date structure to prevent NaN calculations
+      if (!dates.startDate || !dates.endDate) {
+        console.warn(`Missing dates for room ${roomId} in booking ${booking.id}, skipping room`);
+        continue;
+      }
+
+      // Calculate nights using inclusive date model (checkout day counts as occupied)
+      const startDate = new Date(dates.startDate);
+      const endDate = new Date(dates.endDate);
+      const nights = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+
+      // Validate nights calculation
+      if (isNaN(nights) || nights <= 0) {
+        console.warn(`Invalid nights calculation (${nights}) for room ${roomId} in booking ${booking.id}, skipping room`);
+        continue;
+      }
+
+      // Find room configuration to determine size (small <4 beds, large ≥4 beds)
+      const room = settings.rooms.find((r) => r.id === roomId);
+      if (!room) {
+        console.warn(`Room ${roomId} not found in settings for booking ${booking.id}, using stored price`);
+        return booking.totalPrice || 0;
+      }
+
+      // Room size determines base price tier
+      const isLargeRoom = room.capacity >= 4;
+
+      // Get price configuration for guest type and room size
+      // Structure: settings.prices[guestType][roomSize] = { empty, adult, child }
+      const guestTypeKey = roomGuests.guestType === 'utia' ? 'utia' : 'external';
+      const roomSizeKey = isLargeRoom ? 'large' : 'small';
+      const roomPriceConfig = settings.prices[guestTypeKey]?.[roomSizeKey];
+
+      if (!roomPriceConfig) {
+        console.error(`Missing price config for ${guestTypeKey}/${roomSizeKey} in booking ${booking.id}`);
+        return booking.totalPrice || 0;
+      }
+
+      // Extract price components from configuration
+      const basePrice = roomPriceConfig.empty || 0;
+      const adultCharge = roomPriceConfig.adult || 0;
+      const childCharge = roomPriceConfig.child || 0;
+
+      // Calculate per-night price: base (empty room) + all adults + all children
+      // Note: In new pricing model (post 2025-11-04), ALL adults are charged
+      const perNight =
+        basePrice + roomGuests.adults * adultCharge + roomGuests.children * childCharge;
+
+      // Add this room's total to grand total
+      grandTotal += perNight * nights;
+    }
+
+    return grandTotal;
   }
 
   filterBookings(searchTerm) {
@@ -862,22 +1017,40 @@ class AdminPanel {
                     }
 
                     ${
-                      await this.generatePerRoomPriceBreakdown(booking)
+                      // NEW 2025-11-14: Show per-room breakdown for new bookings (not price-locked)
+                      !booking.priceLocked
                         ? `
                     <div style="margin-bottom: 1rem;">
                         ${await this.generatePerRoomPriceBreakdown(booking)}
                     </div>
                     `
-                        : ''
+                        : `
+                    <!-- Price-locked booking: Show simple total price -->
+                    <div style="margin-bottom: 1rem;">
+                      <div style="padding: 1rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; color: white;">
+                        <div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: 700;">
+                          <span>Celková cena:</span>
+                          <span>${booking.totalPrice.toLocaleString('cs-CZ')} Kč</span>
+                        </div>
+                      </div>
+                    </div>
+                    `
                     }
 
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                        ${
+                          // Show "Celková cena rezervace" only if no per-room breakdown was shown
+                          false
+                            ? `
                         <div>
                             <strong style="color: var(--gray-600); font-size: 0.9rem;">Celková cena rezervace:</strong>
                             <div style="margin-top: 0.25rem; font-size: 1.25rem; font-weight: 600; color: var(--primary-color);">
                                 ${booking.totalPrice.toLocaleString('cs-CZ')} Kč
                             </div>
                         </div>
+                        `
+                            : ''
+                        }
                         ${
                           booking.payFromBenefit
                             ? `
@@ -3156,10 +3329,11 @@ class AdminPanel {
         return '';
       }
 
-      // Calculate nights
-      const startDate = new Date(booking.startDate);
-      const endDate = new Date(booking.endDate);
-      const nights = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+      // NEW 2025-11-14: Calculate nights per room using perRoomDates if available
+      // Fallback to booking-level dates for backward compatibility
+      const nights = booking.perRoomDates
+        ? null // Will be calculated per room by PriceCalculator
+        : Math.ceil((new Date(booking.endDate) - new Date(booking.startDate)) / (1000 * 60 * 60 * 24));
 
       // Calculate per-room prices
       const perRoomPrices = PriceCalculator.calculatePerRoomPrices({
@@ -3167,6 +3341,7 @@ class AdminPanel {
         nights,
         settings,
         perRoomGuests,
+        perRoomDates: booking.perRoomDates || null, // NEW: Pass per-room dates
       });
 
       // Format HTML

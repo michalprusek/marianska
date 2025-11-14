@@ -682,12 +682,23 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
     // CRITICAL FIX: Wrap availability check + booking creation in transaction
     // This prevents race conditions where two users book the same room simultaneously
     const transaction = db.db.transaction(() => {
-      // Check availability for each room INSIDE transaction
+      // NEW 2025-11-14: Check availability for each room using per-room dates if available
       // INCLUSIVE: Check all dates including the end date
       for (const roomId of bookingData.rooms) {
-        const checkStart = new Date(bookingData.startDate);
-        const current = new Date(checkStart);
-        while (current.getTime() <= endDate.getTime()) {
+        // Determine date range for THIS specific room
+        let roomStartDate, roomEndDate;
+        if (bookingData.perRoomDates && bookingData.perRoomDates[roomId]) {
+          // Use per-room date range
+          roomStartDate = new Date(bookingData.perRoomDates[roomId].startDate);
+          roomEndDate = new Date(bookingData.perRoomDates[roomId].endDate);
+        } else {
+          // Fallback to booking-level dates (backward compatibility)
+          roomStartDate = new Date(bookingData.startDate);
+          roomEndDate = new Date(bookingData.endDate);
+        }
+
+        const current = new Date(roomStartDate);
+        while (current.getTime() <= roomEndDate.getTime()) {
           const dateStr = DateUtils.formatDate(current);
           const sessionId = bookingData.sessionId || null;
           const availability = db.getRoomAvailability(roomId, dateStr, sessionId);
@@ -708,6 +719,7 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
       }
 
       // Calculate price using shared PriceCalculator
+      // NEW 2025-11-14: Use booking-level nights only as fallback (for bulk or non-composite bookings)
       const nights = DateUtils.getDaysBetween(bookingData.startDate, bookingData.endDate);
       // settings already defined earlier in the function (line 489)
 
@@ -738,7 +750,8 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
             rooms: bookingData.rooms,
             guestNames: bookingData.guestNames,
             perRoomGuests: bookingData.perRoomGuests, // FIX #4: Pass per-room guest type data
-            nights,
+            perRoomDates: bookingData.perRoomDates || null, // NEW 2025-11-14: Pass per-room dates
+            nights, // Fallback if no per-room dates
             settings,
             fallbackGuestType: actualGuestType,
           });
@@ -2162,6 +2175,93 @@ app.delete('/api/proposed-bookings/session/:sessionId', writeLimiter, (req, res)
   } catch (error) {
     logger.error('deleting proposed bookings by session:', error);
     return res.status(500).json({ error: 'Chyba při mazání navrhovaných rezervací' });
+  }
+});
+
+// ==========================
+// AUDIT LOG ENDPOINTS
+// ==========================
+
+/**
+ * POST /api/audit-log
+ * Create audit log entry for booking changes
+ * No authentication required - logs all user and admin actions
+ */
+app.post('/api/audit-log', writeLimiter, (req, res) => {
+  try {
+    const { bookingId, actionType, userType, userIdentifier, roomId, beforeState, afterState, changeDetails } = req.body;
+
+    // Validate required fields
+    if (!bookingId || !actionType || !userType) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Validate action type
+    const validActionTypes = ['room_added', 'room_removed', 'room_restored', 'booking_created', 'booking_updated', 'booking_deleted'];
+    if (!validActionTypes.includes(actionType)) {
+      return res.status(400).json({ error: 'Invalid action type' });
+    }
+
+    // Validate user type
+    const validUserTypes = ['user', 'admin'];
+    if (!validUserTypes.includes(userType)) {
+      return res.status(400).json({ error: 'Invalid user type' });
+    }
+
+    // Create audit log
+    const result = db.createAuditLog({
+      bookingId,
+      actionType,
+      userType,
+      userIdentifier,
+      roomId,
+      beforeState,
+      afterState,
+      changeDetails,
+    });
+
+    logger.info('Audit log created', { logId: result.logId, bookingId, actionType, userType });
+
+    return res.json({ success: true, logId: result.logId });
+  } catch (error) {
+    logger.error('creating audit log:', error);
+    return res.status(500).json({ error: 'Chyba při vytváření audit logu' });
+  }
+});
+
+/**
+ * GET /api/audit-logs/booking/:bookingId
+ * Get audit logs for a specific booking
+ * No authentication required - allows users to see edit history of their booking
+ */
+app.get('/api/audit-logs/booking/:bookingId', (req, res) => {
+  try {
+    const { bookingId } = req.params;
+
+    const logs = db.getAuditLogsByBooking(bookingId);
+
+    return res.json({ success: true, logs });
+  } catch (error) {
+    logger.error('fetching audit logs by booking:', error);
+    return res.status(500).json({ error: 'Chyba při načítání audit logů' });
+  }
+});
+
+/**
+ * GET /api/audit-logs
+ * Get all recent audit logs (admin only)
+ * Requires admin session
+ */
+app.get('/api/audit-logs', requireSession, (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+
+    const logs = db.getAllAuditLogs(limit);
+
+    return res.json({ success: true, logs });
+  } catch (error) {
+    logger.error('fetching all audit logs:', error);
+    return res.status(500).json({ error: 'Chyba při načítání audit logů' });
   }
 });
 

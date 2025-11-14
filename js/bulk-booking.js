@@ -10,6 +10,72 @@ class BulkBookingModule {
     this.airbnbCalendar = null;
   }
 
+  /**
+   * Save selected date range to localStorage for prefilling next time
+   * @param {string} startDate - Start date in YYYY-MM-DD format
+   * @param {string} endDate - End date in YYYY-MM-DD format
+   */
+  saveLastSelectedDateRange(startDate, endDate) {
+    try {
+      const dateRange = {
+        startDate,
+        endDate,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem('lastBulkDateRange', JSON.stringify(dateRange));
+    } catch (error) {
+      console.warn('Failed to save last bulk date range:', error);
+      // Non-critical error - continue without saving
+    }
+  }
+
+  /**
+   * Load last selected date range from localStorage
+   * @returns {Object|null} - Object with startDate and endDate, or null if not found/invalid
+   */
+  loadLastSelectedDateRange() {
+    try {
+      const stored = localStorage.getItem('lastBulkDateRange');
+      if (!stored) {
+        return null;
+      }
+
+      const dateRange = JSON.parse(stored);
+
+      // Validate structure
+      if (!dateRange.startDate || !dateRange.endDate || !dateRange.timestamp) {
+        return null;
+      }
+
+      // Check if dates are in the past
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const startDate = new Date(`${dateRange.startDate}T12:00:00`);
+
+      if (startDate < today) {
+        // Dates are in the past, clear them
+        localStorage.removeItem('lastBulkDateRange');
+        return null;
+      }
+
+      // Optional: Check if dates are too old (e.g., > 30 days)
+      const daysSinceStored = (Date.now() - dateRange.timestamp) / (1000 * 60 * 60 * 24);
+      if (daysSinceStored > 30) {
+        // Too old, clear
+        localStorage.removeItem('lastBulkDateRange');
+        return null;
+      }
+
+      return {
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+      };
+    } catch (error) {
+      console.warn('Failed to load last bulk date range:', error);
+      return null;
+    }
+  }
+
   async showBulkBookingModal() {
     const modal = document.getElementById('bulkBookingModal');
 
@@ -46,6 +112,38 @@ class BulkBookingModule {
 
     // Always use the bulk calendar (not Airbnb calendar)
     await this.renderBulkCalendar();
+
+    // NEW 2025-11-14: Load last selected date range and prefill if available
+    const lastDateRange = this.loadLastSelectedDateRange();
+    if (lastDateRange) {
+      // Validate that dates are fully available for bulk booking (all 9 rooms)
+      const isRangeAvailable = await this.isDateRangeFullyAvailable(
+        lastDateRange.startDate,
+        lastDateRange.endDate
+      );
+
+      if (isRangeAvailable) {
+        // Prefill the date range
+        const start = new Date(`${lastDateRange.startDate}T12:00:00`);
+        const end = new Date(`${lastDateRange.endDate}T12:00:00`);
+        const current = new Date(start);
+
+        // Add all dates in range to bulkSelectedDates
+        // eslint-disable-next-line no-unmodified-loop-condition -- current is modified inside loop body with setDate
+        while (current <= end) {
+          const dateStr = DateUtils.formatDate(current);
+          this.bulkSelectedDates.add(dateStr);
+          current.setDate(current.getDate() + 1);
+        }
+
+        // Sync with calendar's selectedDates
+        if (this.bulkCalendar) {
+          this.bulkCalendar.selectedDates = this.bulkSelectedDates;
+          await this.bulkCalendar.render();
+        }
+      }
+    }
+
     this.updateBulkSelectedDatesDisplay();
     await this.updateBulkPriceCalculation();
     this.updateBulkCapacityCheck();
@@ -81,9 +179,13 @@ class BulkBookingModule {
           this.updateBulkCapacityCheck();
         },
       });
+
+      // IMPORTANT: Sync prefilled dates immediately after calendar creation
+      // This ensures localStorage prefilled dates are properly transferred to bulkCalendar
+      this.bulkCalendar.selectedDates = this.bulkSelectedDates;
     }
 
-    // Sync module's bulkSelectedDates with calendar's selectedDates
+    // Sync module's bulkSelectedDates with calendar's selectedDates (for subsequent opens)
     this.bulkCalendar.selectedDates = this.bulkSelectedDates;
 
     // Render calendar
@@ -499,6 +601,54 @@ class BulkBookingModule {
     this.generateGuestNamesInputs(adults, children, 0);
   }
 
+  /**
+   * Check if a date range is fully available for bulk booking (all 9 rooms)
+   * @param {string} startDate - Start date in YYYY-MM-DD format
+   * @param {string} endDate - End date in YYYY-MM-DD format
+   * @returns {Promise<boolean>} - True if range is fully available for all rooms, false otherwise
+   */
+  async isDateRangeFullyAvailable(startDate, endDate) {
+    try {
+      // Invalidate proposed bookings cache to ensure fresh data
+      dataManager.invalidateProposedBookingsCache();
+
+      const settings = await dataManager.getSettings();
+      const allRooms = settings.rooms.map((r) => r.id);
+
+      const start = new Date(`${startDate}T12:00:00`);
+      const end = new Date(`${endDate}T12:00:00`);
+      const current = new Date(start);
+
+      // Check each day in the range for all rooms
+      // eslint-disable-next-line no-unmodified-loop-condition -- current is modified inside loop body with setDate
+      while (current <= end) {
+        // Check if ALL rooms are available on this date
+        // eslint-disable-next-line no-await-in-loop
+        const availabilityChecks = await Promise.all(
+          allRooms.map((roomId) =>
+            dataManager.getRoomAvailability(current, roomId, '') // Empty string = don't exclude any sessions
+          )
+        );
+
+        // If any room is NOT available, return false
+        const allAvailable = availabilityChecks.every(
+          (avail) => avail.status === 'available' || avail.status === 'edge'
+        );
+
+        if (!allAvailable) {
+          return false;
+        }
+
+        current.setDate(current.getDate() + 1);
+      }
+
+      return true; // All days and all rooms are available
+    } catch (error) {
+      console.warn('Failed to check bulk date range availability:', error);
+      return false;
+    }
+  }
+
   hideBulkBookingModal() {
     const modal = document.getElementById('bulkBookingModal');
     modal.classList.remove('active');
@@ -715,6 +865,10 @@ class BulkBookingModule {
         guestType,
         totalPrice
       );
+
+      // NEW 2025-11-14: Save selected date range to localStorage AFTER successful creation
+      // This ensures dates are only saved if the proposed booking was created successfully
+      this.saveLastSelectedDateRange(startDate, endDate);
 
       // Create temporary bulk booking object with proposal ID
       const tempBulkBooking = {
