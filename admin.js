@@ -587,7 +587,17 @@ class AdminPanel {
 
     bookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    bookings.forEach((booking) => {
+    // NEW 2025-11-14: Pre-calculate prices for all bookings
+    const bookingPrices = new Map();
+    const pricePromises = bookings.map(async (booking) => ({
+      id: booking.id,
+      price: await this.calculateActualPrice(booking)
+    }));
+    const priceResults = await Promise.all(pricePromises);
+    priceResults.forEach(({ id, price }) => bookingPrices.set(id, price));
+
+    // Process bookings to create table rows
+    for (const booking of bookings) {
       // Format date range display
       let dateRangeDisplay = '';
       let isCompositeBooking = false; // NEW 2025-11-14: Track composite bookings
@@ -648,7 +658,7 @@ class AdminPanel {
                 <td>${dateRangeDisplay}</td>
                 <td>${booking.rooms.map((roomId) => this.createRoomBadge(roomId, true)).join('')}</td>
                 <td>
-                    ${booking.totalPrice} Kč
+                    ${bookingPrices.get(booking.id).toLocaleString('cs-CZ')} Kč
                 </td>
                 <td style="text-align: center;">
                     <label style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; cursor: pointer; user-select: none;">
@@ -691,11 +701,71 @@ class AdminPanel {
                 </td>
             `;
       tbody.appendChild(row);
-    });
+    }
 
     // Reset selection state
     this.selectedBookings.clear();
     this.updateBulkActionsUI();
+  }
+
+  // NEW 2025-11-14: Calculate actual total price from per-room breakdown
+  async calculateActualPrice(booking) {
+    // FIXED 2025-11-14: Use camelCase property names (database transforms snake_case to camelCase)
+    // If price-locked, use the stored totalPrice
+    if (booking.priceLocked) {
+      return booking.totalPrice || 0;
+    }
+
+    // If no per-room data, fall back to stored price
+    if (!booking.perRoomDates || Object.keys(booking.perRoomDates).length === 0) {
+      return booking.totalPrice || 0;
+    }
+
+    const settings = await dataManager.getSettings();
+
+    // Calculate price using per-room breakdown
+    let grandTotal = 0;
+
+    for (const [roomId, dates] of Object.entries(booking.perRoomDates)) {
+      const roomGuests = booking.perRoomGuests?.[roomId] || {
+        adults: 1,
+        children: 0,
+        toddlers: 0,
+        guestType: 'external'
+      };
+
+      const startDate = new Date(dates.startDate);
+      const endDate = new Date(dates.endDate);
+      const nights = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+
+      // Find room size
+      const room = settings.rooms.find(r => r.id === roomId);
+      const isLargeRoom = room && room.capacity >= 4;
+
+      // Get base price for room size and guest type
+      const priceKey = roomGuests.guestType === 'utia'
+        ? (isLargeRoom ? 'largeRoomBaseUtia' : 'smallRoomBaseUtia')
+        : (isLargeRoom ? 'largeRoomBaseExternal' : 'smallRoomBaseExternal');
+
+      const basePrice = settings.prices[priceKey] || 0;
+
+      // Get per-person charges
+      const adultCharge = roomGuests.guestType === 'utia'
+        ? settings.prices.adultUtia
+        : settings.prices.adultExternal;
+      const childCharge = roomGuests.guestType === 'utia'
+        ? settings.prices.childUtia
+        : settings.prices.childExternal;
+
+      // Calculate room total
+      const perNight = basePrice +
+        (roomGuests.adults * adultCharge) +
+        (roomGuests.children * childCharge);
+
+      grandTotal += perNight * nights;
+    }
+
+    return grandTotal;
   }
 
   filterBookings(searchTerm) {
@@ -880,7 +950,7 @@ class AdminPanel {
 
                     ${
                       // NEW 2025-11-14: Show per-room breakdown for new bookings (not price-locked)
-                      !booking.priceLocked && (await this.generatePerRoomPriceBreakdown(booking))
+                      !booking.priceLocked
                         ? `
                     <div style="margin-bottom: 1rem;">
                         ${await this.generatePerRoomPriceBreakdown(booking)}

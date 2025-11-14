@@ -1116,6 +1116,7 @@ class DatabaseManager {
         children: booking.children,
         toddlers: booking.toddlers,
         totalPrice: booking.total_price,
+        priceLocked: Boolean(booking.price_locked), // NEW 2025-11-14: Include price_locked flag
         notes: booking.notes,
         paid: Boolean(booking.paid),
         payFromBenefit: Boolean(booking.pay_from_benefit),
