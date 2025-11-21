@@ -212,16 +212,22 @@ class DatabaseManager {
     // Migration: Lock prices for all existing bookings (one-time migration)
     try {
       const existingBookings = this.db
-        .prepare('SELECT COUNT(*) as count FROM bookings WHERE price_locked = 0 OR price_locked IS NULL')
+        .prepare(
+          'SELECT COUNT(*) as count FROM bookings WHERE price_locked = 0 OR price_locked IS NULL'
+        )
         .get();
 
       if (existingBookings.count > 0) {
         const updated = this.db
-          .prepare('UPDATE bookings SET price_locked = 1 WHERE price_locked = 0 OR price_locked IS NULL')
+          .prepare(
+            'UPDATE bookings SET price_locked = 1 WHERE price_locked = 0 OR price_locked IS NULL'
+          )
           .run();
 
         if (updated.changes > 0) {
-          logger.info(`Locked prices for ${updated.changes} existing bookings`, { component: 'Migration' });
+          logger.info(`Locked prices for ${updated.changes} existing bookings`, {
+            component: 'Migration',
+          });
         }
       }
     } catch (error) {
@@ -283,7 +289,9 @@ class DatabaseManager {
 
       if (!hasGuestTypeColumn) {
         this.db.exec('ALTER TABLE guest_names ADD COLUMN guest_type TEXT DEFAULT NULL');
-        logger.info('Added guest_type column to guest_names table for per-guest pricing support', { component: 'Database' });
+        logger.info('Added guest_type column to guest_names table for per-guest pricing support', {
+          component: 'Database',
+        });
       }
     } catch (_error) {
       // Column might already exist - safe to ignore
@@ -1607,9 +1615,7 @@ class DatabaseManager {
             AND pb.expires_at > ?
         `;
 
-    const proposedParams = excludeSessionId
-      ? [roomId, now, excludeSessionId]
-      : [roomId, now];
+    const proposedParams = excludeSessionId ? [roomId, now, excludeSessionId] : [roomId, now];
 
     const proposedBookings = this.db.prepare(proposedQuery).all(...proposedParams);
 
@@ -1630,7 +1636,8 @@ class DatabaseManager {
     // Combine proposed and confirmed night occupancy
     const totalNightBeforeOccupied = proposedNightBeforeOccupied || nightBeforeOccupied;
     const totalNightAfterOccupied = proposedNightAfterOccupied || nightAfterOccupied;
-    const totalOccupiedCount = (totalNightBeforeOccupied ? 1 : 0) + (totalNightAfterOccupied ? 1 : 0);
+    const totalOccupiedCount =
+      (totalNightBeforeOccupied ? 1 : 0) + (totalNightAfterOccupied ? 1 : 0);
 
     // Determine night types for detailed rendering
     const nightBeforeType = proposedNightBeforeOccupied

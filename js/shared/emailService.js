@@ -194,7 +194,9 @@ class EmailService {
         const roomBeds = room?.beds || '?';
         const roomPriceConfig = priceConfig?.[roomType];
 
-        if (!roomPriceConfig) continue;
+        if (!roomPriceConfig) {
+          continue;
+        }
 
         const roomDates = booking.perRoomDates[roomId];
         const roomGuests = booking.perRoomGuests[roomId] || {};
@@ -241,7 +243,9 @@ class EmailService {
       const roomBeds = room?.beds || '?';
       const roomPriceConfig = priceConfig?.[roomType];
 
-      if (!roomPriceConfig) continue;
+      if (!roomPriceConfig) {
+        continue;
+      }
 
       // NEW MODEL 2025-11-10: Only 'empty' field (room-size based pricing)
       const emptyRoomPrice = roomPriceConfig.empty || 0;
@@ -596,12 +600,18 @@ ${perRoomPriceHtml}
           adminEmail,
           bookingId: booking.id,
           error: error.message,
+          smtpCode: error.responseCode || 'unknown',
+          stack: error.stack,
         });
-        return { email: adminEmail, success: false, error: error.message };
+        return { email: adminEmail, success: false, error: error.message, smtpCode: error.responseCode };
       }
     });
 
-    return Promise.all(sendPromises);
+    // Use allSettled to ensure all promises complete even if some fail
+    const settledResults = await Promise.allSettled(sendPromises);
+    return settledResults.map((r) =>
+      r.status === 'fulfilled' ? r.value : { success: false, error: r.reason?.message || 'Unknown error' }
+    );
   }
 
   /**
@@ -1206,13 +1216,12 @@ Automatická zpráva - neodpovídejte
       return `Nová rezervace - Chata Mariánská (${booking.id})`;
     } else if (eventType === 'deleted') {
       return `Zrušení rezervace - Chata Mariánská (${booking.id})`;
-    } else {
-      // Updated - add context if payment changed
-      if (changes.payment) {
-        return `Změna platby - Chata Mariánská (${booking.id})`;
-      }
-      return `Změna rezervace - Chata Mariánská (${booking.id})`;
     }
+    // Updated - add context if payment changed
+    if (changes.payment) {
+      return `Změna platby - Chata Mariánská (${booking.id})`;
+    }
+    return `Změna rezervace - Chata Mariánská (${booking.id})`;
   }
 
   /**
@@ -1227,10 +1236,9 @@ Automatická zpráva - neodpovídejte
       return this.generateBookingConfirmationText(booking, editUrl, settings);
     } else if (eventType === 'deleted') {
       return this.generateBookingDeletionText(booking, settings, false);
-    } else {
-      // Updated
-      return this.generateBookingModificationText(booking, changes, settings, false);
     }
+    // Updated
+    return this.generateBookingModificationText(booking, changes, settings, false);
   }
 
   /**
@@ -1244,11 +1252,20 @@ Automatická zpráva - neodpovídejte
    * @param {string} reason - Reason for notification
    * @returns {Promise<Object>} Result object
    */
-  async sendCabinManagerNotifications(booking, changes, subject, baseTextContent, settings, reason) {
+  async sendCabinManagerNotifications(
+    booking,
+    changes,
+    subject,
+    baseTextContent,
+    settings,
+    reason
+  ) {
     const cabinManagerEmails = settings.cabinManagerEmails || [];
 
     // Filter out invalid emails and duplicates
-    const validEmails = [...new Set(cabinManagerEmails.filter((email) => this.isValidEmail(email)))];
+    const validEmails = [
+      ...new Set(cabinManagerEmails.filter((email) => this.isValidEmail(email))),
+    ];
 
     if (validEmails.length === 0) {
       logger.info('No valid cabin manager emails configured', {
@@ -1288,16 +1305,29 @@ Automatická zpráva - neodpovídejte
           email,
           bookingId: booking.id,
           error: error.message,
+          smtpCode: error.responseCode || 'unknown',
+          stack: error.stack,
         });
-        return { email, success: false, error: error.message };
+        return { email, success: false, error: error.message, smtpCode: error.responseCode };
       }
     });
 
-    const results = await Promise.all(sendPromises);
-    const allSuccess = results.every((r) => r.success);
+    // Use allSettled to ensure all promises complete even if some fail
+    const settledResults = await Promise.allSettled(sendPromises);
+    const results = settledResults.map((r) =>
+      r.status === 'fulfilled' ? r.value : { success: false, error: r.reason?.message || 'Unknown error' }
+    );
+
+    const successCount = results.filter((r) => r.success).length;
+    const failureCount = results.filter((r) => !r.success).length;
+    const allSuccess = successCount === validEmails.length;
+    const partialSuccess = successCount > 0 && failureCount > 0;
 
     return {
       success: allSuccess,
+      partialSuccess,
+      successCount,
+      failureCount,
       results,
     };
   }
@@ -1317,12 +1347,11 @@ Automatická zpráva - neodpovídejte
 ═══════════════════════════════════════════════════
 
 Platební stav změněn: NEZAPLACENO → ZAPLACENO`;
-      } else {
-        return `⚠️ DŮLEŽITÉ: Platba rezervace byla ZRUŠENA
+      }
+      return `⚠️ DŮLEŽITÉ: Platba rezervace byla ZRUŠENA
 ═══════════════════════════════════════════════════
 
 Platební stav změněn: ZAPLACENO → NEZAPLACENO`;
-      }
     } else if (reason === 'paid_booking_modified') {
       const changesList = Object.keys(changes)
         .filter((key) => changes[key] === true)

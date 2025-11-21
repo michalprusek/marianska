@@ -154,7 +154,6 @@ class CalendarUtils {
     return day === 0 || day === 6;
   }
 
-
   /**
    * Create navigation buttons HTML
    * @param {string} prevId - ID for previous button

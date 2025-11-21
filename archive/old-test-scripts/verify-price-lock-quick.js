@@ -11,13 +11,17 @@ const db = new Database(dbPath);
 console.log('\n=== Price Lock Verification ===\n');
 
 // Check locked bookings
-const stats = db.db.prepare(`
+const stats = db.db
+  .prepare(
+    `
   SELECT
     COUNT(*) as total,
     SUM(CASE WHEN price_locked = 1 THEN 1 ELSE 0 END) as locked,
     SUM(CASE WHEN price_locked = 0 OR price_locked IS NULL THEN 1 ELSE 0 END) as unlocked
   FROM bookings
-`).get();
+`
+  )
+  .get();
 
 console.log(`Total bookings: ${stats.total}`);
 console.log(`Locked: ${stats.locked}`);

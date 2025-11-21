@@ -13,7 +13,9 @@
  * @returns {string} Escaped string
  */
 function escapeHtml(str) {
-  if (typeof str !== 'string') return '';
+  if (typeof str !== 'string') {
+    return '';
+  }
 
   const div = document.createElement('div');
   div.textContent = str;
@@ -26,7 +28,9 @@ function escapeHtml(str) {
  * @param {string} text - Text to set
  */
 function setText(element, text) {
-  if (!element) return;
+  if (!element) {
+    return;
+  }
   element.textContent = text || '';
 }
 
@@ -65,7 +69,9 @@ function createElement(tagName, text = '', attributes = {}) {
  * @param {...HTMLElement} children - Child elements to append
  */
 function appendChildren(parent, ...children) {
-  if (!parent) return;
+  if (!parent) {
+    return;
+  }
 
   for (const child of children) {
     if (child instanceof HTMLElement || child instanceof Text) {
@@ -79,7 +85,9 @@ function appendChildren(parent, ...children) {
  * @param {HTMLElement} element - Element to clear
  */
 function clearElement(element) {
-  if (!element) return;
+  if (!element) {
+    return;
+  }
 
   while (element.firstChild) {
     element.removeChild(element.firstChild);
@@ -92,7 +100,9 @@ function clearElement(element) {
  * @param {...HTMLElement} children - New children
  */
 function replaceChildren(element, ...children) {
-  if (!element) return;
+  if (!element) {
+    return;
+  }
 
   clearElement(element);
   appendChildren(element, ...children);
@@ -175,7 +185,7 @@ function createButton(text, onClick, attributes = {}) {
 function createLink(text, href, attributes = {}) {
   const link = createElement('a', text, {
     href: href || '#',
-    ...attributes
+    ...attributes,
   });
 
   return link;
@@ -218,7 +228,9 @@ function createSpan(className, text) {
  * @param {string} html - HTML string (MUST be sanitized)
  */
 function setInnerHTML(element, html) {
-  if (!element) return;
+  if (!element) {
+    return;
+  }
 
   // Log warning in development
   if (process.env.NODE_ENV === 'development') {
@@ -313,7 +325,7 @@ if (typeof module !== 'undefined' && module.exports) {
     setInnerHTML,
     createTextNode,
     buildElement,
-    ElementBuilder
+    ElementBuilder,
   };
 } else {
   // Browser global
@@ -333,6 +345,6 @@ if (typeof module !== 'undefined' && module.exports) {
     setInnerHTML,
     createTextNode,
     buildElement,
-    ElementBuilder
+    ElementBuilder,
   };
 }

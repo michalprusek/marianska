@@ -14,7 +14,9 @@ class ModalDialog {
    * Inject CSS animations once
    */
   injectStyles() {
-    if (document.getElementById('modal-dialog-styles')) return;
+    if (document.getElementById('modal-dialog-styles')) {
+      return;
+    }
 
     const style = document.createElement('style');
     style.id = 'modal-dialog-styles';

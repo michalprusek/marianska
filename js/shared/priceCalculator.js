@@ -849,7 +849,9 @@ class PriceCalculator {
         // Get price config for this room's guest type
         const roomPriceConfig = prices[roomGuestType]?.[roomType];
         if (!roomPriceConfig) {
-          console.warn(`[PriceCalculator] Missing price config for room ${roomId} (${roomGuestType}/${roomType})`);
+          console.warn(
+            `[PriceCalculator] Missing price config for room ${roomId} (${roomGuestType}/${roomType})`
+          );
           continue;
         }
 

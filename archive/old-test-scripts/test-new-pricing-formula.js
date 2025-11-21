@@ -16,9 +16,9 @@ const testSettings = {
   prices: {
     utia: {
       small: {
-        empty: 250,  // Empty room price (no guests)
-        adult: 50,   // Adult surcharge
-        child: 25,   // Child surcharge
+        empty: 250, // Empty room price (no guests)
+        adult: 50, // Adult surcharge
+        child: 25, // Child surcharge
       },
       large: {
         empty: 350,

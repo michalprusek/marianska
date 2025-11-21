@@ -77,7 +77,9 @@ console.log('   - "Zaměstnanec ÚTIA" (ÚTIA employee)');
 console.log('   - "Externí host" (External guest)');
 console.log('✅ Default selection is "Zaměstnanec ÚTIA"');
 console.log('✅ Dropdown is above guest count selectors');
-console.log('✅ Helper text appears: "💡 Cena ÚTIA se použije, pokud je na pokoji alespoň 1 zaměstnanec ÚTIA"');
+console.log(
+  '✅ Helper text appears: "💡 Cena ÚTIA se použije, pokud je na pokoji alespoň 1 zaměstnanec ÚTIA"'
+);
 console.log('\nPress Enter when verified...\n');
 
 // Test 4: Price Calculation - ÚTIA Employee

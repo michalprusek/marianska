@@ -686,7 +686,8 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
       // INCLUSIVE: Check all dates including the end date
       for (const roomId of bookingData.rooms) {
         // Determine date range for THIS specific room
-        let roomStartDate, roomEndDate;
+        let roomStartDate;
+        let roomEndDate;
         if (bookingData.perRoomDates && bookingData.perRoomDates[roomId]) {
           // Use per-room date range
           roomStartDate = new Date(bookingData.perRoomDates[roomId].startDate);
@@ -726,9 +727,10 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
       // CRITICAL FIX: Determine correct guestType based on actual guest names
       // If at least ONE guest has guestPriceType 'utia', use ÚTIA pricing for empty room
       // Otherwise (all external), use external pricing
-      const hasUtiaGuest = bookingData.guestNames && Array.isArray(bookingData.guestNames)
-        ? bookingData.guestNames.some(guest => guest.guestPriceType === 'utia')
-        : false;
+      const hasUtiaGuest =
+        bookingData.guestNames && Array.isArray(bookingData.guestNames)
+          ? bookingData.guestNames.some((guest) => guest.guestPriceType === 'utia')
+          : false;
       const actualGuestType = hasUtiaGuest ? 'utia' : 'external';
 
       // CRITICAL FIX: Use correct price calculation based on booking type
@@ -744,7 +746,11 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
         });
       } else {
         // Individual room booking: Use per-guest pricing if guest names available
-        if (bookingData.guestNames && Array.isArray(bookingData.guestNames) && bookingData.guestNames.length > 0) {
+        if (
+          bookingData.guestNames &&
+          Array.isArray(bookingData.guestNames) &&
+          bookingData.guestNames.length > 0
+        ) {
           // NEW: Per-guest pricing - correctly handles mixed ÚTIA/external guests
           bookingData.totalPrice = PriceCalculator.calculatePerGuestPrice({
             rooms: bookingData.rooms,
@@ -985,7 +991,8 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
         return res.status(400).json({ error: 'Jména hostů musí být pole' });
       }
 
-      const expectedCount = (bookingData.adults || 0) + (bookingData.children || 0) + (bookingData.toddlers || 0);
+      const expectedCount =
+        (bookingData.adults || 0) + (bookingData.children || 0) + (bookingData.toddlers || 0);
       if (bookingData.guestNames.length !== expectedCount) {
         return res.status(400).json({
           error: `Počet jmen (${bookingData.guestNames.length}) neodpovídá počtu hostů (${expectedCount})`,
@@ -1054,7 +1061,11 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
           });
         }
 
-        if (guest.personType !== 'adult' && guest.personType !== 'child' && guest.personType !== 'toddler') {
+        if (
+          guest.personType !== 'adult' &&
+          guest.personType !== 'child' &&
+          guest.personType !== 'toddler'
+        ) {
           return res.status(400).json({
             error: `Neplatný typ osoby pro hosta ${i + 1} (musí být 'adult', 'child' nebo 'toddler')`,
           });
@@ -1210,7 +1221,11 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
         });
       } else {
         // Individual room booking: Use per-guest pricing if guest names available
-        if (bookingData.guestNames && Array.isArray(bookingData.guestNames) && bookingData.guestNames.length > 0) {
+        if (
+          bookingData.guestNames &&
+          Array.isArray(bookingData.guestNames) &&
+          bookingData.guestNames.length > 0
+        ) {
           // NEW: Per-guest pricing - correctly handles mixed ÚTIA/external guests
           bookingData.totalPrice = PriceCalculator.calculatePerGuestPrice({
             rooms: bookingData.rooms,
@@ -2201,7 +2216,16 @@ app.delete('/api/proposed-bookings/session/:sessionId', writeLimiter, (req, res)
  */
 app.post('/api/audit-log', writeLimiter, (req, res) => {
   try {
-    const { bookingId, actionType, userType, userIdentifier, roomId, beforeState, afterState, changeDetails } = req.body;
+    const {
+      bookingId,
+      actionType,
+      userType,
+      userIdentifier,
+      roomId,
+      beforeState,
+      afterState,
+      changeDetails,
+    } = req.body;
 
     // Validate required fields
     if (!bookingId || !actionType || !userType) {
@@ -2209,7 +2233,14 @@ app.post('/api/audit-log', writeLimiter, (req, res) => {
     }
 
     // Validate action type
-    const validActionTypes = ['room_added', 'room_removed', 'room_restored', 'booking_created', 'booking_updated', 'booking_deleted'];
+    const validActionTypes = [
+      'room_added',
+      'room_removed',
+      'room_restored',
+      'booking_created',
+      'booking_updated',
+      'booking_deleted',
+    ];
     if (!validActionTypes.includes(actionType)) {
       return res.status(400).json({ error: 'Invalid action type' });
     }

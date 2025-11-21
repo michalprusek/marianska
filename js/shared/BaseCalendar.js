@@ -522,8 +522,12 @@ class BaseCalendar {
       // Aggregate night types across all edge rooms
       // Priority: confirmed > proposed > available
       const aggregateType = (types) => {
-        if (types.some((t) => t === 'confirmed')) return 'confirmed';
-        if (types.some((t) => t === 'proposed')) return 'proposed';
+        if (types.some((t) => t === 'confirmed')) {
+          return 'confirmed';
+        }
+        if (types.some((t) => t === 'proposed')) {
+          return 'proposed';
+        }
         return 'available';
       };
 

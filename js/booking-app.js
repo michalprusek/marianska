@@ -1161,7 +1161,7 @@ class BookingApp {
     // Check if this is a bulk booking or single room
     if (reservationToEdit.isBulkBooking) {
       // Open bulk booking modal with pre-filled data
-      const bulkBooking = this.bulkBooking;
+      const { bulkBooking } = this;
       const modal = document.getElementById('bulkBookingModal');
 
       if (bulkBooking && modal) {
@@ -1191,9 +1191,9 @@ class BookingApp {
       }
     } else {
       // Open single room booking modal with pre-filled data
-      const singleRoomBooking = this.singleRoomBooking;
+      const { singleRoomBooking } = this;
       if (singleRoomBooking) {
-        const roomId = reservationToEdit.roomId;
+        const { roomId } = reservationToEdit;
 
         // Set the current booking room on app
         this.currentBookingRoom = roomId;
@@ -1220,7 +1220,7 @@ class BookingApp {
           adults: reservationToEdit.guests.adults || 0,
           children: reservationToEdit.guests.children || 0,
           toddlers: reservationToEdit.guests.toddlers || 0,
-          guestType: reservationToEdit.guestType || 'external'
+          guestType: reservationToEdit.guestType || 'external',
         });
 
         // Set roomGuestTypes Map
@@ -1234,7 +1234,8 @@ class BookingApp {
           const room = rooms.find((r) => r.id === roomId);
 
           if (room && modalTitle) {
-            const roomName = this.currentLanguage === 'cs' ? room.name : room.name.replace('Pokoj', 'Room');
+            const roomName =
+              this.currentLanguage === 'cs' ? room.name : room.name.replace('Pokoj', 'Room');
             modalTitle.textContent = `${this.currentLanguage === 'cs' ? 'Rezervace' : 'Book'} ${roomName}`;
           }
 
@@ -1253,13 +1254,21 @@ class BookingApp {
         const childrenEl = document.getElementById('singleRoomChildren');
         const toddlersEl = document.getElementById('singleRoomToddlers');
 
-        if (adultsEl) adultsEl.textContent = (reservationToEdit.guests.adults || 0).toString();
-        if (childrenEl) childrenEl.textContent = (reservationToEdit.guests.children || 0).toString();
-        if (toddlersEl) toddlersEl.textContent = (reservationToEdit.guests.toddlers || 0).toString();
+        if (adultsEl) {
+          adultsEl.textContent = (reservationToEdit.guests.adults || 0).toString();
+        }
+        if (childrenEl) {
+          childrenEl.textContent = (reservationToEdit.guests.children || 0).toString();
+        }
+        if (toddlersEl) {
+          toddlersEl.textContent = (reservationToEdit.guests.toddlers || 0).toString();
+        }
 
         // Set guest type radio button
         const guestType = reservationToEdit.guestType || 'external';
-        const radioButton = document.querySelector(`input[name="singleRoomGuestType"][value="${guestType}"]`);
+        const radioButton = document.querySelector(
+          `input[name="singleRoomGuestType"][value="${guestType}"]`
+        );
         if (radioButton) {
           radioButton.checked = true;
         }
@@ -1283,7 +1292,9 @@ class BookingApp {
                 input.value = guestName.name || '';
 
                 // Set guest type dropdown if it exists
-                const guestTypeDropdown = document.querySelector(`[data-guest-type-index="${index}"]`);
+                const guestTypeDropdown = document.querySelector(
+                  `[data-guest-type-index="${index}"]`
+                );
                 if (guestTypeDropdown) {
                   guestTypeDropdown.value = guestName.guestPriceType || 'external';
                 }

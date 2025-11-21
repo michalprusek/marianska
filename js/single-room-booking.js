@@ -408,7 +408,7 @@ class SingleRoomBookingModule {
 
     // Determine actual guest type for the booking:
     // If at least ONE guest is ÚTIA, the entire booking uses ÚTIA pricing
-    const hasUtiaGuest = guestNames.some(guest => guest.guestPriceType === 'utia');
+    const hasUtiaGuest = guestNames.some((guest) => guest.guestPriceType === 'utia');
     const guestType = hasUtiaGuest ? 'utia' : 'external';
 
     // FIX 2025-11-06: Construct perRoomGuests with guestType BEFORE price calculation
@@ -417,8 +417,8 @@ class SingleRoomBookingModule {
         adults: guests.adults || 0,
         children: guests.children || 0,
         toddlers: guests.toddlers || 0,
-        guestType: guestType  // Use the determined guestType (ÚTIA if ANY guest is ÚTIA)
-      }
+        guestType, // Use the determined guestType (ÚTIA if ANY guest is ÚTIA)
+      },
     };
 
     // Calculate price using per-guest pricing (NEW 2025-11-04)
@@ -426,15 +426,16 @@ class SingleRoomBookingModule {
     const settings = await dataManager.getSettings();
     const price = PriceCalculator.calculatePerGuestPrice({
       rooms: [this.app.currentBookingRoom],
-      guestNames: guestNames,
-      nights: nights,
-      settings: settings,
-      fallbackGuestType: fallbackGuestType,
-      perRoomGuests: perRoomGuests  // FIX 2025-11-06: Pass perRoomGuests to avoid fallback
+      guestNames,
+      nights,
+      settings,
+      fallbackGuestType,
+      perRoomGuests, // FIX 2025-11-06: Pass perRoomGuests to avoid fallback
     });
 
     // Validate guest names count matches total guests
-    const expectedGuestCount = (guests.adults || 0) + (guests.children || 0) + (guests.toddlers || 0);
+    const expectedGuestCount =
+      (guests.adults || 0) + (guests.children || 0) + (guests.toddlers || 0);
     if (guestNames.length !== expectedGuestCount) {
       this.app.showNotification(
         this.app.currentLanguage === 'cs'
@@ -536,7 +537,7 @@ class SingleRoomBookingModule {
 
     // Capture adults
     const existingAdultInputs = section.querySelectorAll('input[data-guest-type="adult"]');
-    existingAdultInputs.forEach(input => {
+    existingAdultInputs.forEach((input) => {
       const index = input.dataset.guestIndex;
       const key = `adult-${index}`;
       if (!savedGuestData.has(key)) {
@@ -551,8 +552,10 @@ class SingleRoomBookingModule {
     });
 
     // Capture adult toggle states
-    const existingAdultToggles = section.querySelectorAll('input[data-guest-type="adult"][data-guest-price-type]');
-    existingAdultToggles.forEach(toggle => {
+    const existingAdultToggles = section.querySelectorAll(
+      'input[data-guest-type="adult"][data-guest-price-type]'
+    );
+    existingAdultToggles.forEach((toggle) => {
       const index = toggle.dataset.guestIndex;
       const key = `adult-${index}`;
       if (savedGuestData.has(key)) {
@@ -562,7 +565,7 @@ class SingleRoomBookingModule {
 
     // Capture children
     const existingChildInputs = section.querySelectorAll('input[data-guest-type="child"]');
-    existingChildInputs.forEach(input => {
+    existingChildInputs.forEach((input) => {
       const index = input.dataset.guestIndex;
       const key = `child-${index}`;
       if (!savedGuestData.has(key)) {
@@ -577,8 +580,10 @@ class SingleRoomBookingModule {
     });
 
     // Capture children toggle states
-    const existingChildToggles = section.querySelectorAll('input[data-guest-type="child"][data-guest-price-type]');
-    existingChildToggles.forEach(toggle => {
+    const existingChildToggles = section.querySelectorAll(
+      'input[data-guest-type="child"][data-guest-price-type]'
+    );
+    existingChildToggles.forEach((toggle) => {
       const index = toggle.dataset.guestIndex;
       const key = `child-${index}`;
       if (savedGuestData.has(key)) {
@@ -588,7 +593,7 @@ class SingleRoomBookingModule {
 
     // Capture toddlers
     const existingToddlerInputs = section.querySelectorAll('input[data-guest-type="toddler"]');
-    existingToddlerInputs.forEach(input => {
+    existingToddlerInputs.forEach((input) => {
       const index = input.dataset.guestIndex;
       const key = `toddler-${index}`;
       if (!savedGuestData.has(key)) {
@@ -617,7 +622,8 @@ class SingleRoomBookingModule {
 
         for (let i = 1; i <= adults; i++) {
           const row = document.createElement('div');
-          row.style.cssText = 'display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;';
+          row.style.cssText =
+            'display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;';
 
           // Name inputs
           const firstNameInput = document.createElement('input');
@@ -629,7 +635,8 @@ class SingleRoomBookingModule {
           firstNameInput.required = true;
           firstNameInput.minLength = 2;
           firstNameInput.maxLength = 50;
-          firstNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
+          firstNameInput.style.cssText =
+            'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
 
           const lastNameInput = document.createElement('input');
           lastNameInput.type = 'text';
@@ -640,29 +647,35 @@ class SingleRoomBookingModule {
           lastNameInput.required = true;
           lastNameInput.minLength = 2;
           lastNameInput.maxLength = 50;
-          lastNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
+          lastNameInput.style.cssText =
+            'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
 
           // Add input event listeners to remove red border when user starts typing
           const removeRedBorder = (input) => {
-            if (input.style.borderColor === 'rgb(239, 68, 68)' || input.style.borderColor === '#ef4444') {
+            if (
+              input.style.borderColor === 'rgb(239, 68, 68)' ||
+              input.style.borderColor === '#ef4444'
+            ) {
               input.style.borderColor = '#d1d5db';
             }
           };
 
-          firstNameInput.addEventListener('input', function() {
+          firstNameInput.addEventListener('input', function () {
             removeRedBorder(this);
           });
 
-          lastNameInput.addEventListener('input', function() {
+          lastNameInput.addEventListener('input', function () {
             removeRedBorder(this);
           });
 
           // Toggle switch container
           const toggleContainer = document.createElement('div');
-          toggleContainer.style.cssText = 'display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; flex-shrink: 0;';
+          toggleContainer.style.cssText =
+            'display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; flex-shrink: 0;';
 
           const toggleLabel = document.createElement('label');
-          toggleLabel.style.cssText = 'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer;';
+          toggleLabel.style.cssText =
+            'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer;';
 
           const toggleInput = document.createElement('input');
           toggleInput.type = 'checkbox';
@@ -687,7 +700,7 @@ class SingleRoomBookingModule {
           toggleSlider.appendChild(toggleThumb);
 
           // Toggle state change handler
-          toggleInput.addEventListener('change', async function() {
+          toggleInput.addEventListener('change', async function () {
             if (this.checked) {
               toggleSlider.style.backgroundColor = '#dc2626'; // Red for External
               toggleThumb.style.transform = 'translateX(20px)';
@@ -715,7 +728,8 @@ class SingleRoomBookingModule {
 
           const toggleText = document.createElement('span');
           toggleText.textContent = 'ÚTIA';
-          toggleText.style.cssText = 'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px;';
+          toggleText.style.cssText =
+            'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px;';
 
           toggleContainer.appendChild(toggleLabel);
           toggleContainer.appendChild(toggleText);
@@ -724,8 +738,12 @@ class SingleRoomBookingModule {
           const savedKey = `adult-${i}`;
           if (savedGuestData.has(savedKey)) {
             const saved = savedGuestData.get(savedKey);
-            if (saved.firstName) firstNameInput.value = saved.firstName;
-            if (saved.lastName) lastNameInput.value = saved.lastName;
+            if (saved.firstName) {
+              firstNameInput.value = saved.firstName;
+            }
+            if (saved.lastName) {
+              lastNameInput.value = saved.lastName;
+            }
             if (saved.guestType) {
               const isExternal = saved.guestType === 'external';
               toggleInput.checked = isExternal;
@@ -767,7 +785,8 @@ class SingleRoomBookingModule {
 
         for (let i = 1; i <= children; i++) {
           const row = document.createElement('div');
-          row.style.cssText = 'display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;';
+          row.style.cssText =
+            'display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;';
 
           // Name inputs
           const firstNameInput = document.createElement('input');
@@ -779,7 +798,8 @@ class SingleRoomBookingModule {
           firstNameInput.required = true;
           firstNameInput.minLength = 2;
           firstNameInput.maxLength = 50;
-          firstNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
+          firstNameInput.style.cssText =
+            'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
 
           const lastNameInput = document.createElement('input');
           lastNameInput.type = 'text';
@@ -790,14 +810,17 @@ class SingleRoomBookingModule {
           lastNameInput.required = true;
           lastNameInput.minLength = 2;
           lastNameInput.maxLength = 50;
-          lastNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
+          lastNameInput.style.cssText =
+            'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
 
           // Toggle switch container
           const toggleContainer = document.createElement('div');
-          toggleContainer.style.cssText = 'display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; flex-shrink: 0;';
+          toggleContainer.style.cssText =
+            'display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; flex-shrink: 0;';
 
           const toggleLabel = document.createElement('label');
-          toggleLabel.style.cssText = 'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer;';
+          toggleLabel.style.cssText =
+            'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer;';
 
           const toggleInput = document.createElement('input');
           toggleInput.type = 'checkbox';
@@ -822,7 +845,7 @@ class SingleRoomBookingModule {
           toggleSlider.appendChild(toggleThumb);
 
           // Toggle state change handler
-          toggleInput.addEventListener('change', async function() {
+          toggleInput.addEventListener('change', async function () {
             if (this.checked) {
               toggleSlider.style.backgroundColor = '#dc2626'; // Red for External
               toggleThumb.style.transform = 'translateX(20px)';
@@ -850,7 +873,8 @@ class SingleRoomBookingModule {
 
           const toggleText = document.createElement('span');
           toggleText.textContent = 'ÚTIA';
-          toggleText.style.cssText = 'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px;';
+          toggleText.style.cssText =
+            'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px;';
 
           toggleContainer.appendChild(toggleLabel);
           toggleContainer.appendChild(toggleText);
@@ -859,8 +883,12 @@ class SingleRoomBookingModule {
           const savedKey = `child-${i}`;
           if (savedGuestData.has(savedKey)) {
             const saved = savedGuestData.get(savedKey);
-            if (saved.firstName) firstNameInput.value = saved.firstName;
-            if (saved.lastName) lastNameInput.value = saved.lastName;
+            if (saved.firstName) {
+              firstNameInput.value = saved.firstName;
+            }
+            if (saved.lastName) {
+              lastNameInput.value = saved.lastName;
+            }
             if (saved.guestType) {
               const isExternal = saved.guestType === 'external';
               toggleInput.checked = isExternal;
@@ -881,16 +909,19 @@ class SingleRoomBookingModule {
 
           // Add input event listeners to remove red border when user starts typing
           const removeRedBorderChild = (input) => {
-            if (input.style.borderColor === 'rgb(239, 68, 68)' || input.style.borderColor === '#ef4444') {
+            if (
+              input.style.borderColor === 'rgb(239, 68, 68)' ||
+              input.style.borderColor === '#ef4444'
+            ) {
               input.style.borderColor = '#d1d5db';
             }
           };
 
-          firstNameInput.addEventListener('input', function() {
+          firstNameInput.addEventListener('input', function () {
             removeRedBorderChild(this);
           });
 
-          lastNameInput.addEventListener('input', function() {
+          lastNameInput.addEventListener('input', function () {
             removeRedBorderChild(this);
           });
 
@@ -917,7 +948,8 @@ class SingleRoomBookingModule {
 
         for (let i = 1; i <= toddlers; i++) {
           const row = document.createElement('div');
-          row.style.cssText = 'display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;';
+          row.style.cssText =
+            'display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;';
 
           // Name inputs
           const firstNameInput = document.createElement('input');
@@ -929,7 +961,8 @@ class SingleRoomBookingModule {
           firstNameInput.required = true;
           firstNameInput.minLength = 2;
           firstNameInput.maxLength = 50;
-          firstNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
+          firstNameInput.style.cssText =
+            'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
 
           const lastNameInput = document.createElement('input');
           lastNameInput.type = 'text';
@@ -940,35 +973,44 @@ class SingleRoomBookingModule {
           lastNameInput.required = true;
           lastNameInput.minLength = 2;
           lastNameInput.maxLength = 50;
-          lastNameInput.style.cssText = 'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
+          lastNameInput.style.cssText =
+            'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
 
           // RESTORE PHASE: Restore saved data for this guest
           const savedKey = `toddler-${i}`;
           if (savedGuestData.has(savedKey)) {
             const saved = savedGuestData.get(savedKey);
-            if (saved.firstName) firstNameInput.value = saved.firstName;
-            if (saved.lastName) lastNameInput.value = saved.lastName;
+            if (saved.firstName) {
+              firstNameInput.value = saved.firstName;
+            }
+            if (saved.lastName) {
+              lastNameInput.value = saved.lastName;
+            }
           }
 
           // Add input event listeners to remove red border when user starts typing
           const removeRedBorderToddler = (input) => {
-            if (input.style.borderColor === 'rgb(239, 68, 68)' || input.style.borderColor === '#ef4444') {
+            if (
+              input.style.borderColor === 'rgb(239, 68, 68)' ||
+              input.style.borderColor === '#ef4444'
+            ) {
               input.style.borderColor = '#d1d5db';
             }
           };
 
-          firstNameInput.addEventListener('input', function() {
+          firstNameInput.addEventListener('input', function () {
             removeRedBorderToddler(this);
           });
 
-          lastNameInput.addEventListener('input', function() {
+          lastNameInput.addEventListener('input', function () {
             removeRedBorderToddler(this);
           });
 
           // Free label
           const freeLabel = document.createElement('span');
           freeLabel.textContent = `(${langManager.t('toddlersFreeLabel')})`;
-          freeLabel.style.cssText = 'font-size: 0.7rem; color: #6b7280; white-space: nowrap; flex-shrink: 0;';
+          freeLabel.style.cssText =
+            'font-size: 0.7rem; color: #6b7280; white-space: nowrap; flex-shrink: 0;';
 
           row.appendChild(firstNameInput);
           row.appendChild(lastNameInput);
@@ -1000,16 +1042,16 @@ class SingleRoomBookingModule {
       // Collect guest type from toggle switches (checkboxes) for adults and children
       const guestTypeInputs = section.querySelectorAll('input[data-guest-price-type]');
       guestTypeInputs.forEach((input) => {
-        const guestType = input.dataset.guestType; // adult, child
+        const { guestType } = input.dataset; // adult, child
         // UI logic: Unchecked (false) = ÚTIA, Checked (true) = External
         const guestPriceType = input.checked ? 'external' : 'utia';
 
         // Create dummy guest for price calculation
         guestNames.push({
           personType: guestType,
-          guestPriceType: guestPriceType,
+          guestPriceType,
           firstName: '', // Empty for price update mode
-          lastName: ''
+          lastName: '',
         });
       });
 
@@ -1029,7 +1071,7 @@ class SingleRoomBookingModule {
           personType: 'toddler',
           guestPriceType: 'utia', // Default for toddlers (free anyway)
           firstName: '', // Empty for price update mode
-          lastName: ''
+          lastName: '',
         });
       });
 
@@ -1044,8 +1086,8 @@ class SingleRoomBookingModule {
     const guestMap = new Map();
 
     inputs.forEach((input) => {
-      const guestType = input.dataset.guestType;
-      const guestIndex = input.dataset.guestIndex;
+      const { guestType } = input.dataset;
+      const { guestIndex } = input.dataset;
       const key = `${guestType}-${guestIndex}`;
 
       if (!guestMap.has(key)) {
@@ -1075,8 +1117,8 @@ class SingleRoomBookingModule {
     // Collect guest type for each guest from toggle switches (checkboxes)
     const guestTypeInputs = section.querySelectorAll('input[data-guest-price-type]');
     guestTypeInputs.forEach((input) => {
-      const guestType = input.dataset.guestType;
-      const guestIndex = input.dataset.guestIndex;
+      const { guestType } = input.dataset;
+      const { guestIndex } = input.dataset;
       const key = `${guestType}-${guestIndex}`;
 
       if (guestMap.has(key)) {
@@ -1135,12 +1177,10 @@ class SingleRoomBookingModule {
       const roomId = this.app.currentBookingRoom;
 
       // Get current date selection
-      const startDate = this.app.selectedDates.size > 0
-        ? Array.from(this.app.selectedDates).sort()[0]
-        : null;
-      const endDate = this.app.selectedDates.size > 0
-        ? Array.from(this.app.selectedDates).sort().pop()
-        : null;
+      const startDate =
+        this.app.selectedDates.size > 0 ? Array.from(this.app.selectedDates).sort()[0] : null;
+      const endDate =
+        this.app.selectedDates.size > 0 ? Array.from(this.app.selectedDates).sort().pop() : null;
 
       if (!startDate || !endDate) {
         return; // No dates selected yet
@@ -1160,15 +1200,16 @@ class SingleRoomBookingModule {
       const fallbackGuestType = guestTypeInput ? guestTypeInput.value : 'external';
 
       // Count guests from guestNames
-      const adults = guestNames.filter(g => g.personType === 'adult').length;
-      const children = guestNames.filter(g => g.personType === 'child').length;
-      const toddlers = guestNames.filter(g => g.personType === 'toddler').length;
+      const adults = guestNames.filter((g) => g.personType === 'adult').length;
+      const children = guestNames.filter((g) => g.personType === 'child').length;
+      const toddlers = guestNames.filter((g) => g.personType === 'toddler').length;
 
       // FIX: Determine actual guest type based on whether ANY guest is ÚTIA
       // This MUST be calculated BEFORE creating perRoomGuests
-      const hasUtiaGuest = guestNames && guestNames.length > 0
-        ? guestNames.some(guest => guest.guestPriceType === 'utia')
-        : true;  // FIX 2025-11-07: Default to ÚTIA when no guests yet (matches default radio selection)
+      const hasUtiaGuest =
+        guestNames && guestNames.length > 0
+          ? guestNames.some((guest) => guest.guestPriceType === 'utia')
+          : true; // FIX 2025-11-07: Default to ÚTIA when no guests yet (matches default radio selection)
       const actualGuestType = hasUtiaGuest ? 'utia' : 'external';
 
       // FIX 2025-11-07: Store actualGuestType in app.roomGuestTypes so utils.js can access it
@@ -1180,23 +1221,22 @@ class SingleRoomBookingModule {
           adults,
           children,
           toddlers,
-          guestType: actualGuestType  // FIX: Use actualGuestType instead of fallbackGuestType
-        }
+          guestType: actualGuestType, // FIX: Use actualGuestType instead of fallbackGuestType
+        },
       };
 
       // Calculate price using PER-GUEST method
       const price = PriceCalculator.calculatePerGuestPrice({
         rooms: [roomId],
-        guestNames: guestNames,
-        perRoomGuests: perRoomGuests, // FIX: Pass per-room guest type data to prevent fallback warning
-        nights: nights,
-        settings: settings,
-        fallbackGuestType: fallbackGuestType
+        guestNames,
+        perRoomGuests, // FIX: Pass per-room guest type data to prevent fallback warning
+        nights,
+        settings,
+        fallbackGuestType,
       });
 
       // Update price display
       this.updatePriceSummary(price, nights, guestNames);
-
     } catch (error) {
       console.error('Error updating price for current room:', error);
     }
@@ -1212,13 +1252,14 @@ class SingleRoomBookingModule {
     // Get settings for price configuration
     const settings = await dataManager.getSettings();
     const roomId = this.app.currentBookingRoom;
-    const room = settings.rooms?.find(r => r.id === roomId);
+    const room = settings.rooms?.find((r) => r.id === roomId);
     const roomType = room?.type || 'small';
 
     // Determine actual guest type based on whether ANY guest is ÚTIA
-    const hasUtiaGuest = guestNames && guestNames.length > 0
-      ? guestNames.some(guest => guest.guestPriceType === 'utia')
-      : true;  // FIX 2025-11-07: Default to ÚTIA when no guests yet (matches default radio selection)
+    const hasUtiaGuest =
+      guestNames && guestNames.length > 0
+        ? guestNames.some((guest) => guest.guestPriceType === 'utia')
+        : true; // FIX 2025-11-07: Default to ÚTIA when no guests yet (matches default radio selection)
     const actualGuestType = hasUtiaGuest ? 'utia' : 'external';
 
     // Count guests by person type and price type
@@ -1230,7 +1271,7 @@ class SingleRoomBookingModule {
 
     for (const guest of guestNames) {
       const priceType = guest.guestPriceType || 'external';
-      const personType = guest.personType;
+      const { personType } = guest;
 
       if (personType === 'toddler') {
         toddlers++;
@@ -1275,8 +1316,12 @@ class SingleRoomBookingModule {
     const guestCountsElement = document.getElementById('guestCountsSummary');
     if (guestCountsElement) {
       let text = `${totalAdults} ${langManager.t('adultsShort')}`;
-      if (totalChildren > 0) text += `, ${totalChildren} ${langManager.t('childrenShort')}`;
-      if (toddlers > 0) text += `, ${toddlers} ${langManager.t('toddlersShort')}`;
+      if (totalChildren > 0) {
+        text += `, ${totalChildren} ${langManager.t('childrenShort')}`;
+      }
+      if (toddlers > 0) {
+        text += `, ${toddlers} ${langManager.t('toddlersShort')}`;
+      }
       guestCountsElement.textContent = text;
     }
 
@@ -1364,8 +1409,12 @@ class SingleRoomBookingModule {
     const guestSummary = document.querySelector('#singleRoomBookingModal .guest-summary');
     if (guestSummary) {
       let text = `${totalAdults} ${langManager.t('adultsShort')}`;
-      if (totalChildren > 0) text += `, ${totalChildren} ${langManager.t('childrenShort')}`;
-      if (toddlers > 0) text += `, ${toddlers} ${langManager.t('toddlersShort')}`;
+      if (totalChildren > 0) {
+        text += `, ${totalChildren} ${langManager.t('childrenShort')}`;
+      }
+      if (toddlers > 0) {
+        text += `, ${toddlers} ${langManager.t('toddlersShort')}`;
+      }
       guestSummary.textContent = text;
     }
 

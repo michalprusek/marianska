@@ -24,7 +24,7 @@ function analyzeFile(filePath, content) {
         severity: 'HIGH',
         type: 'Missing await',
         message: 'fetch() called without await',
-        code: line.trim()
+        code: line.trim(),
       });
     }
 
@@ -38,7 +38,7 @@ function analyzeFile(filePath, content) {
           severity: 'MEDIUM',
           type: 'Unhandled promise',
           message: '.then() without .catch()',
-          code: line.trim()
+          code: line.trim(),
         });
       }
     }
@@ -51,7 +51,7 @@ function analyzeFile(filePath, content) {
         severity: 'LOW',
         type: 'Loose equality',
         message: 'Use === instead of ==',
-        code: line.trim()
+        code: line.trim(),
       });
     }
 
@@ -63,7 +63,7 @@ function analyzeFile(filePath, content) {
         severity: 'LOW',
         type: 'var usage',
         message: 'Use let or const instead of var',
-        code: line.trim()
+        code: line.trim(),
       });
     }
 
@@ -77,7 +77,7 @@ function analyzeFile(filePath, content) {
           severity: 'MEDIUM',
           type: 'Unprotected JSON.parse',
           message: 'JSON.parse() without try-catch',
-          code: line.trim()
+          code: line.trim(),
         });
       }
     }
@@ -90,7 +90,7 @@ function analyzeFile(filePath, content) {
         severity: 'INFO',
         type: 'console.log',
         message: 'console.log found (consider using logger)',
-        code: line.trim()
+        code: line.trim(),
       });
     }
 
@@ -102,7 +102,7 @@ function analyzeFile(filePath, content) {
         severity: 'HIGH',
         type: 'Potential XSS',
         message: 'innerHTML assignment (potential XSS)',
-        code: line.trim()
+        code: line.trim(),
       });
     }
 
@@ -114,7 +114,7 @@ function analyzeFile(filePath, content) {
         severity: 'CRITICAL',
         type: 'eval usage',
         message: 'eval() usage detected (security risk)',
-        code: line.trim()
+        code: line.trim(),
       });
     }
 
@@ -127,7 +127,7 @@ function analyzeFile(filePath, content) {
         severity: 'LOW',
         type: 'Potential null reference',
         message: 'Deep property access without null check',
-        code: line.trim()
+        code: line.trim(),
       });
     }
   });
@@ -149,12 +149,12 @@ const jsFiles = [
   'js/shared/EditBookingComponent.js',
   'js/shared/validationUtils.js',
   'js/shared/emailService.js',
-  'js/shared/priceCalculator.js'
+  'js/shared/priceCalculator.js',
 ];
 
 console.log('🔍 Analyzing JavaScript files for potential issues...\n');
 
-jsFiles.forEach(file => {
+jsFiles.forEach((file) => {
   const fullPath = path.join(__dirname, file);
   if (fs.existsSync(fullPath)) {
     const content = fs.readFileSync(fullPath, 'utf-8');
@@ -166,11 +166,11 @@ jsFiles.forEach(file => {
 
 // Group and display issues by severity
 const grouped = {
-  CRITICAL: issues.filter(i => i.severity === 'CRITICAL'),
-  HIGH: issues.filter(i => i.severity === 'HIGH'),
-  MEDIUM: issues.filter(i => i.severity === 'MEDIUM'),
-  LOW: issues.filter(i => i.severity === 'LOW'),
-  INFO: issues.filter(i => i.severity === 'INFO')
+  CRITICAL: issues.filter((i) => i.severity === 'CRITICAL'),
+  HIGH: issues.filter((i) => i.severity === 'HIGH'),
+  MEDIUM: issues.filter((i) => i.severity === 'MEDIUM'),
+  LOW: issues.filter((i) => i.severity === 'LOW'),
+  INFO: issues.filter((i) => i.severity === 'INFO'),
 };
 
 console.log('═══════════════════════════════════════════════════════════');
@@ -179,7 +179,7 @@ console.log('══════════════════════�
 
 if (grouped.CRITICAL.length > 0) {
   console.log(`🔴 CRITICAL ISSUES (${grouped.CRITICAL.length}):`);
-  grouped.CRITICAL.slice(0, 10).forEach(issue => {
+  grouped.CRITICAL.slice(0, 10).forEach((issue) => {
     console.log(`  ${issue.file}:${issue.line}`);
     console.log(`     Type: ${issue.type}`);
     console.log(`     ${issue.message}`);
@@ -190,7 +190,7 @@ if (grouped.CRITICAL.length > 0) {
 
 if (grouped.HIGH.length > 0) {
   console.log(`🟠 HIGH PRIORITY (${grouped.HIGH.length}):`);
-  grouped.HIGH.slice(0, 15).forEach(issue => {
+  grouped.HIGH.slice(0, 15).forEach((issue) => {
     console.log(`  ${issue.file}:${issue.line} - ${issue.type}: ${issue.message}`);
   });
   console.log('');
@@ -227,9 +227,9 @@ const report = {
     high: grouped.HIGH.length,
     medium: grouped.MEDIUM.length,
     low: grouped.LOW.length,
-    info: grouped.INFO.length
+    info: grouped.INFO.length,
   },
-  issues: issues
+  issues,
 };
 
 fs.writeFileSync(

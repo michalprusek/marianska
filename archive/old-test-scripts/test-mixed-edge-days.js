@@ -21,7 +21,7 @@ async function testMixedEdgeDays() {
     // - Expected mixed edge day: 2025-10-27 (night before from proposed, night after from confirmed)
 
     const testRoomId = '12';
-    const sessionId = 'TEST_SESSION_' + Date.now();
+    const sessionId = `TEST_SESSION_${Date.now()}`;
 
     console.log('Step 1: Creating proposed booking (25-27.10.2025)...');
     const proposalId = db.createProposedBooking(
@@ -57,10 +57,12 @@ async function testMixedEdgeDays() {
       city: '',
       zip: '',
       notes: 'Test booking',
-      guestNames: [{ personType: 'adult', firstName: 'Test', lastName: 'User', roomId: testRoomId }],
+      guestNames: [
+        { personType: 'adult', firstName: 'Test', lastName: 'User', roomId: testRoomId },
+      ],
       editToken: IdGenerator.generateEditToken(),
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
     });
     console.log(`✓ Confirmed booking created: ${bookingId}\n`);
 
@@ -83,7 +85,9 @@ async function testMixedEdgeDays() {
     if (availability.nightBefore && availability.nightAfter) {
       console.log('✓ Both nights occupied (correct for mixed edge)');
     } else {
-      console.log(`✗ Night before: ${availability.nightBefore}, Night after: ${availability.nightAfter}`);
+      console.log(
+        `✗ Night before: ${availability.nightBefore}, Night after: ${availability.nightAfter}`
+      );
     }
 
     if (availability.nightBeforeType === 'proposed') {
@@ -124,7 +128,6 @@ async function testMixedEdgeDays() {
     db.deleteProposedBooking(proposalId);
     db.deleteBooking(bookingId);
     console.log('✓ Test data cleaned up\n');
-
   } catch (error) {
     console.error('Error during test:', error);
   }

@@ -222,7 +222,7 @@ class BookingFormModule {
           guestType,
           nights: sortedDates.length,
           settings,
-          perRoomGuests
+          perRoomGuests,
         });
 
         const perRoomHTML = PriceCalculator.formatPerRoomPricesHTML(
@@ -472,13 +472,13 @@ class BookingFormModule {
           // Store per-room guest data
           roomGuestsMap[tempReservation.roomId] = {
             ...tempReservation.guests,
-            guestType: tempReservation.guestType
+            guestType: tempReservation.guestType,
           };
 
           // Store per-room dates
           perRoomDatesMap[tempReservation.roomId] = {
             startDate: tempReservation.startDate,
-            endDate: tempReservation.endDate
+            endDate: tempReservation.endDate,
           };
 
           // Track min/max dates
@@ -506,8 +506,8 @@ class BookingFormModule {
           zip,
           ico,
           dic,
-          startDate: minStartDate,  // Global min date
-          endDate: maxEndDate,      // Global max date
+          startDate: minStartDate, // Global min date
+          endDate: maxEndDate, // Global max date
           rooms: allRoomIds,
           guestType: finalGuestType,
           adults: totalAdultsLocal,
@@ -518,7 +518,7 @@ class BookingFormModule {
           payFromBenefit,
           christmasCode,
           perRoomGuests: roomGuestsMap,
-          perRoomDates: perRoomDatesMap,  // NEW: Per-room date ranges
+          perRoomDates: perRoomDatesMap, // NEW: Per-room date ranges
           sessionId: this.app.sessionId,
           guestNames,
         };
@@ -1325,7 +1325,7 @@ class BookingFormModule {
     ) {
       // For single room, optionally assign the room ID
       if (this.app.tempReservations && this.app.tempReservations.length === 1) {
-        const roomId = this.app.tempReservations[0].roomId;
+        const { roomId } = this.app.tempReservations[0];
         if (roomId) {
           return guestNames.map((guest) => ({ ...guest, roomId }));
         }
@@ -1339,12 +1339,11 @@ class BookingFormModule {
 
     // Process each temporary reservation in order
     for (const tempReservation of this.app.tempReservations) {
-      const roomId = tempReservation.roomId;
+      const { roomId } = tempReservation;
       const guests = tempReservation.guests || {};
 
       // Calculate total guests for this room
-      const roomGuestCount =
-        (guests.adults || 0) + (guests.children || 0) + (guests.toddlers || 0);
+      const roomGuestCount = (guests.adults || 0) + (guests.children || 0) + (guests.toddlers || 0);
 
       // Assign the appropriate number of names to this room
       for (let i = 0; i < roomGuestCount && currentIndex < guestNames.length; i++) {
@@ -1482,8 +1481,8 @@ class BookingFormModule {
       perRoomGuests: {
         [tempReservation.roomId]: {
           ...tempReservation.guests,
-          guestType: tempReservation.guestType  // FIX 2025-11-06: Add guestType to perRoomGuests
-        }
+          guestType: tempReservation.guestType, // FIX 2025-11-06: Add guestType to perRoomGuests
+        },
       },
       sessionId: this.app.sessionId,
       guestNames,

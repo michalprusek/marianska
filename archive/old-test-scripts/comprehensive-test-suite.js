@@ -13,12 +13,13 @@ const ADMIN_PASSWORD = 'admin123';
 const testResults = {
   passed: [],
   failed: [],
-  warnings: []
+  warnings: [],
 };
 
 function log(message, type = 'info') {
   const timestamp = new Date().toISOString();
-  const prefix = type === 'error' ? '❌' : type === 'warning' ? '⚠️' : type === 'success' ? '✅' : 'ℹ️';
+  const prefix =
+    type === 'error' ? '❌' : type === 'warning' ? '⚠️' : type === 'success' ? '✅' : 'ℹ️';
   console.log(`[${timestamp}] ${prefix} ${message}`);
 }
 
@@ -62,12 +63,12 @@ async function safeClick(page, selector, options = {}) {
 // Helper to check console errors
 function setupConsoleMonitoring(page) {
   const errors = [];
-  page.on('console', msg => {
+  page.on('console', (msg) => {
     if (msg.type() === 'error') {
       errors.push(msg.text());
     }
   });
-  page.on('pageerror', error => {
+  page.on('pageerror', (error) => {
     errors.push(error.message);
   });
   return errors;
@@ -87,7 +88,7 @@ async function testHomepageLoad(page) {
     recordTest('Homepage title correct', title.includes('Rezervační systém'), `Title: ${title}`);
 
     // Check calendar is rendered
-    const calendarExists = await page.locator('.calendar-grid').count() > 0;
+    const calendarExists = (await page.locator('.calendar-grid').count()) > 0;
     recordTest('Calendar grid rendered', calendarExists);
 
     // Check room labels are present
@@ -130,7 +131,10 @@ async function testCalendarInteraction(page) {
     await page.waitForTimeout(500);
 
     const monthHeader = await page.locator('h2').first().textContent();
-    recordTest('Month navigation forward works', monthHeader.includes('2025') || monthHeader.includes('2026'));
+    recordTest(
+      'Month navigation forward works',
+      monthHeader.includes('2025') || monthHeader.includes('2026')
+    );
 
     await safeClick(page, 'button:has-text("Předchozí měsíc")');
     await page.waitForTimeout(500);
@@ -144,15 +148,19 @@ async function testCalendarInteraction(page) {
       await page.waitForTimeout(500);
 
       // Check if modal or selection happens
-      const modalVisible = await page.locator('.modal:visible').count() > 0;
-      recordTest('Clicking available cell triggers action', modalVisible, 'Modal should appear or cell should be selected');
+      const modalVisible = (await page.locator('.modal:visible').count()) > 0;
+      recordTest(
+        'Clicking available cell triggers action',
+        modalVisible,
+        'Modal should appear or cell should be selected'
+      );
     } else {
       recordWarning('Calendar interaction', 'No available cells found to test click');
     }
 
     // Test legend display
     const legendBtn = page.locator('button:has-text("Show legend")');
-    if (await legendBtn.count() > 0) {
+    if ((await legendBtn.count()) > 0) {
       await legendBtn.click();
       await page.waitForTimeout(300);
 
@@ -179,7 +187,9 @@ async function testSingleRoomBooking(page) {
     await page.waitForTimeout(1000);
 
     // Find and click an available room cell (green)
-    const availableCells = page.locator('.calendar-cell:not(.occupied):not(.blocked):not(.past-date)');
+    const availableCells = page.locator(
+      '.calendar-cell:not(.occupied):not(.blocked):not(.past-date)'
+    );
     const cellCount = await availableCells.count();
 
     if (cellCount === 0) {
@@ -192,7 +202,7 @@ async function testSingleRoomBooking(page) {
     await page.waitForTimeout(1000);
 
     // Check if booking modal appears
-    const modalVisible = await page.locator('.modal:visible').count() > 0;
+    const modalVisible = (await page.locator('.modal:visible').count()) > 0;
     recordTest('Booking modal opens on room selection', modalVisible);
 
     if (modalVisible) {
@@ -205,18 +215,20 @@ async function testSingleRoomBooking(page) {
 
       // Test form validation
       const submitBtn = page.locator('button:has-text("Rezervovat"), button:has-text("Potvrdit")');
-      if (await submitBtn.count() > 0) {
+      if ((await submitBtn.count()) > 0) {
         await submitBtn.first().click();
         await page.waitForTimeout(500);
 
         // Should show validation errors for empty fields
-        const errorMessages = await page.locator('.error, .validation-error, [class*="error"]').count();
+        const errorMessages = await page
+          .locator('.error, .validation-error, [class*="error"]')
+          .count();
         recordTest('Form validation prevents empty submission', errorMessages > 0);
       }
 
       // Close modal
       const closeBtn = page.locator('button:has-text("Zavřít"), button.close, .modal-close');
-      if (await closeBtn.count() > 0) {
+      if ((await closeBtn.count()) > 0) {
         await closeBtn.first().click();
       }
     }
@@ -239,7 +251,9 @@ async function testMultiRoomBooking(page) {
     await page.waitForTimeout(1000);
 
     // Try to select multiple rooms for same date
-    const availableCells = page.locator('.calendar-cell:not(.occupied):not(.blocked):not(.past-date)');
+    const availableCells = page.locator(
+      '.calendar-cell:not(.occupied):not(.blocked):not(.past-date)'
+    );
     const cellCount = await availableCells.count();
 
     if (cellCount < 2) {
@@ -281,7 +295,8 @@ async function testBulkBooking(page) {
     await page.waitForTimeout(1000);
 
     // Check if bulk booking modal appears
-    const bulkModalVisible = await page.locator('.modal:visible, #bulkBookingModal:visible').count() > 0;
+    const bulkModalVisible =
+      (await page.locator('.modal:visible, #bulkBookingModal:visible').count()) > 0;
     recordTest('Bulk booking modal opens', bulkModalVisible);
 
     if (bulkModalVisible) {
@@ -295,7 +310,7 @@ async function testBulkBooking(page) {
 
       // Close modal
       const closeBtn = page.locator('button:has-text("Zavřít"), button:has-text("Close")');
-      if (await closeBtn.count() > 0) {
+      if ((await closeBtn.count()) > 0) {
         await closeBtn.first().click();
       }
     }
@@ -328,7 +343,8 @@ async function testAdminPanel(page) {
       await page.waitForTimeout(1000);
 
       // Should show error
-      const errorVisible = await page.locator('.error, .alert-error, [class*="error"]').count() > 0;
+      const errorVisible =
+        (await page.locator('.error, .alert-error, [class*="error"]').count()) > 0;
       recordTest('Admin login rejects invalid password', errorVisible);
     }
 
@@ -339,7 +355,9 @@ async function testAdminPanel(page) {
     await page.waitForTimeout(2000);
 
     // Check if admin panel content loads
-    const adminContent = await page.locator('.admin-panel, .tab-button, button:has-text("Rezervace")').count();
+    const adminContent = await page
+      .locator('.admin-panel, .tab-button, button:has-text("Rezervace")')
+      .count();
     recordTest('Admin panel loads after valid login', adminContent > 0);
 
     if (adminContent > 0) {
@@ -347,7 +365,7 @@ async function testAdminPanel(page) {
       const tabs = ['Rezervace', 'Blokované termíny', 'Nastavení'];
       for (const tab of tabs) {
         const tabBtn = page.locator(`button:has-text("${tab}")`);
-        if (await tabBtn.count() > 0) {
+        if ((await tabBtn.count()) > 0) {
           await tabBtn.first().click();
           await page.waitForTimeout(500);
         }
@@ -360,7 +378,11 @@ async function testAdminPanel(page) {
 
       // Check if bookings list is displayed
       const bookingsList = await page.locator('.booking-item, .booking-row, tr').count();
-      recordTest('Admin bookings list displays', bookingsList > 0, `Found ${bookingsList} bookings`);
+      recordTest(
+        'Admin bookings list displays',
+        bookingsList > 0,
+        `Found ${bookingsList} bookings`
+      );
     }
 
     return true;
@@ -395,7 +417,7 @@ async function testAdminBookingOperations(page) {
 
     // Test search functionality
     const searchInput = page.locator('input[placeholder*="Hledat"], input[type="search"]');
-    if (await searchInput.count() > 0) {
+    if ((await searchInput.count()) > 0) {
       await searchInput.fill('test');
       await page.waitForTimeout(500);
       recordTest('Admin booking search works', true);
@@ -403,7 +425,9 @@ async function testAdminBookingOperations(page) {
     }
 
     // Test filter by date
-    const filterButtons = await page.locator('button:has-text("Nadcházející"), button:has-text("Všechny")').count();
+    const filterButtons = await page
+      .locator('button:has-text("Nadcházející"), button:has-text("Všechny")')
+      .count();
     recordTest('Admin booking filters present', filterButtons > 0);
 
     // Test bulk selection
@@ -450,7 +474,11 @@ async function testValidationEdgeCases(page) {
     await page.waitForTimeout(500);
 
     const pastCells = await page.locator('.past-date').count();
-    recordTest('Past dates are marked as unavailable', pastCells > 0, `Found ${pastCells} past date cells`);
+    recordTest(
+      'Past dates are marked as unavailable',
+      pastCells > 0,
+      `Found ${pastCells} past date cells`
+    );
 
     // Try to click a past date
     if (pastCells > 0) {
@@ -506,13 +534,17 @@ async function testMobileResponsiveness(page) {
     recordTest('Calendar visible on mobile', calendarVisible);
 
     // Check if navigation is responsive
-    const navButtons = await page.locator('button:has-text("Bulk Booking"), button:has-text("Admin")').count();
+    const navButtons = await page
+      .locator('button:has-text("Bulk Booking"), button:has-text("Admin")')
+      .count();
     recordTest('Navigation buttons visible on mobile', navButtons >= 2);
 
     // Test calendar scroll
     await page.evaluate(() => {
       const calendar = document.querySelector('.calendar-grid');
-      if (calendar) calendar.scrollLeft = 100;
+      if (calendar) {
+        calendar.scrollLeft = 100;
+      }
     });
 
     const scrollLeft = await page.evaluate(() => {
@@ -540,20 +572,20 @@ async function testConsoleAndNetwork(page) {
   const errors = [];
   const networkErrors = [];
 
-  page.on('console', msg => {
+  page.on('console', (msg) => {
     if (msg.type() === 'error') {
       errors.push(msg.text());
     }
   });
 
-  page.on('pageerror', error => {
+  page.on('pageerror', (error) => {
     errors.push(error.message);
   });
 
-  page.on('requestfailed', request => {
+  page.on('requestfailed', (request) => {
     networkErrors.push({
       url: request.url(),
-      failure: request.failure()
+      failure: request.failure(),
     });
   });
 
@@ -576,7 +608,7 @@ async function testConsoleAndNetwork(page) {
 
     // Check network errors
     if (networkErrors.length > 0) {
-      recordWarning('Network request failures', networkErrors.map(e => e.url).join('; '));
+      recordWarning('Network request failures', networkErrors.map((e) => e.url).join('; '));
     } else {
       recordTest('No network request failures', true);
     }
@@ -598,13 +630,13 @@ async function runAllTests() {
 
   const browser = await chromium.launch({
     headless: false, // Set to true for CI/CD
-    slowMo: 100 // Slow down by 100ms for visibility
+    slowMo: 100, // Slow down by 100ms for visibility
   });
 
   const context = await browser.newContext({
     viewport: { width: 1920, height: 1080 },
     locale: 'cs-CZ',
-    timezoneId: 'Europe/Prague'
+    timezoneId: 'Europe/Prague',
   });
 
   const page = await context.newPage();
@@ -621,7 +653,6 @@ async function runAllTests() {
     await testValidationEdgeCases(page);
     await testMobileResponsiveness(page);
     await testConsoleAndNetwork(page);
-
   } catch (error) {
     log(`Fatal error during test execution: ${error.message}`, 'error');
   }
@@ -636,20 +667,20 @@ async function runAllTests() {
 
   if (testResults.failed.length > 0) {
     log('\n❌ FAILED TESTS:', 'error');
-    testResults.failed.forEach(test => {
+    testResults.failed.forEach((test) => {
       log(`  - ${test.name}: ${test.details}`, 'error');
     });
   }
 
   if (testResults.warnings.length > 0) {
     log('\n⚠️  WARNINGS:', 'warning');
-    testResults.warnings.forEach(warning => {
+    testResults.warnings.forEach((warning) => {
       log(`  - ${warning.name}: ${warning.details}`, 'warning');
     });
   }
 
   log('\n✅ PASSED TESTS:', 'success');
-  testResults.passed.forEach(test => {
+  testResults.passed.forEach((test) => {
     log(`  - ${test.name}`, 'success');
   });
 
@@ -666,7 +697,7 @@ async function runAllTests() {
 }
 
 // Run tests
-runAllTests().catch(error => {
+runAllTests().catch((error) => {
   console.error('Fatal error:', error);
   process.exit(1);
 });

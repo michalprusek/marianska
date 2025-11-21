@@ -646,7 +646,8 @@ class DataManager {
     // Priority: proposed > confirmed (if both occupy same night, show as proposed)
     const totalNightBeforeOccupied = proposedNightBeforeOccupied || nightBeforeOccupied;
     const totalNightAfterOccupied = proposedNightAfterOccupied || nightAfterOccupied;
-    const totalOccupiedCount = (totalNightBeforeOccupied ? 1 : 0) + (totalNightAfterOccupied ? 1 : 0);
+    const totalOccupiedCount =
+      (totalNightBeforeOccupied ? 1 : 0) + (totalNightAfterOccupied ? 1 : 0);
 
     // Determine night types for detailed rendering
     const nightBeforeType = proposedNightBeforeOccupied
@@ -772,7 +773,6 @@ class DataManager {
     const { codeRequired } = this.checkChristmasAccessRequirement(startDate, false);
     return codeRequired;
   }
-
 
   // Blockage management - NEW STRUCTURE
   async createBlockageInstance(startDate, endDate, rooms = [], reason = '') {

@@ -77,17 +77,13 @@ class AdminPanel {
         : GuestNameUtils.organizeByRoom(booking.guestNames, perRoomGuests, rooms); // eslint-disable-line no-undef
 
     // If we have per-room organization AND multiple rooms, display by room
-    if (
-      perRoomGuestNames &&
-      Object.keys(perRoomGuestNames).length > 0 &&
-      rooms.length > 1
-    ) {
+    if (perRoomGuestNames && Object.keys(perRoomGuestNames).length > 0 && rooms.length > 1) {
       let html = '<div style="display: flex; flex-direction: column; gap: 1rem;">';
 
       // Sort room IDs numerically
-      const sortedRoomIds = Object.keys(perRoomGuestNames).sort((a, b) => {
-        return parseInt(a, 10) - parseInt(b, 10);
-      });
+      const sortedRoomIds = Object.keys(perRoomGuestNames).sort(
+        (a, b) => parseInt(a, 10) - parseInt(b, 10)
+      );
 
       sortedRoomIds.forEach((roomId) => {
         const guests = perRoomGuestNames[roomId];
@@ -597,7 +593,7 @@ class AdminPanel {
 
     const pricePromises = bookings.map(async (booking) => ({
       id: booking.id,
-      price: await this.calculateActualPrice(booking, settings)
+      price: await this.calculateActualPrice(booking, settings),
     }));
 
     // Use Promise.allSettled to handle failures gracefully without breaking entire table
@@ -647,7 +643,8 @@ class AdminPanel {
 
         // NEW 2025-11-14: Add "složená rezervace" indicator for composite bookings
         if (isCompositeBooking) {
-          dateRangeDisplay += '<br><span style="display: inline-block; margin-top: 0.25rem; padding: 0.2rem 0.5rem; background: #f59e0b; color: white; border-radius: 3px; font-size: 0.75rem; font-weight: 600;">📅 Složená rezervace</span>';
+          dateRangeDisplay +=
+            '<br><span style="display: inline-block; margin-top: 0.25rem; padding: 0.2rem 0.5rem; background: #f59e0b; color: white; border-radius: 3px; font-size: 0.75rem; font-weight: 600;">📅 Složená rezervace</span>';
         }
       } else {
         // Fallback to booking-level dates
@@ -781,7 +778,7 @@ class AdminPanel {
         adults: 1,
         children: 0,
         toddlers: 0,
-        guestType: 'external' // Conservative default - never undercharge
+        guestType: 'external', // Conservative default - never undercharge
       };
 
       // Validate date structure to prevent NaN calculations
@@ -797,14 +794,18 @@ class AdminPanel {
 
       // Validate nights calculation
       if (isNaN(nights) || nights <= 0) {
-        console.warn(`Invalid nights calculation (${nights}) for room ${roomId} in booking ${booking.id}, skipping room`);
+        console.warn(
+          `Invalid nights calculation (${nights}) for room ${roomId} in booking ${booking.id}, skipping room`
+        );
         continue;
       }
 
       // Find room configuration to determine size (small <4 beds, large ≥4 beds)
       const room = settings.rooms.find((r) => r.id === roomId);
       if (!room) {
-        console.warn(`Room ${roomId} not found in settings for booking ${booking.id}, using stored price`);
+        console.warn(
+          `Room ${roomId} not found in settings for booking ${booking.id}, using stored price`
+        );
         return booking.totalPrice || 0;
       }
 
@@ -818,7 +819,9 @@ class AdminPanel {
       const roomPriceConfig = settings.prices[guestTypeKey]?.[roomSizeKey];
 
       if (!roomPriceConfig) {
-        console.error(`Missing price config for ${guestTypeKey}/${roomSizeKey} in booking ${booking.id}`);
+        console.error(
+          `Missing price config for ${guestTypeKey}/${roomSizeKey} in booking ${booking.id}`
+        );
         return booking.totalPrice || 0;
       }
 
@@ -1921,7 +1924,9 @@ class AdminPanel {
                 </div>
               </div>
               ${
-                booking.guestNames && Array.isArray(booking.guestNames) && booking.guestNames.length > 0
+                booking.guestNames &&
+                Array.isArray(booking.guestNames) &&
+                booking.guestNames.length > 0
                   ? `
               <div class="guest-names" style="margin-top: 15px;">
                 <div class="info-label" style="margin-bottom: 10px;">Jména ubytovaných osob</div>
@@ -2633,11 +2638,12 @@ class AdminPanel {
 
     if (utiaSmallBaseEl) {
       // Backward compatibility: Try 'empty' first, fall back to 'base'
-      const emptyPrice = prices.utia?.small?.empty !== undefined
-        ? prices.utia.small.empty
-        : (prices.utia?.small?.base !== undefined
-          ? prices.utia.small.base - (prices.utia.small.adult || 0)
-          : defaultPrices.utia.small.base - defaultPrices.utia.small.adult);
+      const emptyPrice =
+        prices.utia?.small?.empty !== undefined
+          ? prices.utia.small.empty
+          : prices.utia?.small?.base !== undefined
+            ? prices.utia.small.base - (prices.utia.small.adult || 0)
+            : defaultPrices.utia.small.base - defaultPrices.utia.small.adult;
       utiaSmallBaseEl.value = emptyPrice;
     }
     if (utiaSmallAdultEl) {
@@ -2654,11 +2660,12 @@ class AdminPanel {
 
     if (utiaLargeBaseEl) {
       // Backward compatibility: Try 'empty' first, fall back to 'base'
-      const emptyPrice = prices.utia?.large?.empty !== undefined
-        ? prices.utia.large.empty
-        : (prices.utia?.large?.base !== undefined
-          ? prices.utia.large.base - (prices.utia.large.adult || 0)
-          : defaultPrices.utia.large.base - defaultPrices.utia.large.adult);
+      const emptyPrice =
+        prices.utia?.large?.empty !== undefined
+          ? prices.utia.large.empty
+          : prices.utia?.large?.base !== undefined
+            ? prices.utia.large.base - (prices.utia.large.adult || 0)
+            : defaultPrices.utia.large.base - defaultPrices.utia.large.adult;
       utiaLargeBaseEl.value = emptyPrice;
     }
     if (utiaLargeAdultEl) {
@@ -2675,11 +2682,12 @@ class AdminPanel {
 
     if (externalSmallBaseEl) {
       // Backward compatibility: Try 'empty' first, fall back to 'base'
-      const emptyPrice = prices.external?.small?.empty !== undefined
-        ? prices.external.small.empty
-        : (prices.external?.small?.base !== undefined
-          ? prices.external.small.base - (prices.external.small.adult || 0)
-          : defaultPrices.external.small.base - defaultPrices.external.small.adult);
+      const emptyPrice =
+        prices.external?.small?.empty !== undefined
+          ? prices.external.small.empty
+          : prices.external?.small?.base !== undefined
+            ? prices.external.small.base - (prices.external.small.adult || 0)
+            : defaultPrices.external.small.base - defaultPrices.external.small.adult;
       externalSmallBaseEl.value = emptyPrice;
     }
     if (externalSmallAdultEl) {
@@ -2698,11 +2706,12 @@ class AdminPanel {
 
     if (externalLargeBaseEl) {
       // Backward compatibility: Try 'empty' first, fall back to 'base'
-      const emptyPrice = prices.external?.large?.empty !== undefined
-        ? prices.external.large.empty
-        : (prices.external?.large?.base !== undefined
-          ? prices.external.large.base - (prices.external.large.adult || 0)
-          : defaultPrices.external.large.base - defaultPrices.external.large.adult);
+      const emptyPrice =
+        prices.external?.large?.empty !== undefined
+          ? prices.external.large.empty
+          : prices.external?.large?.base !== undefined
+            ? prices.external.large.base - (prices.external.large.adult || 0)
+            : defaultPrices.external.large.base - defaultPrices.external.large.adult;
       externalLargeBaseEl.value = emptyPrice;
     }
     if (externalLargeAdultEl) {
@@ -2991,7 +3000,9 @@ class AdminPanel {
 
   loadAdminEmails(adminEmails) {
     const listContainer = document.getElementById('adminEmailsList');
-    if (!listContainer) return;
+    if (!listContainer) {
+      return;
+    }
 
     if (adminEmails.length === 0) {
       listContainer.innerHTML = `
@@ -3004,7 +3015,7 @@ class AdminPanel {
 
     listContainer.innerHTML = adminEmails
       .map(
-        (email, index) => `
+        (email) => `
       <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; background: var(--gray-50); border-radius: var(--radius-md); margin-bottom: 0.5rem;">
         <div style="display: flex; align-items: center; gap: 0.75rem;">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="color: var(--primary-color);">
@@ -3112,13 +3123,6 @@ class AdminPanel {
     }
   }
 
-  // Helper function: Escape HTML to prevent XSS attacks
-  escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
   // Load cabin manager emails list
   loadCabinManagerEmails(cabinManagerEmails) {
     const listContainer = document.getElementById('cabinManagerEmailsList');
@@ -3139,7 +3143,7 @@ class AdminPanel {
 
     listContainer.innerHTML = cabinManagerEmails
       .map(
-        (email, index) => `
+        (email) => `
       <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; background: var(--gray-50); border-radius: var(--radius-md); margin-bottom: 0.5rem;">
         <div style="display: flex; align-items: center; gap: 0.75rem;">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="color: var(--primary-color);">
@@ -3487,7 +3491,9 @@ class AdminPanel {
       // Fallback to booking-level dates for backward compatibility
       const nights = booking.perRoomDates
         ? null // Will be calculated per room by PriceCalculator
-        : Math.ceil((new Date(booking.endDate) - new Date(booking.startDate)) / (1000 * 60 * 60 * 24));
+        : Math.ceil(
+            (new Date(booking.endDate) - new Date(booking.startDate)) / (1000 * 60 * 60 * 24)
+          );
 
       // Calculate per-room prices
       const perRoomPrices = PriceCalculator.calculatePerRoomPrices({

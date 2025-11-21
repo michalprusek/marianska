@@ -36,14 +36,14 @@ const multiRoomBooking = {
   totalPrice: 2800,
   editToken: 'test_token_456',
   perRoomDates: {
-    '12': { startDate: '2025-11-01', endDate: '2025-11-03' },
-    '13': { startDate: '2025-11-01', endDate: '2025-11-03' },
-    '14': { startDate: '2025-11-01', endDate: '2025-11-03' },
+    12: { startDate: '2025-11-01', endDate: '2025-11-03' },
+    13: { startDate: '2025-11-01', endDate: '2025-11-03' },
+    14: { startDate: '2025-11-01', endDate: '2025-11-03' },
   },
   perRoomGuests: {
-    '12': { adults: 2, children: 0, toddlers: 0, guestType: 'external' },
-    '13': { adults: 2, children: 1, toddlers: 0, guestType: 'external' },
-    '14': { adults: 2, children: 1, toddlers: 0, guestType: 'external' },
+    12: { adults: 2, children: 0, toddlers: 0, guestType: 'external' },
+    13: { adults: 2, children: 1, toddlers: 0, guestType: 'external' },
+    14: { adults: 2, children: 1, toddlers: 0, guestType: 'external' },
   },
 };
 
@@ -93,7 +93,7 @@ async function testPriceBreakdown() {
   );
   console.log('Plain Text Email:\n');
   console.log(textEmail1);
-  console.log('\n' + '='.repeat(80) + '\n');
+  console.log(`\n${'='.repeat(80)}\n`);
 
   // Test 2: Multi-room booking with per-room data
   console.log('--- Test 2: Multi-Room Booking (Per-Room Data) ---');
@@ -105,7 +105,7 @@ async function testPriceBreakdown() {
   );
   console.log('Plain Text Email:\n');
   console.log(textEmail2);
-  console.log('\n' + '='.repeat(80) + '\n');
+  console.log(`\n${'='.repeat(80)}\n`);
 
   // Test 3: Custom template with {price_overview} variable
   console.log('--- Test 3: Custom Template with {price_overview} ---');
@@ -146,7 +146,7 @@ Tým Chata Mariánská`,
   );
   console.log('Custom Template Email:\n');
   console.log(textEmail3);
-  console.log('\n' + '='.repeat(80) + '\n');
+  console.log(`\n${'='.repeat(80)}\n`);
 
   // Test 4: HTML email
   console.log('--- Test 4: HTML Email ---');
@@ -156,9 +156,9 @@ Tým Chata Mariánská`,
     settings
   );
   console.log('HTML Email (first 500 chars):\n');
-  console.log(htmlEmail.substring(0, 500) + '...');
+  console.log(`${htmlEmail.substring(0, 500)}...`);
   console.log('\nHTML contains price breakdown:', htmlEmail.includes('Rozpis ceny:'));
-  console.log('\n' + '='.repeat(80) + '\n');
+  console.log(`\n${'='.repeat(80)}\n`);
 
   console.log('✅ All tests completed successfully!');
   console.log('\nNext steps:');

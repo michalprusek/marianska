@@ -350,12 +350,10 @@ class BulkBookingModule {
           } else if (guestType === 'child') {
             utiaChildren += 1;
           }
-        } else {
-          if (guestType === 'adult') {
-            externalAdults += 1;
-          } else if (guestType === 'child') {
-            externalChildren += 1;
-          }
+        } else if (guestType === 'adult') {
+          externalAdults += 1;
+        } else if (guestType === 'child') {
+          externalChildren += 1;
         }
       });
     } else {
@@ -405,8 +403,12 @@ class BulkBookingModule {
     // Hide old generic surcharge lines
     const oldAdultsLine = document.getElementById('bulkAdultsPrice');
     const oldChildrenLine = document.getElementById('bulkChildrenPrice');
-    if (oldAdultsLine) oldAdultsLine.style.display = 'none';
-    if (oldChildrenLine) oldChildrenLine.style.display = 'none';
+    if (oldAdultsLine) {
+      oldAdultsLine.style.display = 'none';
+    }
+    if (oldChildrenLine) {
+      oldChildrenLine.style.display = 'none';
+    }
 
     // Create or get detailed surcharges container
     let detailedContainer = document.getElementById('bulkDetailedSurcharges');
@@ -428,14 +430,21 @@ class BulkBookingModule {
     // Helper function for pluralization
     const getGuestLabel = (count, type) => {
       if (type === 'adult') {
-        if (count === 1) return '1 dospělý';
-        if (count >= 2 && count <= 4) return `${count} dospělí`;
+        if (count === 1) {
+          return '1 dospělý';
+        }
+        if (count >= 2 && count <= 4) {
+          return `${count} dospělí`;
+        }
         return `${count} dospělých`;
-      } else {
-        if (count === 1) return '1 dítě';
-        if (count >= 2 && count <= 4) return `${count} děti`;
-        return `${count} dětí`;
       }
+      if (count === 1) {
+        return '1 dítě';
+      }
+      if (count >= 2 && count <= 4) {
+        return `${count} děti`;
+      }
+      return `${count} dětí`;
     };
 
     // Add ÚTIA adults line (if any)
@@ -625,8 +634,8 @@ class BulkBookingModule {
         // Check if ALL rooms are available on this date
         // eslint-disable-next-line no-await-in-loop
         const availabilityChecks = await Promise.all(
-          allRooms.map((roomId) =>
-            dataManager.getRoomAvailability(current, roomId, '') // Empty string = don't exclude any sessions
+          allRooms.map(
+            (roomId) => dataManager.getRoomAvailability(current, roomId, '') // Empty string = don't exclude any sessions
           )
         );
 
@@ -1189,7 +1198,7 @@ class BulkBookingModule {
         adultsContainer.style.display = 'block';
         const adultsHeader = document.createElement('h5');
         adultsHeader.style.cssText = 'margin-bottom: 0.5rem; color: #374151; font-size: 0.95rem;';
-        adultsHeader.textContent = langManager.t('adultsLabel') + ` (${adults})`;
+        adultsHeader.textContent = `${langManager.t('adultsLabel')} (${adults})`;
         adultsContainer.appendChild(adultsHeader);
 
         for (let i = 1; i <= adults; i++) {
@@ -1246,8 +1255,12 @@ class BulkBookingModule {
           const savedAdultKey = `adult-${i}`;
           if (savedGuestData.has(savedAdultKey)) {
             const saved = savedGuestData.get(savedAdultKey);
-            if (saved.firstName) firstNameInput.value = saved.firstName;
-            if (saved.lastName) lastNameInput.value = saved.lastName;
+            if (saved.firstName) {
+              firstNameInput.value = saved.firstName;
+            }
+            if (saved.lastName) {
+              lastNameInput.value = saved.lastName;
+            }
           }
 
           // Toggle switch container
@@ -1347,7 +1360,7 @@ class BulkBookingModule {
         childrenContainer.style.marginTop = '1rem';
         const childrenHeader = document.createElement('h5');
         childrenHeader.style.cssText = 'margin-bottom: 0.5rem; color: #374151; font-size: 0.95rem;';
-        childrenHeader.textContent = langManager.t('childrenLabel') + ` (${children})`;
+        childrenHeader.textContent = `${langManager.t('childrenLabel')} (${children})`;
         childrenContainer.appendChild(childrenHeader);
 
         for (let i = 1; i <= children; i++) {
@@ -1404,8 +1417,12 @@ class BulkBookingModule {
           const savedChildKey = `child-${i}`;
           if (savedGuestData.has(savedChildKey)) {
             const saved = savedGuestData.get(savedChildKey);
-            if (saved.firstName) firstNameInput.value = saved.firstName;
-            if (saved.lastName) lastNameInput.value = saved.lastName;
+            if (saved.firstName) {
+              firstNameInput.value = saved.firstName;
+            }
+            if (saved.lastName) {
+              lastNameInput.value = saved.lastName;
+            }
           }
 
           // Toggle switch container
@@ -1505,7 +1522,7 @@ class BulkBookingModule {
         toddlersContainer.style.marginTop = '1rem';
         const toddlersHeader = document.createElement('h5');
         toddlersHeader.style.cssText = 'margin-bottom: 0.5rem; color: #374151; font-size: 0.95rem;';
-        toddlersHeader.textContent = langManager.t('toddlersLabel') + ` (${toddlers})`;
+        toddlersHeader.textContent = `${langManager.t('toddlersLabel')} (${toddlers})`;
         toddlersContainer.appendChild(toddlersHeader);
 
         for (let i = 1; i <= toddlers; i++) {
@@ -1545,8 +1562,12 @@ class BulkBookingModule {
           const savedToddlerKey = `toddler-${i}`;
           if (savedGuestData.has(savedToddlerKey)) {
             const saved = savedGuestData.get(savedToddlerKey);
-            if (saved.firstName && toddlerFirstName) toddlerFirstName.value = saved.firstName;
-            if (saved.lastName && toddlerLastName) toddlerLastName.value = saved.lastName;
+            if (saved.firstName && toddlerFirstName) {
+              toddlerFirstName.value = saved.firstName;
+            }
+            if (saved.lastName && toddlerLastName) {
+              toddlerLastName.value = saved.lastName;
+            }
           }
 
           if (toddlerFirstName) {
@@ -1594,8 +1615,8 @@ class BulkBookingModule {
     const guestMap = new Map();
 
     inputs.forEach((input) => {
-      const guestType = input.dataset.guestType;
-      const guestIndex = input.dataset.guestIndex;
+      const { guestType } = input.dataset;
+      const { guestIndex } = input.dataset;
       const key = `${guestType}-${guestIndex}`;
 
       if (!guestMap.has(key)) {
@@ -1626,8 +1647,8 @@ class BulkBookingModule {
     // Collect guest type from toggle switches (checkboxes)
     const toggles = section.querySelectorAll('input[data-guest-price-type]');
     toggles.forEach((toggle) => {
-      const guestType = toggle.dataset.guestType;
-      const guestIndex = toggle.dataset.guestIndex;
+      const { guestType } = toggle.dataset;
+      const { guestIndex } = toggle.dataset;
       const key = `${guestType}-${guestIndex}`;
 
       if (guestMap.has(key)) {

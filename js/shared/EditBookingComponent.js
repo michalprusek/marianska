@@ -105,14 +105,13 @@ class EditBookingComponent {
     // If perRoomGuests is available, use it directly. Otherwise, fall back to distribution.
     const defaultGuestType = booking.guestType || 'external';
 
-
     // FIX: Verify perRoomGuests totals match booking totals
     let totalPerRoomAdults = 0;
     let totalPerRoomChildren = 0;
     let totalPerRoomToddlers = 0;
 
     if (booking.perRoomGuests) {
-      Object.values(booking.perRoomGuests).forEach(roomGuests => {
+      Object.values(booking.perRoomGuests).forEach((roomGuests) => {
         totalPerRoomAdults += roomGuests.adults || 0;
         totalPerRoomChildren += roomGuests.children || 0;
         totalPerRoomToddlers += roomGuests.toddlers || 0;
@@ -344,7 +343,9 @@ class EditBookingComponent {
           const guestIndex = guestIndexMatch[1];
 
           // Get toggle switch to determine guestPriceType
-          const toggleInput = document.getElementById(`room${roomId}Adult${guestIndex}GuestTypeToggle`);
+          const toggleInput = document.getElementById(
+            `room${roomId}Adult${guestIndex}GuestTypeToggle`
+          );
           const guestPriceType = toggleInput && toggleInput.checked ? 'external' : 'utia';
 
           guestNames.push({
@@ -379,7 +380,9 @@ class EditBookingComponent {
           const guestIndex = guestIndexMatch[1];
 
           // Get toggle switch to determine guestPriceType
-          const toggleInput = document.getElementById(`room${roomId}Child${guestIndex}GuestTypeToggle`);
+          const toggleInput = document.getElementById(
+            `room${roomId}Child${guestIndex}GuestTypeToggle`
+          );
           const guestPriceType = toggleInput && toggleInput.checked ? 'external' : 'utia';
 
           guestNames.push({
@@ -456,13 +459,15 @@ class EditBookingComponent {
       if (guest.firstName.length < 2) {
         return {
           valid: false,
-          error: 'Všechna křestní jména musí mít alespoň 2 znaky (zkontrolujte záložku "Termín a pokoje")',
+          error:
+            'Všechna křestní jména musí mít alespoň 2 znaky (zkontrolujte záložku "Termín a pokoje")',
         };
       }
       if (guest.lastName.length < 2) {
         return {
           valid: false,
-          error: 'Všechna příjmení musí mít alespoň 2 znaky (zkontrolujte záložku "Termín a pokoje")',
+          error:
+            'Všechna příjmení musí mít alespoň 2 znaky (zkontrolujte záložku "Termín a pokoje")',
         };
       }
     }
@@ -662,8 +667,7 @@ class EditBookingComponent {
     // 1. Check if ADDING a new room (keep this restriction)
     if (!this.editSelectedRooms.has(roomId) && !this.originalRooms.includes(roomId)) {
       this.showNotification(
-        '⚠️ V editaci nelze přidávat nové pokoje. ' +
-          'Můžete měnit pouze termíny a počty hostů.',
+        '⚠️ V editaci nelze přidávat nové pokoje. ' + 'Můžete měnit pouze termíny a počty hostů.',
         'warning',
         4000
       );
@@ -687,7 +691,6 @@ class EditBookingComponent {
     // 3. ADDING back a previously removed room (toggle on again)
     if (!this.editSelectedRooms.has(roomId) && this.originalRooms.includes(roomId)) {
       this.addRoomBack(roomId);
-      return;
     }
   }
 
@@ -778,7 +781,7 @@ class EditBookingComponent {
         await this.onDelete(this.currentBooking.id);
         // Callback handles success notification + redirect
       } catch (error) {
-        this.showNotification('❌ Chyba při mazání rezervace: ' + error.message, 'error', 5000);
+        this.showNotification(`❌ Chyba při mazání rezervace: ${error.message}`, 'error', 5000);
       }
     }
   }
@@ -996,7 +999,7 @@ class EditBookingComponent {
    * @param {Object} roomData - Room data with guest counts
    */
   updateGuestNamesForRoom(roomId, roomData) {
-    let container = document.getElementById(`guestNamesRoom${roomId}`);
+    const container = document.getElementById(`guestNamesRoom${roomId}`);
 
     // If container doesn't exist, we need to find the room card and insert guest names
     if (!container) {
@@ -1074,7 +1077,7 @@ class EditBookingComponent {
     let guestConfigSection = null;
 
     const allInputs = roomCard.querySelectorAll('input[type="number"]');
-    const adultsInput = Array.from(allInputs).find(inp => {
+    const adultsInput = Array.from(allInputs).find((inp) => {
       const onchange = inp.getAttribute('onchange');
       return onchange && onchange.includes(`'${roomId}'`) && onchange.includes('adults');
     });
@@ -1101,7 +1104,7 @@ class EditBookingComponent {
     // ⚠️ CRITICAL: Save current input values BEFORE removing container!
     const currentValues = {};
     const existingInputs = container.querySelectorAll('input[type="text"], input[type="checkbox"]');
-    existingInputs.forEach(input => {
+    existingInputs.forEach((input) => {
       if (input.type === 'checkbox') {
         currentValues[input.id] = input.checked;
       } else {
@@ -1127,7 +1130,7 @@ class EditBookingComponent {
       // Restore saved input values to new inputs
       setTimeout(() => {
         let restoredCount = 0;
-        Object.keys(currentValues).forEach(inputId => {
+        Object.keys(currentValues).forEach((inputId) => {
           const input = document.getElementById(inputId);
           if (input) {
             if (input.type === 'checkbox') {
@@ -1150,7 +1153,11 @@ class EditBookingComponent {
    * Called after renderPerRoomList() to fill in existing names
    */
   populateGuestNamesInRooms() {
-    if (!this.currentBooking || !this.currentBooking.guestNames || !Array.isArray(this.currentBooking.guestNames)) {
+    if (
+      !this.currentBooking ||
+      !this.currentBooking.guestNames ||
+      !Array.isArray(this.currentBooking.guestNames)
+    ) {
       return;
     }
 
@@ -1170,7 +1177,9 @@ class EditBookingComponent {
       // Populate adults for this room
       for (let i = 1; i <= roomData.adults; i++) {
         const guest = adultNames[adultIndex++];
-        if (!guest) continue;
+        if (!guest) {
+          continue;
+        }
 
         const firstNameInput = document.getElementById(`room${roomId}AdultFirstName${i}`);
         const lastNameInput = document.getElementById(`room${roomId}AdultLastName${i}`);
@@ -1178,8 +1187,12 @@ class EditBookingComponent {
         const toggleText = document.getElementById(`room${roomId}Adult${i}ToggleText`);
 
         // Only populate if input is empty (preserve user edits)
-        if (firstNameInput && !firstNameInput.value) firstNameInput.value = guest.firstName || '';
-        if (lastNameInput && !lastNameInput.value) lastNameInput.value = guest.lastName || '';
+        if (firstNameInput && !firstNameInput.value) {
+          firstNameInput.value = guest.firstName || '';
+        }
+        if (lastNameInput && !lastNameInput.value) {
+          lastNameInput.value = guest.lastName || '';
+        }
 
         if (toggleInput && (guest.guestPriceType || guest.guestType)) {
           const type = guest.guestPriceType ?? guest.guestType;
@@ -1216,7 +1229,9 @@ class EditBookingComponent {
       // Populate children for this room
       for (let i = 1; i <= roomData.children; i++) {
         const guest = childNames[childIndex++];
-        if (!guest) continue;
+        if (!guest) {
+          continue;
+        }
 
         const firstNameInput = document.getElementById(`room${roomId}ChildFirstName${i}`);
         const lastNameInput = document.getElementById(`room${roomId}ChildLastName${i}`);
@@ -1224,8 +1239,12 @@ class EditBookingComponent {
         const toggleText = document.getElementById(`room${roomId}Child${i}ToggleText`);
 
         // Only populate if input is empty (preserve user edits)
-        if (firstNameInput && !firstNameInput.value) firstNameInput.value = guest.firstName || '';
-        if (lastNameInput && !lastNameInput.value) lastNameInput.value = guest.lastName || '';
+        if (firstNameInput && !firstNameInput.value) {
+          firstNameInput.value = guest.firstName || '';
+        }
+        if (lastNameInput && !lastNameInput.value) {
+          lastNameInput.value = guest.lastName || '';
+        }
 
         if (toggleInput && (guest.guestPriceType || guest.guestType)) {
           const type = guest.guestPriceType ?? guest.guestType;
@@ -1262,14 +1281,20 @@ class EditBookingComponent {
       // Populate toddlers for this room
       for (let i = 1; i <= roomData.toddlers; i++) {
         const guest = toddlerNames[toddlerIndex++];
-        if (!guest) continue;
+        if (!guest) {
+          continue;
+        }
 
         const firstNameInput = document.getElementById(`room${roomId}ToddlerFirstName${i}`);
         const lastNameInput = document.getElementById(`room${roomId}ToddlerLastName${i}`);
 
         // Only populate if input is empty (preserve user edits)
-        if (firstNameInput && !firstNameInput.value) firstNameInput.value = guest.firstName || '';
-        if (lastNameInput && !lastNameInput.value) lastNameInput.value = guest.lastName || '';
+        if (firstNameInput && !firstNameInput.value) {
+          firstNameInput.value = guest.firstName || '';
+        }
+        if (lastNameInput && !lastNameInput.value) {
+          lastNameInput.value = guest.lastName || '';
+        }
       }
     }
   }
@@ -1550,12 +1575,14 @@ class EditBookingComponent {
         try {
           // Get the first room's dates to calculate common nights
           const firstDates = Array.from(this.perRoomDates.values())[0];
-          const nights = firstDates ? DateUtils.getDaysBetween(firstDates.startDate, firstDates.endDate) : 0;
+          const nights = firstDates
+            ? DateUtils.getDaysBetween(firstDates.startDate, firstDates.endDate)
+            : 0;
 
           // Determine guest type: ÚTIA if at least one room has ÚTIA guest, otherwise external
           // This determines the empty room price (according to pricing rules)
           const hasUtiaGuest = Array.from(this.editSelectedRooms.values()).some(
-            room => room.guestType === 'utia'
+            (room) => room.guestType === 'utia'
           );
           const guestType = hasUtiaGuest ? 'utia' : 'external';
 

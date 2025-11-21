@@ -477,7 +477,7 @@ class UtilsModule {
         const room = rooms.find((r) => r.id === currentRoomId);
         const roomType = room?.type || 'small';
         const isSmall = roomType === 'small';
-        baseRoomPrice = currentGuestType === 'utia' ? (isSmall ? 250 : 350) : (isSmall ? 400 : 500);
+        baseRoomPrice = currentGuestType === 'utia' ? (isSmall ? 250 : 350) : isSmall ? 400 : 500;
       }
 
       // Always update base price display

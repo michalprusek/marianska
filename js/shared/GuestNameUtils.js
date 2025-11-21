@@ -164,17 +164,15 @@ class GuestNameUtils {
     }
 
     // Collect all text inputs (first/last names) - exclude toggle checkboxes
-    const inputs = section.querySelectorAll(
-      'input[data-guest-type]:not([data-guest-price-type])'
-    );
+    const inputs = section.querySelectorAll('input[data-guest-type]:not([data-guest-price-type])');
 
     // Group inputs by guest type and index
     const guestMap = new Map();
     let hasValidationError = false;
 
     inputs.forEach((input) => {
-      const guestType = input.dataset.guestType;
-      const guestIndex = input.dataset.guestIndex;
+      const { guestType } = input.dataset;
+      const { guestIndex } = input.dataset;
       const key = `${guestType}-${guestIndex}`;
 
       if (!guestMap.has(key)) {
@@ -216,8 +214,8 @@ class GuestNameUtils {
     // Collect guest types from toggle switches (if present)
     const guestTypeInputs = section.querySelectorAll('input[data-guest-price-type]');
     guestTypeInputs.forEach((input) => {
-      const guestType = input.dataset.guestType;
-      const guestIndex = input.dataset.guestIndex;
+      const { guestType } = input.dataset;
+      const { guestIndex } = input.dataset;
       const key = `${guestType}-${guestIndex}`;
 
       if (guestMap.has(key)) {
@@ -269,7 +267,7 @@ class GuestNameUtils {
       'input[data-guest-type]:not([data-guest-price-type])'
     );
     existingInputs.forEach((input) => {
-      const guestType = input.dataset.guestType;
+      const { guestType } = input.dataset;
       const index = input.dataset.guestIndex;
       const key = `${guestType}-${index}`;
 
@@ -288,7 +286,7 @@ class GuestNameUtils {
     // Capture toggle states
     const existingToggles = section.querySelectorAll('input[data-guest-price-type]');
     existingToggles.forEach((toggle) => {
-      const guestType = toggle.dataset.guestType;
+      const { guestType } = toggle.dataset;
       const index = toggle.dataset.guestIndex;
       const key = `${guestType}-${index}`;
 
@@ -553,8 +551,12 @@ class GuestNameUtils {
     const saved = savedGuestData.get(savedKey);
 
     // Restore name values
-    if (saved.firstName) firstNameInput.value = saved.firstName;
-    if (saved.lastName) lastNameInput.value = saved.lastName;
+    if (saved.firstName) {
+      firstNameInput.value = saved.firstName;
+    }
+    if (saved.lastName) {
+      lastNameInput.value = saved.lastName;
+    }
 
     // Restore toggle state
     if (saved.guestType) {
@@ -962,9 +964,7 @@ class GuestNameUtils {
 
     // Check if counts match
     if (guestNames.length !== expectedTotal) {
-      errors.push(
-        `Guest name count mismatch: expected ${expectedTotal}, got ${guestNames.length}`
-      );
+      errors.push(`Guest name count mismatch: expected ${expectedTotal}, got ${guestNames.length}`);
     }
 
     // Validate each guest name
