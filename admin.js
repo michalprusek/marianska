@@ -257,6 +257,9 @@ class AdminPanel {
     document
       .getElementById('addAdminEmailForm')
       .addEventListener('submit', (e) => this.handleAddAdminEmail(e));
+    document
+      .getElementById('addCabinManagerEmailForm')
+      .addEventListener('submit', (e) => this.handleAddCabinManagerEmail(e));
 
     // Modal close
     document.querySelectorAll('.modal-close').forEach((btn) => {
@@ -1421,6 +1424,11 @@ class AdminPanel {
       selectAllCheckbox.checked = false;
       selectAllCheckbox.indeterminate = false;
     }
+  }
+
+  // Alias for backward compatibility
+  updateBulkActionButtons() {
+    this.updateBulkActionsUI();
   }
 
   async bulkDeleteBookings() {
@@ -2970,6 +2978,9 @@ class AdminPanel {
     // Load admin emails
     this.loadAdminEmails(settings.adminEmails || []);
 
+    // Load cabin manager emails
+    this.loadCabinManagerEmails(settings.cabinManagerEmails || []);
+
     // Initialize character counter
     this.updateEmailTemplateCharCount();
 
@@ -3000,11 +3011,11 @@ class AdminPanel {
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
             <polyline points="22,6 12,13 2,6"/>
           </svg>
-          <span style="font-weight: 500;">${email}</span>
+          <span style="font-weight: 500;">${this.escapeHtml(email)}</span>
         </div>
         <button
-          class="btn btn-sm"
-          onclick="adminPanel.removeAdminEmail('${email}')"
+          class="btn btn-sm remove-admin-btn"
+          data-email="${this.escapeHtml(email)}"
           style="padding: 0.5rem 1rem; background: #dc2626; color: white; border: none;"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="display: inline; margin-right: 0.25rem;">
@@ -3016,6 +3027,14 @@ class AdminPanel {
     `
       )
       .join('');
+
+    // Add event listeners to remove buttons (safer than onclick)
+    listContainer.querySelectorAll('.remove-admin-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const email = e.currentTarget.getAttribute('data-email');
+        this.removeAdminEmail(email);
+      });
+    });
   }
 
   async handleAddAdminEmail(e) {
@@ -3089,6 +3108,141 @@ class AdminPanel {
       this.showSuccessMessage(`Správce ${email} byl úspěšně odebrán`);
     } catch (error) {
       console.error('Chyba při odebírání správce:', error);
+      this.showToast(`Chyba: ${error.message}`, 'error');
+    }
+  }
+
+  // Helper function: Escape HTML to prevent XSS attacks
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // Load cabin manager emails list
+  loadCabinManagerEmails(cabinManagerEmails) {
+    const listContainer = document.getElementById('cabinManagerEmailsList');
+
+    if (!listContainer) {
+      console.warn('Cabin manager emails list container not found');
+      return;
+    }
+
+    if (!cabinManagerEmails || cabinManagerEmails.length === 0) {
+      listContainer.innerHTML = `
+        <p style="color: #666; font-style: italic; padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md);">
+          Žádní správci chaty nejsou zatím přidáni.
+        </p>
+      `;
+      return;
+    }
+
+    listContainer.innerHTML = cabinManagerEmails
+      .map(
+        (email, index) => `
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; background: var(--gray-50); border-radius: var(--radius-md); margin-bottom: 0.5rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="color: var(--primary-color);">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+            <polyline points="22,6 12,13 2,6"/>
+          </svg>
+          <span style="font-weight: 500;">${this.escapeHtml(email)}</span>
+        </div>
+        <button
+          class="btn btn-sm remove-cabin-manager-btn"
+          data-email="${this.escapeHtml(email)}"
+          style="padding: 0.5rem 1rem; background: #dc2626; color: white; border: none;"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="display: inline; margin-right: 0.25rem;">
+            <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+          </svg>
+          Odebrat
+        </button>
+      </div>
+    `
+      )
+      .join('');
+
+    // Add event listeners to remove buttons (safer than onclick)
+    listContainer.querySelectorAll('.remove-cabin-manager-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const email = e.currentTarget.getAttribute('data-email');
+        this.removeCabinManagerEmail(email);
+      });
+    });
+  }
+
+  async handleAddCabinManagerEmail(e) {
+    e.preventDefault();
+
+    // Validate session before admin operation
+    if (!this.validateSession()) {
+      return;
+    }
+
+    try {
+      const emailInput = document.getElementById('newCabinManagerEmail');
+      const newEmail = emailInput.value.trim();
+
+      // Validate email format
+      if (!ValidationUtils.validateEmail(newEmail)) {
+        this.showToast('Neplatný formát emailové adresy', 'error');
+        return;
+      }
+
+      const settings = await dataManager.getSettings();
+      const cabinManagerEmails = settings.cabinManagerEmails || [];
+
+      // Check if email already exists
+      if (cabinManagerEmails.includes(newEmail)) {
+        this.showToast('Tento email je již v seznamu správců chaty', 'warning');
+        return;
+      }
+
+      // Add new email
+      cabinManagerEmails.push(newEmail);
+      settings.cabinManagerEmails = cabinManagerEmails;
+
+      await dataManager.updateSettings(settings);
+
+      // Reload cabin manager emails list
+      this.loadCabinManagerEmails(cabinManagerEmails);
+
+      // Clear input
+      emailInput.value = '';
+
+      this.showSuccessMessage(`Správce chaty ${newEmail} byl úspěšně přidán`);
+    } catch (error) {
+      console.error('Chyba při přidávání správce chaty:', error);
+      this.showToast(`Chyba: ${error.message}`, 'error');
+    }
+  }
+
+  async removeCabinManagerEmail(email) {
+    // Validate session before admin operation
+    if (!this.validateSession()) {
+      return;
+    }
+
+    if (!confirm(`Opravdu chcete odebrat správce chaty ${email}?`)) {
+      return;
+    }
+
+    try {
+      const settings = await dataManager.getSettings();
+      const cabinManagerEmails = settings.cabinManagerEmails || [];
+
+      // Remove email
+      settings.cabinManagerEmails = cabinManagerEmails.filter((e) => e !== email);
+
+      await dataManager.updateSettings(settings);
+
+      // Reload cabin manager emails list
+      this.loadCabinManagerEmails(settings.cabinManagerEmails);
+
+      this.showSuccessMessage(`Správce chaty ${email} byl úspěšně odebrán`);
+    } catch (error) {
+      console.error('Chyba při odebírání správce chaty:', error);
       this.showToast(`Chyba: ${error.message}`, 'error');
     }
   }

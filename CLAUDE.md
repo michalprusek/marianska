@@ -214,7 +214,25 @@ Centrální správa dat a business logika.
 
 - `bookings[]` - Rezervace (id, name, email, startDate, endDate, rooms[], guestType, adults, children, totalPrice, editToken)
 - `blockedDates[]` - Blokované termíny (date, roomId, reason)
-- `settings` - Konfigurace (rooms, prices, bulkPrices, christmasPeriod, christmasAccessCodes)
+- `settings` - Konfigurace (rooms, prices, bulkPrices, christmasPeriod, christmasAccessCodes, **adminEmails**, **cabinManagerEmails**)
+
+**Správci chaty (Cabin Manager Emails)**:
+- Nová kategorie notifikačních příjemců (od 2025-11-21)
+- Konfigurováno v admin panelu: Nastavení systému → Správci chaty
+- Správci chaty dostávají emaily POUZE při:
+  - Změně stavu zaplacení (false → true NEBO true → false)
+  - Jakékoliv změně v již zaplacené rezervaci (booking.paid === true)
+- Administrátoři dostávají emaily při VŠECH změnách rezervací
+- Emaily správcům chaty obsahují:
+  - Zvýrazněné varování "⚠️ DŮLEŽITÉ: Rezervace byla označena jako ZAPLACENÁ" (nebo změněna)
+  - Kompletní detaily změn (jaká pole se změnila)
+  - Všechny standardní booking informace
+
+**Implementace**:
+- `EmailService.sendBookingNotifications()` - Centrální entry point pro všechny notifikace
+- `EmailService._determineNotificationScope()` - Logika určení příjemců
+- `EmailService.sendCabinManagerNotifications()` - Specifické emaily pro správce
+- Admin UI: Správa emailů v `admin.html` + `admin.js` (XSS-safe with escapeHtml())
 
 #### 2. BaseCalendar (js/shared/BaseCalendar.js)
 

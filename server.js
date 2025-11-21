@@ -1290,6 +1290,14 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       changes.notes = true;
     }
 
+    // Guest names changes (important for cabin managers)
+    if (
+      bookingData.guestNames &&
+      JSON.stringify(bookingData.guestNames) !== JSON.stringify(existingBooking.guestNames || [])
+    ) {
+      changes.guestNames = true;
+    }
+
     // Other field changes (name, email, phone, etc.)
     const otherFields = [
       'name',
@@ -1313,18 +1321,22 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
     db.updateBooking(bookingId, bookingData);
     const updatedBooking = db.getBooking(bookingId);
 
-    // Send modification email (await result to ensure delivery)
+    // Send notification emails (to admins and cabin managers based on changes)
     try {
-      const emailResult = await emailService.sendBookingModification(updatedBooking, changes, {
+      const emailResult = await emailService.sendBookingNotifications(
+        updatedBooking,
+        changes,
         settings,
-        modifiedByAdmin: isAdmin,
-      });
-      logger.info('Booking modification email sent', {
+        'updated'
+      );
+
+      logger.info('Booking notification emails sent', {
         bookingId: updatedBooking.id,
         email: updatedBooking.email,
         modifiedByAdmin: isAdmin,
         changes: Object.keys(changes),
-        messageId: emailResult.messageId,
+        notificationScope: emailResult.notificationScope,
+        results: emailResult.results,
       });
 
       return res.json({
@@ -1333,7 +1345,7 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       });
     } catch (emailError) {
       // Email failed - log error but still return success (booking was updated)
-      logger.error('Failed to send booking modification email', {
+      logger.error('Failed to send booking notification emails', {
         bookingId: updatedBooking.id,
         email: updatedBooking.email,
         error: emailError.message,

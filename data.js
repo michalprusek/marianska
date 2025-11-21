@@ -156,10 +156,9 @@ class DataManager {
 
             // Update admin panel if active
             this.updateAdminPanelIfActive();
-          } else if (localTimestamp > serverTimestamp) {
-            // Local has newer data - push to server
-            await this.pushToServer();
           }
+          // NOTE: Removed pushToServer() call - requires admin auth and is not needed for normal operation
+          // Admin panel uses direct API calls with session token instead
         }
 
         this.lastSync = Date.now();

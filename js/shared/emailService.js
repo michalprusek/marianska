@@ -1052,6 +1052,303 @@ Automatická zpráva - neodpovídejte
 
     return result;
   }
+
+  /**
+   * Send booking notifications to appropriate recipients based on change type
+   * Centralized method that determines who should receive notifications
+   *
+   * @param {Object} booking - Booking object
+   * @param {Object} changes - Object describing what changed
+   * @param {Object} settings - System settings (includes adminEmails, cabinManagerEmails)
+   * @param {string} eventType - 'created', 'updated', 'deleted'
+   * @returns {Promise<Object>} Result with success status and details
+   */
+  async sendBookingNotifications(booking, changes, settings, eventType = 'updated') {
+    const adminEmails = settings.adminEmails || [];
+    const cabinManagerEmails = settings.cabinManagerEmails || [];
+
+    if (adminEmails.length === 0 && cabinManagerEmails.length === 0) {
+      logger.info('No notification recipients configured', {
+        bookingId: booking.id,
+      });
+      return { success: true, skipped: true, reason: 'no_recipients' };
+    }
+
+    // Determine who should receive this notification
+    const notificationScope = this._determineNotificationScope(booking, changes, eventType);
+
+    logger.info('Sending booking notifications', {
+      bookingId: booking.id,
+      eventType,
+      scope: notificationScope,
+    });
+
+    // Generate email subject based on event type
+    const subject = this._generateNotificationSubject(booking, eventType, changes);
+
+    // Generate email content (reuse existing templates)
+    const textContent = this._generateNotificationText(booking, changes, eventType, settings);
+
+    const results = [];
+
+    // ALWAYS send to admins (all events)
+    if (adminEmails.length > 0) {
+      try {
+        const adminResult = await this.sendAdminNotifications(
+          booking,
+          subject,
+          textContent,
+          settings
+        );
+        results.push({
+          recipientType: 'admins',
+          success: true,
+          count: adminEmails.length,
+          results: adminResult,
+        });
+      } catch (error) {
+        logger.error('Failed to send admin notifications', {
+          bookingId: booking.id,
+          error: error.message,
+        });
+        results.push({
+          recipientType: 'admins',
+          success: false,
+          error: error.message,
+        });
+      }
+    }
+
+    // CONDITIONALLY send to cabin managers
+    if (cabinManagerEmails.length > 0 && notificationScope.sendToCabinManagers) {
+      try {
+        const managerResult = await this.sendCabinManagerNotifications(
+          booking,
+          changes,
+          subject,
+          textContent,
+          settings,
+          notificationScope.reason
+        );
+        results.push({
+          recipientType: 'cabin_managers',
+          success: managerResult.success,
+          count: cabinManagerEmails.length,
+          results: managerResult.results,
+        });
+      } catch (error) {
+        logger.error('Failed to send cabin manager notifications', {
+          bookingId: booking.id,
+          error: error.message,
+        });
+        results.push({
+          recipientType: 'cabin_managers',
+          success: false,
+          error: error.message,
+        });
+      }
+    }
+
+    const allSuccess = results.every((r) => r.success);
+    return {
+      success: allSuccess,
+      notificationScope,
+      results,
+    };
+  }
+
+  /**
+   * Determine who should receive this notification
+   *
+   * @private
+   * @param {Object} booking - Booking object
+   * @param {Object} changes - Changes object
+   * @param {string} eventType - Event type
+   * @returns {Object} Scope object with sendToAdmins, sendToCabinManagers, reason
+   */
+  _determineNotificationScope(booking, changes, eventType) {
+    // Cabin managers get emails for:
+    // 1. Payment status changes (any direction: false→true OR true→false)
+    // 2. ANY modifications to already-paid bookings
+
+    let sendToCabinManagers = false;
+    let reason = 'not_relevant_for_managers';
+
+    // Case 1: Payment status changed
+    if (changes.payment) {
+      sendToCabinManagers = true;
+      reason = 'payment_status_changed';
+    }
+    // Case 2: Modifying paid booking (and payment didn't change)
+    else if (booking.paid && eventType === 'updated') {
+      // Check if there are any actual changes
+      const hasChanges = Object.keys(changes).some((key) => changes[key] === true);
+      if (hasChanges) {
+        sendToCabinManagers = true;
+        reason = 'paid_booking_modified';
+      }
+    }
+
+    return {
+      sendToAdmins: true, // Always send to admins
+      sendToCabinManagers,
+      reason,
+    };
+  }
+
+  /**
+   * Generate notification subject based on event type
+   *
+   * @private
+   */
+  _generateNotificationSubject(booking, eventType, changes) {
+    if (eventType === 'created') {
+      return `Nová rezervace - Chata Mariánská (${booking.id})`;
+    } else if (eventType === 'deleted') {
+      return `Zrušení rezervace - Chata Mariánská (${booking.id})`;
+    } else {
+      // Updated - add context if payment changed
+      if (changes.payment) {
+        return `Změna platby - Chata Mariánská (${booking.id})`;
+      }
+      return `Změna rezervace - Chata Mariánská (${booking.id})`;
+    }
+  }
+
+  /**
+   * Generate notification text content
+   * Reuses existing template generation methods
+   *
+   * @private
+   */
+  _generateNotificationText(booking, changes, eventType, settings) {
+    if (eventType === 'created') {
+      const editUrl = `${this.config.appUrl}/edit.html?token=${booking.editToken}`;
+      return this.generateBookingConfirmationText(booking, editUrl, settings);
+    } else if (eventType === 'deleted') {
+      return this.generateBookingDeletionText(booking, settings, false);
+    } else {
+      // Updated
+      return this.generateBookingModificationText(booking, changes, settings, false);
+    }
+  }
+
+  /**
+   * Send notifications to cabin managers with special formatting
+   *
+   * @param {Object} booking - Booking object
+   * @param {Object} changes - Changes object
+   * @param {string} subject - Email subject
+   * @param {string} baseTextContent - Base text content
+   * @param {Object} settings - Settings object
+   * @param {string} reason - Reason for notification
+   * @returns {Promise<Object>} Result object
+   */
+  async sendCabinManagerNotifications(booking, changes, subject, baseTextContent, settings, reason) {
+    const cabinManagerEmails = settings.cabinManagerEmails || [];
+
+    // Filter out invalid emails and duplicates
+    const validEmails = [...new Set(cabinManagerEmails.filter((email) => this.isValidEmail(email)))];
+
+    if (validEmails.length === 0) {
+      logger.info('No valid cabin manager emails configured', {
+        bookingId: booking.id,
+      });
+      return { success: true, skipped: true, results: [] };
+    }
+
+    // Add warning header for cabin managers
+    const warningHeader = this._generateCabinManagerWarning(reason, changes, booking);
+    const enhancedTextContent = `${warningHeader}\n\n${baseTextContent}`;
+
+    // Modify subject to distinguish in inbox
+    const enhancedSubject = `[Správce chaty] ${subject}`;
+
+    logger.info('Sending cabin manager notifications', {
+      bookingId: booking.id,
+      reason,
+      managerCount: validEmails.length,
+    });
+
+    // Send to all cabin managers in parallel
+    const sendPromises = validEmails.map(async (email) => {
+      try {
+        const mailOptions = this.createMailOptions(email, enhancedSubject, enhancedTextContent);
+
+        const result = await this.sendEmail(mailOptions, {
+          type: 'cabin_manager_notification',
+          bookingId: booking.id,
+          cabinManagerEmail: email,
+          reason,
+        });
+
+        return { email, success: true, ...result };
+      } catch (error) {
+        logger.error('Failed to send cabin manager notification', {
+          email,
+          bookingId: booking.id,
+          error: error.message,
+        });
+        return { email, success: false, error: error.message };
+      }
+    });
+
+    const results = await Promise.all(sendPromises);
+    const allSuccess = results.every((r) => r.success);
+
+    return {
+      success: allSuccess,
+      results,
+    };
+  }
+
+  /**
+   * Generate warning header for cabin manager emails
+   *
+   * @private
+   */
+  _generateCabinManagerWarning(reason, changes, booking) {
+    if (reason === 'payment_status_changed') {
+      const oldPaid = changes.payment ? !booking.paid : booking.paid;
+      const newPaid = booking.paid;
+
+      if (newPaid) {
+        return `⚠️ DŮLEŽITÉ: Rezervace byla označena jako ZAPLACENÁ
+═══════════════════════════════════════════════════
+
+Platební stav změněn: NEZAPLACENO → ZAPLACENO`;
+      } else {
+        return `⚠️ DŮLEŽITÉ: Platba rezervace byla ZRUŠENA
+═══════════════════════════════════════════════════
+
+Platební stav změněn: ZAPLACENO → NEZAPLACENO`;
+      }
+    } else if (reason === 'paid_booking_modified') {
+      const changesList = Object.keys(changes)
+        .filter((key) => changes[key] === true)
+        .map((key) => {
+          const labels = {
+            dates: 'Termín pobytu',
+            rooms: 'Pokoje',
+            guests: 'Počet hostů',
+            notes: 'Poznámky',
+            guestNames: 'Jména hostů',
+            other: 'Kontaktní/fakturační údaje',
+          };
+          return labels[key] || key;
+        })
+        .join(', ');
+
+      return `⚠️ UPOZORNĚNÍ: Změna v již ZAPLACENÉ rezervaci
+═══════════════════════════════════════════════════
+
+Změněné údaje: ${changesList}
+
+Doporučujeme zkontrolovat, zda změny odpovídají zaplacené částce.`;
+    }
+
+    return '';
+  }
 }
 
 module.exports = EmailService;
