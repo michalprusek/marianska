@@ -212,6 +212,28 @@ class SingleRoomBookingModule {
       notesEl.value = '';
     }
 
+    // CLEAR guest names containers to prevent pre-filling from previous reservation
+    // This ensures dates are pre-filled from localStorage, but guest names are NOT
+    const adultsNamesContainer = document.getElementById('singleRoomAdultsNamesContainer');
+    const childrenNamesContainer = document.getElementById('singleRoomChildrenNamesContainer');
+    const toddlersNamesContainer = document.getElementById('singleRoomToddlersNamesContainer');
+
+    if (adultsNamesContainer) {
+      while (adultsNamesContainer.firstChild) {
+        adultsNamesContainer.removeChild(adultsNamesContainer.firstChild);
+      }
+    }
+    if (childrenNamesContainer) {
+      while (childrenNamesContainer.firstChild) {
+        childrenNamesContainer.removeChild(childrenNamesContainer.firstChild);
+      }
+    }
+    if (toddlersNamesContainer) {
+      while (toddlersNamesContainer.firstChild) {
+        toddlersNamesContainer.removeChild(toddlersNamesContainer.firstChild);
+      }
+    }
+
     // Reset guest type radio buttons
     const utiaRadio = document.querySelector('input[name="singleRoomGuestType"][value="utia"]');
     if (utiaRadio) {
