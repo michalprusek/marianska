@@ -397,6 +397,9 @@ class EditPage {
 
       this.showSuccess('Rezervace byla úspěšně zrušena!');
 
+      // Sync with server to update data (force refresh)
+      await dataManager.syncWithServer(true);
+
       // Redirect to homepage after 2 seconds
       setTimeout(() => {
         window.location.href = '/';

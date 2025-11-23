@@ -96,6 +96,28 @@ class BulkBookingModule {
       bulkChildren.textContent = '0';
     }
 
+    // CLEAR guest names containers to prevent pre-filling from previous reservation
+    // This ensures dates are pre-filled from localStorage, but guest names are NOT
+    const adultsNamesContainer = document.getElementById('bulkAdultsNamesContainer');
+    const childrenNamesContainer = document.getElementById('bulkChildrenNamesContainer');
+    const toddlersNamesContainer = document.getElementById('bulkToddlersNamesContainer');
+
+    if (adultsNamesContainer) {
+      while (adultsNamesContainer.firstChild) {
+        adultsNamesContainer.removeChild(adultsNamesContainer.firstChild);
+      }
+    }
+    if (childrenNamesContainer) {
+      while (childrenNamesContainer.firstChild) {
+        childrenNamesContainer.removeChild(childrenNamesContainer.firstChild);
+      }
+    }
+    if (toddlersNamesContainer) {
+      while (toddlersNamesContainer.firstChild) {
+        toddlersNamesContainer.removeChild(toddlersNamesContainer.firstChild);
+      }
+    }
+
     // Set up guest type change handler
     const guestTypeInputs = document.querySelectorAll('input[name="bulkGuestType"]');
     guestTypeInputs.forEach((input) => {

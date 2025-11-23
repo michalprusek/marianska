@@ -7,7 +7,7 @@
  * - External guests: No room limits at any time
  */
 
-const ChristmasUtils = require('./js/shared/christmasUtils.js');
+const ChristmasUtils = require('../../js/shared/christmasUtils.js');
 
 // Test scenarios
 const scenarios = [

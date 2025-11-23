@@ -1372,10 +1372,17 @@ class AdminPanel {
           throw new Error(error.error || 'Nepodařilo se smazat rezervaci');
         }
 
-        // Sync with server to get updated data
-        await dataManager.syncWithServer();
+        // Sync with server to get updated data (force refresh)
+        await dataManager.syncWithServer(true);
 
+        // Refresh admin bookings table
         await this.loadBookings();
+
+        // Refresh main calendar if it exists (in case user has index.html open in another tab)
+        if (window.app && typeof window.app.renderCalendar === 'function') {
+          await window.app.renderCalendar();
+        }
+
         this.showSuccessMessage('Rezervace byla smazána');
       } catch (error) {
         console.error('Chyba při mazání rezervace:', error);
@@ -1507,11 +1514,16 @@ class AdminPanel {
             }
           }
 
-          // Sync with server to get updated data
-          await dataManager.syncWithServer();
+          // Sync with server to get updated data (force refresh)
+          await dataManager.syncWithServer(true);
 
           // Reload bookings table (this will update the UI)
           await this.loadBookings();
+
+          // Refresh main calendar if it exists (in case user has index.html open in another tab)
+          if (window.app && typeof window.app.renderCalendar === 'function') {
+            await window.app.renderCalendar();
+          }
 
           // Clear only successfully deleted bookings from selection
           successfullyDeleted.forEach((id) => this.selectedBookings.delete(id));

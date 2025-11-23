@@ -5,7 +5,7 @@
  * enforced based on the date rules documented in CLAUDE.md.
  */
 
-const ChristmasUtils = require('./js/shared/christmasUtils.js');
+const ChristmasUtils = require('../../js/shared/christmasUtils.js');
 
 // Test scenarios
 const scenarios = [
