@@ -398,7 +398,12 @@ class EditPage {
       this.showSuccess('Rezervace byla úspěšně zrušena!');
 
       // Sync with server to update data (force refresh)
-      await dataManager.syncWithServer(true);
+      // If this fails, homepage will sync when it loads anyway
+      try {
+        await dataManager.syncWithServer(true);
+      } catch (error) {
+        console.warn('[EditPage] Pre-redirect sync failed (non-critical):', error);
+      }
 
       // Redirect to homepage after 2 seconds
       setTimeout(() => {

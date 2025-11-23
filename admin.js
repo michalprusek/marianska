@@ -1372,18 +1372,44 @@ class AdminPanel {
           throw new Error(error.error || 'Nepodařilo se smazat rezervaci');
         }
 
+        // Track refresh failures to provide accurate user feedback
+        const failures = [];
+
         // Sync with server to get updated data (force refresh)
-        await dataManager.syncWithServer(true);
-
-        // Refresh admin bookings table
-        await this.loadBookings();
-
-        // Refresh main calendar if it exists (in case user has index.html open in another tab)
-        if (window.app && typeof window.app.renderCalendar === 'function') {
-          await window.app.renderCalendar();
+        try {
+          await dataManager.syncWithServer(true);
+        } catch (error) {
+          console.error('[Admin] Server sync failed after delete:', error);
+          failures.push('synchronizace se serverem');
         }
 
-        this.showSuccessMessage('Rezervace byla smazána');
+        // Refresh admin bookings table
+        try {
+          await this.loadBookings();
+        } catch (error) {
+          console.error('[Admin] Failed to reload bookings table:', error);
+          failures.push('obnovení seznamu rezervací');
+        }
+
+        // Refresh main calendar if it exists (in case user has index.html open in another tab)
+        try {
+          if (window.app && typeof window.app.renderCalendar === 'function') {
+            await window.app.renderCalendar();
+          }
+        } catch (error) {
+          console.warn('[Admin] Calendar refresh failed (non-critical):', error);
+          // Calendar refresh is optional, don't add to failures
+        }
+
+        // Show appropriate message based on refresh results
+        if (failures.length > 0) {
+          this.showToast(
+            `Rezervace smazána, ale selhalo: ${failures.join(', ')}. Obnovte stránku (F5).`,
+            'warning'
+          );
+        } else {
+          this.showSuccessMessage('Rezervace byla smazána');
+        }
       } catch (error) {
         console.error('Chyba při mazání rezervace:', error);
         this.showToast(`Chyba: ${error.message}`, 'error');
@@ -1514,27 +1540,52 @@ class AdminPanel {
             }
           }
 
+          // Track refresh failures to provide accurate user feedback
+          const refreshFailures = [];
+
           // Sync with server to get updated data (force refresh)
-          await dataManager.syncWithServer(true);
+          try {
+            await dataManager.syncWithServer(true);
+          } catch (error) {
+            console.error('[Admin] Server sync failed after bulk delete:', error);
+            refreshFailures.push('synchronizace se serverem');
+          }
 
           // Reload bookings table (this will update the UI)
-          await this.loadBookings();
+          try {
+            await this.loadBookings();
+          } catch (error) {
+            console.error('[Admin] Failed to reload bookings table:', error);
+            refreshFailures.push('obnovení seznamu rezervací');
+          }
 
           // Refresh main calendar if it exists (in case user has index.html open in another tab)
-          if (window.app && typeof window.app.renderCalendar === 'function') {
-            await window.app.renderCalendar();
+          try {
+            if (window.app && typeof window.app.renderCalendar === 'function') {
+              await window.app.renderCalendar();
+            }
+          } catch (error) {
+            console.warn('[Admin] Calendar refresh failed (non-critical):', error);
+            // Calendar refresh is optional, don't add to refreshFailures
           }
 
           // Clear only successfully deleted bookings from selection
           successfullyDeleted.forEach((id) => this.selectedBookings.delete(id));
           this.updateBulkActionButtons();
 
-          // Show result message
-          if (errorCount === 0) {
+          // Show result message (considering both delete errors and refresh failures)
+          if (errorCount === 0 && refreshFailures.length === 0) {
             this.showSuccessMessage(`Úspěšně smazáno ${successCount} rezervací`);
           } else {
+            const messages = [];
+            if (errorCount > 0) {
+              messages.push(`${errorCount} se nepodařilo smazat`);
+            }
+            if (refreshFailures.length > 0) {
+              messages.push(`selhalo: ${refreshFailures.join(', ')}`);
+            }
             this.showToast(
-              `Smazáno ${successCount} rezervací, ${errorCount} se nepodařilo smazat`,
+              `Smazáno ${successCount} rezervací. ${messages.join(', ')}. Obnovte stránku (F5).`,
               'warning'
             );
           }
