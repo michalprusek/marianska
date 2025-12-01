@@ -19,6 +19,7 @@ class AdminPanel {
     this.editEndDate = null;
     this.currentEditBooking = null;
     this.selectedBookings = new Set(); // Track selected bookings for bulk operations
+    this.isLoadingBookings = false; // Mutex to prevent concurrent loadBookings calls
     this.init();
   }
 
@@ -579,10 +580,17 @@ class AdminPanel {
   }
 
   async loadBookings() {
-    const bookings = await dataManager.getAllBookings();
-    const tbody = document.getElementById('bookingsTableBody');
+    // Mutex: prevent concurrent calls that cause duplicate rows
+    if (this.isLoadingBookings) {
+      return;
+    }
+    this.isLoadingBookings = true;
 
-    tbody.innerHTML = '';
+    try {
+      const bookings = await dataManager.getAllBookings();
+      const tbody = document.getElementById('bookingsTableBody');
+
+      tbody.innerHTML = '';
 
     bookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
@@ -720,6 +728,9 @@ class AdminPanel {
     // Reset selection state
     this.selectedBookings.clear();
     this.updateBulkActionsUI();
+    } finally {
+      this.isLoadingBookings = false;
+    }
   }
 
   /**
