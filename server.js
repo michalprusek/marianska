@@ -1350,7 +1350,7 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
           logger.info('User modification email sent', {
             bookingId: updatedBooking.id,
             email: updatedBooking.email,
-            messageId: userEmailResult.messageId,
+            messageId: userEmailResult?.messageId || 'unknown',
           });
         })
         .catch((userEmailError) => {
