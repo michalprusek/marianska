@@ -19,6 +19,7 @@ class AdminPanel {
     this.editEndDate = null;
     this.currentEditBooking = null;
     this.selectedBookings = new Set(); // Track selected bookings for bulk operations
+    this.isLoadingBookings = false; // Mutex to prevent concurrent loadBookings calls
     this.init();
   }
 
@@ -579,81 +580,88 @@ class AdminPanel {
   }
 
   async loadBookings() {
-    const bookings = await dataManager.getAllBookings();
-    const tbody = document.getElementById('bookingsTableBody');
+    // Mutex: prevent concurrent calls that cause duplicate rows
+    if (this.isLoadingBookings) {
+      return;
+    }
+    this.isLoadingBookings = true;
 
-    tbody.innerHTML = '';
+    try {
+      const bookings = await dataManager.getAllBookings();
+      const tbody = document.getElementById('bookingsTableBody');
 
-    bookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      tbody.innerHTML = '';
 
-    // Pre-calculate all booking prices in parallel to avoid N+1 query problem.
-    // Fetch settings once and pass to all calculations for better performance.
-    const settings = await dataManager.getSettings();
-    const bookingPrices = new Map();
+      bookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    const pricePromises = bookings.map(async (booking) => ({
-      id: booking.id,
-      price: await this.calculateActualPrice(booking, settings),
-    }));
+      // Pre-calculate all booking prices in parallel to avoid N+1 query problem.
+      // Fetch settings once and pass to all calculations for better performance.
+      const settings = await dataManager.getSettings();
+      const bookingPrices = new Map();
 
-    // Use Promise.allSettled to handle failures gracefully without breaking entire table
-    const priceResults = await Promise.allSettled(pricePromises);
-    priceResults.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
-        bookingPrices.set(result.value.id, result.value.price);
-      } else {
-        // Fallback to stored price if calculation fails
-        const booking = bookings[index];
-        bookingPrices.set(booking.id, booking.totalPrice || 0);
-        console.error(`Price calculation failed for booking ${booking.id}:`, result.reason);
-      }
-    });
+      const pricePromises = bookings.map(async (booking) => ({
+        id: booking.id,
+        price: await this.calculateActualPrice(booking, settings),
+      }));
 
-    // Process bookings to create table rows
-    for (const booking of bookings) {
-      // Format date range display
-      let dateRangeDisplay = '';
-      let isCompositeBooking = false; // NEW 2025-11-14: Track composite bookings
+      // Use Promise.allSettled to handle failures gracefully without breaking entire table
+      const priceResults = await Promise.allSettled(pricePromises);
+      priceResults.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          bookingPrices.set(result.value.id, result.value.price);
+        } else {
+          // Fallback to stored price if calculation fails
+          const booking = bookings[index];
+          bookingPrices.set(booking.id, booking.totalPrice || 0);
+          console.error(`Price calculation failed for booking ${booking.id}:`, result.reason);
+        }
+      });
 
-      if (booking.perRoomDates && Object.keys(booking.perRoomDates).length > 0) {
-        // Calculate overall range from per-room dates
-        let minStart = booking.startDate;
-        let maxEnd = booking.endDate;
+      // Process bookings to create table rows
+      for (const booking of bookings) {
+        // Format date range display
+        let dateRangeDisplay = '';
+        let isCompositeBooking = false; // NEW 2025-11-14: Track composite bookings
 
-        // Check if rooms have different date ranges (composite booking)
-        const roomDates = Object.values(booking.perRoomDates);
-        if (roomDates.length > 1) {
-          const firstStart = roomDates[0].startDate;
-          const firstEnd = roomDates[0].endDate;
-          isCompositeBooking = roomDates.some(
-            (dates) => dates.startDate !== firstStart || dates.endDate !== firstEnd
-          );
+        if (booking.perRoomDates && Object.keys(booking.perRoomDates).length > 0) {
+          // Calculate overall range from per-room dates
+          let minStart = booking.startDate;
+          let maxEnd = booking.endDate;
+
+          // Check if rooms have different date ranges (composite booking)
+          const roomDates = Object.values(booking.perRoomDates);
+          if (roomDates.length > 1) {
+            const firstStart = roomDates[0].startDate;
+            const firstEnd = roomDates[0].endDate;
+            isCompositeBooking = roomDates.some(
+              (dates) => dates.startDate !== firstStart || dates.endDate !== firstEnd
+            );
+          }
+
+          Object.values(booking.perRoomDates).forEach((dates) => {
+            if (!minStart || dates.startDate < minStart) {
+              minStart = dates.startDate;
+            }
+            if (!maxEnd || dates.endDate > maxEnd) {
+              maxEnd = dates.endDate;
+            }
+          });
+
+          dateRangeDisplay = `${new Date(minStart).toLocaleDateString('cs-CZ')} - ${new Date(maxEnd).toLocaleDateString('cs-CZ')}`;
+
+          // NEW 2025-11-14: Add "složená rezervace" indicator for composite bookings
+          if (isCompositeBooking) {
+            dateRangeDisplay +=
+              '<br><span style="display: inline-block; margin-top: 0.25rem; padding: 0.2rem 0.5rem; background: #f59e0b; color: white; border-radius: 3px; font-size: 0.75rem; font-weight: 600;">📅 Složená rezervace</span>';
+          }
+        } else {
+          // Fallback to booking-level dates
+          dateRangeDisplay = `${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}`;
         }
 
-        Object.values(booking.perRoomDates).forEach((dates) => {
-          if (!minStart || dates.startDate < minStart) {
-            minStart = dates.startDate;
-          }
-          if (!maxEnd || dates.endDate > maxEnd) {
-            maxEnd = dates.endDate;
-          }
-        });
-
-        dateRangeDisplay = `${new Date(minStart).toLocaleDateString('cs-CZ')} - ${new Date(maxEnd).toLocaleDateString('cs-CZ')}`;
-
-        // NEW 2025-11-14: Add "složená rezervace" indicator for composite bookings
-        if (isCompositeBooking) {
-          dateRangeDisplay +=
-            '<br><span style="display: inline-block; margin-top: 0.25rem; padding: 0.2rem 0.5rem; background: #f59e0b; color: white; border-radius: 3px; font-size: 0.75rem; font-weight: 600;">📅 Složená rezervace</span>';
-        }
-      } else {
-        // Fallback to booking-level dates
-        dateRangeDisplay = `${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}`;
-      }
-
-      const row = document.createElement('tr');
-      row.setAttribute('data-booking-id', booking.id);
-      row.innerHTML = `
+        const row = document.createElement('tr');
+        row.setAttribute('data-booking-id', booking.id);
+        row.innerHTML = `
                 <td style="text-align: center;">
                     <input
                         type="checkbox"
@@ -714,12 +722,15 @@ class AdminPanel {
                     </div>
                 </td>
             `;
-      tbody.appendChild(row);
-    }
+        tbody.appendChild(row);
+      }
 
-    // Reset selection state
-    this.selectedBookings.clear();
-    this.updateBulkActionsUI();
+      // Reset selection state
+      this.selectedBookings.clear();
+      this.updateBulkActionsUI();
+    } finally {
+      this.isLoadingBookings = false;
+    }
   }
 
   /**

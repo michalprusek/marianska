@@ -1336,8 +1336,32 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
     db.updateBooking(bookingId, bookingData);
     const updatedBooking = db.getBooking(bookingId);
 
-    // Send notification emails (to admins and cabin managers based on changes)
+    // Send notification emails
+    // 1. Send to user (booking owner) about the modification
+    // 2. Send to admins and cabin managers based on change type
     try {
+      // Send modification email to the user (non-blocking)
+      emailService
+        .sendBookingModification(updatedBooking, changes, {
+          modifiedByAdmin: isAdmin,
+          settings,
+        })
+        .then((userEmailResult) => {
+          logger.info('User modification email sent', {
+            bookingId: updatedBooking.id,
+            email: updatedBooking.email,
+            messageId: userEmailResult?.messageId || 'unknown',
+          });
+        })
+        .catch((userEmailError) => {
+          logger.error('Failed to send user modification email', {
+            bookingId: updatedBooking.id,
+            email: updatedBooking.email,
+            error: userEmailError.message,
+          });
+        });
+
+      // Send to admins and cabin managers (based on changes)
       const emailResult = await emailService.sendBookingNotifications(
         updatedBooking,
         changes,
