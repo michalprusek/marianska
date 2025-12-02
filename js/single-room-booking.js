@@ -265,14 +265,18 @@ class SingleRoomBookingModule {
 
     // Ensure room is selected for price calculation
     this.app.selectedRooms.add(roomId);
-    await this.app.updatePriceCalculation();
 
-    // Generate guest name input fields based on default guest counts
+    // FIX 2025-12-02: Generate guest name inputs FIRST (before price calculation)
+    // This ensures collectGuestNames() can find the toggle switches for counting guests
+    // Without this, the price display would show "0 adults" instead of "1 adult"
     this.generateGuestNamesInputs(
       defaultGuests.adults,
       defaultGuests.children,
       defaultGuests.toddlers
     );
+
+    // THEN calculate price (now toggle switches exist for collectGuestNames)
+    await this.app.updatePriceCalculation();
   }
 
   async renderMiniCalendar(roomId) {
@@ -324,6 +328,19 @@ class SingleRoomBookingModule {
   hideRoomBookingModal() {
     const modal = document.getElementById('singleRoomBookingModal');
     modal.classList.remove('active');
+
+    // FIX 2025-12-02: If edit was canceled, clear the editing flag
+    // The original reservation stays intact since we didn't delete it on edit start
+    if (this.app.editingReservation) {
+      this.app.editingReservation = null;
+    }
+
+    // FIX 2025-12-02: Reset button text to "Přidat rezervaci" (Add Reservation)
+    const confirmBtn = document.getElementById('confirmSingleRoomBtn');
+    if (confirmBtn) {
+      confirmBtn.textContent =
+        this.app.currentLanguage === 'cs' ? 'Přidat rezervaci' : 'Add Reservation';
+    }
 
     // Clean up
     this.app.currentBookingRoom = null;
@@ -466,6 +483,29 @@ class SingleRoomBookingModule {
         'error'
       );
       return;
+    }
+
+    // FIX 2025-12-02: If editing an existing reservation, delete the old one first
+    if (this.app.editingReservation) {
+      const oldReservation = this.app.editingReservation;
+
+      // Delete old proposed booking from database
+      if (oldReservation.proposalId) {
+        try {
+          await dataManager.deleteProposedBooking(oldReservation.proposalId);
+        } catch (error) {
+          console.error('Failed to delete old proposed booking:', error);
+          // Continue anyway - old reservation may have expired
+        }
+      }
+
+      // Remove old reservation from tempReservations array
+      this.app.tempReservations = this.app.tempReservations.filter(
+        (b) => b.id !== oldReservation.id
+      );
+
+      // Clear the editing flag
+      this.app.editingReservation = null;
     }
 
     // Create proposed booking in database

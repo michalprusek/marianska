@@ -1231,8 +1231,8 @@ class AdminPanel {
           throw new Error(error.error || 'Nepodařilo se upravit rezervaci');
         }
 
-        // Sync with server to get updated data
-        await dataManager.syncWithServer();
+        // Sync with server to get updated data (force refresh for immediate update)
+        await dataManager.syncWithServer(true);
 
         this.showSuccessMessage('Rezervace byla úspěšně upravena');
       } else {
@@ -1252,8 +1252,8 @@ class AdminPanel {
           throw new Error(error.error || 'Nepodařilo se vytvořit rezervaci');
         }
 
-        // Sync with server to get updated data
-        await dataManager.syncWithServer();
+        // Sync with server to get updated data (force refresh for immediate update)
+        await dataManager.syncWithServer(true);
 
         this.showSuccessMessage('Rezervace byla úspěšně vytvořena');
       }
@@ -1285,8 +1285,8 @@ class AdminPanel {
         throw new Error(error.error || 'Nepodařilo se smazat rezervaci');
       }
 
-      // Sync with server to get updated data
-      await dataManager.syncWithServer();
+      // Sync with server to get updated data (force refresh for immediate update)
+      await dataManager.syncWithServer(true);
 
       this.showSuccessMessage('Rezervace byla smazána');
       document.getElementById('editBookingModal').classList.remove('active');

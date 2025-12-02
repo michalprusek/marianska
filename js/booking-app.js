@@ -13,6 +13,7 @@ class BookingApp {
       : localStorage.getItem('language') || 'cs';
     this.recentlyBookedRooms = [];
     this.tempReservations = [];
+    this.editingReservation = null; // Tracks reservation being edited (null = new reservation)
 
     // Generate or retrieve session ID for proposed bookings
     this.sessionId = sessionStorage.getItem('bookingSessionId');
@@ -1135,28 +1136,10 @@ class BookingApp {
       return;
     }
 
-    // Delete the proposed booking from database if it has a proposalId
-    if (reservationToEdit.proposalId) {
-      try {
-        await dataManager.deleteProposedBooking(reservationToEdit.proposalId);
-      } catch (error) {
-        console.error(`Failed to delete proposed booking ${reservationToEdit.proposalId}:`, error);
-        this.showNotification(
-          this.currentLanguage === 'cs'
-            ? 'Varování: Nepodařilo se odstranit dočasnou rezervaci. Zkuste to znovu.'
-            : 'Warning: Could not remove temporary hold. Please try again.',
-          'warning',
-          3000
-        );
-        // Continue with edit - user can still modify the reservation
-      }
-    }
-
-    // Remove it from the list
-    this.tempReservations = this.tempReservations.filter((b) => b.id !== bookingId);
-
-    // Update the display
-    await this.displayTempReservations();
+    // FIX 2025-12-02: Store reference to reservation being edited (instead of deleting it)
+    // This allows user to cancel edit without losing the reservation
+    // Old reservation will be deleted only when user confirms (saves) changes
+    this.editingReservation = reservationToEdit;
 
     // Check if this is a bulk booking or single room
     if (reservationToEdit.isBulkBooking) {
@@ -1302,14 +1285,20 @@ class BookingApp {
             });
           });
         }
+
+        // FIX 2025-12-02: Change button text to "Uložit" (Save) when editing
+        const confirmBtn = document.getElementById('confirmSingleRoomBtn');
+        if (confirmBtn) {
+          confirmBtn.textContent = this.currentLanguage === 'cs' ? 'Uložit' : 'Save';
+        }
       }
     }
 
-    // Show notification
+    // Show notification - updated message for edit mode
     this.showNotification(
       this.currentLanguage === 'cs'
-        ? `Upravujete rezervaci - změňte data a přidejte znovu`
-        : `Editing reservation - modify data and add again`,
+        ? 'Upravujete rezervaci - proveďte změny a klikněte Uložit'
+        : 'Editing reservation - make changes and click Save',
       'info',
       4000
     );
