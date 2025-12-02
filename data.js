@@ -16,6 +16,7 @@ class DataManager {
     this.proposedBookingsFetchPromise = null; // In-flight request promise
     this.lastRender = 0; // Track last calendar render for debouncing
     this.renderPending = false; // Prevent multiple pending renders
+    this.visibilityHandler = null; // Store handler reference to prevent memory leak
   }
 
   getOrCreateSessionId() {
@@ -26,6 +27,27 @@ class DataManager {
       sessionStorage.setItem('bookingSessionId', sessionId);
     }
     return sessionId;
+  }
+
+  // Helper method for fetch with timeout (prevents hanging requests)
+  async fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      return response;
+    } catch (error) {
+      clearTimeout(timeout);
+      if (error.name === 'AbortError') {
+        throw new Error(`Request timeout after ${timeoutMs}ms`);
+      }
+      throw error;
+    }
   }
 
   // P2 FIX: Safe localStorage setter with error handling
@@ -54,9 +76,9 @@ class DataManager {
   }
 
   async initData() {
-    // Try to load from server FIRST
+    // Try to load from server FIRST (with 10s timeout to prevent hanging)
     try {
-      const response = await fetch(`${this.apiUrl}/data`);
+      const response = await this.fetchWithTimeout(`${this.apiUrl}/data`);
       if (response.ok) {
         this.cachedData = await response.json();
         this.lastSync = Date.now();
@@ -104,18 +126,26 @@ class DataManager {
       await this.syncWithServer();
     }, 30000);
 
-    // Also sync on visibility change
-    document.addEventListener('visibilitychange', async () => {
+    // Remove old visibility handler if exists (prevents memory leak)
+    if (this.visibilityHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityHandler);
+    }
+
+    // Create new visibility handler and store reference
+    this.visibilityHandler = async () => {
       if (!document.hidden) {
         await this.syncWithServer();
       }
-    });
+    };
+
+    // Also sync on visibility change
+    document.addEventListener('visibilitychange', this.visibilityHandler);
   }
 
   async syncWithServer(forceRefresh = false) {
     try {
-      // Get latest data from server
-      const response = await fetch(`${this.apiUrl}/data`);
+      // Get latest data from server (with 10s timeout)
+      const response = await this.fetchWithTimeout(`${this.apiUrl}/data`);
       if (response.ok) {
         const serverData = await response.json();
 
@@ -147,10 +177,14 @@ class DataManager {
               this.renderPending = true;
               // Delay render by 1 second to batch multiple sync events
               setTimeout(async () => {
-                this.renderPending = false;
-                this.lastRender = Date.now();
-                await window.app.renderCalendar();
-                await window.app.updatePriceCalculation();
+                try {
+                  this.renderPending = false;
+                  this.lastRender = Date.now();
+                  await window.app.renderCalendar();
+                  await window.app.updatePriceCalculation();
+                } catch (error) {
+                  console.error('[DataManager] Calendar render failed:', error);
+                }
               }, 1000);
             }
 
@@ -163,8 +197,14 @@ class DataManager {
 
         this.lastSync = Date.now();
       }
-    } catch {
-      // Silently fail sync - will retry on next operation
+    } catch (error) {
+      // Log sync failures for debugging - will retry on next operation
+      console.warn('[DataManager] Sync with server failed:', error.message || error);
+      this.syncFailureCount = (this.syncFailureCount || 0) + 1;
+      // After 3 consecutive failures, log more detailed warning
+      if (this.syncFailureCount >= 3 && this.syncFailureCount % 3 === 0) {
+        console.error('[DataManager] Multiple sync failures detected - data may be stale');
+      }
     }
   }
 
@@ -212,8 +252,9 @@ class DataManager {
       if (!response.ok) {
         console.warn('Failed to push data to server');
       }
-    } catch {
-      // Silently fail push - will retry on next operation
+    } catch (error) {
+      // Log push failures for debugging - will retry on next operation
+      console.warn('[DataManager] Push to server failed:', error.message || error);
     }
   }
 
@@ -1159,9 +1200,15 @@ class DataManager {
         }
 
         return data.proposalId;
+      } else {
+        // Log server error response for debugging
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[DataManager] Server rejected proposed booking:', response.status, errorData);
       }
     } catch (error) {
-      console.error('Error creating proposed booking:', error);
+      // Log with more detail for debugging
+      const errorType = error.name === 'AbortError' ? 'timeout' : 'network';
+      console.error(`[DataManager] Error creating proposed booking (${errorType}):`, error.message || error);
     }
     return null;
   }
@@ -1188,9 +1235,12 @@ class DataManager {
         }
 
         return true;
+      } else {
+        console.warn('[DataManager] Server rejected delete proposed booking:', response.status);
       }
     } catch (error) {
-      console.error('Error deleting proposed booking:', error);
+      const errorType = error.name === 'AbortError' ? 'timeout' : 'network';
+      console.error(`[DataManager] Error deleting proposed booking (${errorType}):`, error.message || error);
     }
     return false;
   }
@@ -1204,9 +1254,12 @@ class DataManager {
       if (response.ok) {
         this.proposalId = null;
         return true;
+      } else {
+        console.warn('[DataManager] Server rejected clear session proposals:', response.status);
       }
     } catch (error) {
-      console.error('Error clearing session proposed bookings:', error);
+      const errorType = error.name === 'AbortError' ? 'timeout' : 'network';
+      console.error(`[DataManager] Error clearing session proposed bookings (${errorType}):`, error.message || error);
     }
     return false;
   }

@@ -661,6 +661,14 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
           error: `Překročena kapacita chaty (26 lůžek). Máte ${totalGuests} hostů.`,
         });
       }
+      // Minimum 10 guests for bulk bookings (2025-12-02)
+      if (totalGuests < 10) {
+        return res.status(400).json({
+          error: 'Hromadná rezervace vyžaduje minimálně 10 osob (dospělí + děti).',
+          minimumGuestsRequired: 10,
+          actualGuests: totalGuests,
+        });
+      }
     } else {
       // Individual rooms: Check capacity of selected rooms
       let totalCapacity = 0;
@@ -738,14 +746,37 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
       // CRITICAL FIX: Use correct price calculation based on booking type
       if (bookingData.isBulkBooking) {
         // Bulk booking: Use bulk pricing structure (flat base + per-person charges)
-        bookingData.totalPrice = PriceCalculator.calculateBulkPrice({
-          guestType: actualGuestType,
-          adults: bookingData.adults,
-          children: bookingData.children || 0,
-          toddlers: bookingData.toddlers || 0,
-          nights,
-          settings,
-        });
+        // FIX 2025-12-02: Use guestTypeBreakdown for mixed ÚTIA/external pricing
+        if (bookingData.guestTypeBreakdown) {
+          const { utiaAdults = 0, externalAdults = 0, utiaChildren = 0, externalChildren = 0 } = bookingData.guestTypeBreakdown;
+          // Validate guestTypeBreakdown values are non-negative integers
+          const breakdownValues = [utiaAdults, externalAdults, utiaChildren, externalChildren];
+          if (breakdownValues.some(v => typeof v !== 'number' || v < 0 || !Number.isInteger(v))) {
+            return res.status(400).json({ error: 'Neplatné hodnoty v guestTypeBreakdown - musí být nezáporná celá čísla' });
+          }
+          const { bulkPrices } = settings;
+          // Calculate mixed pricing: base + (ÚTIA adults × ÚTIA rate) + (external adults × external rate) + children
+          const adultSurcharge = utiaAdults * bulkPrices.utiaAdult + externalAdults * bulkPrices.externalAdult;
+          const childSurcharge = utiaChildren * bulkPrices.utiaChild + externalChildren * bulkPrices.externalChild;
+          const pricePerNight = bulkPrices.basePrice + adultSurcharge + childSurcharge;
+          bookingData.totalPrice = Math.round(pricePerNight * nights);
+          logger.info('Bulk booking price calculated with mixed guest types', {
+            guestTypeBreakdown: bookingData.guestTypeBreakdown,
+            pricePerNight,
+            nights,
+            totalPrice: bookingData.totalPrice,
+          });
+        } else {
+          // Fallback: Use single guestType pricing
+          bookingData.totalPrice = PriceCalculator.calculateBulkPrice({
+            guestType: actualGuestType,
+            adults: bookingData.adults,
+            children: bookingData.children || 0,
+            toddlers: bookingData.toddlers || 0,
+            nights,
+            settings,
+          });
+        }
       } else if (
         // Individual room booking: Use per-guest pricing if guest names available
         bookingData.guestNames &&
@@ -793,40 +824,32 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
     // Execute transaction atomically
     const booking = transaction();
 
-    // Send booking confirmation email (await result to ensure email is sent)
-    try {
-      const emailResult = await emailService.sendBookingConfirmation(booking, { settings });
-      logger.info('Booking confirmation email sent', {
-        bookingId: booking.id,
-        email: booking.email,
-        messageId: emailResult.messageId,
+    // FIX 2025-12-02: Send booking confirmation email NON-BLOCKING
+    // Previously, awaiting email caused 30+ second delays when SMTP server was slow/unreachable
+    // Now we fire-and-forget: booking response is sent immediately, email sent in background
+    emailService
+      .sendBookingConfirmation(booking, { settings })
+      .then((emailResult) => {
+        logger.info('Booking confirmation email sent', {
+          bookingId: booking.id,
+          email: booking.email,
+          messageId: emailResult.messageId,
+        });
+      })
+      .catch((emailError) => {
+        logger.error('Failed to send booking confirmation email', {
+          bookingId: booking.id,
+          email: booking.email,
+          error: emailError.message,
+        });
       });
 
-      return res.json({
-        success: true,
-        booking,
-        editToken: booking.editToken,
-      });
-    } catch (emailError) {
-      // Email failed - log error and return warning to user
-      logger.error('Failed to send booking confirmation email', {
-        bookingId: booking.id,
-        email: booking.email,
-        error: emailError.message,
-      });
-
-      // Return success with warning about email failure
-      const editUrl = `${process.env.APP_URL || 'http://chata.utia.cas.cz'}/edit.html?token=${booking.editToken}`;
-      return res.json({
-        success: true,
-        booking,
-        editToken: booking.editToken,
-        warning: `Rezervace byla úspěšně vytvořena, ale nepodařilo se odeslat potvrzovací email. Uložte si tento odkaz pro editaci: ${
-          editUrl
-        }`,
-        emailSent: false,
-      });
-    }
+    // Return success immediately - don't wait for email
+    return res.json({
+      success: true,
+      booking,
+      editToken: booking.editToken,
+    });
   } catch (error) {
     // P1 FIX: Properly log error with stack trace for debugging
     logger.error('creating booking:', {
@@ -927,6 +950,21 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       if (originalRooms !== newRooms) {
         return res.status(400).json({
           error: 'V editaci nelze měnit seznam pokojů. Můžete měnit pouze termíny a počty hostů.',
+        });
+      }
+    }
+
+    // Minimum 10 guests validation for bulk bookings (2025-12-02)
+    const isBulkBookingEdit = bookingData.isBulkBooking || existingBooking.isBulkBooking;
+    if (isBulkBookingEdit) {
+      const totalGuestsEdit =
+        (bookingData.adults || existingBooking.adults || 0) +
+        (bookingData.children || existingBooking.children || 0);
+      if (totalGuestsEdit < 10) {
+        return res.status(400).json({
+          error: 'Hromadná rezervace vyžaduje minimálně 10 osob (dospělí + děti).',
+          minimumGuestsRequired: 10,
+          actualGuests: totalGuestsEdit,
         });
       }
     }
@@ -1212,14 +1250,38 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       // CRITICAL FIX: Use correct price calculation based on booking type
       if (bookingData.isBulkBooking) {
         // Bulk booking: Use bulk pricing structure (flat base + per-person charges)
-        bookingData.totalPrice = PriceCalculator.calculateBulkPrice({
-          guestType: bookingData.guestType,
-          adults: bookingData.adults,
-          children: bookingData.children || 0,
-          toddlers: bookingData.toddlers || 0,
-          nights,
-          settings,
-        });
+        // FIX 2025-12-02: Use guestTypeBreakdown for mixed ÚTIA/external pricing
+        const breakdown = bookingData.guestTypeBreakdown || existingBooking.guestTypeBreakdown;
+        if (breakdown) {
+          const { utiaAdults = 0, externalAdults = 0, utiaChildren = 0, externalChildren = 0 } = breakdown;
+          // Validate guestTypeBreakdown values are non-negative integers
+          const breakdownValues = [utiaAdults, externalAdults, utiaChildren, externalChildren];
+          if (breakdownValues.some(v => typeof v !== 'number' || v < 0 || !Number.isInteger(v))) {
+            return res.status(400).json({ error: 'Neplatné hodnoty v guestTypeBreakdown - musí být nezáporná celá čísla' });
+          }
+          const { bulkPrices } = settings;
+          // Calculate mixed pricing: base + (ÚTIA adults × ÚTIA rate) + (external adults × external rate) + children
+          const adultSurcharge = utiaAdults * bulkPrices.utiaAdult + externalAdults * bulkPrices.externalAdult;
+          const childSurcharge = utiaChildren * bulkPrices.utiaChild + externalChildren * bulkPrices.externalChild;
+          const pricePerNight = bulkPrices.basePrice + adultSurcharge + childSurcharge;
+          bookingData.totalPrice = Math.round(pricePerNight * nights);
+          logger.info('Bulk booking update price calculated with mixed guest types', {
+            guestTypeBreakdown: breakdown,
+            pricePerNight,
+            nights,
+            totalPrice: bookingData.totalPrice,
+          });
+        } else {
+          // Fallback: Use single guestType pricing
+          bookingData.totalPrice = PriceCalculator.calculateBulkPrice({
+            guestType: bookingData.guestType,
+            adults: bookingData.adults,
+            children: bookingData.children || 0,
+            toddlers: bookingData.toddlers || 0,
+            nights,
+            settings,
+          });
+        }
       } else if (
         // Individual room booking: Use per-guest pricing if guest names available
         bookingData.guestNames &&
@@ -1380,41 +1442,43 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
           });
         });
 
-      // Send to admins and cabin managers (based on changes)
-      const emailResult = await emailService.sendBookingNotifications(
-        updatedBooking,
-        changes,
-        settings,
-        'updated'
-      );
+      // FIX 2025-12-02: Send to admins and cabin managers NON-BLOCKING
+      // Previously, awaiting email caused delays when SMTP was slow/unreachable
+      emailService
+        .sendBookingNotifications(updatedBooking, changes, settings, 'updated')
+        .then((emailResult) => {
+          logger.info('Booking notification emails sent', {
+            bookingId: updatedBooking.id,
+            email: updatedBooking.email,
+            modifiedByAdmin: isAdmin,
+            changes: Object.keys(changes),
+            notificationScope: emailResult.notificationScope,
+            results: emailResult.results,
+          });
+        })
+        .catch((emailError) => {
+          logger.error('Failed to send booking notification emails', {
+            bookingId: updatedBooking.id,
+            email: updatedBooking.email,
+            error: emailError.message,
+          });
+        });
 
-      logger.info('Booking notification emails sent', {
-        bookingId: updatedBooking.id,
-        email: updatedBooking.email,
-        modifiedByAdmin: isAdmin,
-        changes: Object.keys(changes),
-        notificationScope: emailResult.notificationScope,
-        results: emailResult.results,
-      });
-
+      // Return success immediately - don't wait for email
       return res.json({
         success: true,
         booking: updatedBooking,
       });
-    } catch (emailError) {
-      // Email failed - log error but still return success (booking was updated)
-      logger.error('Failed to send booking notification emails', {
+    } catch (error) {
+      // This catch is now only for non-email errors since email is non-blocking
+      logger.error('Error in notification block:', {
         bookingId: updatedBooking.id,
-        email: updatedBooking.email,
-        error: emailError.message,
+        error: error.message,
       });
-
+      // Still return success since booking was updated
       return res.json({
         success: true,
         booking: updatedBooking,
-        warning:
-          'Rezervace byla úspěšně aktualizována, ale nepodařilo se odeslat notifikační email.',
-        emailSent: false,
       });
     }
   } catch (error) {

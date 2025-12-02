@@ -2,6 +2,55 @@
 class BookingFormModule {
   constructor(app) {
     this.app = app;
+    this.isSubmitting = false; // Double-click protection flag
+  }
+
+  /**
+   * Gets the submit button element from the form
+   * @returns {HTMLButtonElement|null}
+   */
+  getSubmitButton() {
+    // Try bookingFormModal first (finalization flow)
+    const bookingFormModal = document.getElementById('bookingFormModal');
+    if (bookingFormModal && bookingFormModal.classList.contains('active')) {
+      return bookingFormModal.querySelector('button[type="submit"]');
+    }
+    // Try singleRoomBookingModal
+    const singleRoomModal = document.getElementById('singleRoomBookingModal');
+    if (singleRoomModal && singleRoomModal.classList.contains('active')) {
+      return singleRoomModal.querySelector('button[type="submit"]');
+    }
+    // Try bulkBookingModal
+    const bulkModal = document.getElementById('bulkBookingModal');
+    if (bulkModal && bulkModal.classList.contains('active')) {
+      return bulkModal.querySelector('button[type="submit"]');
+    }
+    // Fallback: general form submit button
+    return document.querySelector('#bookingForm button[type="submit"]');
+  }
+
+  /**
+   * Sets the submit button to loading state
+   */
+  setSubmitButtonLoading(loading) {
+    const button = this.getSubmitButton();
+    if (!button) return;
+
+    if (loading) {
+      button.disabled = true;
+      button.dataset.originalText = button.textContent;
+      button.textContent = this.app.currentLanguage === 'cs' ? '⏳ Zpracování...' : '⏳ Processing...';
+      button.style.opacity = '0.7';
+      button.style.cursor = 'not-allowed';
+    } else {
+      button.disabled = false;
+      if (button.dataset.originalText) {
+        button.textContent = button.dataset.originalText;
+        delete button.dataset.originalText;
+      }
+      button.style.opacity = '';
+      button.style.cursor = '';
+    }
   }
 
   showBookingForm() {
@@ -264,6 +313,17 @@ class BookingFormModule {
   }
 
   async submitBooking() {
+    // Double-click protection - prevent multiple submissions
+    if (this.isSubmitting) {
+      console.warn('[BookingForm] Submission already in progress, ignoring duplicate click');
+      return;
+    }
+
+    // Set submitting flag and show loading state
+    this.isSubmitting = true;
+    this.setSubmitButtonLoading(true);
+
+    try {
     // Get form values
     const name = document.getElementById('name')?.value.trim() || '';
     const email = document.getElementById('email')?.value.trim() || '';
@@ -425,8 +485,11 @@ class BookingFormModule {
         totalToddlers += reservation.guests.toddlers || 0;
       });
 
-      // Validate guest names if there are any guests
-      if (totalAdults + totalChildren + totalToddlers > 0) {
+      // Check if this is a bulk booking - bulk bookings already have guest names from the bulk modal
+      const isBulkBookingFlow = this.app.tempReservations.some((r) => r.isBulkBooking);
+
+      // Validate guest names if there are any guests (skip for bulk bookings - already validated in bulk modal)
+      if (!isBulkBookingFlow && totalAdults + totalChildren + totalToddlers > 0) {
         const validation = this.validateGuestNames(totalAdults, totalChildren, totalToddlers);
         if (!validation.valid) {
           this.app.showNotification(validation.error, 'error');
@@ -434,8 +497,8 @@ class BookingFormModule {
         }
       }
 
-      // Collect guest names
-      const guestNames = this.collectGuestNames();
+      // Collect guest names (for non-bulk bookings only - bulk bookings use tempReservation.guestNames)
+      const guestNames = isBulkBookingFlow ? [] : this.collectGuestNames();
 
       // Create bookings for all temporary reservations
       let successCount = 0;
@@ -853,6 +916,12 @@ class BookingFormModule {
           : `Error creating booking: ${error.message || 'Unknown error'}`,
         'error'
       );
+    }
+    // End of inner try-catch for booking creation
+    } finally {
+      // Always reset submitting state (outer finally for double-click protection)
+      this.isSubmitting = false;
+      this.setSubmitButtonLoading(false);
     }
   }
 
@@ -1454,6 +1523,8 @@ class BookingFormModule {
         endDate: tempReservation.endDate,
         rooms: tempReservation.roomIds,
         guestType: tempReservation.guestType,
+        // FIX 2025-12-02: Pass per-type guest breakdown for mixed ÚTIA/external bookings
+        guestTypeBreakdown: tempReservation.guestTypeBreakdown,
         adults: tempReservation.guests.adults,
         children: tempReservation.guests.children,
         toddlers: tempReservation.guests.toddlers,
@@ -1462,7 +1533,7 @@ class BookingFormModule {
         notes: formData.notes || 'Hromadná rezervace celé chaty',
         isBulkBooking: true,
         sessionId: this.app.sessionId,
-        guestNames,
+        guestNames: tempReservation.guestNames, // FIX 2025-12-02: Use guest names from bulk modal, not DOM
       };
       return this.attemptBookingCreation(booking, 'bulk');
     }

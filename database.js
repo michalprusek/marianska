@@ -53,7 +53,8 @@ class DatabaseManager {
                 notes TEXT,
                 edit_token TEXT NOT NULL,
                 created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                is_bulk_booking INTEGER DEFAULT 0
             )
         `);
 
@@ -208,6 +209,14 @@ class DatabaseManager {
     // Add price_locked column to bookings table if it doesn't exist (for new pricing model)
     // This prevents existing bookings from recalculating with the new "empty room" pricing formula
     addColumnIfNotExists('bookings', 'price_locked', 'INTEGER', 0);
+
+    // Add is_bulk_booking column to bookings table if it doesn't exist
+    // This flag indicates if the booking is a bulk booking (entire cabin reservation)
+    addColumnIfNotExists('bookings', 'is_bulk_booking', 'INTEGER', 0);
+
+    // FIX 2025-12-02: Add guest_type_breakdown column for mixed ÚTIA/external bulk bookings
+    // Stores JSON with { utiaAdults, externalAdults, utiaChildren, externalChildren }
+    addColumnIfNotExists('bookings', 'guest_type_breakdown', 'TEXT', null);
 
     // Migration: Lock prices for all existing bookings (one-time migration)
     try {
@@ -457,11 +466,13 @@ class DatabaseManager {
                 INSERT INTO bookings (
                     id, name, email, phone, company, address, city, zip, ico, dic,
                     start_date, end_date, guest_type, adults, children, toddlers,
-                    total_price, notes, paid, pay_from_benefit, per_room_guests, edit_token, created_at, updated_at
+                    total_price, notes, paid, pay_from_benefit, per_room_guests, is_bulk_booking,
+                    guest_type_breakdown, edit_token, created_at, updated_at
                 ) VALUES (
                     @id, @name, @email, @phone, @company, @address, @city, @zip, @ico, @dic,
                     @start_date, @end_date, @guest_type, @adults, @children, @toddlers,
-                    @total_price, @notes, @paid, @pay_from_benefit, @per_room_guests, @edit_token, @created_at, @updated_at
+                    @total_price, @notes, @paid, @pay_from_benefit, @per_room_guests, @is_bulk_booking,
+                    @guest_type_breakdown, @edit_token, @created_at, @updated_at
                 )
             `),
 
@@ -476,6 +487,7 @@ class DatabaseManager {
                     total_price = @total_price, notes = @notes,
                     paid = @paid, pay_from_benefit = @pay_from_benefit,
                     per_room_guests = @per_room_guests,
+                    guest_type_breakdown = @guest_type_breakdown,
                     updated_at = @updated_at
                 WHERE id = @id
             `),
@@ -670,6 +682,11 @@ class DatabaseManager {
         paid: data.paid ? 1 : 0,
         pay_from_benefit: data.payFromBenefit ? 1 : 0,
         per_room_guests: data.perRoomGuests ? JSON.stringify(data.perRoomGuests) : null,
+        is_bulk_booking: data.isBulkBooking ? 1 : 0,
+        // FIX 2025-12-02: Store per-type breakdown for mixed ÚTIA/external bookings
+        guest_type_breakdown: data.guestTypeBreakdown
+          ? JSON.stringify(data.guestTypeBreakdown)
+          : null,
         edit_token: data.editToken,
         created_at: data.createdAt,
         updated_at: data.updatedAt,
@@ -771,6 +788,10 @@ class DatabaseManager {
         paid: data.paid ? 1 : 0,
         pay_from_benefit: data.payFromBenefit ? 1 : 0,
         per_room_guests: data.perRoomGuests ? JSON.stringify(data.perRoomGuests) : null,
+        // FIX 2025-12-02: Store per-type breakdown for mixed ÚTIA/external bookings
+        guest_type_breakdown: data.guestTypeBreakdown
+          ? JSON.stringify(data.guestTypeBreakdown)
+          : null,
         updated_at: new Date().toISOString(),
       });
 
@@ -887,6 +908,16 @@ class DatabaseManager {
         guestPriceType: row.guest_type, // Per-guest pricing type (utia/external)
       }));
 
+      // FIX 2025-12-02: Parse guest_type_breakdown JSON
+      let guestTypeBreakdown = null;
+      if (booking.guest_type_breakdown) {
+        try {
+          guestTypeBreakdown = JSON.parse(booking.guest_type_breakdown);
+        } catch (error) {
+          console.warn('Failed to parse guest_type_breakdown for booking', booking.id, error);
+        }
+      }
+
       // Convert snake_case to camelCase
       return {
         id: booking.id,
@@ -905,6 +936,9 @@ class DatabaseManager {
         perRoomDates, // Include per-room dates
         perRoomGuests, // Include per-room guest data
         guestType: booking.guest_type,
+        // FIX 2025-12-02: Include breakdown for mixed ÚTIA/external bookings
+        guestTypeBreakdown,
+        isBulkBooking: Boolean(booking.is_bulk_booking),
         adults: booking.adults,
         children: booking.children,
         toddlers: booking.toddlers,
@@ -983,6 +1017,16 @@ class DatabaseManager {
         guestPriceType: row.guest_type, // Per-guest pricing type (utia/external)
       }));
 
+      // FIX 2025-12-02: Parse guest_type_breakdown JSON
+      let guestTypeBreakdown = null;
+      if (booking.guest_type_breakdown) {
+        try {
+          guestTypeBreakdown = JSON.parse(booking.guest_type_breakdown);
+        } catch (error) {
+          console.warn('Failed to parse guest_type_breakdown for booking', booking.id, error);
+        }
+      }
+
       // Convert snake_case to camelCase
       return {
         id: booking.id,
@@ -1001,6 +1045,9 @@ class DatabaseManager {
         perRoomDates, // Include per-room dates
         perRoomGuests, // Include per-room guest data
         guestType: booking.guest_type,
+        // FIX 2025-12-02: Include breakdown for mixed ÚTIA/external bookings
+        guestTypeBreakdown,
+        isBulkBooking: Boolean(booking.is_bulk_booking),
         adults: booking.adults,
         children: booking.children,
         toddlers: booking.toddlers,
@@ -1103,6 +1150,16 @@ class DatabaseManager {
         guestPriceType: row.guest_type, // Per-guest pricing type (utia/external)
       }));
 
+      // FIX 2025-12-02: Parse guest_type_breakdown JSON
+      let guestTypeBreakdown = null;
+      if (booking.guest_type_breakdown) {
+        try {
+          guestTypeBreakdown = JSON.parse(booking.guest_type_breakdown);
+        } catch (error) {
+          console.warn('Failed to parse guest_type_breakdown for booking', booking.id, error);
+        }
+      }
+
       return {
         id: booking.id,
         name: booking.name,
@@ -1120,11 +1177,14 @@ class DatabaseManager {
         perRoomDates, // Include per-room dates
         perRoomGuests, // Include per-room guest data
         guestType: booking.guest_type,
+        // FIX 2025-12-02: Include breakdown for mixed ÚTIA/external bookings
+        guestTypeBreakdown,
         adults: booking.adults,
         children: booking.children,
         toddlers: booking.toddlers,
         totalPrice: booking.total_price,
         priceLocked: Boolean(booking.price_locked), // NEW 2025-11-14: Include price_locked flag
+        isBulkBooking: Boolean(booking.is_bulk_booking), // Flag for bulk bookings (entire cabin)
         notes: booking.notes,
         paid: Boolean(booking.paid),
         payFromBenefit: Boolean(booking.pay_from_benefit),

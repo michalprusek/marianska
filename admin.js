@@ -58,6 +58,71 @@ class AdminPanel {
   }
 
   /**
+   * Create room display - shows "Celá chata" for bulk bookings, individual badges otherwise
+   * @param {Object} booking - Booking object with rooms array and isBulkBooking flag
+   * @param {boolean} inline - Whether to use inline display
+   * @returns {string} - HTML string
+   */
+  createRoomDisplay(booking, inline = false) {
+    // Check if it's a bulk booking (all 9 rooms or isBulkBooking flag)
+    const isBulk = booking.isBulkBooking || (booking.rooms && booking.rooms.length === 9);
+
+    if (isBulk) {
+      return `<span style="
+              display: inline-block;
+              margin: ${inline ? '0 0.25rem' : '0.25rem'};
+              padding: 0.4rem 0.7rem;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              border: 2px solid #5a67d8;
+              border-radius: 6px;
+              font-weight: 700;
+              font-size: 0.95rem;
+              box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
+              text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+          ">🏠 Celá chata</span>`;
+    }
+
+    // Regular booking - show individual room badges
+    return booking.rooms.map((roomId) => this.createRoomBadge(roomId, inline)).join('');
+  }
+
+  /**
+   * FIX 2025-12-02: Format guest type display with breakdown for bulk bookings
+   * @param {Object} booking - Booking object with guestType and guestTypeBreakdown
+   * @returns {string} - Formatted guest type display
+   */
+  formatGuestTypeDisplay(booking) {
+    // Check if we have a breakdown (mixed ÚTIA/external bulk booking)
+    const breakdown = booking.guestTypeBreakdown;
+    if (breakdown && (breakdown.utiaAdults > 0 || breakdown.utiaChildren > 0) &&
+        (breakdown.externalAdults > 0 || breakdown.externalChildren > 0)) {
+      // Mixed booking - show both types
+      const utiaTotal = (breakdown.utiaAdults || 0) + (breakdown.utiaChildren || 0);
+      const externalTotal = (breakdown.externalAdults || 0) + (breakdown.externalChildren || 0);
+
+      let parts = [];
+      if (utiaTotal > 0) {
+        parts.push(`<span style="color: #059669; font-weight: 600;">ÚTIA: ${utiaTotal}</span>`);
+      }
+      if (externalTotal > 0) {
+        parts.push(`<span style="color: #dc2626; font-weight: 600;">Externí: ${externalTotal}</span>`);
+      }
+      return parts.join(' / ');
+    }
+
+    // Only one type - show as before
+    if (breakdown && (breakdown.utiaAdults > 0 || breakdown.utiaChildren > 0)) {
+      return '<span style="color: #059669; font-weight: 600;">Zaměstnanec ÚTIA</span>';
+    }
+
+    // Fallback to single guestType field
+    return booking.guestType === 'utia'
+      ? '<span style="color: #059669; font-weight: 600;">Zaměstnanec ÚTIA</span>'
+      : '<span style="color: #dc2626; font-weight: 600;">Externí host</span>';
+  }
+
+  /**
    * Render guest names organized by room
    * @param {Object} booking - Booking object with guestNames and rooms
    * @returns {string} - HTML string
@@ -78,7 +143,13 @@ class AdminPanel {
         : GuestNameUtils.organizeByRoom(booking.guestNames, perRoomGuests, rooms); // eslint-disable-line no-undef
 
     // If we have per-room organization AND multiple rooms, display by room
-    if (perRoomGuestNames && Object.keys(perRoomGuestNames).length > 0 && rooms.length > 1) {
+    // BUT for bulk bookings (whole cabin), show all guests in one list instead
+    if (
+      perRoomGuestNames &&
+      Object.keys(perRoomGuestNames).length > 0 &&
+      rooms.length > 1 &&
+      !booking.isBulkBooking
+    ) {
       let html = '<div style="display: flex; flex-direction: column; gap: 1rem;">';
 
       // Sort room IDs numerically
@@ -678,7 +749,7 @@ class AdminPanel {
                     ${booking.payFromBenefit ? '<span style="display: inline-flex; align-items: center; justify-content: center; padding: 0.3rem 0.6rem; background: #17a2b8; color: white; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">💳 Ano</span>' : '<span style="color: #6b7280; font-size: 0.85rem;">Ne</span>'}
                 </td>
                 <td>${dateRangeDisplay}</td>
-                <td>${booking.rooms.map((roomId) => this.createRoomBadge(roomId, true)).join('')}</td>
+                <td>${this.createRoomDisplay(booking, true)}</td>
                 <td>
                     ${bookingPrices.get(booking.id).toLocaleString('cs-CZ')} Kč
                 </td>
@@ -763,6 +834,13 @@ class AdminPanel {
     // where first adult was free. We must honor their locked totalPrice to avoid
     // retroactively overcharging customers. See CLAUDE.md "Backward Compatibility"
     if (booking.priceLocked) {
+      return booking.totalPrice || 0;
+    }
+
+    // FIX 2025-12-02: Bulk bookings use a completely different pricing model
+    // (flat base + per-person charges with guestTypeBreakdown) that cannot be
+    // recalculated from per-room data. Always return the stored totalPrice.
+    if (booking.isBulkBooking) {
       return booking.totalPrice || 0;
     }
 
@@ -877,6 +955,26 @@ class AdminPanel {
                 <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
                 <h2 style="margin-right: 3rem; word-break: break-all;">Detail rezervace<br><span style="font-size: 0.8em; color: var(--gray-600);">${booking.id}</span></h2>
 
+                ${
+                  booking.isBulkBooking
+                    ? (() => {
+                        const createdAt = new Date(booking.createdAt || booking.created_at);
+                        const startDate = new Date(booking.startDate || booking.start_date);
+                        const msPerDay = 1000 * 60 * 60 * 24;
+                        const daysAhead = Math.floor((startDate - createdAt) / msPerDay);
+                        const isLessThan3Months = daysAhead < 90;
+
+                        return isLessThan3Months
+                          ? `<div style="background: #fef3c7; color: #92400e; padding: 0.75rem; border-radius: 8px; margin: 1rem 0; border-left: 4px solid #d97706;">
+                              <strong>⚠️ Hromadná akce</strong> - Vytvořeno ${daysAhead} dní předem (doporučeno min. 90 dní)
+                             </div>`
+                          : `<div style="background: #d1fae5; color: #065f46; padding: 0.75rem; border-radius: 8px; margin: 1rem 0; border-left: 4px solid #10b981;">
+                              <strong>✓ Hromadná akce</strong> - Vytvořeno ${daysAhead} dní předem
+                             </div>`;
+                      })()
+                    : ''
+                }
+
                 <div style="display: grid; gap: 1.5rem; margin-top: 1.5rem;">
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
                         <div>
@@ -911,15 +1009,26 @@ class AdminPanel {
                     </div>
 
                     <div>
-                        <strong style="color: var(--gray-600); font-size: 0.9rem;">Termíny pokojů:</strong>
+                        <strong style="color: var(--gray-600); font-size: 0.9rem;">Termín a pokoje:</strong>
                         <div style="margin-top: 0.5rem;">
                             ${
-                              booking.perRoomDates && Object.keys(booking.perRoomDates).length > 0
-                                ? booking.rooms
-                                    .map((roomId) => {
-                                      const dates = booking.perRoomDates[roomId];
-                                      if (dates) {
-                                        return `
+                              // For bulk bookings, always show "Celá chata" with single date range
+                              booking.isBulkBooking || (booking.rooms && booking.rooms.length === 9)
+                                ? `
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
+                              <span style="color: #4b5563;">
+                                ${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}
+                              </span>
+                              <span style="color: #9ca3af;">•</span>
+                              ${this.createRoomDisplay(booking, true)}
+                            </div>
+                          `
+                                : booking.perRoomDates && Object.keys(booking.perRoomDates).length > 0
+                                  ? booking.rooms
+                                      .map((roomId) => {
+                                        const dates = booking.perRoomDates[roomId];
+                                        if (dates) {
+                                          return `
                                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
                                       ${this.createRoomBadge(roomId, true)}
                                       <span style="color: #4b5563;">
@@ -927,8 +1036,8 @@ class AdminPanel {
                                       </span>
                                     </div>
                                   `;
-                                      }
-                                      return `
+                                        }
+                                        return `
                                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
                                       ${this.createRoomBadge(roomId, true)}
                                       <span style="color: #4b5563;">
@@ -936,15 +1045,15 @@ class AdminPanel {
                                       </span>
                                     </div>
                                   `;
-                                    })
-                                    .join('')
-                                : `
+                                      })
+                                      .join('')
+                                  : `
                             <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
                               <span style="color: #4b5563;">
                                 ${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}
                               </span>
                               <span style="color: #9ca3af;">•</span>
-                              ${booking.rooms.map((roomId) => this.createRoomBadge(roomId, true)).join('')}
+                              ${this.createRoomDisplay(booking, true)}
                             </div>
                           `
                             }
@@ -952,22 +1061,34 @@ class AdminPanel {
                     </div>
 
                     <div>
-                        <strong style="color: var(--gray-600); font-size: 0.9rem;">Hosté v pokojích:</strong>
+                        <strong style="color: var(--gray-600); font-size: 0.9rem;">Hosté:</strong>
                         <div style="margin-top: 0.75rem;">
                             ${
-                              booking.perRoomGuests && Object.keys(booking.perRoomGuests).length > 0
-                                ? booking.rooms
-                                    .map((roomId) => {
-                                      const guests = booking.perRoomGuests[roomId];
-                                      if (guests) {
-                                        // Skip rooms with no guests (0 adults AND 0 children)
-                                        const hasGuests = guests.adults > 0 || guests.children > 0;
-                                        if (!hasGuests) {
-                                          return ''; // Don't display empty rooms
-                                        }
+                              // For bulk bookings, show simplified view with "Celá chata"
+                              booking.isBulkBooking || (booking.rooms && booking.rooms.length === 9)
+                                ? `
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+                              ${this.createRoomDisplay(booking, true)}
+                              <span style="color: #4b5563;">
+                                ${booking.adults} dosp., ${booking.children} děti, ${booking.toddlers || 0} bat.
+                                <span style="color: #9ca3af; margin: 0 0.5rem;">•</span>
+                                ${this.formatGuestTypeDisplay(booking)}
+                              </span>
+                            </div>
+                          `
+                                : booking.perRoomGuests && Object.keys(booking.perRoomGuests).length > 0
+                                  ? booking.rooms
+                                      .map((roomId) => {
+                                        const guests = booking.perRoomGuests[roomId];
+                                        if (guests) {
+                                          // Skip rooms with no guests (0 adults AND 0 children)
+                                          const hasGuests = guests.adults > 0 || guests.children > 0;
+                                          if (!hasGuests) {
+                                            return ''; // Don't display empty rooms
+                                          }
 
-                                        const guestType = guests.guestType || booking.guestType;
-                                        return `
+                                          const guestType = guests.guestType || booking.guestType;
+                                          return `
                                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
                                       ${this.createRoomBadge(roomId, true)}
                                       <span style="color: #4b5563;">
@@ -977,16 +1098,16 @@ class AdminPanel {
                                       </span>
                                     </div>
                                   `;
-                                      }
-                                      return `
+                                        }
+                                        return `
                                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
                                       ${this.createRoomBadge(roomId, true)}
                                       <span style="color: #9ca3af; font-size: 0.85rem;">Bez údajů</span>
                                     </div>
                                   `;
-                                    })
-                                    .join('')
-                                : `
+                                      })
+                                      .join('')
+                                  : `
                             <div style="color: #6b7280;">
                               Dospělí: ${booking.adults}, Děti: ${booking.children}, Batolata: ${booking.toddlers}
                               <div style="margin-top: 0.5rem; color: #9ca3af; font-size: 0.85rem;">
@@ -995,9 +1116,11 @@ class AdminPanel {
                             </div>
                           `
                             }
-                            <!-- Show totals in gray for reference -->
+                            <!-- Show totals in gray for reference (only for non-bulk with perRoomGuests) -->
                             ${
-                              booking.perRoomGuests && Object.keys(booking.perRoomGuests).length > 0
+                              !(booking.isBulkBooking || (booking.rooms && booking.rooms.length === 9)) &&
+                              booking.perRoomGuests &&
+                              Object.keys(booking.perRoomGuests).length > 0
                                 ? `
                             <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 0.85rem;">
                               Celkem: ${booking.adults} dosp., ${booking.children} děti, ${booking.toddlers} bat.
@@ -1131,40 +1254,46 @@ class AdminPanel {
   }
 
   async editBooking(bookingId) {
-    // Force fresh data from server (bypass cache)
-    await dataManager.syncWithServer(true);
+    try {
+      // Force fresh data from server (bypass cache)
+      await dataManager.syncWithServer(true);
 
-    const booking = await dataManager.getBooking(bookingId);
-    if (!booking) {
-      return;
+      const booking = await dataManager.getBooking(bookingId);
+      if (!booking) {
+        this.showErrorMessage('Rezervace nebyla nalezena. Zkuste obnovit stránku.');
+        return;
+      }
+
+      // Store booking for reference
+      this.currentEditBooking = booking;
+
+      // Get settings
+      const settings = await dataManager.getSettings();
+
+      // Initialize EditBookingComponent for admin mode
+      this.editComponent = new EditBookingComponent({
+        mode: 'admin',
+        enforceDeadline: false, // Admin can edit any time
+        validateSession: () => this.validateSession(),
+        onSubmit: (formData) => this.handleEditBookingSubmit(formData),
+        onDelete: (id) => this.handleEditBookingDelete(id),
+        settings,
+      });
+
+      // Load booking data into component
+      this.editComponent.loadBooking(booking, settings);
+
+      // Set modal title and button text for edit mode
+      document.getElementById('editModalTitle').textContent = 'Upravit rezervaci';
+      document.getElementById('editSubmitButton').textContent = 'Uložit změny';
+
+      // Show modal
+      this.editComponent.switchTab('dates');
+      document.getElementById('editBookingModal').classList.add('active');
+    } catch (error) {
+      console.error('Error loading booking for edit:', error);
+      this.showErrorMessage(error.message || 'Chyba při načítání rezervace. Zkuste obnovit stránku.');
     }
-
-    // Store booking for reference
-    this.currentEditBooking = booking;
-
-    // Get settings
-    const settings = await dataManager.getSettings();
-
-    // Initialize EditBookingComponent for admin mode
-    this.editComponent = new EditBookingComponent({
-      mode: 'admin',
-      enforceDeadline: false, // Admin can edit any time
-      validateSession: () => this.validateSession(),
-      onSubmit: (formData) => this.handleEditBookingSubmit(formData),
-      onDelete: (id) => this.handleEditBookingDelete(id),
-      settings,
-    });
-
-    // Load booking data into component
-    await this.editComponent.loadBooking(booking, settings);
-
-    // Set modal title and button text for edit mode
-    document.getElementById('editModalTitle').textContent = 'Upravit rezervaci';
-    document.getElementById('editSubmitButton').textContent = 'Uložit změny';
-
-    // Show modal
-    this.editComponent.switchTab('dates');
-    document.getElementById('editBookingModal').classList.add('active');
   }
 
   async handleEditBooking(e) {
@@ -1950,7 +2079,7 @@ class AdminPanel {
                 </div>
                 <div class="info-item">
                   <span class="info-label">Typ hosta</span>
-                  <span class="info-value">${booking.guestType === 'utia' ? 'Zaměstnanec ÚTIA' : 'Externí host'}</span>
+                  <span class="info-value">${this.formatGuestTypeDisplay(booking)}</span>
                 </div>
               </div>
               <div class="info-item" style="margin-top: 15px;">

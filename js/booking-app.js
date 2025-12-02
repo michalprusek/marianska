@@ -1152,6 +1152,20 @@ class BookingApp {
         bulkBooking.selectedStartDate = reservationToEdit.startDate;
         bulkBooking.selectedEndDate = reservationToEdit.endDate;
 
+        // FIX 2025-12-02: Populate bulkSelectedDates with all dates in the range
+        // This is required for the calendar to show the selection and for confirmBulkDates() to work
+        bulkBooking.bulkSelectedDates.clear();
+        const startDate = new Date(`${reservationToEdit.startDate}T12:00:00`);
+        const endDate = new Date(`${reservationToEdit.endDate}T12:00:00`);
+        const dayCount = Math.floor((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+
+        for (let i = 0; i < dayCount; i += 1) {
+          const currentDate = new Date(startDate);
+          currentDate.setDate(startDate.getDate() + i);
+          const dateStr = DateUtils.formatDate(currentDate);
+          bulkBooking.bulkSelectedDates.add(dateStr);
+        }
+
         // Set guest data
         bulkBooking.currentGuests = reservationToEdit.guests;
         bulkBooking.currentGuestType = reservationToEdit.guestType || 'external';
@@ -1159,8 +1173,41 @@ class BookingApp {
         // Open the modal
         modal.classList.add('active');
 
-        // Trigger date confirmation to show the form
-        await bulkBooking.confirmBulkDates();
+        // FIX 2025-12-02: Set the calendar's current month to the booking start date
+        // BEFORE rendering so it opens on the correct month
+        this.currentMonth = new Date(`${reservationToEdit.startDate}T12:00:00`);
+
+        // FIX 2025-12-02: Render the bulk calendar BEFORE calling confirmBulkDates
+        // This initializes the calendar and shows the selected dates
+        await bulkBooking.renderBulkCalendar();
+
+        // FIX 2025-12-02: Set the correct guest type radio button
+        // The modal initialization resets to 'external', so we need to set it after render
+        const guestTypeValue = reservationToEdit.guestType || 'external';
+        const guestTypeRadio = document.querySelector(
+          `input[name="bulkGuestType"][value="${guestTypeValue}"]`
+        );
+        if (guestTypeRadio) {
+          guestTypeRadio.checked = true;
+        }
+
+        // Update UI displays
+        bulkBooking.updateBulkSelectedDatesDisplay();
+        await bulkBooking.updateBulkPriceCalculation();
+
+        // Generate guest name inputs based on current guest count
+        const adults = reservationToEdit.guests?.adults || 1;
+        const children = reservationToEdit.guests?.children || 0;
+        const toddlers = reservationToEdit.guests?.toddlers || 0;
+        // FIX 2025-12-02: Pass existing guest names to pre-fill the form when editing
+        const existingGuestNames = reservationToEdit.guestNames || null;
+        bulkBooking.generateGuestNamesInputs(adults, children, toddlers, existingGuestNames);
+
+        // Show the guest/price section (it's hidden until dates are confirmed)
+        const guestSection = document.getElementById('bulkGuestSection');
+        if (guestSection) {
+          guestSection.style.display = 'block';
+        }
       } else {
         console.error('Bulk booking modal or module not available');
         this.showNotification(

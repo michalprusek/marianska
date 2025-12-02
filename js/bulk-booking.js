@@ -90,7 +90,7 @@ class BulkBookingModule {
     const bulkChildren = document.getElementById('bulkChildren');
 
     if (bulkAdults) {
-      bulkAdults.textContent = '1';
+      bulkAdults.textContent = '10'; // Default 10 adults for bulk events (minimum 10 guests required)
     }
     if (bulkChildren) {
       bulkChildren.textContent = '0';
@@ -170,8 +170,9 @@ class BulkBookingModule {
     await this.updateBulkPriceCalculation();
     this.updateBulkCapacityCheck();
 
-    // Generate guest names input fields with default counts (1 adult, 0 children, 0 toddlers)
-    this.generateGuestNamesInputs(1, 0, 0);
+    // Generate guest names input fields with default counts (10 adults, 0 children, 0 toddlers)
+    // Bulk events require minimum 10 guests (adults + children)
+    this.generateGuestNamesInputs(10, 0, 0);
 
     modal.classList.add('active');
   }
@@ -186,6 +187,8 @@ class BulkBookingModule {
         allowPast: false,
         enforceContiguous: true,
         minNights: 1,
+        // CRITICAL FIX: Pass sessionId to exclude user's own proposed bookings during edit
+        sessionId: this.app.sessionId,
         onDateSelect: async () => {
           // Sync with module's bulkSelectedDates
           this.bulkSelectedDates = this.bulkCalendar.selectedDates;
@@ -591,19 +594,25 @@ class BulkBookingModule {
     const totalGuests = adults + children;
 
     const capacityWarning = document.getElementById('bulkCapacityWarning');
+    const minimumWarning = document.getElementById('bulkMinimumWarning');
     const confirmBtn = document.getElementById('confirmBulkBooking');
 
+    // Maximum 26 guests validation
     if (totalGuests > 26) {
-      if (capacityWarning) {
-        capacityWarning.style.display = 'block';
-      }
-      if (confirmBtn) {
-        confirmBtn.disabled = true;
-      }
+      if (capacityWarning) capacityWarning.style.display = 'block';
+      if (minimumWarning) minimumWarning.style.display = 'none';
+      if (confirmBtn) confirmBtn.disabled = true;
+      return;
     } else {
-      if (capacityWarning) {
-        capacityWarning.style.display = 'none';
-      }
+      if (capacityWarning) capacityWarning.style.display = 'none';
+    }
+
+    // Minimum 10 guests validation for bulk events
+    if (totalGuests < 10) {
+      if (minimumWarning) minimumWarning.style.display = 'block';
+      if (confirmBtn) confirmBtn.disabled = true;
+    } else {
+      if (minimumWarning) minimumWarning.style.display = 'none';
       if (confirmBtn && this.bulkSelectedDates.size > 0) {
         confirmBtn.disabled = false;
       }
@@ -611,24 +620,44 @@ class BulkBookingModule {
   }
 
   adjustBulkGuests(type, change) {
+    const adultsEl = document.getElementById('bulkAdults');
+    const childrenEl = document.getElementById('bulkChildren');
     const element = document.getElementById(`bulk${type.charAt(0).toUpperCase() + type.slice(1)}`);
-    if (!element) {
+
+    if (!element) return;
+
+    let value = parseInt(element.textContent, 10) || 0;
+    let newValue = Math.max(0, value + change);
+
+    // Minimum 10 guests (adults + children) validation for bulk events
+    const currentAdults = parseInt(adultsEl?.textContent, 10) || 0;
+    const currentChildren = parseInt(childrenEl?.textContent, 10) || 0;
+
+    let newTotal;
+    if (type === 'adults') {
+      newTotal = newValue + currentChildren;
+    } else {
+      newTotal = currentAdults + newValue;
+    }
+
+    // Block if total would be < 10
+    if (newTotal < 10) {
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? 'Hromadná akce vyžaduje minimálně 10 osob (dospělí + děti)'
+          : 'Bulk events require a minimum of 10 people (adults + children)',
+        'warning'
+      );
       return;
     }
 
-    let value = parseInt(element.textContent, 10) || 0;
-    value = Math.max(0, value + change);
-
-    // NEW 2025-10-17: Allow temporarily setting 0 adults/children
-    // Validation will happen at proposal creation time
-
-    element.textContent = value;
+    element.textContent = newValue;
     this.updateBulkCapacityCheck();
     this.updateBulkPriceCalculation();
 
     // Regenerate guest names input fields with updated counts
-    const adults = parseInt(document.getElementById('bulkAdults')?.textContent || '1', 10);
-    const children = parseInt(document.getElementById('bulkChildren')?.textContent || '0', 10);
+    const adults = parseInt(adultsEl?.textContent || '10', 10);
+    const children = parseInt(childrenEl?.textContent || '0', 10);
     this.generateGuestNamesInputs(adults, children, 0);
   }
 
@@ -808,9 +837,46 @@ class BulkBookingModule {
       return;
     }
 
-    // Get guest type
-    const guestTypeInput = document.querySelector('input[name="bulkGuestType"]:checked');
-    const guestType = guestTypeInput ? guestTypeInput.value : 'external';
+    // FIX 2025-12-02: Count guests per type using toggles (same logic as updateBulkPriceCalculation)
+    // This ensures sidebar price matches modal price when using per-person guest type toggles
+    let utiaAdults = 0,
+      externalAdults = 0;
+    let utiaChildren = 0,
+      externalChildren = 0;
+
+    const guestNamesSection = document.getElementById('bulkGuestNamesSection');
+    if (guestNamesSection && guestNamesSection.style.display !== 'none') {
+      const toggles = guestNamesSection.querySelectorAll('input[data-guest-price-type]');
+      toggles.forEach((toggle) => {
+        const isUtia = !toggle.checked; // Unchecked = ÚTIA, Checked = External
+        const toggleGuestType = toggle.getAttribute('data-guest-type');
+        if (isUtia) {
+          if (toggleGuestType === 'adult') utiaAdults++;
+          else if (toggleGuestType === 'child') utiaChildren++;
+        } else {
+          if (toggleGuestType === 'adult') externalAdults++;
+          else if (toggleGuestType === 'child') externalChildren++;
+        }
+      });
+    }
+
+    // Fallback: if no toggles visible or section hidden, use radio button
+    if (utiaAdults + externalAdults + utiaChildren + externalChildren === 0) {
+      const guestTypeInput = document.querySelector('input[name="bulkGuestType"]:checked');
+      const fallbackGuestType = guestTypeInput ? guestTypeInput.value : 'utia'; // Default ÚTIA
+      if (fallbackGuestType === 'utia') {
+        utiaAdults = adults;
+        utiaChildren = children;
+      } else {
+        externalAdults = adults;
+        externalChildren = children;
+      }
+    }
+
+    // Determine dominant guest type for display in sidebar
+    const utiaTotal = utiaAdults + utiaChildren;
+    const externalTotal = externalAdults + externalChildren;
+    const guestType = utiaTotal >= externalTotal ? 'utia' : 'external';
 
     // Get dates - use exactly what user selected
     const sortedDates = Array.from(this.bulkSelectedDates).sort();
@@ -822,7 +888,7 @@ class BulkBookingModule {
     const allRooms = await dataManager.getRooms();
     const roomIds = allRooms.map((r) => r.id);
 
-    // Calculate price using bulk pricing
+    // Calculate price using bulk pricing with mixed guest types
     const settings = await dataManager.getSettings();
     const defaultBulkPrices = {
       basePrice: 2000,
@@ -832,11 +898,13 @@ class BulkBookingModule {
       externalChild: 50,
     };
     const bulkPrices = settings.bulkPrices || defaultBulkPrices;
-    const priceGuestKey = guestType === 'utia' ? 'utia' : 'external';
-    const pricePerNight =
-      bulkPrices.basePrice +
-      adults * bulkPrices[`${priceGuestKey}Adult`] +
-      children * bulkPrices[`${priceGuestKey}Child`];
+
+    // Calculate price with mixed guest types (matching updateBulkPriceCalculation logic)
+    const adultSurcharge =
+      utiaAdults * bulkPrices.utiaAdult + externalAdults * bulkPrices.externalAdult;
+    const childSurcharge =
+      utiaChildren * bulkPrices.utiaChild + externalChildren * bulkPrices.externalChild;
+    const pricePerNight = bulkPrices.basePrice + adultSurcharge + childSurcharge;
     const totalPrice = pricePerNight * nights;
 
     // FIX 2025-10-16: Create smart per-room guest allocation
@@ -950,6 +1018,13 @@ class BulkBookingModule {
         nights,
         guests: { adults, children, toddlers: 0 },
         guestType,
+        // FIX 2025-12-02: Store per-type guest breakdown for mixed ÚTIA/external bookings
+        guestTypeBreakdown: {
+          utiaAdults,
+          externalAdults,
+          utiaChildren,
+          externalChildren,
+        },
         totalPrice,
         perRoomGuests, // FIX 2025-10-16: Include smart room allocation
         guestNames, // Guest names validated and collected earlier
@@ -1149,8 +1224,9 @@ class BulkBookingModule {
    * @param {number} adults - Number of adults
    * @param {number} children - Number of children (3-17 years)
    * @param {number} toddlers - Number of toddlers (0-3 years)
+   * @param {Array} existingGuestNames - Existing guest names from reservation being edited (optional)
    */
-  generateGuestNamesInputs(adults, children, toddlers = 0) {
+  generateGuestNamesInputs(adults, children, toddlers = 0, existingGuestNames = null) {
     const section = document.getElementById('bulkGuestNamesSection');
     const totalGuests = (adults || 0) + (children || 0) + (toddlers || 0);
 
@@ -1164,6 +1240,43 @@ class BulkBookingModule {
 
     // CAPTURE PHASE: Save existing guest data before clearing DOM
     const savedGuestData = new Map();
+
+    // FIX 2025-12-02: Pre-populate savedGuestData from existingGuestNames (for edit mode)
+    // This ensures existing names are preserved when editing a bulk reservation
+    if (existingGuestNames && Array.isArray(existingGuestNames) && existingGuestNames.length > 0) {
+      let adultIndex = 0;
+      let childIndex = 0;
+      let toddlerIndex = 0;
+
+      existingGuestNames.forEach((guest) => {
+        const guestCategory = guest.guestCategory || guest.personType || 'adult';
+
+        if (guestCategory === 'adult') {
+          const key = `adult-${adultIndex}`;
+          savedGuestData.set(key, {
+            firstName: guest.firstName || '',
+            lastName: guest.lastName || '',
+            guestType: guest.guestPriceType || guest.guestType || 'utia',
+          });
+          adultIndex += 1;
+        } else if (guestCategory === 'child') {
+          const key = `child-${childIndex}`;
+          savedGuestData.set(key, {
+            firstName: guest.firstName || '',
+            lastName: guest.lastName || '',
+            guestType: guest.guestPriceType || guest.guestType || 'utia',
+          });
+          childIndex += 1;
+        } else if (guestCategory === 'toddler') {
+          const key = `toddler-${toddlerIndex}`;
+          savedGuestData.set(key, {
+            firstName: guest.firstName || '',
+            lastName: guest.lastName || '',
+          });
+          toddlerIndex += 1;
+        }
+      });
+    }
 
     // Capture adults
     const existingAdultInputs = section.querySelectorAll('input[data-guest-type="adult"]');
@@ -1714,8 +1827,11 @@ class BulkBookingModule {
 
       if (guestMap.has(key)) {
         const guest = guestMap.get(key);
-        // Determine guest category: unchecked = utia, checked = external
-        guest.guestCategory = toggle.checked ? 'external' : 'utia';
+        // Determine guest price type: unchecked = utia, checked = external
+        // FIX 2025-12-02: Use guestPriceType (server expects this) instead of guestCategory
+        const priceType = toggle.checked ? 'external' : 'utia';
+        guest.guestPriceType = priceType;
+        guest.guestCategory = priceType; // Keep for backward compatibility
       }
     });
 
@@ -1756,8 +1872,12 @@ class BulkBookingModule {
         return null;
       }
       // Default to 'external' if not set (for toddlers or backward compatibility)
+      // FIX 2025-12-02: Set both guestPriceType and guestCategory for consistency
+      if (!guest.guestPriceType) {
+        guest.guestPriceType = 'external';
+      }
       if (!guest.guestCategory) {
-        guest.guestCategory = 'external';
+        guest.guestCategory = guest.guestPriceType;
       }
       guestNames.push(guest);
     }
