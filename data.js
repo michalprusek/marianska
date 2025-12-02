@@ -16,6 +16,7 @@ class DataManager {
     this.proposedBookingsFetchPromise = null; // In-flight request promise
     this.lastRender = 0; // Track last calendar render for debouncing
     this.renderPending = false; // Prevent multiple pending renders
+    this.visibilityHandler = null; // Store handler reference to prevent memory leak
   }
 
   getOrCreateSessionId() {
@@ -26,6 +27,27 @@ class DataManager {
       sessionStorage.setItem('bookingSessionId', sessionId);
     }
     return sessionId;
+  }
+
+  // Helper method for fetch with timeout (prevents hanging requests)
+  async fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      return response;
+    } catch (error) {
+      clearTimeout(timeout);
+      if (error.name === 'AbortError') {
+        throw new Error(`Request timeout after ${timeoutMs}ms`);
+      }
+      throw error;
+    }
   }
 
   // P2 FIX: Safe localStorage setter with error handling
@@ -54,9 +76,9 @@ class DataManager {
   }
 
   async initData() {
-    // Try to load from server FIRST
+    // Try to load from server FIRST (with 10s timeout to prevent hanging)
     try {
-      const response = await fetch(`${this.apiUrl}/data`);
+      const response = await this.fetchWithTimeout(`${this.apiUrl}/data`);
       if (response.ok) {
         this.cachedData = await response.json();
         this.lastSync = Date.now();
@@ -104,18 +126,26 @@ class DataManager {
       await this.syncWithServer();
     }, 30000);
 
-    // Also sync on visibility change
-    document.addEventListener('visibilitychange', async () => {
+    // Remove old visibility handler if exists (prevents memory leak)
+    if (this.visibilityHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityHandler);
+    }
+
+    // Create new visibility handler and store reference
+    this.visibilityHandler = async () => {
       if (!document.hidden) {
         await this.syncWithServer();
       }
-    });
+    };
+
+    // Also sync on visibility change
+    document.addEventListener('visibilitychange', this.visibilityHandler);
   }
 
   async syncWithServer(forceRefresh = false) {
     try {
-      // Get latest data from server
-      const response = await fetch(`${this.apiUrl}/data`);
+      // Get latest data from server (with 10s timeout)
+      const response = await this.fetchWithTimeout(`${this.apiUrl}/data`);
       if (response.ok) {
         const serverData = await response.json();
 
@@ -147,10 +177,14 @@ class DataManager {
               this.renderPending = true;
               // Delay render by 1 second to batch multiple sync events
               setTimeout(async () => {
-                this.renderPending = false;
-                this.lastRender = Date.now();
-                await window.app.renderCalendar();
-                await window.app.updatePriceCalculation();
+                try {
+                  this.renderPending = false;
+                  this.lastRender = Date.now();
+                  await window.app.renderCalendar();
+                  await window.app.updatePriceCalculation();
+                } catch (error) {
+                  console.error('[DataManager] Calendar render failed:', error);
+                }
               }, 1000);
             }
 

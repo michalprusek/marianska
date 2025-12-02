@@ -275,11 +275,12 @@ class BaseCalendar {
   async buildSingleRoomMode(calendarData) {
     const dayCellPromises = calendarData.days.map(async (day) => {
       const date = new Date(day.dateStr);
-      // Pass '' to show ALL proposed bookings, pass currentEditingBookingId to exclude from conflicts
+      // Pass sessionId to exclude edit session's proposed bookings (if editing)
+      // Pass currentEditingBookingId to exclude the booking being edited from conflicts
       const availability = await dataManager.getRoomAvailability(
         date,
         this.config.roomId,
-        '',
+        this.config.sessionId, // Use edit session ID if provided, otherwise undefined
         this.config.currentEditingBookingId
       );
       return this.createDayCell(day, this.config.roomId, availability);
@@ -493,8 +494,9 @@ class BaseCalendar {
     const rooms = data.settings?.rooms || [];
 
     const availabilityPromises = rooms.map((room) =>
-      // Pass '' to show ALL proposed bookings, pass currentEditingBookingId to exclude from conflicts
-      dataManager.getRoomAvailability(date, room.id, '', this.config.currentEditingBookingId)
+      // Pass sessionId to exclude edit session's proposed bookings (if editing)
+      // Pass currentEditingBookingId to exclude the booking being edited from conflicts
+      dataManager.getRoomAvailability(date, room.id, this.config.sessionId, this.config.currentEditingBookingId)
     );
     const availabilities = await Promise.all(availabilityPromises);
 
@@ -732,7 +734,7 @@ class BaseCalendar {
         const availability = await dataManager.getRoomAvailability(
           new Date(dateStr),
           this.config.roomId,
-          '',
+          this.config.sessionId,
           this.config.currentEditingBookingId
         );
 
@@ -1077,11 +1079,12 @@ class BaseCalendar {
         // For single room or edit mode, check specific room availability
         const { roomId } = this.config;
         if (roomId) {
-          // Pass '' to show ALL proposed bookings, pass currentEditingBookingId to exclude from conflicts
+          // Pass sessionId to exclude edit session's proposed bookings (if editing)
+          // Pass currentEditingBookingId to exclude the booking being edited from conflicts
           const availability = await dataManager.getRoomAvailability(
             date,
             roomId,
-            '',
+            this.config.sessionId,
             this.config.currentEditingBookingId
           );
           // Edge days are available for new bookings

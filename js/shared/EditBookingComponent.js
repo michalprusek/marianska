@@ -104,6 +104,21 @@ class EditBookingComponent {
    * @param {Object} settings - Application settings
    */
   loadBooking(booking, settings) {
+    // Defensive check: Validate booking data exists
+    if (!booking) {
+      console.error('EditBookingComponent.loadBooking: No booking provided');
+      throw new Error('Rezervace nebyla nalezena. Zkuste obnovit stránku.');
+    }
+
+    if (!booking.startDate || !booking.endDate) {
+      console.error('EditBookingComponent.loadBooking: Missing dates', {
+        bookingId: booking.id,
+        startDate: booking.startDate,
+        endDate: booking.endDate,
+      });
+      throw new Error('Chyba při načítání termínu rezervace. Zkuste obnovit stránku.');
+    }
+
     this.currentBooking = booking;
     this.settings = settings;
 
@@ -216,6 +231,20 @@ class EditBookingComponent {
       });
     } else {
       // Fallback: initialize all rooms with booking-level dates
+      (booking.rooms || []).forEach((roomId) => {
+        this.perRoomDates.set(roomId, {
+          startDate: booking.startDate,
+          endDate: booking.endDate,
+        });
+      });
+    }
+
+    // FIX: Defensive resync - ensure perRoomDates has all rooms from the booking
+    // This catches edge cases where initialization might miss some rooms
+    if (this.perRoomDates.size === 0 && (booking.rooms || []).length > 0) {
+      console.warn(
+        '[EditBookingComponent] perRoomDates empty after initialization, forcing resync'
+      );
       (booking.rooms || []).forEach((roomId) => {
         this.perRoomDates.set(roomId, {
           startDate: booking.startDate,
@@ -1468,6 +1497,14 @@ class EditBookingComponent {
         }
       }
 
+      // FIX: Fallback to original booking dates if perRoomDates is empty
+      if (!minStart && this.originalStartDate) {
+        minStart = this.originalStartDate;
+      }
+      if (!maxEnd && this.originalEndDate) {
+        maxEnd = this.originalEndDate;
+      }
+
       const nights = minStart && maxEnd ? DateUtils.getDaysBetween(minStart, maxEnd) : 0;
 
       // Use bulk price calculator
@@ -1483,9 +1520,17 @@ class EditBookingComponent {
       const perRoomGuests = [];
 
       for (const [roomId, roomData] of this.editSelectedRooms) {
-        const dates = this.perRoomDates.get(roomId);
+        let dates = this.perRoomDates.get(roomId);
 
-        // Skip if room doesn't have dates yet - continue is acceptable here
+        // FIX: Fallback to original booking dates if per-room dates are missing
+        if (!dates && this.originalStartDate && this.originalEndDate) {
+          dates = {
+            startDate: this.originalStartDate,
+            endDate: this.originalEndDate,
+          };
+        }
+
+        // Skip if room still doesn't have dates (shouldn't happen with fallback)
         if (!dates) {
           // eslint-disable-next-line no-continue
           continue;
@@ -1642,8 +1687,13 @@ class EditBookingComponent {
       throw new Error(ValidationUtils.getValidationError('zip', zip, 'cs'));
     }
 
-    // Validate dates
-    if (!this.editStartDate || !this.editEndDate) {
+    // Validate dates - check multiple sources for valid dates
+    const hasPerRoomDates = this.perRoomDates.size > 0;
+    const hasEditDates = this.editStartDate && this.editEndDate;
+    const hasOriginalDates = this.originalStartDate && this.originalEndDate;
+
+    // FIX: Accept dates from any valid source (perRoomDates, editDates, or originalDates)
+    if (!hasPerRoomDates && !hasEditDates && !hasOriginalDates) {
       throw new Error('Vyberte prosím termín rezervace');
     }
 
@@ -1724,8 +1774,9 @@ class EditBookingComponent {
       dic: document.getElementById('editDic').value.trim(),
       notes: document.getElementById('editNotes').value.trim(),
       payFromBenefit: document.getElementById('editPayFromBenefit').checked,
-      startDate: minStart || this.editStartDate,
-      endDate: maxEnd || this.editEndDate,
+      // ✅ FIX: Add originalDates as final fallback for robustness
+      startDate: minStart || this.editStartDate || this.originalStartDate,
+      endDate: maxEnd || this.editEndDate || this.originalEndDate,
       rooms: Array.from(this.perRoomDates.keys()),
       perRoomDates: Object.fromEntries(this.perRoomDates), // Include per-room dates
       perRoomGuests: Object.fromEntries(this.editSelectedRooms), // Include per-room guest data
@@ -2067,6 +2118,20 @@ class EditBookingComponent {
 
     roomsList.textContent = '';
 
+    // ✅ FIX: Initialize per-room dates BEFORE bulk booking check
+    // This ensures perRoomDates is populated for ALL booking types, including bulk
+    if (this.perRoomDates.size === 0 && this.currentBooking) {
+      console.warn(
+        '[EditBookingComponent] perRoomDates empty in renderPerRoomList, initializing from currentBooking'
+      );
+      (this.currentBooking.rooms || []).forEach((roomId) => {
+        this.perRoomDates.set(roomId, {
+          startDate: this.currentBooking.startDate,
+          endDate: this.currentBooking.endDate,
+        });
+      });
+    }
+
     // Show bulk booking badge if applicable
     if (this.isBulkBooking) {
       const bulkBadge = document.createElement('div');
@@ -2095,15 +2160,8 @@ class EditBookingComponent {
       return;
     }
 
-    // Initialize per-room dates from current booking
-    if (this.perRoomDates.size === 0 && this.currentBooking) {
-      this.currentBooking.rooms.forEach((roomId) => {
-        this.perRoomDates.set(roomId, {
-          startDate: this.currentBooking.startDate,
-          endDate: this.currentBooking.endDate,
-        });
-      });
-    }
+    // NOTE: perRoomDates initialization moved to the beginning of this method
+    // to ensure it runs for ALL booking types (including bulk bookings)
 
     const onChangePrefix = this.mode === 'admin' ? 'adminPanel' : 'editPage';
 
@@ -2568,6 +2626,14 @@ class EditBookingComponent {
       }
     }
 
+    // FIX: Fallback to original booking dates if perRoomDates is empty
+    if (!minStart && this.originalStartDate) {
+      minStart = this.originalStartDate;
+    }
+    if (!maxEnd && this.originalEndDate) {
+      maxEnd = this.originalEndDate;
+    }
+
     for (const roomData of this.editSelectedRooms.values()) {
       totalAdults += roomData.adults || 0;
       totalChildren += roomData.children || 0;
@@ -2746,6 +2812,31 @@ class EditBookingComponent {
       </div>
 
       ${this.renderBulkGuestList(totalAdults, totalChildren, totalToddlers, currentGuestType)}
+
+      <!-- Save Button -->
+      <div style="margin-top: 1.5rem; text-align: center;">
+        <button
+          type="button"
+          onclick="${onChangePrefix}.editComponent.saveChanges()"
+          class="btn btn-success"
+          style="
+            padding: 0.875rem 2rem;
+            font-size: 1rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+            transition: all 0.2s ease;
+          "
+          onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(5, 150, 105, 0.4)';"
+          onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(5, 150, 105, 0.3)';"
+        >
+          💾 Uložit změny
+        </button>
+      </div>
     `;
 
     roomsList.appendChild(summaryCard);
@@ -3011,6 +3102,7 @@ class EditBookingComponent {
       onDateSelect: (dateStr) => this.handleRoomDateSelect(roomId, dateStr),
       onDateDeselect: (dateStr) => this.handleRoomDateDeselect(roomId, dateStr),
       currentEditingBookingId: this.currentBooking.id,
+      sessionId: this.sessionId, // CRITICAL: Pass edit session ID to exclude own proposed bookings
       originalBookingDates: {
         startDate: originalDates.startDate,
         endDate: originalDates.endDate,
@@ -3254,8 +3346,21 @@ class EditBookingComponent {
       }
     }
 
-    this.editStartDate = minStart;
-    this.editEndDate = maxEnd;
+    // FIX: Only update if we have valid values, otherwise keep original dates
+    // This prevents losing dates when perRoomDates is temporarily empty
+    if (minStart !== null) {
+      this.editStartDate = minStart;
+    } else if (!this.editStartDate && this.originalStartDate) {
+      // Fallback to original if editStartDate was never set
+      this.editStartDate = this.originalStartDate;
+    }
+
+    if (maxEnd !== null) {
+      this.editEndDate = maxEnd;
+    } else if (!this.editEndDate && this.originalEndDate) {
+      // Fallback to original if editEndDate was never set
+      this.editEndDate = this.originalEndDate;
+    }
 
     // Update price
     this.updateTotalPrice();
@@ -3341,6 +3446,7 @@ class EditBookingComponent {
       onDateSelect: (dateStr) => this.handleBulkDateSelect(dateStr),
       onDateDeselect: (dateStr) => this.handleBulkDateDeselect(dateStr),
       currentEditingBookingId: this.currentBooking.id,
+      sessionId: this.sessionId, // CRITICAL: Pass edit session ID to exclude own proposed bookings
       originalBookingDates: {
         startDate: firstRoomDates.startDate,
         endDate: firstRoomDates.endDate,

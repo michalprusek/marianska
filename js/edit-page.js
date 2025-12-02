@@ -533,54 +533,13 @@ class EditPage {
   }
 
   showNotification(message, type = 'info', duration = 5000) {
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.style.setProperty('--duration', `${duration / 1000}s`);
-
-    // Create icon based on type
-    const iconMap = {
-      success: '✓',
-      error: '✕',
-      warning: '⚠',
-      info: 'ℹ',
-    };
-
-    // Build notification HTML structure
-    notification.innerHTML = `
-      <span class="notification-icon">${iconMap[type] || iconMap.info}</span>
-      <span class="notification-content">${message}</span>
-      <span class="notification-close">×</span>
-    `;
-
-    // Get or create container
-    const container =
-      document.getElementById('notificationContainer') ||
-      (() => {
-        const c = document.createElement('div');
-        c.id = 'notificationContainer';
-        document.body.appendChild(c);
-        return c;
-      })();
-
-    container.appendChild(notification);
-
-    // Click to dismiss functionality
-    notification.addEventListener('click', () => {
-      notification.classList.add('removing');
-      setTimeout(() => notification.remove(), 300);
-    });
-
-    // Animate in
-    requestAnimationFrame(() => notification.classList.add('show'));
-
-    // Auto dismiss after duration
-    setTimeout(() => {
-      if (notification.parentElement) {
-        notification.classList.add('removing');
-        setTimeout(() => notification.remove(), 300);
-      }
-    }, duration);
+    // Delegate to shared SSOT implementation in domUtils.js
+    if (window.DOMUtils && window.DOMUtils.showNotification) {
+      window.DOMUtils.showNotification(message, type, duration);
+    } else {
+      // Fallback if DOMUtils not loaded (shouldn't happen)
+      console.warn('DOMUtils.showNotification not available:', message);
+    }
   }
 }
 

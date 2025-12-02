@@ -1778,7 +1778,7 @@
                         id="bulkAdults"
                         class="counter-value"
                         style="flex: 1; text-align: center; font-weight: 600"
-                        >1</span
+                        >10</span
                       >
                       <button
                         class="counter-btn"
@@ -1864,6 +1864,25 @@
                     style="color: #991b1b; font-size: 0.9rem"
                     data-translate="bulkCapacityExceededCottage"
                     >⚠️ Překročena kapacita chaty (maximum 26 lůžek)</span
+                  >
+                </div>
+
+                <!-- Minimum Guests Warning - will be shown when < 10 guests -->
+                <div
+                  id="bulkMinimumWarning"
+                  style="
+                    margin-top: 1rem;
+                    padding: 0.75rem;
+                    background: #fef3c7;
+                    border-left: 4px solid #d97706;
+                    border-radius: 4px;
+                    display: none;
+                  "
+                >
+                  <span
+                    style="color: #92400e; font-size: 0.9rem"
+                    data-translate="bulkMinimumGuestsWarning"
+                    >⚠️ Hromadná akce vyžaduje minimálně 10 osob (dospělí + děti)</span
                   >
                 </div>
 
@@ -2070,6 +2089,7 @@
 
     <!-- Shared utilities (MUST load before data.js) -->
     <script src="js/shared/idGenerator.js"></script>
+    <script src="js/shared/domUtils.js"></script>
     <script src="js/shared/dateUtils.js"></script>
     <script src="js/shared/validationUtils.js"></script>
     <script src="js/shared/priceCalculator.js"></script>
