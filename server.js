@@ -643,9 +643,11 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
     const MAX_NAME_LENGTH = 50;
     bookingData.guestNames.forEach((guest) => {
       if (guest.firstName) {
+        // eslint-disable-next-line no-param-reassign -- sanitizing in place is intentional
         guest.firstName = sanitizeInput(guest.firstName.trim(), MAX_NAME_LENGTH);
       }
       if (guest.lastName) {
+        // eslint-disable-next-line no-param-reassign -- sanitizing in place is intentional
         guest.lastName = sanitizeInput(guest.lastName.trim(), MAX_NAME_LENGTH);
       }
     });
@@ -744,35 +746,33 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
           nights,
           settings,
         });
-      } else {
+      } else if (
         // Individual room booking: Use per-guest pricing if guest names available
-        if (
-          bookingData.guestNames &&
-          Array.isArray(bookingData.guestNames) &&
-          bookingData.guestNames.length > 0
-        ) {
-          // NEW: Per-guest pricing - correctly handles mixed ÚTIA/external guests
-          bookingData.totalPrice = PriceCalculator.calculatePerGuestPrice({
-            rooms: bookingData.rooms,
-            guestNames: bookingData.guestNames,
-            perRoomGuests: bookingData.perRoomGuests, // FIX #4: Pass per-room guest type data
-            perRoomDates: bookingData.perRoomDates || null, // NEW 2025-11-14: Pass per-room dates
-            nights, // Fallback if no per-room dates
-            settings,
-            fallbackGuestType: actualGuestType,
-          });
-        } else {
-          // FALLBACK: Legacy pricing for bookings without guest names
-          bookingData.totalPrice = PriceCalculator.calculatePriceFromRooms({
-            rooms: bookingData.rooms,
-            guestType: actualGuestType,
-            adults: bookingData.adults,
-            children: bookingData.children || 0,
-            toddlers: bookingData.toddlers || 0,
-            nights,
-            settings,
-          });
-        }
+        bookingData.guestNames &&
+        Array.isArray(bookingData.guestNames) &&
+        bookingData.guestNames.length > 0
+      ) {
+        // NEW: Per-guest pricing - correctly handles mixed ÚTIA/external guests
+        bookingData.totalPrice = PriceCalculator.calculatePerGuestPrice({
+          rooms: bookingData.rooms,
+          guestNames: bookingData.guestNames,
+          perRoomGuests: bookingData.perRoomGuests, // FIX #4: Pass per-room guest type data
+          perRoomDates: bookingData.perRoomDates || null, // NEW 2025-11-14: Pass per-room dates
+          nights, // Fallback if no per-room dates
+          settings,
+          fallbackGuestType: actualGuestType,
+        });
+      } else {
+        // FALLBACK: Legacy pricing for bookings without guest names
+        bookingData.totalPrice = PriceCalculator.calculatePriceFromRooms({
+          rooms: bookingData.rooms,
+          guestType: actualGuestType,
+          adults: bookingData.adults,
+          children: bookingData.children || 0,
+          toddlers: bookingData.toddlers || 0,
+          nights,
+          settings,
+        });
       }
 
       // Store the actual guest type (not the one from client request)
@@ -1072,12 +1072,13 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
         }
 
         // Validate guest price type (NEW 2025-11-04: per-guest pricing)
-        if (guest.guestPriceType !== undefined && guest.guestPriceType !== null) {
-          if (guest.guestPriceType !== 'utia' && guest.guestPriceType !== 'external') {
-            return res.status(400).json({
-              error: `Neplatný typ hosta pro hosta ${i + 1} (musí být 'utia' nebo 'external')`,
-            });
-          }
+        const hasGuestType = guest.guestPriceType !== undefined && guest.guestPriceType !== null;
+        const isInvalidGuestType =
+          hasGuestType && guest.guestPriceType !== 'utia' && guest.guestPriceType !== 'external';
+        if (isInvalidGuestType) {
+          return res.status(400).json({
+            error: `Neplatný typ hosta pro hosta ${i + 1} (musí být 'utia' nebo 'external')`,
+          });
         }
 
         // SECURITY FIX: Sanitize guest names before storing
@@ -1219,33 +1220,45 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
           nights,
           settings,
         });
-      } else {
+      } else if (
         // Individual room booking: Use per-guest pricing if guest names available
-        if (
-          bookingData.guestNames &&
-          Array.isArray(bookingData.guestNames) &&
-          bookingData.guestNames.length > 0
-        ) {
-          // NEW: Per-guest pricing - correctly handles mixed ÚTIA/external guests
-          bookingData.totalPrice = PriceCalculator.calculatePerGuestPrice({
-            rooms: bookingData.rooms,
-            guestNames: bookingData.guestNames,
-            nights,
-            settings,
-            fallbackGuestType: bookingData.guestType,
-          });
-        } else {
-          // FALLBACK: Legacy pricing for bookings without guest names
-          bookingData.totalPrice = PriceCalculator.calculatePriceFromRooms({
-            rooms: bookingData.rooms,
+        bookingData.guestNames &&
+        Array.isArray(bookingData.guestNames) &&
+        bookingData.guestNames.length > 0
+      ) {
+        // FIX 2025-12: Construct perRoomGuests from booking data
+        const perRoomGuests = {};
+        const rooms = bookingData.rooms || existingBooking.rooms || [];
+        for (const roomId of rooms) {
+          perRoomGuests[roomId] = {
+            adults: bookingData.adults || existingBooking.adults || 0,
+            children: bookingData.children || existingBooking.children || 0,
+            toddlers: bookingData.toddlers || existingBooking.toddlers || 0,
             guestType: bookingData.guestType,
-            adults: bookingData.adults,
-            children: bookingData.children || 0,
-            toddlers: bookingData.toddlers || 0,
-            nights,
-            settings,
-          });
+          };
         }
+
+        // NEW: Per-guest pricing - correctly handles mixed ÚTIA/external guests
+        bookingData.totalPrice = PriceCalculator.calculatePerGuestPrice({
+          rooms: bookingData.rooms,
+          guestNames: bookingData.guestNames,
+          perRoomGuests, // FIX 2025-12: Now passed
+          perRoomDates: bookingData.perRoomDates || null, // FIX 2025-12: Pass if available
+          nights,
+          settings,
+          fallbackGuestType: bookingData.guestType,
+        });
+      } else {
+        // FALLBACK: Legacy pricing for bookings without guest names
+        bookingData.totalPrice = PriceCalculator.calculatePriceFromRooms({
+          rooms: bookingData.rooms,
+          guestType: bookingData.guestType,
+          adults: bookingData.adults,
+          children: bookingData.children || 0,
+          toddlers: bookingData.toddlers || 0,
+          nights,
+          settings,
+        });
       }
     } else {
       // Preserve original price in two scenarios:
@@ -2321,7 +2334,7 @@ app.get('/api/audit-logs/booking/:bookingId', (req, res) => {
  */
 app.get('/api/audit-logs', requireSession, (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 100;
+    const limit = parseInt(req.query.limit, 10) || 100;
 
     const logs = db.getAllAuditLogs(limit);
 

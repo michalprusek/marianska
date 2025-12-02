@@ -49,17 +49,7 @@ class PriceCalculator {
    * @returns {number} Total price in CZK
    */
   static calculatePrice(options) {
-    const {
-      guestType,
-      adults = 0,
-      children = 0,
-      // toddlers intentionally destructured but not used (they're free)
-      // eslint-disable-next-line no-unused-vars -- Documenting that toddlers are accepted but not used in price calculation
-      toddlers = 0,
-      nights = 1,
-      rooms = [],
-      settings,
-    } = options;
+    const { guestType, settings } = options;
 
     // CRITICAL: Validate required configuration exists - throw error instead of returning 0
     if (!settings || !settings.prices) {
@@ -774,6 +764,18 @@ class PriceCalculator {
     }
     let totalPrice = 0;
 
+    // FIX 2025-12: Normalize perRoomGuests - convert Array to Object format if needed
+    // Some code paths pass Array [{roomId, guestType, ...}], but we need Object {roomId: {...}}
+    let normalizedPerRoomGuests = perRoomGuests;
+    if (perRoomGuests && Array.isArray(perRoomGuests)) {
+      normalizedPerRoomGuests = {};
+      for (const item of perRoomGuests) {
+        if (item && item.roomId) {
+          normalizedPerRoomGuests[item.roomId] = item;
+        }
+      }
+    }
+
     // FIX #4: Calculate empty room prices PER-ROOM based on per-room guest types
     // If perRoomGuests data available, use per-room guest types
     // Otherwise fall back to booking-level logic (for backward compatibility)
@@ -784,18 +786,17 @@ class PriceCalculator {
       // Determine guest type for THIS room specifically
       let roomGuestType;
 
-      if (perRoomGuests && perRoomGuests[roomId] && perRoomGuests[roomId].guestType) {
+      if (
+        normalizedPerRoomGuests &&
+        normalizedPerRoomGuests[roomId] &&
+        normalizedPerRoomGuests[roomId].guestType
+      ) {
         // Use per-room guest type if available (NEW logic)
-        roomGuestType = perRoomGuests[roomId].guestType;
+        roomGuestType = normalizedPerRoomGuests[roomId].guestType;
       } else {
         // Fallback: Use booking-level guestType (when perRoomGuests data not available)
         // This prevents incorrect pricing when mixing ÚTIA and external guests
         roomGuestType = fallbackGuestType || 'external';
-        // CODE REVIEW IMPROVEMENT: Log warning when using fallback
-        console.warn(
-          `[PriceCalculator] Using fallback guest type "${roomGuestType}" for room ${roomId}. ` +
-            `Per-room guest type not available in perRoomGuests data.`
-        );
       }
 
       // CRITICAL: Validate price configuration exists for this guest type and room type
@@ -834,14 +835,18 @@ class PriceCalculator {
 
     // NEW 2025-11-14: If perRoomDates available, calculate surcharges per room
     // Otherwise use the original global averaging approach for backward compatibility
-    if (perRoomDates && perRoomGuests && Object.keys(perRoomGuests).length > 0) {
+    if (
+      perRoomDates &&
+      normalizedPerRoomGuests &&
+      Object.keys(normalizedPerRoomGuests).length > 0
+    ) {
       // Per-room surcharge calculation (for composite bookings)
       for (const roomId of rooms) {
         const room = settings.rooms?.find((r) => r.id === roomId);
         const roomType = room?.type || 'small';
 
         // Get per-room guest counts
-        const roomGuests = perRoomGuests[roomId] || {};
+        const roomGuests = normalizedPerRoomGuests[roomId] || {};
         const roomAdults = roomGuests.adults || 0;
         const roomChildren = roomGuests.children || 0;
         const roomGuestType = roomGuests.guestType || fallbackGuestType;
