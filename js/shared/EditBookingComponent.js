@@ -76,6 +76,29 @@ class EditBookingComponent {
   }
 
   /**
+   * Update toggle visual state (ÚTIA vs External)
+   * Extracted helper to avoid code duplication
+   * @param {HTMLElement} slider - Toggle slider element
+   * @param {HTMLElement} thumb - Toggle thumb element
+   * @param {HTMLElement|null} toggleText - Text element showing current state
+   * @param {boolean} isExternal - true for External (red), false for ÚTIA (green)
+   */
+  updateToggleVisualState(slider, thumb, toggleText, isExternal) {
+    if (!slider || !thumb) {
+      return;
+    }
+    const color = isExternal ? '#dc2626' : '#059669';
+    /* eslint-disable no-param-reassign -- DOM element style modification */
+    slider.style.backgroundColor = color;
+    thumb.style.transform = isExternal ? 'translateX(20px)' : 'translateX(0)';
+    if (toggleText) {
+      toggleText.textContent = isExternal ? 'EXT' : 'ÚTIA';
+      toggleText.style.color = color;
+    }
+    /* eslint-enable no-param-reassign */
+  }
+
+  /**
    * Load booking data and initialize edit form
    * @param {Object} booking - Booking data to edit
    * @param {Object} settings - Application settings
@@ -283,6 +306,7 @@ class EditBookingComponent {
    * @param {number} children - Total number of children across all rooms
    * @param {number} toddlers - Total number of toddlers across all rooms
    */
+  // eslint-disable-next-line no-unused-vars -- toddlers param kept for API consistency
   generateGuestNamesInputs(adults, children, toddlers = 0) {
     const guestNamesSection = document.getElementById('editGuestNamesSection');
     const adultsNamesList = document.getElementById('editAdultsNamesList');
@@ -667,7 +691,7 @@ class EditBookingComponent {
     // 1. Check if ADDING a new room (keep this restriction)
     if (!this.editSelectedRooms.has(roomId) && !this.originalRooms.includes(roomId)) {
       this.showNotification(
-        '⚠️ V editaci nelze přidávat nové pokoje. ' + 'Můžete měnit pouze termíny a počty hostů.',
+        '⚠️ V editaci nelze přidávat nové pokoje. Můžete měnit pouze termíny a počty hostů.',
         'warning',
         4000
       );
@@ -1093,7 +1117,7 @@ class EditBookingComponent {
           break;
         }
         current = current.parentElement;
-        depth++;
+        depth += 1;
       }
     }
 
@@ -1129,7 +1153,6 @@ class EditBookingComponent {
 
       // Restore saved input values to new inputs
       setTimeout(() => {
-        let restoredCount = 0;
         Object.keys(currentValues).forEach((inputId) => {
           const input = document.getElementById(inputId);
           if (input) {
@@ -1138,7 +1161,6 @@ class EditBookingComponent {
             } else {
               input.value = currentValues[inputId];
             }
-            restoredCount++;
           }
         });
 
@@ -1175,10 +1197,11 @@ class EditBookingComponent {
 
     for (const [roomId, roomData] of this.editSelectedRooms.entries()) {
       // Populate adults for this room
-      for (let i = 1; i <= roomData.adults; i++) {
-        const guest = adultNames[adultIndex++];
+      for (let i = 1; i <= roomData.adults; i += 1) {
+        const guest = adultNames[adultIndex];
+        adultIndex += 1;
         if (!guest) {
-          continue;
+          continue; // eslint-disable-line no-continue
         }
 
         const firstNameInput = document.getElementById(`room${roomId}AdultFirstName${i}`);
@@ -1204,33 +1227,17 @@ class EditBookingComponent {
           if (label) {
             const slider = label.querySelector('span[style*="background-color"]');
             const thumb = slider?.querySelector('span[style*="border-radius: 50%"]');
-
-            if (slider && thumb) {
-              if (isExternal) {
-                slider.style.backgroundColor = '#dc2626';
-                thumb.style.transform = 'translateX(20px)';
-                if (toggleText) {
-                  toggleText.textContent = 'EXT';
-                  toggleText.style.color = '#dc2626';
-                }
-              } else {
-                slider.style.backgroundColor = '#059669';
-                thumb.style.transform = 'translateX(0)';
-                if (toggleText) {
-                  toggleText.textContent = 'ÚTIA';
-                  toggleText.style.color = '#059669';
-                }
-              }
-            }
+            this.updateToggleVisualState(slider, thumb, toggleText, isExternal);
           }
         }
       }
 
       // Populate children for this room
-      for (let i = 1; i <= roomData.children; i++) {
-        const guest = childNames[childIndex++];
+      for (let i = 1; i <= roomData.children; i += 1) {
+        const guest = childNames[childIndex];
+        childIndex += 1;
         if (!guest) {
-          continue;
+          continue; // eslint-disable-line no-continue
         }
 
         const firstNameInput = document.getElementById(`room${roomId}ChildFirstName${i}`);
@@ -1256,33 +1263,17 @@ class EditBookingComponent {
           if (label) {
             const slider = label.querySelector('span[style*="background-color"]');
             const thumb = slider?.querySelector('span[style*="border-radius: 50%"]');
-
-            if (slider && thumb) {
-              if (isExternal) {
-                slider.style.backgroundColor = '#dc2626';
-                thumb.style.transform = 'translateX(20px)';
-                if (toggleText) {
-                  toggleText.textContent = 'EXT';
-                  toggleText.style.color = '#dc2626';
-                }
-              } else {
-                slider.style.backgroundColor = '#059669';
-                thumb.style.transform = 'translateX(0)';
-                if (toggleText) {
-                  toggleText.textContent = 'ÚTIA';
-                  toggleText.style.color = '#059669';
-                }
-              }
-            }
+            this.updateToggleVisualState(slider, thumb, toggleText, isExternal);
           }
         }
       }
 
       // Populate toddlers for this room
-      for (let i = 1; i <= roomData.toddlers; i++) {
-        const guest = toddlerNames[toddlerIndex++];
+      for (let i = 1; i <= roomData.toddlers; i += 1) {
+        const guest = toddlerNames[toddlerIndex];
+        toddlerIndex += 1;
         if (!guest) {
-          continue;
+          continue; // eslint-disable-line no-continue
         }
 
         const firstNameInput = document.getElementById(`room${roomId}ToddlerFirstName${i}`);
@@ -1325,22 +1316,8 @@ class EditBookingComponent {
     const slider = label.querySelector('span[style*="background-color"]');
     const thumb = slider?.querySelector('span[style*="border-radius: 50%"]');
 
-    if (!slider || !thumb) {
-      return;
-    }
-
     // Update visual state
-    if (isExternal) {
-      slider.style.backgroundColor = '#dc2626'; // Red for External
-      thumb.style.transform = 'translateX(20px)';
-      toggleText.textContent = 'EXT';
-      toggleText.style.color = '#dc2626';
-    } else {
-      slider.style.backgroundColor = '#059669'; // Green for ÚTIA
-      thumb.style.transform = 'translateX(0)';
-      toggleText.textContent = 'ÚTIA';
-      toggleText.style.color = '#059669';
-    }
+    this.updateToggleVisualState(slider, thumb, toggleText, isExternal);
 
     // ⚠️ CRITICAL: Update room-level guest type based on per-guest toggles
     // Rule: If at least 1 guest is ÚTIA → room is ÚTIA, otherwise External
@@ -1535,25 +1512,25 @@ class EditBookingComponent {
 
         // Count adults
         const totalAdults = roomData.adults || 0;
-        for (let i = 1; i <= totalAdults; i++) {
+        for (let i = 1; i <= totalAdults; i += 1) {
           const toggleId = `room${roomId}Adult${i}GuestTypeToggle`;
           const toggle = document.getElementById(toggleId);
           if (toggle && toggle.checked) {
-            externalAdults++;
+            externalAdults += 1;
           } else {
-            utiaAdults++;
+            utiaAdults += 1;
           }
         }
 
         // Count children
         const totalChildren = roomData.children || 0;
-        for (let i = 1; i <= totalChildren; i++) {
+        for (let i = 1; i <= totalChildren; i += 1) {
           const toggleId = `room${roomId}Child${i}GuestTypeToggle`;
           const toggle = document.getElementById(toggleId);
           if (toggle && toggle.checked) {
-            externalChildren++;
+            externalChildren += 1;
           } else {
-            utiaChildren++;
+            utiaChildren += 1;
           }
         }
 
@@ -1563,6 +1540,7 @@ class EditBookingComponent {
           adults: roomData.adults || 0,
           children: roomData.children || 0,
           toddlers: roomData.toddlers || 0,
+          guestType: roomData.guestType || this.guestType || 'external', // FIX 2025-12: Add guestType
           utiaAdults,
           externalAdults,
           utiaChildren,
