@@ -76,6 +76,29 @@ class EditBookingComponent {
   }
 
   /**
+   * Update toggle visual state (ÚTIA vs External)
+   * Extracted helper to avoid code duplication
+   * @param {HTMLElement} slider - Toggle slider element
+   * @param {HTMLElement} thumb - Toggle thumb element
+   * @param {HTMLElement|null} toggleText - Text element showing current state
+   * @param {boolean} isExternal - true for External (red), false for ÚTIA (green)
+   */
+  updateToggleVisualState(slider, thumb, toggleText, isExternal) {
+    if (!slider || !thumb) {
+      return;
+    }
+    const color = isExternal ? '#dc2626' : '#059669';
+    /* eslint-disable no-param-reassign -- DOM element style modification */
+    slider.style.backgroundColor = color;
+    thumb.style.transform = isExternal ? 'translateX(20px)' : 'translateX(0)';
+    if (toggleText) {
+      toggleText.textContent = isExternal ? 'EXT' : 'ÚTIA';
+      toggleText.style.color = color;
+    }
+    /* eslint-enable no-param-reassign */
+  }
+
+  /**
    * Load booking data and initialize edit form
    * @param {Object} booking - Booking data to edit
    * @param {Object} settings - Application settings
@@ -1204,26 +1227,7 @@ class EditBookingComponent {
           if (label) {
             const slider = label.querySelector('span[style*="background-color"]');
             const thumb = slider?.querySelector('span[style*="border-radius: 50%"]');
-
-            /* eslint-disable max-depth -- visual update requires nested DOM checks */
-            if (slider && thumb) {
-              if (isExternal) {
-                slider.style.backgroundColor = '#dc2626';
-                thumb.style.transform = 'translateX(20px)';
-                if (toggleText) {
-                  toggleText.textContent = 'EXT';
-                  toggleText.style.color = '#dc2626';
-                }
-              } else {
-                slider.style.backgroundColor = '#059669';
-                thumb.style.transform = 'translateX(0)';
-                if (toggleText) {
-                  toggleText.textContent = 'ÚTIA';
-                  toggleText.style.color = '#059669';
-                }
-              }
-            }
-            /* eslint-enable max-depth */
+            this.updateToggleVisualState(slider, thumb, toggleText, isExternal);
           }
         }
       }
@@ -1259,26 +1263,7 @@ class EditBookingComponent {
           if (label) {
             const slider = label.querySelector('span[style*="background-color"]');
             const thumb = slider?.querySelector('span[style*="border-radius: 50%"]');
-
-            /* eslint-disable max-depth -- visual update requires nested DOM checks */
-            if (slider && thumb) {
-              if (isExternal) {
-                slider.style.backgroundColor = '#dc2626';
-                thumb.style.transform = 'translateX(20px)';
-                if (toggleText) {
-                  toggleText.textContent = 'EXT';
-                  toggleText.style.color = '#dc2626';
-                }
-              } else {
-                slider.style.backgroundColor = '#059669';
-                thumb.style.transform = 'translateX(0)';
-                if (toggleText) {
-                  toggleText.textContent = 'ÚTIA';
-                  toggleText.style.color = '#059669';
-                }
-              }
-            }
-            /* eslint-enable max-depth */
+            this.updateToggleVisualState(slider, thumb, toggleText, isExternal);
           }
         }
       }
@@ -1331,22 +1316,8 @@ class EditBookingComponent {
     const slider = label.querySelector('span[style*="background-color"]');
     const thumb = slider?.querySelector('span[style*="border-radius: 50%"]');
 
-    if (!slider || !thumb) {
-      return;
-    }
-
     // Update visual state
-    if (isExternal) {
-      slider.style.backgroundColor = '#dc2626'; // Red for External
-      thumb.style.transform = 'translateX(20px)';
-      toggleText.textContent = 'EXT';
-      toggleText.style.color = '#dc2626';
-    } else {
-      slider.style.backgroundColor = '#059669'; // Green for ÚTIA
-      thumb.style.transform = 'translateX(0)';
-      toggleText.textContent = 'ÚTIA';
-      toggleText.style.color = '#059669';
-    }
+    this.updateToggleVisualState(slider, thumb, toggleText, isExternal);
 
     // ⚠️ CRITICAL: Update room-level guest type based on per-guest toggles
     // Rule: If at least 1 guest is ÚTIA → room is ÚTIA, otherwise External

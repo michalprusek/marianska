@@ -1226,23 +1226,29 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
         Array.isArray(bookingData.guestNames) &&
         bookingData.guestNames.length > 0
       ) {
-        // FIX 2025-12: Construct perRoomGuests from booking data
-        const perRoomGuests = {};
-        const rooms = bookingData.rooms || existingBooking.rooms || [];
-        for (const roomId of rooms) {
-          perRoomGuests[roomId] = {
-            adults: bookingData.adults || existingBooking.adults || 0,
-            children: bookingData.children || existingBooking.children || 0,
-            toddlers: bookingData.toddlers || existingBooking.toddlers || 0,
-            guestType: bookingData.guestType,
-          };
+        // FIX 2025-12: Use existing perRoomGuests from request if available,
+        // otherwise construct fallback for legacy/single-room bookings
+        let perRoomGuests = bookingData.perRoomGuests || existingBooking.perRoomGuests;
+
+        // Only construct fallback if perRoomGuests not provided
+        if (!perRoomGuests || Object.keys(perRoomGuests).length === 0) {
+          perRoomGuests = {};
+          const rooms = bookingData.rooms || existingBooking.rooms || [];
+          for (const roomId of rooms) {
+            perRoomGuests[roomId] = {
+              adults: bookingData.adults || existingBooking.adults || 0,
+              children: bookingData.children || existingBooking.children || 0,
+              toddlers: bookingData.toddlers || existingBooking.toddlers || 0,
+              guestType: bookingData.guestType,
+            };
+          }
         }
 
         // NEW: Per-guest pricing - correctly handles mixed ÚTIA/external guests
         bookingData.totalPrice = PriceCalculator.calculatePerGuestPrice({
           rooms: bookingData.rooms,
           guestNames: bookingData.guestNames,
-          perRoomGuests, // FIX 2025-12: Now passed
+          perRoomGuests, // FIX 2025-12: Now passed (from request or constructed)
           perRoomDates: bookingData.perRoomDates || null, // FIX 2025-12: Pass if available
           nights,
           settings,

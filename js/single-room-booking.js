@@ -494,7 +494,17 @@ class SingleRoomBookingModule {
         try {
           await dataManager.deleteProposedBooking(oldReservation.proposalId);
         } catch (error) {
-          console.error('Failed to delete old proposed booking:', error);
+          // Expected: 404 if reservation already expired
+          if (error?.status !== 404 && !error?.message?.includes('not found')) {
+            console.error('Failed to delete old proposed booking:', error);
+            this.app.showNotification(
+              this.app.currentLanguage === 'cs'
+                ? 'Varování: Nepodařilo se vyčistit předchozí dočasnou rezervaci'
+                : 'Warning: Could not clean up previous temporary reservation',
+              'warning',
+              3000
+            );
+          }
           // Continue anyway - old reservation may have expired
         }
       }

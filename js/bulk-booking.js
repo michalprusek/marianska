@@ -689,6 +689,12 @@ class BulkBookingModule {
     this.bulkDragStart = null;
     this.bulkDragEnd = null;
     this.bulkIsDragging = false;
+
+    // FIX 2025-12-02: Clear editing flag when modal is closed without saving
+    // This ensures the original reservation stays intact
+    if (this.app.editingReservation) {
+      this.app.editingReservation = null;
+    }
   }
 
   async confirmBulkDates() {
@@ -884,6 +890,39 @@ class BulkBookingModule {
       // Update remaining counts
       remainingAdults -= adultsInRoom;
       remainingChildren -= childrenInRoom;
+    }
+
+    // FIX 2025-12-02: If editing an existing reservation, delete the old one first
+    if (this.app.editingReservation) {
+      const oldReservation = this.app.editingReservation;
+
+      // Delete old proposed booking from database
+      if (oldReservation.proposalId) {
+        try {
+          await dataManager.deleteProposedBooking(oldReservation.proposalId);
+        } catch (error) {
+          // Expected: 404 if reservation already expired
+          if (error?.status !== 404 && !error?.message?.includes('not found')) {
+            console.error('Failed to delete old proposed booking:', error);
+            this.app.showNotification(
+              this.app.currentLanguage === 'cs'
+                ? 'Varování: Nepodařilo se vyčistit předchozí dočasnou rezervaci'
+                : 'Warning: Could not clean up previous temporary reservation',
+              'warning',
+              3000
+            );
+          }
+          // Continue anyway - old reservation may have expired
+        }
+      }
+
+      // Remove old reservation from tempReservations array
+      this.app.tempReservations = this.app.tempReservations.filter(
+        (b) => b.id !== oldReservation.id
+      );
+
+      // Clear the editing flag
+      this.app.editingReservation = null;
     }
 
     // Create proposed booking in database for all rooms
