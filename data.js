@@ -197,8 +197,14 @@ class DataManager {
 
         this.lastSync = Date.now();
       }
-    } catch {
-      // Silently fail sync - will retry on next operation
+    } catch (error) {
+      // Log sync failures for debugging - will retry on next operation
+      console.warn('[DataManager] Sync with server failed:', error.message || error);
+      this.syncFailureCount = (this.syncFailureCount || 0) + 1;
+      // After 3 consecutive failures, log more detailed warning
+      if (this.syncFailureCount >= 3 && this.syncFailureCount % 3 === 0) {
+        console.error('[DataManager] Multiple sync failures detected - data may be stale');
+      }
     }
   }
 
@@ -246,8 +252,9 @@ class DataManager {
       if (!response.ok) {
         console.warn('Failed to push data to server');
       }
-    } catch {
-      // Silently fail push - will retry on next operation
+    } catch (error) {
+      // Log push failures for debugging - will retry on next operation
+      console.warn('[DataManager] Push to server failed:', error.message || error);
     }
   }
 
@@ -1193,9 +1200,15 @@ class DataManager {
         }
 
         return data.proposalId;
+      } else {
+        // Log server error response for debugging
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[DataManager] Server rejected proposed booking:', response.status, errorData);
       }
     } catch (error) {
-      console.error('Error creating proposed booking:', error);
+      // Log with more detail for debugging
+      const errorType = error.name === 'AbortError' ? 'timeout' : 'network';
+      console.error(`[DataManager] Error creating proposed booking (${errorType}):`, error.message || error);
     }
     return null;
   }
@@ -1222,9 +1235,12 @@ class DataManager {
         }
 
         return true;
+      } else {
+        console.warn('[DataManager] Server rejected delete proposed booking:', response.status);
       }
     } catch (error) {
-      console.error('Error deleting proposed booking:', error);
+      const errorType = error.name === 'AbortError' ? 'timeout' : 'network';
+      console.error(`[DataManager] Error deleting proposed booking (${errorType}):`, error.message || error);
     }
     return false;
   }
@@ -1238,9 +1254,12 @@ class DataManager {
       if (response.ok) {
         this.proposalId = null;
         return true;
+      } else {
+        console.warn('[DataManager] Server rejected clear session proposals:', response.status);
       }
     } catch (error) {
-      console.error('Error clearing session proposed bookings:', error);
+      const errorType = error.name === 'AbortError' ? 'timeout' : 'network';
+      console.error(`[DataManager] Error clearing session proposed bookings (${errorType}):`, error.message || error);
     }
     return false;
   }

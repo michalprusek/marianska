@@ -749,6 +749,11 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
         // FIX 2025-12-02: Use guestTypeBreakdown for mixed ÚTIA/external pricing
         if (bookingData.guestTypeBreakdown) {
           const { utiaAdults = 0, externalAdults = 0, utiaChildren = 0, externalChildren = 0 } = bookingData.guestTypeBreakdown;
+          // Validate guestTypeBreakdown values are non-negative integers
+          const breakdownValues = [utiaAdults, externalAdults, utiaChildren, externalChildren];
+          if (breakdownValues.some(v => typeof v !== 'number' || v < 0 || !Number.isInteger(v))) {
+            return res.status(400).json({ error: 'Neplatné hodnoty v guestTypeBreakdown - musí být nezáporná celá čísla' });
+          }
           const { bulkPrices } = settings;
           // Calculate mixed pricing: base + (ÚTIA adults × ÚTIA rate) + (external adults × external rate) + children
           const adultSurcharge = utiaAdults * bulkPrices.utiaAdult + externalAdults * bulkPrices.externalAdult;
@@ -1249,6 +1254,11 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
         const breakdown = bookingData.guestTypeBreakdown || existingBooking.guestTypeBreakdown;
         if (breakdown) {
           const { utiaAdults = 0, externalAdults = 0, utiaChildren = 0, externalChildren = 0 } = breakdown;
+          // Validate guestTypeBreakdown values are non-negative integers
+          const breakdownValues = [utiaAdults, externalAdults, utiaChildren, externalChildren];
+          if (breakdownValues.some(v => typeof v !== 'number' || v < 0 || !Number.isInteger(v))) {
+            return res.status(400).json({ error: 'Neplatné hodnoty v guestTypeBreakdown - musí být nezáporná celá čísla' });
+          }
           const { bulkPrices } = settings;
           // Calculate mixed pricing: base + (ÚTIA adults × ÚTIA rate) + (external adults × external rate) + children
           const adultSurcharge = utiaAdults * bulkPrices.utiaAdult + externalAdults * bulkPrices.externalAdult;

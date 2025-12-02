@@ -69,7 +69,7 @@ class AdminPanel {
 
     if (isBulk) {
       return `<span style="
-              display: ${inline ? 'inline-block' : 'inline-block'};
+              display: inline-block;
               margin: ${inline ? '0 0.25rem' : '0.25rem'};
               padding: 0.4rem 0.7rem;
               background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);

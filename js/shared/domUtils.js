@@ -288,9 +288,11 @@
       info: 'ℹ',
     };
 
+    // XSS Protection: escape user message before inserting into HTML
+    var safeMessage = escapeHtml(message);
     notification.innerHTML =
       '<span class="notification-icon">' + (iconMap[type] || iconMap.info) + '</span>' +
-      '<span class="notification-content">' + message + '</span>' +
+      '<span class="notification-content">' + safeMessage + '</span>' +
       '<span class="notification-close">×</span>';
 
     var container = document.getElementById('notification-container');
