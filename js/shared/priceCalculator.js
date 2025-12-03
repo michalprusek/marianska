@@ -416,15 +416,10 @@ class PriceCalculator {
     }
 
     const { prices } = settings;
-    const guestKey = guestType === 'utia' ? 'utia' : 'external';
-    const priceConfig = prices[guestKey];
 
-    if (!priceConfig) {
-      throw new Error(`No price config found for guest type: ${guestType}`);
-    }
-
-    // Check if prices have room-size-based structure
-    const hasRoomSizes = priceConfig.small && priceConfig.large;
+    // FIX 2025-12-03: Removed global guestKey - now determined per-room
+    // Check if prices have room-size-based structure (using utia as reference)
+    const hasRoomSizes = prices.utia?.small && prices.utia?.large;
 
     const roomPrices = [];
     let grandTotal = 0;
@@ -442,21 +437,34 @@ class PriceCalculator {
         externalChildren = 0,
       } = roomGuests;
 
+      // FIX 2025-12-03: Determine per-room guest type for empty room price
+      // Priority: 1. explicit guestType, 2. derived from breakdown, 3. fallback to global
+      let roomGuestType;
+      if (roomGuests.guestType) {
+        roomGuestType = roomGuests.guestType;
+      } else if (utiaAdults > 0 || utiaChildren > 0) {
+        // ÚTIA if any ÚTIA guests present (business rule: mixed = ÚTIA price for room)
+        roomGuestType = 'utia';
+      } else {
+        roomGuestType = guestType || 'external'; // fallback to global or external
+      }
+      const roomGuestKey = roomGuestType === 'utia' ? 'utia' : 'external';
+
       let roomPriceConfig;
       let roomType = 'standard';
 
       if (hasRoomSizes) {
-        // NEW PRICING MODEL: Room-size-based pricing
+        // NEW PRICING MODEL: Room-size-based pricing with per-room guest type
         const room = settings.rooms?.find((r) => r.id === roomId);
         roomType = room?.type || 'small';
-        roomPriceConfig = priceConfig[roomType];
+        roomPriceConfig = prices[roomGuestKey]?.[roomType];
 
         if (!roomPriceConfig) {
-          throw new Error(`No price config for room type: ${roomType}`);
+          throw new Error(`No price config for guest type ${roomGuestKey}, room type: ${roomType}`);
         }
       } else {
-        // LEGACY: Flat pricing model
-        roomPriceConfig = priceConfig;
+        // LEGACY: Flat pricing model with per-room guest type
+        roomPriceConfig = prices[roomGuestKey];
       }
 
       // NEW 2025-11-14: Calculate nights per room if perRoomDates provided
@@ -469,7 +477,7 @@ class PriceCalculator {
       }
 
       // FIX 2025-11-06: Use NEW pricing model - base IS empty room price
-      // No need to subtract adult surcharge (that was OLD model)
+      // Now uses per-room guest type for correct empty room price
       const emptyRoomPrice = this.getEmptyRoomPrice(roomPriceConfig);
 
       // Calculate surcharges - if ÚTIA/External breakdown is provided, use it

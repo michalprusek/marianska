@@ -625,7 +625,8 @@ class DatabaseManager {
         FROM guest_names
         WHERE booking_id = ?
         ORDER BY
-          room_id NULLS LAST,
+          CASE WHEN room_id IS NULL THEN 1 ELSE 0 END,
+          room_id,
           CASE person_type WHEN 'adult' THEN 1 WHEN 'child' THEN 2 WHEN 'toddler' THEN 3 END,
           order_index
       `),
@@ -994,9 +995,9 @@ class DatabaseManager {
             parsedPerRoomGuests.forEach((roomGuest) => {
               if (roomGuest.roomId) {
                 perRoomGuests[roomGuest.roomId] = {
-                  adults: roomGuest.adults || 0,
-                  children: roomGuest.children || 0,
-                  toddlers: roomGuest.toddlers || 0,
+                  adults: roomGuest.adults !== undefined ? roomGuest.adults : 0,
+                  children: roomGuest.children !== undefined ? roomGuest.children : 0,
+                  toddlers: roomGuest.toddlers !== undefined ? roomGuest.toddlers : 0,
                   guestType: roomGuest.guestType || booking.guest_type,
                 };
               }
@@ -1014,7 +1015,8 @@ class DatabaseManager {
         personType: row.person_type,
         firstName: row.first_name,
         lastName: row.last_name,
-        guestPriceType: row.guest_type, // Per-guest pricing type (utia/external)
+        roomId: row.room_id,
+        guestPriceType: row.guest_type,
       }));
 
       // FIX 2025-12-02: Parse guest_type_breakdown JSON
@@ -1127,9 +1129,9 @@ class DatabaseManager {
             parsedPerRoomGuests.forEach((roomGuest) => {
               if (roomGuest.roomId) {
                 perRoomGuests[roomGuest.roomId] = {
-                  adults: roomGuest.adults || 0,
-                  children: roomGuest.children || 0,
-                  toddlers: roomGuest.toddlers || 0,
+                  adults: roomGuest.adults !== undefined ? roomGuest.adults : 0,
+                  children: roomGuest.children !== undefined ? roomGuest.children : 0,
+                  toddlers: roomGuest.toddlers !== undefined ? roomGuest.toddlers : 0,
                   guestType: roomGuest.guestType || booking.guest_type,
                 };
               }
@@ -1147,7 +1149,8 @@ class DatabaseManager {
         personType: row.person_type,
         firstName: row.first_name,
         lastName: row.last_name,
-        guestPriceType: row.guest_type, // Per-guest pricing type (utia/external)
+        roomId: row.room_id,
+        guestPriceType: row.guest_type,
       }));
 
       // FIX 2025-12-02: Parse guest_type_breakdown JSON

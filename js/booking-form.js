@@ -1296,9 +1296,15 @@ class BookingFormModule {
       const guestNames = [];
 
       // Collect guest names from all temp reservations
+      // CRITICAL FIX 2025-12-03: Enrich guestNames with roomId and guestPriceType from parent reservation
       this.app.tempReservations.forEach((reservation) => {
         if (reservation.guestNames && Array.isArray(reservation.guestNames)) {
-          guestNames.push(...reservation.guestNames);
+          const guestNamesWithRoomData = reservation.guestNames.map((guest) => ({
+            ...guest,
+            roomId: reservation.roomId,
+            guestPriceType: reservation.guestType || 'utia',
+          }));
+          guestNames.push(...guestNamesWithRoomData);
         }
       });
 
@@ -1402,11 +1408,15 @@ class BookingFormModule {
       this.app.tempReservations.length === 0 ||
       this.app.tempReservations.length === 1
     ) {
-      // For single room, optionally assign the room ID
+      // For single room, optionally assign the room ID and guestPriceType
       if (this.app.tempReservations && this.app.tempReservations.length === 1) {
-        const { roomId } = this.app.tempReservations[0];
+        const { roomId, guestType } = this.app.tempReservations[0];
         if (roomId) {
-          return guestNames.map((guest) => ({ ...guest, roomId }));
+          return guestNames.map((guest) => ({
+            ...guest,
+            roomId,
+            guestPriceType: guestType || 'utia', // Use room's guestType for per-guest pricing
+          }));
         }
       }
       return guestNames;
@@ -1418,7 +1428,7 @@ class BookingFormModule {
 
     // Process each temporary reservation in order
     for (const tempReservation of this.app.tempReservations) {
-      const { roomId } = tempReservation;
+      const { roomId, guestType } = tempReservation;
       const guests = tempReservation.guests || {};
 
       // Calculate total guests for this room
@@ -1429,6 +1439,7 @@ class BookingFormModule {
         guestNamesWithRooms.push({
           ...guestNames[currentIndex],
           roomId,
+          guestPriceType: guestType || 'utia', // Use room's guestType for per-guest pricing
         });
         currentIndex++;
       }

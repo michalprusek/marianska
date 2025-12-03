@@ -1363,14 +1363,12 @@ class EditBookingComponent {
     // Also populate bulk guest name inputs (for bulk bookings)
     this.populateBulkGuestNames(adultNames, childNames, toddlerNames);
 
-    // FIX 2025-12-03: Recalculate price after populating bulk guest names with their toggle states
+    // FIX 2025-12-03: Recalculate price after populating guest names with their toggle states
     // This ensures the price reflects the correct ÚTIA/External split on modal open
-    if (this.isBulkBooking) {
-      // Use setTimeout to ensure DOM toggles are fully rendered before reading their states
-      setTimeout(() => {
-        this.updateTotalPrice();
-      }, 100);
-    }
+    // Use setTimeout to ensure DOM toggles are fully rendered before reading their states
+    setTimeout(() => {
+      this.updateTotalPrice();
+    }, 100);
   }
 
   /**
@@ -1737,12 +1735,12 @@ class EditBookingComponent {
           }
         }
 
-        // FIX 2025-12-03: Calculate price using per-guest breakdown instead of single guestType
-        // This correctly handles mixed ÚTIA/external guests in the same room
+        // Calculate price using per-guest breakdown - handles mixed ÚTIA/external guests
         const room = this.settings.rooms?.find((r) => r.id === roomId);
         const roomType = room?.type || 'small';
-        const utiaRates = this.settings.prices?.utia?.[roomType] || { empty: 250, adult: 50, child: 25 };
-        const externalRates = this.settings.prices?.external?.[roomType] || { empty: 400, adult: 100, child: 50 };
+        const defaultPrices = PriceCalculator.getDefaultPrices();
+        const utiaRates = this.settings.prices?.utia?.[roomType] || defaultPrices.utia[roomType];
+        const externalRates = this.settings.prices?.external?.[roomType] || defaultPrices.external[roomType];
 
         // Empty room price: Use ÚTIA rate if at least one ÚTIA guest in this room
         const hasUtiaGuest = utiaAdults > 0 || utiaChildren > 0;
@@ -2083,11 +2081,12 @@ class EditBookingComponent {
           }
         }
 
-        // Calculate price using per-guest breakdown
+        // Calculate price using per-guest breakdown - handles mixed ÚTIA/external guests
         const room = this.settings.rooms?.find((r) => r.id === roomId);
         const roomType = room?.type || 'small';
-        const utiaRates = this.settings.prices?.utia?.[roomType] || { empty: 250, adult: 50, child: 25 };
-        const externalRates = this.settings.prices?.external?.[roomType] || { empty: 400, adult: 100, child: 50 };
+        const defaultPrices = PriceCalculator.getDefaultPrices();
+        const utiaRates = this.settings.prices?.utia?.[roomType] || defaultPrices.utia[roomType];
+        const externalRates = this.settings.prices?.external?.[roomType] || defaultPrices.external[roomType];
 
         // Empty room price: Use ÚTIA rate if at least one ÚTIA guest
         const hasUtiaGuest = utiaAdults > 0 || utiaChildren > 0;
