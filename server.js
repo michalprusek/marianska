@@ -455,10 +455,51 @@ app.post('/api/data', writeLimiter, requireApiKeyOrSession, (req, res) => {
       }
     }
 
-    // Insert blocked dates (legacy compatibility)
-    if (dataToSave.blockedDates && dataToSave.blockedDates.length > 0) {
+    // Insert blocked dates - PREFER blockageInstances over legacy blockedDates
+    // This preserves date ranges correctly instead of collapsing to single days
+    if (dataToSave.blockageInstances && dataToSave.blockageInstances.length > 0) {
+      // Use modern format with full date ranges
+      for (const instance of dataToSave.blockageInstances) {
+        db.createBlockageInstance({
+          blockageId: instance.blockageId,
+          startDate: instance.startDate,
+          endDate: instance.endDate,
+          reason: instance.reason,
+          createdAt: instance.createdAt,
+          rooms: instance.rooms || [],
+        });
+      }
+    } else if (dataToSave.blockedDates && dataToSave.blockedDates.length > 0) {
+      // Legacy fallback: reconstruct date ranges from expanded single dates
+      // Group by blockageId and find min/max dates to restore original range
+      const blockageMap = new Map();
+
       for (const blocked of dataToSave.blockedDates) {
-        db.createBlockedDate(blocked);
+        const id = blocked.blockageId || db.generateBlockageId();
+        if (!blockageMap.has(id)) {
+          blockageMap.set(id, {
+            blockageId: id,
+            dates: [],
+            reason: blocked.reason,
+            createdAt: blocked.blockedAt || new Date().toISOString(),
+            rooms: new Set(),
+          });
+        }
+        const entry = blockageMap.get(id);
+        entry.dates.push(blocked.date);
+        if (blocked.roomId) entry.rooms.add(blocked.roomId);
+      }
+
+      for (const entry of blockageMap.values()) {
+        const sortedDates = entry.dates.sort();
+        db.createBlockageInstance({
+          blockageId: entry.blockageId,
+          startDate: sortedDates[0],
+          endDate: sortedDates[sortedDates.length - 1],
+          reason: entry.reason,
+          createdAt: entry.createdAt,
+          rooms: [...entry.rooms],
+        });
       }
     }
 
