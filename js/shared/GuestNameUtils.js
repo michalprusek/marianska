@@ -319,7 +319,7 @@ class GuestNameUtils {
       isFree = false,
     } = params;
 
-    container.innerHTML = '';
+    DOMUtils.clearElement(container);
 
     if (count > 0) {
       container.style.display = 'block';

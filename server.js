@@ -455,10 +455,51 @@ app.post('/api/data', writeLimiter, requireApiKeyOrSession, (req, res) => {
       }
     }
 
-    // Insert blocked dates (legacy compatibility)
-    if (dataToSave.blockedDates && dataToSave.blockedDates.length > 0) {
+    // Insert blocked dates - PREFER blockageInstances over legacy blockedDates
+    // This preserves date ranges correctly instead of collapsing to single days
+    if (dataToSave.blockageInstances && dataToSave.blockageInstances.length > 0) {
+      // Use modern format with full date ranges
+      for (const instance of dataToSave.blockageInstances) {
+        db.createBlockageInstance({
+          blockageId: instance.blockageId,
+          startDate: instance.startDate,
+          endDate: instance.endDate,
+          reason: instance.reason,
+          createdAt: instance.createdAt,
+          rooms: instance.rooms || [],
+        });
+      }
+    } else if (dataToSave.blockedDates && dataToSave.blockedDates.length > 0) {
+      // Legacy fallback: reconstruct date ranges from expanded single dates
+      // Group by blockageId and find min/max dates to restore original range
+      const blockageMap = new Map();
+
       for (const blocked of dataToSave.blockedDates) {
-        db.createBlockedDate(blocked);
+        const id = blocked.blockageId || db.generateBlockageId();
+        if (!blockageMap.has(id)) {
+          blockageMap.set(id, {
+            blockageId: id,
+            dates: [],
+            reason: blocked.reason,
+            createdAt: blocked.blockedAt || new Date().toISOString(),
+            rooms: new Set(),
+          });
+        }
+        const entry = blockageMap.get(id);
+        entry.dates.push(blocked.date);
+        if (blocked.roomId) entry.rooms.add(blocked.roomId);
+      }
+
+      for (const entry of blockageMap.values()) {
+        const sortedDates = entry.dates.sort();
+        db.createBlockageInstance({
+          blockageId: entry.blockageId,
+          startDate: sortedDates[0],
+          endDate: sortedDates[sortedDates.length - 1],
+          reason: entry.reason,
+          createdAt: entry.createdAt,
+          rooms: [...entry.rooms],
+        });
       }
     }
 
@@ -746,23 +787,29 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
       // CRITICAL FIX: Use correct price calculation based on booking type
       if (bookingData.isBulkBooking) {
         // Bulk booking: Use bulk pricing structure (flat base + per-person charges)
-        // FIX 2025-12-02: Use guestTypeBreakdown for mixed ÚTIA/external pricing
+        // SSOT: Always use PriceCalculator.calculateBulkPrice() - now supports guestTypeBreakdown
         if (bookingData.guestTypeBreakdown) {
-          const { utiaAdults = 0, externalAdults = 0, utiaChildren = 0, externalChildren = 0 } = bookingData.guestTypeBreakdown;
+          const {
+            utiaAdults = 0,
+            externalAdults = 0,
+            utiaChildren = 0,
+            externalChildren = 0,
+          } = bookingData.guestTypeBreakdown;
           // Validate guestTypeBreakdown values are non-negative integers
           const breakdownValues = [utiaAdults, externalAdults, utiaChildren, externalChildren];
-          if (breakdownValues.some(v => typeof v !== 'number' || v < 0 || !Number.isInteger(v))) {
-            return res.status(400).json({ error: 'Neplatné hodnoty v guestTypeBreakdown - musí být nezáporná celá čísla' });
+          if (breakdownValues.some((v) => typeof v !== 'number' || v < 0 || !Number.isInteger(v))) {
+            return res.status(400).json({
+              error: 'Neplatné hodnoty v guestTypeBreakdown - musí být nezáporná celá čísla',
+            });
           }
-          const { bulkPrices } = settings;
-          // Calculate mixed pricing: base + (ÚTIA adults × ÚTIA rate) + (external adults × external rate) + children
-          const adultSurcharge = utiaAdults * bulkPrices.utiaAdult + externalAdults * bulkPrices.externalAdult;
-          const childSurcharge = utiaChildren * bulkPrices.utiaChild + externalChildren * bulkPrices.externalChild;
-          const pricePerNight = bulkPrices.basePrice + adultSurcharge + childSurcharge;
-          bookingData.totalPrice = Math.round(pricePerNight * nights);
+          // SSOT: Use PriceCalculator with guestTypeBreakdown support
+          bookingData.totalPrice = PriceCalculator.calculateBulkPrice({
+            guestTypeBreakdown: bookingData.guestTypeBreakdown,
+            nights,
+            settings,
+          });
           logger.info('Bulk booking price calculated with mixed guest types', {
             guestTypeBreakdown: bookingData.guestTypeBreakdown,
-            pricePerNight,
             nights,
             totalPrice: bookingData.totalPrice,
           });
@@ -1250,24 +1297,30 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       // CRITICAL FIX: Use correct price calculation based on booking type
       if (bookingData.isBulkBooking) {
         // Bulk booking: Use bulk pricing structure (flat base + per-person charges)
-        // FIX 2025-12-02: Use guestTypeBreakdown for mixed ÚTIA/external pricing
+        // SSOT: Always use PriceCalculator.calculateBulkPrice() - now supports guestTypeBreakdown
         const breakdown = bookingData.guestTypeBreakdown || existingBooking.guestTypeBreakdown;
         if (breakdown) {
-          const { utiaAdults = 0, externalAdults = 0, utiaChildren = 0, externalChildren = 0 } = breakdown;
+          const {
+            utiaAdults = 0,
+            externalAdults = 0,
+            utiaChildren = 0,
+            externalChildren = 0,
+          } = breakdown;
           // Validate guestTypeBreakdown values are non-negative integers
           const breakdownValues = [utiaAdults, externalAdults, utiaChildren, externalChildren];
-          if (breakdownValues.some(v => typeof v !== 'number' || v < 0 || !Number.isInteger(v))) {
-            return res.status(400).json({ error: 'Neplatné hodnoty v guestTypeBreakdown - musí být nezáporná celá čísla' });
+          if (breakdownValues.some((v) => typeof v !== 'number' || v < 0 || !Number.isInteger(v))) {
+            return res.status(400).json({
+              error: 'Neplatné hodnoty v guestTypeBreakdown - musí být nezáporná celá čísla',
+            });
           }
-          const { bulkPrices } = settings;
-          // Calculate mixed pricing: base + (ÚTIA adults × ÚTIA rate) + (external adults × external rate) + children
-          const adultSurcharge = utiaAdults * bulkPrices.utiaAdult + externalAdults * bulkPrices.externalAdult;
-          const childSurcharge = utiaChildren * bulkPrices.utiaChild + externalChildren * bulkPrices.externalChild;
-          const pricePerNight = bulkPrices.basePrice + adultSurcharge + childSurcharge;
-          bookingData.totalPrice = Math.round(pricePerNight * nights);
+          // SSOT: Use PriceCalculator with guestTypeBreakdown support
+          bookingData.totalPrice = PriceCalculator.calculateBulkPrice({
+            guestTypeBreakdown: breakdown,
+            nights,
+            settings,
+          });
           logger.info('Bulk booking update price calculated with mixed guest types', {
             guestTypeBreakdown: breakdown,
-            pricePerNight,
             nights,
             totalPrice: bookingData.totalPrice,
           });

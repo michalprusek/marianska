@@ -418,6 +418,43 @@ class BookingDisplayUtils {
 
     return parts.join(', ') || (language === 'cs' ? '0 hostů' : '0 guests');
   }
+
+  /**
+   * Format currency value for display
+   *
+   * SSOT for all currency formatting in the application.
+   * Uses Intl.NumberFormat for proper locale-aware formatting.
+   *
+   * @param {number} amount - Amount to format
+   * @param {string} currency - Currency code (default: 'CZK')
+   * @param {string} locale - Locale for formatting (default: 'cs-CZ')
+   * @returns {string} Formatted currency string (e.g., "1 500 Kč")
+   *
+   * @example
+   * BookingDisplayUtils.formatCurrency(1500) // "1 500 Kč"
+   * BookingDisplayUtils.formatCurrency(1500, 'EUR', 'de-DE') // "1.500,00 €"
+   */
+  static formatCurrency(amount, currency = 'CZK', locale = 'cs-CZ') {
+    if (amount === null || amount === undefined || isNaN(amount)) {
+      return currency === 'CZK' ? '0 Kč' : '0';
+    }
+
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  }
+
+  /**
+   * Alias for formatCurrency - backwards compatibility
+   * @param {number} price - Price to format
+   * @returns {string} Formatted price string
+   */
+  static formatPrice(price) {
+    return BookingDisplayUtils.formatCurrency(price);
+  }
 }
 
 // Export for Node.js (server-side email templates, etc.)

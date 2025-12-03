@@ -102,21 +102,10 @@ class BulkBookingModule {
     const childrenNamesContainer = document.getElementById('bulkChildrenNamesContainer');
     const toddlersNamesContainer = document.getElementById('bulkToddlersNamesContainer');
 
-    if (adultsNamesContainer) {
-      while (adultsNamesContainer.firstChild) {
-        adultsNamesContainer.removeChild(adultsNamesContainer.firstChild);
-      }
-    }
-    if (childrenNamesContainer) {
-      while (childrenNamesContainer.firstChild) {
-        childrenNamesContainer.removeChild(childrenNamesContainer.firstChild);
-      }
-    }
-    if (toddlersNamesContainer) {
-      while (toddlersNamesContainer.firstChild) {
-        toddlersNamesContainer.removeChild(toddlersNamesContainer.firstChild);
-      }
-    }
+    // Use DOMUtils (SSOT) for safe DOM clearing
+    DOMUtils.clearElement(adultsNamesContainer);
+    DOMUtils.clearElement(childrenNamesContainer);
+    DOMUtils.clearElement(toddlersNamesContainer);
 
     // Set up guest type change handler
     const guestTypeInputs = document.querySelectorAll('input[name="bulkGuestType"]');
@@ -427,7 +416,7 @@ class BulkBookingModule {
     // Update display elements
     const basePriceEl = document.getElementById('bulkBasePrice');
     if (basePriceEl) {
-      basePriceEl.textContent = `${totalBasePricePerNight.toLocaleString('cs-CZ')} Kč${perNightText}`;
+      basePriceEl.textContent = `${BookingDisplayUtils.formatCurrency(totalBasePricePerNight)}${perNightText}`;
     }
 
     // Hide old generic surcharge lines
@@ -455,7 +444,7 @@ class BulkBookingModule {
     }
 
     // Clear previous detailed lines
-    detailedContainer.innerHTML = '';
+    DOMUtils.clearElement(detailedContainer);
 
     // Helper function for pluralization
     const getGuestLabel = (count, type) => {
@@ -485,15 +474,15 @@ class BulkBookingModule {
         'display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.9rem;';
 
       const label = document.createElement('span');
-      label.textContent = `ÚTIA hosté: ${getGuestLabel(utiaAdults, 'adult')} × ${bulkPrices.utiaAdult.toLocaleString('cs-CZ')} Kč${perNightText}`;
+      label.textContent = `ÚTIA hosté: ${getGuestLabel(utiaAdults, 'adult')} × ${BookingDisplayUtils.formatCurrency(bulkPrices.utiaAdult)}${perNightText}`;
       label.style.color = '#059669';
 
       const value = document.createElement('span');
       const utiaAdultTotal = utiaAdults * bulkPrices.utiaAdult;
       value.textContent =
         utiaAdultTotal > 0
-          ? `+${utiaAdultTotal.toLocaleString('cs-CZ')} Kč${perNightText}`
-          : `0 Kč${perNightText}`;
+          ? `+${BookingDisplayUtils.formatCurrency(utiaAdultTotal)}${perNightText}`
+          : `${BookingDisplayUtils.formatCurrency(0)}${perNightText}`;
       value.style.color = '#059669';
 
       line.appendChild(label);
@@ -509,12 +498,12 @@ class BulkBookingModule {
         'display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.9rem;';
 
       const label = document.createElement('span');
-      label.textContent = `Externí hosté: ${getGuestLabel(externalAdults, 'adult')} × ${bulkPrices.externalAdult.toLocaleString('cs-CZ')} Kč${perNightText}`;
+      label.textContent = `Externí hosté: ${getGuestLabel(externalAdults, 'adult')} × ${BookingDisplayUtils.formatCurrency(bulkPrices.externalAdult)}${perNightText}`;
       label.style.color = '#dc2626';
 
       const value = document.createElement('span');
       const externalAdultTotal = externalAdults * bulkPrices.externalAdult;
-      value.textContent = `+${externalAdultTotal.toLocaleString('cs-CZ')} Kč${perNightText}`;
+      value.textContent = `+${BookingDisplayUtils.formatCurrency(externalAdultTotal)}${perNightText}`;
       value.style.color = '#dc2626';
 
       line.appendChild(label);
@@ -532,14 +521,14 @@ class BulkBookingModule {
           'display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.9rem;';
 
         const label = document.createElement('span');
-        label.textContent = `ÚTIA děti: ${getGuestLabel(utiaChildren, 'child')} × ${bulkPrices.utiaChild.toLocaleString('cs-CZ')} Kč${perNightText}`;
+        label.textContent = `ÚTIA děti: ${getGuestLabel(utiaChildren, 'child')} × ${BookingDisplayUtils.formatCurrency(bulkPrices.utiaChild)}${perNightText}`;
         label.style.color = '#059669';
 
         const value = document.createElement('span');
         value.textContent =
           utiaChildTotal > 0
-            ? `+${utiaChildTotal.toLocaleString('cs-CZ')} Kč${perNightText}`
-            : `0 Kč${perNightText}`;
+            ? `+${BookingDisplayUtils.formatCurrency(utiaChildTotal)}${perNightText}`
+            : `${BookingDisplayUtils.formatCurrency(0)}${perNightText}`;
         value.style.color = '#059669';
 
         line.appendChild(label);
@@ -558,11 +547,11 @@ class BulkBookingModule {
           'display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.9rem;';
 
         const label = document.createElement('span');
-        label.textContent = `Externí děti: ${getGuestLabel(externalChildren, 'child')} × ${bulkPrices.externalChild.toLocaleString('cs-CZ')} Kč${perNightText}`;
+        label.textContent = `Externí děti: ${getGuestLabel(externalChildren, 'child')} × ${BookingDisplayUtils.formatCurrency(bulkPrices.externalChild)}${perNightText}`;
         label.style.color = '#dc2626';
 
         const value = document.createElement('span');
-        value.textContent = `+${externalChildTotal.toLocaleString('cs-CZ')} Kč${perNightText}`;
+        value.textContent = `+${BookingDisplayUtils.formatCurrency(externalChildTotal)}${perNightText}`;
         value.style.color = '#dc2626';
 
         line.appendChild(label);
@@ -574,7 +563,7 @@ class BulkBookingModule {
     // Update per night total
     const perNightTotal = document.getElementById('bulkPricePerNightAmount');
     if (perNightTotal) {
-      perNightTotal.textContent = `${pricePerNight.toLocaleString('cs-CZ')} Kč`;
+      perNightTotal.textContent = BookingDisplayUtils.formatCurrency(pricePerNight);
     }
 
     const nightsMultiplier = document.getElementById('bulkNightsMultiplier');
@@ -584,7 +573,7 @@ class BulkBookingModule {
 
     const priceDisplay = document.getElementById('bulkTotalPrice');
     if (priceDisplay) {
-      priceDisplay.textContent = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
+      priceDisplay.textContent = BookingDisplayUtils.formatCurrency(totalPrice);
     }
 
     const nightsDisplay = document.getElementById('bulkNightsCount');
@@ -604,20 +593,33 @@ class BulkBookingModule {
 
     // Maximum 26 guests validation
     if (totalGuests > 26) {
-      if (capacityWarning) capacityWarning.style.display = 'block';
-      if (minimumWarning) minimumWarning.style.display = 'none';
-      if (confirmBtn) confirmBtn.disabled = true;
+      if (capacityWarning) {
+        capacityWarning.style.display = 'block';
+      }
+      if (minimumWarning) {
+        minimumWarning.style.display = 'none';
+      }
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+      }
       return;
-    } else {
-      if (capacityWarning) capacityWarning.style.display = 'none';
+    }
+    if (capacityWarning) {
+      capacityWarning.style.display = 'none';
     }
 
     // Minimum 10 guests validation for bulk events
     if (totalGuests < 10) {
-      if (minimumWarning) minimumWarning.style.display = 'block';
-      if (confirmBtn) confirmBtn.disabled = true;
+      if (minimumWarning) {
+        minimumWarning.style.display = 'block';
+      }
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+      }
     } else {
-      if (minimumWarning) minimumWarning.style.display = 'none';
+      if (minimumWarning) {
+        minimumWarning.style.display = 'none';
+      }
       if (confirmBtn && this.bulkSelectedDates.size > 0) {
         confirmBtn.disabled = false;
       }
@@ -629,10 +631,12 @@ class BulkBookingModule {
     const childrenEl = document.getElementById('bulkChildren');
     const element = document.getElementById(`bulk${type.charAt(0).toUpperCase() + type.slice(1)}`);
 
-    if (!element) return;
+    if (!element) {
+      return;
+    }
 
-    let value = parseInt(element.textContent, 10) || 0;
-    let newValue = Math.max(0, value + change);
+    const value = parseInt(element.textContent, 10) || 0;
+    const newValue = Math.max(0, value + change);
 
     // Minimum 10 guests (adults + children) validation for bulk events
     const currentAdults = parseInt(adultsEl?.textContent, 10) || 0;
@@ -851,10 +855,10 @@ class BulkBookingModule {
 
     // FIX 2025-12-02: Count guests per type using toggles (same logic as updateBulkPriceCalculation)
     // This ensures sidebar price matches modal price when using per-person guest type toggles
-    let utiaAdults = 0,
-      externalAdults = 0;
-    let utiaChildren = 0,
-      externalChildren = 0;
+    let utiaAdults = 0;
+    let externalAdults = 0;
+    let utiaChildren = 0;
+    let externalChildren = 0;
 
     const guestNamesSection = document.getElementById('bulkGuestNamesSection');
     if (guestNamesSection && guestNamesSection.style.display !== 'none') {
@@ -863,11 +867,15 @@ class BulkBookingModule {
         const isUtia = !toggle.checked; // Unchecked = ÚTIA, Checked = External
         const toggleGuestType = toggle.getAttribute('data-guest-type');
         if (isUtia) {
-          if (toggleGuestType === 'adult') utiaAdults++;
-          else if (toggleGuestType === 'child') utiaChildren++;
-        } else {
-          if (toggleGuestType === 'adult') externalAdults++;
-          else if (toggleGuestType === 'child') externalChildren++;
+          if (toggleGuestType === 'adult') {
+            utiaAdults++;
+          } else if (toggleGuestType === 'child') {
+            utiaChildren++;
+          }
+        } else if (toggleGuestType === 'adult') {
+          externalAdults++;
+        } else if (toggleGuestType === 'child') {
+          externalChildren++;
         }
       });
     }
@@ -1380,7 +1388,7 @@ class BulkBookingModule {
     // Adults section
     const adultsContainer = document.getElementById('bulkAdultsNamesContainer');
     if (adultsContainer) {
-      adultsContainer.innerHTML = '';
+      DOMUtils.clearElement(adultsContainer);
       if (adults > 0) {
         adultsContainer.style.display = 'block';
         const adultsHeader = document.createElement('h5');
@@ -1541,7 +1549,7 @@ class BulkBookingModule {
     // Children section
     const childrenContainer = document.getElementById('bulkChildrenNamesContainer');
     if (childrenContainer) {
-      childrenContainer.innerHTML = '';
+      DOMUtils.clearElement(childrenContainer);
       if (children > 0) {
         childrenContainer.style.display = 'block';
         childrenContainer.style.marginTop = '1rem';
@@ -1703,7 +1711,7 @@ class BulkBookingModule {
     // Toddlers section
     const toddlersContainer = document.getElementById('bulkToddlersNamesContainer');
     if (toddlersContainer) {
-      toddlersContainer.innerHTML = '';
+      DOMUtils.clearElement(toddlersContainer);
       if (toddlers > 0) {
         toddlersContainer.style.display = 'block';
         toddlersContainer.style.marginTop = '1rem';

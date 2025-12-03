@@ -83,7 +83,7 @@ npm run pre-commit           # Lint + format + duplicate check (PŘED commitem!)
 
 **Target:** 70-80% coverage
 
-**SSOT Enforcement:** Max 5% duplikátů povoleno (jscpd). **Aktuální: 2.59%** ✅ (last checked: 2025-11-10)
+**SSOT Enforcement:** Max 5% duplikátů povoleno (jscpd). **Aktuální: 1.51%** ✅ (last checked: 2025-12-03)
 
 ## Architektura
 
@@ -106,7 +106,7 @@ npm run pre-commit           # Lint + format + duplicate check (PŘED commitem!)
 11. **GuestNameUtils.js** - Správa jmen hostů (validace, formátování, distribuce mezi pokoje)
 12. **BookingDisplayUtils.js** - Utility pro zobrazení booking detailů (formátování dat, statusy)
 13. **BookingUtils.js** - Obecné booking utility (konsolidace, validace)
-14. **DomUtils.js** - DOM manipulation helpers (element creation, event handling)
+14. **DomUtils.js** - XSS-safe DOM manipulation (escapeHtml, showNotification, createElement, clearElement)
 15. **Logger.js** - Strukturované logování (levels: DEBUG, INFO, WARN, ERROR)
 16. **Errors.js** - Custom error classes (ValidationError, AuthenticationError, NotFoundError, ConflictError)
 
@@ -168,6 +168,15 @@ GuestNameUtils.distributeGuestNames(guestNames, perRoomGuests);
 // Logging
 logger.info('Booking created', { bookingId, email });
 logger.error('Validation failed', { errors });
+
+// DOM manipulation (XSS-safe) - NEW 2025-12-03
+DOMUtils.escapeHtml(userInput);                    // XSS prevention
+DOMUtils.showNotification('Uloženo!', 'success');  // Toast notifications
+DOMUtils.createElement('div', 'text', { className: 'my-class' });
+DOMUtils.clearElement(container);                  // Safe innerHTML = ''
+
+// Currency formatting (SSOT)
+BookingDisplayUtils.formatCurrency(1500);          // "1 500 Kč"
 
 // ❌ NIKDY nevytvářejte vlastní implementace!
 ```

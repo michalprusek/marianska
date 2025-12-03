@@ -128,28 +128,11 @@
           </h2>
 
           <!-- Tab navigation -->
-          <div
-            class="edit-tabs"
-            style="
-              display: flex;
-              gap: 1rem;
-              margin-bottom: 1.5rem;
-              border-bottom: 2px solid #e5e7eb;
-            "
-          >
+          <div class="edit-tabs">
             <button
               class="edit-tab-btn active"
               data-tab="dates"
               onclick="editPage.editComponent.switchTab('dates')"
-              style="
-                padding: 0.75rem 1.5rem;
-                background: none;
-                border: none;
-                border-bottom: 3px solid #0d9488;
-                color: #0d9488;
-                font-weight: 600;
-                cursor: pointer;
-              "
             >
               📅 Termín a pokoje
             </button>
@@ -157,15 +140,6 @@
               class="edit-tab-btn"
               data-tab="billing"
               onclick="editPage.editComponent.switchTab('billing')"
-              style="
-                padding: 0.75rem 1.5rem;
-                background: none;
-                border: none;
-                border-bottom: 3px solid transparent;
-                color: #6b7280;
-                font-weight: 600;
-                cursor: pointer;
-              "
             >
               📋 Fakturační údaje
             </button>
@@ -182,16 +156,8 @@
               id="editDatesTab"
               class="edit-tab-content"
             >
-              <div
-                style="
-                  margin-bottom: 1rem;
-                  padding: 1rem;
-                  background: #e0f2fe;
-                  border-radius: 8px;
-                  border-left: 4px solid #0284c7;
-                "
-              >
-                <p style="margin: 0; font-size: 0.9rem; color: #075985">
+              <div class="edit-info-box">
+                <p>
                   ℹ️ <strong>Klikněte na "Změnit termín"</strong> u pokoje, který chcete upravit.
                   Kalendář zobrazí původní termín <strong style="color: #3b82f6">modře</strong>.
                 </p>
@@ -202,38 +168,31 @@
                 <div>
                   <div
                     id="editCalendarHeader"
-                    style="display: none; margin-bottom: 1rem"
+                    class="edit-calendar-header"
                   >
-                    <h3 style="margin: 0 0 0.5rem 0">
+                    <h3 class="mb-2">
                       Kalendář - <span id="editingRoomName"></span>
                     </h3>
                     <button
                       type="button"
                       id="cancelRoomEditBtn"
-                      class="btn btn-secondary"
-                      style="padding: 0.5rem 1rem"
+                      class="btn btn-secondary p-btn-sm"
                     >
                       ✕ Zavřít kalendář
                     </button>
                   </div>
                   <div
                     id="editCalendarContainer"
-                    style="display: none"
+                    class="hidden"
                   ></div>
                   <div
                     id="editSelectedDatesContainer"
-                    style="
-                      display: none;
-                      margin-top: 1rem;
-                      padding: 1rem;
-                      background: #fef3c7;
-                      border-radius: 8px;
-                    "
+                    class="edit-selected-dates-box"
                   >
                     <strong>Nově vybraný termín:</strong>
                     <div
                       id="editSelectedDates"
-                      style="margin-top: 0.5rem; color: #d97706; font-weight: 600"
+                      class="edit-selected-dates-text"
                     >
                       Zatím nevybráno
                     </div>
@@ -241,14 +200,7 @@
                   <button
                     type="button"
                     id="saveRoomDatesBtn"
-                    class="btn btn-primary"
-                    style="
-                      display: none;
-                      margin-top: 1rem;
-                      padding: 0.75rem 1.5rem;
-                      width: 100%;
-                      font-size: 1.1rem;
-                    "
+                    class="btn btn-primary save-room-dates-btn"
                   >
                     ✓ Uložit termín
                   </button>
@@ -258,23 +210,16 @@
                   <h3>Všechny pokoje</h3>
                   <div
                     id="editRoomsList"
-                    style="display: flex; flex-direction: column; gap: 0.5rem"
+                    class="flex-col"
                   >
                     <!-- Rooms will be populated here -->
                   </div>
 
-                  <div
-                    style="
-                      margin-top: 1.5rem;
-                      padding: 1rem;
-                      background: #fef3c7;
-                      border-radius: 8px;
-                    "
-                  >
+                  <div class="edit-price-box">
                     <strong>Celková cena:</strong>
                     <div
                       id="editTotalPrice"
-                      style="font-size: 1.5rem; color: #d97706"
+                      class="edit-price-value"
                     >
                       0 Kč
                     </div>
@@ -388,52 +333,41 @@
                 <!-- Guest Names Section -->
                 <div
                   id="editGuestNamesSection"
-                  class="input-group full-width"
-                  style="
-                    display: none;
-                    margin-top: 1.5rem;
-                    padding: 1.5rem;
-                    background: #f0fdf4;
-                    border: 2px solid #10b981;
-                    border-radius: 8px;
-                  "
+                  class="input-group full-width edit-guest-names-section"
                 >
-                  <h3 style="margin: 0 0 1rem 0; color: #047857" data-translate="guestNamesTitle">👥 Jména ubytovaných osob</h3>
+                  <h3 data-translate="guestNamesTitle">👥 Jména ubytovaných osob</h3>
 
                   <!-- Adults Names -->
                   <div
                     id="editAdultsNamesContainer"
-                    style="margin-bottom: 1.5rem"
+                    class="mb-6"
                   >
-                    <h4 style="margin: 0 0 0.75rem 0; color: #059669">Dospělí (18+ let)</h4>
+                    <h4>Dospělí (18+ let)</h4>
                     <div id="editAdultsNamesList"></div>
                   </div>
 
                   <!-- Children Names -->
                   <div
                     id="editChildrenNamesContainer"
-                    style="display: none"
+                    class="hidden"
                   >
-                    <h4 style="margin: 0 0 0.75rem 0; color: #059669">Děti (3-17 let)</h4>
+                    <h4>Děti (3-17 let)</h4>
                     <div id="editChildrenNamesList"></div>
                   </div>
 
                   <!-- Toddlers Names -->
                   <div
                     id="editToddlersNamesContainer"
-                    style="display: none"
+                    class="hidden"
                   >
-                    <h4 style="margin: 0 0 0.75rem 0; color: #059669">Batolata (0-2 roky)</h4>
+                    <h4>Batolata (0-2 roky)</h4>
                     <div id="editToddlersNamesList"></div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div
-              class="modal-actions"
-              style="margin-top: 2rem; text-align: right"
-            >
+            <div class="modal-actions edit-form-actions">
               <button
                 type="button"
                 class="btn btn-secondary"
@@ -453,7 +387,6 @@
                 class="btn btn-danger"
                 id="deleteBookingButton"
                 onclick="editPage.deleteBooking()"
-                style="margin-left: 1rem"
               >
                 Smazat rezervaci
               </button>

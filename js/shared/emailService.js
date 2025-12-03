@@ -9,6 +9,8 @@ const nodemailer = require('nodemailer');
 // Server-side require - not a redeclaration (client-side uses global DateUtils)
 // eslint-disable-next-line no-redeclare
 const DateUtils = require('./dateUtils');
+
+const BookingDisplayUtils = require('./bookingDisplayUtils');
 const { createLogger } = require('./logger');
 
 const logger = createLogger('EmailService');
@@ -92,14 +94,12 @@ class EmailService {
 
   /**
    * Format price for display
+   * Delegates to BookingDisplayUtils.formatCurrency (SSOT)
    * @param {number} price - Price in CZK
    * @returns {string} Formatted price
    */
   formatPrice(price) {
-    return new Intl.NumberFormat('cs-CZ', {
-      style: 'currency',
-      currency: 'CZK',
-    }).format(price);
+    return BookingDisplayUtils.formatCurrency(price);
   }
 
   /**
@@ -324,15 +324,12 @@ class EmailService {
       const externalPrices = settings.prices.external;
 
       // Calculate average adult/child prices per room type
-      const getAvgPrice = (priceConfig, field) => {
-        return (
-          booking.rooms.reduce((sum, roomId) => {
-            const room = settings.rooms.find((r) => r.id === roomId);
-            const roomType = room?.type || 'small';
-            return sum + (priceConfig?.[roomType]?.[field] || 0);
-          }, 0) / booking.rooms.length
-        );
-      };
+      const getAvgPrice = (priceConfig, field) =>
+        booking.rooms.reduce((sum, roomId) => {
+          const room = settings.rooms.find((r) => r.id === roomId);
+          const roomType = room?.type || 'small';
+          return sum + (priceConfig?.[roomType]?.[field] || 0);
+        }, 0) / booking.rooms.length;
 
       const utiaAdultPrice = Math.round(getAvgPrice(utiaPrices, 'adult'));
       const utiaChildPrice = Math.round(getAvgPrice(utiaPrices, 'child'));
@@ -474,7 +471,9 @@ class EmailService {
 
     // Section 1: Per night breakdown
     lines.push('CENA ZA JEDNU NOC:');
-    lines.push(`  Základní cena za chatu: ${prices.basePrice.toLocaleString('cs-CZ')} Kč/noc`);
+    lines.push(
+      `  Základní cena za chatu: ${BookingDisplayUtils.formatCurrency(prices.basePrice)}/noc`
+    );
 
     let pricePerNight = prices.basePrice;
 
@@ -483,7 +482,7 @@ class EmailService {
       const utiaAdultTotal = utiaAdults * prices.utiaAdult;
       const label = this._getGuestLabel(utiaAdults, 'adult');
       lines.push(
-        `  ÚTIA hosté: ${label} × ${prices.utiaAdult.toLocaleString('cs-CZ')} Kč/noc = +${utiaAdultTotal.toLocaleString('cs-CZ')} Kč/noc`
+        `  ÚTIA hosté: ${label} × ${BookingDisplayUtils.formatCurrency(prices.utiaAdult)}/noc = +${BookingDisplayUtils.formatCurrency(utiaAdultTotal)}/noc`
       );
       pricePerNight += utiaAdultTotal;
     }
@@ -493,7 +492,7 @@ class EmailService {
       const externalAdultTotal = externalAdults * prices.externalAdult;
       const label = this._getGuestLabel(externalAdults, 'adult');
       lines.push(
-        `  Externí hosté: ${label} × ${prices.externalAdult.toLocaleString('cs-CZ')} Kč/noc = +${externalAdultTotal.toLocaleString('cs-CZ')} Kč/noc`
+        `  Externí hosté: ${label} × ${BookingDisplayUtils.formatCurrency(prices.externalAdult)}/noc = +${BookingDisplayUtils.formatCurrency(externalAdultTotal)}/noc`
       );
       pricePerNight += externalAdultTotal;
     }
@@ -504,7 +503,7 @@ class EmailService {
       const label = this._getGuestLabel(utiaChildren, 'child');
       if (prices.utiaChild > 0) {
         lines.push(
-          `  ÚTIA děti: ${label} × ${prices.utiaChild.toLocaleString('cs-CZ')} Kč/noc = +${utiaChildTotal.toLocaleString('cs-CZ')} Kč/noc`
+          `  ÚTIA děti: ${label} × ${BookingDisplayUtils.formatCurrency(prices.utiaChild)}/noc = +${BookingDisplayUtils.formatCurrency(utiaChildTotal)}/noc`
         );
       } else {
         lines.push(`  ÚTIA děti: ${label} = zdarma`);
@@ -517,7 +516,7 @@ class EmailService {
       const externalChildTotal = externalChildren * prices.externalChild;
       const label = this._getGuestLabel(externalChildren, 'child');
       lines.push(
-        `  Externí děti: ${label} × ${prices.externalChild.toLocaleString('cs-CZ')} Kč/noc = +${externalChildTotal.toLocaleString('cs-CZ')} Kč/noc`
+        `  Externí děti: ${label} × ${BookingDisplayUtils.formatCurrency(prices.externalChild)}/noc = +${BookingDisplayUtils.formatCurrency(externalChildTotal)}/noc`
       );
       pricePerNight += externalChildTotal;
     }
@@ -529,7 +528,7 @@ class EmailService {
     }
 
     lines.push(`  ─────────────────────────────`);
-    lines.push(`  Cena za noc celkem: ${pricePerNight.toLocaleString('cs-CZ')} Kč`);
+    lines.push(`  Cena za noc celkem: ${BookingDisplayUtils.formatCurrency(pricePerNight)}`);
 
     // Section 2: Nights multiplier
     lines.push('');
@@ -538,7 +537,7 @@ class EmailService {
     // Section 3: Final price (use stored totalPrice from database)
     const finalPrice = booking.totalPrice || pricePerNight * nights;
     lines.push('');
-    lines.push(`CELKOVÁ CENA: ${finalPrice.toLocaleString('cs-CZ')} Kč`);
+    lines.push(`CELKOVÁ CENA: ${BookingDisplayUtils.formatCurrency(finalPrice)}`);
 
     return lines.join('\n');
   }
@@ -876,14 +875,21 @@ ${perRoomPriceHtml}
           smtpCode: error.responseCode || 'unknown',
           stack: error.stack,
         });
-        return { email: adminEmail, success: false, error: error.message, smtpCode: error.responseCode };
+        return {
+          email: adminEmail,
+          success: false,
+          error: error.message,
+          smtpCode: error.responseCode,
+        };
       }
     });
 
     // Use allSettled to ensure all promises complete even if some fail
     const settledResults = await Promise.allSettled(sendPromises);
     return settledResults.map((r) =>
-      r.status === 'fulfilled' ? r.value : { success: false, error: r.reason?.message || 'Unknown error' }
+      r.status === 'fulfilled'
+        ? r.value
+        : { success: false, error: r.reason?.message || 'Unknown error' }
     );
   }
 
@@ -1588,7 +1594,9 @@ Automatická zpráva - neodpovídejte
     // Use allSettled to ensure all promises complete even if some fail
     const settledResults = await Promise.allSettled(sendPromises);
     const results = settledResults.map((r) =>
-      r.status === 'fulfilled' ? r.value : { success: false, error: r.reason?.message || 'Unknown error' }
+      r.status === 'fulfilled'
+        ? r.value
+        : { success: false, error: r.reason?.message || 'Unknown error' }
     );
 
     const successCount = results.filter((r) => r.success).length;

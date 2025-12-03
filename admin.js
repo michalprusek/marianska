@@ -24,7 +24,12 @@ class AdminPanel {
   }
 
   // Defense-in-depth: HTML escaping helper
+  // SSOT 2025-12-03: Delegate to DOMUtils.escapeHtml()
   escapeHtml(unsafe) {
+    if (window.DOMUtils && window.DOMUtils.escapeHtml) {
+      return window.DOMUtils.escapeHtml(unsafe);
+    }
+    // Fallback (shouldn't happen if domUtils.js is loaded)
     if (!unsafe) {
       return '';
     }
@@ -95,18 +100,23 @@ class AdminPanel {
   formatGuestTypeDisplay(booking) {
     // Check if we have a breakdown (mixed ÚTIA/external bulk booking)
     const breakdown = booking.guestTypeBreakdown;
-    if (breakdown && (breakdown.utiaAdults > 0 || breakdown.utiaChildren > 0) &&
-        (breakdown.externalAdults > 0 || breakdown.externalChildren > 0)) {
+    if (
+      breakdown &&
+      (breakdown.utiaAdults > 0 || breakdown.utiaChildren > 0) &&
+      (breakdown.externalAdults > 0 || breakdown.externalChildren > 0)
+    ) {
       // Mixed booking - show both types
       const utiaTotal = (breakdown.utiaAdults || 0) + (breakdown.utiaChildren || 0);
       const externalTotal = (breakdown.externalAdults || 0) + (breakdown.externalChildren || 0);
 
-      let parts = [];
+      const parts = [];
       if (utiaTotal > 0) {
         parts.push(`<span style="color: #059669; font-weight: 600;">ÚTIA: ${utiaTotal}</span>`);
       }
       if (externalTotal > 0) {
-        parts.push(`<span style="color: #dc2626; font-weight: 600;">Externí: ${externalTotal}</span>`);
+        parts.push(
+          `<span style="color: #dc2626; font-weight: 600;">Externí: ${externalTotal}</span>`
+        );
       }
       return parts.join(' / ');
     }
@@ -661,7 +671,11 @@ class AdminPanel {
       const bookings = await dataManager.getAllBookings();
       const tbody = document.getElementById('bookingsTableBody');
 
-      tbody.innerHTML = '';
+      if (window.DOMUtils) {
+        window.DOMUtils.clearElement(tbody);
+      } else {
+        tbody.innerHTML = '';
+      }
 
       bookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
@@ -736,7 +750,7 @@ class AdminPanel {
                 <td>${dateRangeDisplay}</td>
                 <td>${this.createRoomDisplay(booking, true)}</td>
                 <td>
-                    ${bookingPrices.get(booking.id).toLocaleString('cs-CZ')} Kč
+                    ${BookingDisplayUtils.formatCurrency(bookingPrices.get(booking.id))}
                 </td>
                 <td style="text-align: center;">
                     <label style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; cursor: pointer; user-select: none;">
@@ -898,7 +912,8 @@ class AdminPanel {
                               ${this.createRoomDisplay(booking, true)}
                             </div>
                           `
-                                : booking.perRoomDates && Object.keys(booking.perRoomDates).length > 0
+                                : booking.perRoomDates &&
+                                    Object.keys(booking.perRoomDates).length > 0
                                   ? booking.rooms
                                       .map((roomId) => {
                                         const dates = booking.perRoomDates[roomId];
@@ -951,13 +966,15 @@ class AdminPanel {
                               </span>
                             </div>
                           `
-                                : booking.perRoomGuests && Object.keys(booking.perRoomGuests).length > 0
+                                : booking.perRoomGuests &&
+                                    Object.keys(booking.perRoomGuests).length > 0
                                   ? booking.rooms
                                       .map((roomId) => {
                                         const guests = booking.perRoomGuests[roomId];
                                         if (guests) {
                                           // Skip rooms with no guests (0 adults AND 0 children)
-                                          const hasGuests = guests.adults > 0 || guests.children > 0;
+                                          const hasGuests =
+                                            guests.adults > 0 || guests.children > 0;
                                           if (!hasGuests) {
                                             return ''; // Don't display empty rooms
                                           }
@@ -993,7 +1010,10 @@ class AdminPanel {
                             }
                             <!-- Show totals in gray for reference (only for non-bulk with perRoomGuests) -->
                             ${
-                              !(booking.isBulkBooking || (booking.rooms && booking.rooms.length === 9)) &&
+                              !(
+                                booking.isBulkBooking ||
+                                (booking.rooms && booking.rooms.length === 9)
+                              ) &&
                               booking.perRoomGuests &&
                               Object.keys(booking.perRoomGuests).length > 0
                                 ? `
@@ -1048,7 +1068,7 @@ class AdminPanel {
                       <div style="padding: 1rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; color: white;">
                         <div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: 700;">
                           <span>Celková cena:</span>
-                          <span>${booking.totalPrice.toLocaleString('cs-CZ')} Kč</span>
+                          <span>${BookingDisplayUtils.formatCurrency(booking.totalPrice)}</span>
                         </div>
                       </div>
                     </div>
@@ -1157,7 +1177,9 @@ class AdminPanel {
       document.getElementById('editBookingModal').classList.add('active');
     } catch (error) {
       console.error('Error loading booking for edit:', error);
-      this.showErrorMessage(error.message || 'Chyba při načítání rezervace. Zkuste obnovit stránku.');
+      this.showErrorMessage(
+        error.message || 'Chyba při načítání rezervace. Zkuste obnovit stránku.'
+      );
     }
   }
 
@@ -2133,7 +2155,11 @@ class AdminPanel {
       return;
     }
 
-    container.innerHTML = '';
+    if (window.DOMUtils) {
+      window.DOMUtils.clearElement(container);
+    } else {
+      container.innerHTML = '';
+    }
     container.style.cssText = `
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
@@ -2305,7 +2331,11 @@ class AdminPanel {
     const codes = settings.christmasAccessCodes || [];
     const container = document.getElementById('christmasCodesList');
 
-    container.innerHTML = '';
+    if (window.DOMUtils) {
+      window.DOMUtils.clearElement(container);
+    } else {
+      container.innerHTML = '';
+    }
 
     codes.forEach((code) => {
       const chip = document.createElement('div');
@@ -2421,7 +2451,11 @@ class AdminPanel {
     }
 
     const periods = settings.christmasPeriods || [];
-    container.innerHTML = '';
+    if (window.DOMUtils) {
+      window.DOMUtils.clearElement(container);
+    } else {
+      container.innerHTML = '';
+    }
 
     if (periods.length === 0) {
       container.innerHTML =
@@ -3005,11 +3039,15 @@ class AdminPanel {
       const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
 
       // Set defaults if empty
-      if (!fromInput.value) fromInput.value = currentMonth;
-      if (!toInput.value) toInput.value = currentMonth;
+      if (!fromInput.value) {
+        fromInput.value = currentMonth;
+      }
+      if (!toInput.value) {
+        toInput.value = currentMonth;
+      }
 
-      const fromDate = new Date(fromInput.value + '-01');
-      const toDate = new Date(toInput.value + '-01');
+      const fromDate = new Date(`${fromInput.value}-01`);
+      const toDate = new Date(`${toInput.value}-01`);
       toDate.setMonth(toDate.getMonth() + 1); // Move to next month
       toDate.setDate(0); // Last day of selected month
 
@@ -3043,7 +3081,9 @@ class AdminPanel {
 
       // Calculate occupancy rate for the selected period
       const monthsDiff =
-        (toDate.getFullYear() - fromDate.getFullYear()) * 12 + (toDate.getMonth() - fromDate.getMonth()) + 1;
+        (toDate.getFullYear() - fromDate.getFullYear()) * 12 +
+        (toDate.getMonth() - fromDate.getMonth()) +
+        1;
       let totalRoomDays = 0;
 
       // Calculate total room-days in the period (9 rooms from settings.rooms)
@@ -3063,7 +3103,8 @@ class AdminPanel {
         bookedRoomDays += days * (booking.rooms?.length || 1);
       });
 
-      stats.occupancyRate = totalRoomDays > 0 ? Math.round((bookedRoomDays / totalRoomDays) * 100) : 0;
+      stats.occupancyRate =
+        totalRoomDays > 0 ? Math.round((bookedRoomDays / totalRoomDays) * 100) : 0;
 
       // Format period label
       const periodLabel =
@@ -3078,11 +3119,11 @@ class AdminPanel {
           <div style="color: var(--gray-600);">Počet rezervací</div>
         </div>
         <div style="padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md);">
-          <div style="font-size: 2rem; font-weight: 700; color: var(--primary-color);">${stats.totalRevenue.toLocaleString('cs-CZ')} Kč</div>
+          <div style="font-size: 2rem; font-weight: 700; color: var(--primary-color);">${BookingDisplayUtils.formatCurrency(stats.totalRevenue)}</div>
           <div style="color: var(--gray-600);">Celkové příjmy</div>
         </div>
         <div style="padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md);">
-          <div style="font-size: 2rem; font-weight: 700; color: #f59e0b;">${stats.averagePrice.toLocaleString('cs-CZ')} Kč</div>
+          <div style="font-size: 2rem; font-weight: 700; color: #f59e0b;">${BookingDisplayUtils.formatCurrency(stats.averagePrice)}</div>
           <div style="color: var(--gray-600);">Průměrná cena</div>
         </div>
         <div style="padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md);">
@@ -3723,6 +3764,7 @@ class AdminPanel {
   /**
    * Generate unified bulk price breakdown HTML
    * Shows: Base price + ÚTIA guests + External guests + Total
+   * Uses PriceCalculator.calculateBulkPriceBreakdown() for SSOT price calculation
    *
    * @param {Object} booking - Booking object with bulk booking data
    * @param {Object} settings - Settings with bulkPrices configuration
@@ -3732,7 +3774,13 @@ class AdminPanel {
     const { bulkPrices } = settings;
 
     // Validate bulkPrices configuration
-    const requiredFields = ['basePrice', 'utiaAdult', 'utiaChild', 'externalAdult', 'externalChild'];
+    const requiredFields = [
+      'basePrice',
+      'utiaAdult',
+      'utiaChild',
+      'externalAdult',
+      'externalChild',
+    ];
     const missingFields = requiredFields.filter((f) => typeof bulkPrices?.[f] !== 'number');
     if (missingFields.length > 0) {
       console.error('[AdminPanel] Missing bulkPrices fields:', missingFields);
@@ -3763,12 +3811,10 @@ class AdminPanel {
           } else {
             utiaAdults++;
           }
+        } else if (personType === 'child') {
+          externalChildren++;
         } else {
-          if (personType === 'child') {
-            externalChildren++;
-          } else {
-            externalAdults++;
-          }
+          externalAdults++;
         }
       }
     } else {
@@ -3783,13 +3829,21 @@ class AdminPanel {
       toddlers = booking.toddlers || 0;
     }
 
-    // Calculate prices
-    const basePrice = bulkPrices.basePrice * nights;
-    const utiaAdultsPrice = utiaAdults * bulkPrices.utiaAdult * nights;
-    const utiaChildrenPrice = utiaChildren * bulkPrices.utiaChild * nights;
-    const externalAdultsPrice = externalAdults * bulkPrices.externalAdult * nights;
-    const externalChildrenPrice = externalChildren * bulkPrices.externalChild * nights;
-    const totalPrice = basePrice + utiaAdultsPrice + utiaChildrenPrice + externalAdultsPrice + externalChildrenPrice;
+    // SSOT: Use PriceCalculator for price calculation
+    const priceBreakdown = PriceCalculator.calculateBulkPriceBreakdown({
+      guestTypeBreakdown: { utiaAdults, utiaChildren, externalAdults, externalChildren },
+      nights,
+      settings,
+    });
+
+    const {
+      // basePrice not destructured - we use bulkPrices.basePrice for per-night display
+      utiaAdultsPrice,
+      utiaChildrenPrice,
+      externalAdultsPrice,
+      externalChildrenPrice,
+      total: totalPrice,
+    } = priceBreakdown;
 
     // Build HTML
     let html = `
@@ -3802,7 +3856,7 @@ class AdminPanel {
           <!-- Base price -->
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; background: white; border-radius: 6px;">
             <span style="color: #374151;">Základní cena za chatu</span>
-            <span style="font-weight: 600; color: #059669;">${bulkPrices.basePrice.toLocaleString('cs-CZ')} Kč/noc</span>
+            <span style="font-weight: 600; color: #059669;">${BookingDisplayUtils.formatCurrency(bulkPrices.basePrice)}/noc</span>
           </div>`;
 
     // ÚTIA guests
@@ -3810,14 +3864,14 @@ class AdminPanel {
       html += `
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.5rem 0.5rem 1.5rem; color: #374151;">
             <span>ÚTIA ${this._getGuestLabelAdmin(utiaAdults, 'adult')}</span>
-            <span style="color: #059669;">+${utiaAdultsPrice.toLocaleString('cs-CZ')} Kč</span>
+            <span style="color: #059669;">+${BookingDisplayUtils.formatCurrency(utiaAdultsPrice)}</span>
           </div>`;
     }
     if (utiaChildren > 0) {
       html += `
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.5rem 0.5rem 1.5rem; color: #374151;">
             <span>ÚTIA ${this._getGuestLabelAdmin(utiaChildren, 'child')}</span>
-            <span style="color: #059669;">+${utiaChildrenPrice.toLocaleString('cs-CZ')} Kč</span>
+            <span style="color: #059669;">+${BookingDisplayUtils.formatCurrency(utiaChildrenPrice)}</span>
           </div>`;
     }
 
@@ -3826,14 +3880,14 @@ class AdminPanel {
       html += `
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.5rem 0.5rem 1.5rem; color: #374151;">
             <span>Externí ${this._getGuestLabelAdmin(externalAdults, 'adult')}</span>
-            <span style="color: #059669;">+${externalAdultsPrice.toLocaleString('cs-CZ')} Kč</span>
+            <span style="color: #059669;">+${BookingDisplayUtils.formatCurrency(externalAdultsPrice)}</span>
           </div>`;
     }
     if (externalChildren > 0) {
       html += `
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.5rem 0.5rem 1.5rem; color: #374151;">
             <span>Externí ${this._getGuestLabelAdmin(externalChildren, 'child')}</span>
-            <span style="color: #059669;">+${externalChildrenPrice.toLocaleString('cs-CZ')} Kč</span>
+            <span style="color: #059669;">+${BookingDisplayUtils.formatCurrency(externalChildrenPrice)}</span>
           </div>`;
     }
 
@@ -3857,7 +3911,7 @@ class AdminPanel {
     html += `
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; margin-top: 0.5rem;">
             <span style="color: white; font-weight: 600; font-size: 1.1rem;">Celková cena</span>
-            <span style="color: white; font-weight: 700; font-size: 1.25rem;">${totalPrice.toLocaleString('cs-CZ')} Kč</span>
+            <span style="color: white; font-weight: 700; font-size: 1.25rem;">${BookingDisplayUtils.formatCurrency(totalPrice)}</span>
           </div>
         </div>
       </div>`;
@@ -3873,19 +3927,30 @@ class AdminPanel {
    */
   _getGuestLabelAdmin(count, type) {
     if (type === 'adult') {
-      if (count === 1) return '1 dospělý';
-      if (count >= 2 && count <= 4) return `${count} dospělí`;
+      if (count === 1) {
+        return '1 dospělý';
+      }
+      if (count >= 2 && count <= 4) {
+        return `${count} dospělí`;
+      }
       return `${count} dospělých`;
     } else if (type === 'child') {
-      if (count === 1) return '1 dítě (3-17 let)';
-      if (count >= 2 && count <= 4) return `${count} děti (3-17 let)`;
+      if (count === 1) {
+        return '1 dítě (3-17 let)';
+      }
+      if (count >= 2 && count <= 4) {
+        return `${count} děti (3-17 let)`;
+      }
       return `${count} dětí (3-17 let)`;
-    } else {
-      // toddler
-      if (count === 1) return '1 batole (0-2 roky)';
-      if (count >= 2 && count <= 4) return `${count} batolata (0-2 roky)`;
-      return `${count} batolat (0-2 roky)`;
     }
+    // toddler
+    if (count === 1) {
+      return '1 batole (0-2 roky)';
+    }
+    if (count >= 2 && count <= 4) {
+      return `${count} batolata (0-2 roky)`;
+    }
+    return `${count} batolat (0-2 roky)`;
   }
 
   /**

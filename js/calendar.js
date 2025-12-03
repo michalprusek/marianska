@@ -80,7 +80,7 @@ class CalendarModule {
     }
 
     // Clear calendar
-    calendar.innerHTML = '';
+    DOMUtils.clearElement(calendar);
 
     // Add day headers
     const dayHeaders =

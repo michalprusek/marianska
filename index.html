@@ -1110,158 +1110,68 @@
                 <h3 data-translate="guestTypeAndCount">Typ hosta a počet osob</h3>
 
                 <!-- Guest Count -->
-                <div
-                  class="guest-counters"
-                  style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem"
-                >
+                <div class="guest-counters guest-counters--3col">
                   <div class="counter-item">
-                    <label
-                      class="counter-label"
-                      style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
-                      data-translate="adultsLabel"
-                      >Dospělí</label
-                    >
-                    <div
-                      class="counter-controls"
-                      style="
-                        display: flex;
-                        align-items: center;
-                        background: white;
-                        border: 1px solid #e2e8f0;
-                        border-radius: 6px;
-                      "
-                    >
+                    <label class="counter-label" data-translate="adultsLabel">Dospělí</label>
+                    <div class="counter-controls">
                       <button
+                        type="button"
                         class="counter-btn"
                         onclick="window.app.adjustGuests('adults', -1)"
-                        style="
-                          padding: 0.5rem 0.75rem;
-                          border: none;
-                          background: transparent;
-                          cursor: pointer;
-                          font-size: 1.2rem;
-                        "
+                        aria-label="Snizit dospele"
                       >
                         -
                       </button>
-                      <span
-                        id="singleRoomAdults"
-                        class="counter-value"
-                        style="flex: 1; text-align: center; font-weight: 600"
-                        >1</span
-                      >
+                      <span id="singleRoomAdults" class="counter-value" aria-live="polite">1</span>
                       <button
+                        type="button"
                         class="counter-btn"
                         onclick="window.app.adjustGuests('adults', 1)"
-                        style="
-                          padding: 0.5rem 0.75rem;
-                          border: none;
-                          background: transparent;
-                          cursor: pointer;
-                          font-size: 1.2rem;
-                        "
+                        aria-label="Zvysit dospele"
                       >
                         +
                       </button>
                     </div>
                   </div>
                   <div class="counter-item">
-                    <label
-                      class="counter-label"
-                      style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
-                      data-translate="childrenLabel"
-                      >Děti (3-17)</label
-                    >
-                    <div
-                      class="counter-controls"
-                      style="
-                        display: flex;
-                        align-items: center;
-                        background: white;
-                        border: 1px solid #e2e8f0;
-                        border-radius: 6px;
-                      "
-                    >
+                    <label class="counter-label" data-translate="childrenLabel">Děti (3-17)</label>
+                    <div class="counter-controls">
                       <button
+                        type="button"
                         class="counter-btn"
                         onclick="window.app.adjustGuests('children', -1)"
-                        style="
-                          padding: 0.5rem 0.75rem;
-                          border: none;
-                          background: transparent;
-                          cursor: pointer;
-                          font-size: 1.2rem;
-                        "
+                        aria-label="Snizit deti"
                       >
                         -
                       </button>
-                      <span
-                        id="singleRoomChildren"
-                        class="counter-value"
-                        style="flex: 1; text-align: center; font-weight: 600"
-                        >0</span
-                      >
+                      <span id="singleRoomChildren" class="counter-value" aria-live="polite">0</span>
                       <button
+                        type="button"
                         class="counter-btn"
                         onclick="window.app.adjustGuests('children', 1)"
-                        style="
-                          padding: 0.5rem 0.75rem;
-                          border: none;
-                          background: transparent;
-                          cursor: pointer;
-                          font-size: 1.2rem;
-                        "
+                        aria-label="Zvysit deti"
                       >
                         +
                       </button>
                     </div>
                   </div>
                   <div class="counter-item">
-                    <label
-                      class="counter-label"
-                      style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
-                      data-translate="toddlersCount"
-                      >Batolata (0-3)</label
-                    >
-                    <div
-                      class="counter-controls"
-                      style="
-                        display: flex;
-                        align-items: center;
-                        background: white;
-                        border: 1px solid #e2e8f0;
-                        border-radius: 6px;
-                      "
-                    >
+                    <label class="counter-label" data-translate="toddlersCount">Batolata (0-3)</label>
+                    <div class="counter-controls">
                       <button
+                        type="button"
                         class="counter-btn"
                         onclick="window.app.adjustGuests('toddlers', -1)"
-                        style="
-                          padding: 0.5rem 0.75rem;
-                          border: none;
-                          background: transparent;
-                          cursor: pointer;
-                          font-size: 1.2rem;
-                        "
+                        aria-label="Snizit batolata"
                       >
                         -
                       </button>
-                      <span
-                        id="singleRoomToddlers"
-                        class="counter-value"
-                        style="flex: 1; text-align: center; font-weight: 600"
-                        >0</span
-                      >
+                      <span id="singleRoomToddlers" class="counter-value" aria-live="polite">0</span>
                       <button
+                        type="button"
                         class="counter-btn"
                         onclick="window.app.adjustGuests('toddlers', 1)"
-                        style="
-                          padding: 0.5rem 0.75rem;
-                          border: none;
-                          background: transparent;
-                          cursor: pointer;
-                          font-size: 1.2rem;
-                        "
+                        aria-label="Zvysit batolata"
                       >
                         +
                       </button>
@@ -1740,107 +1650,46 @@
                 <h3 data-translate="guestTypeAndCount">Typ hosta a počet osob</h3>
 
                 <!-- Guest Count -->
-                <div
-                  class="guest-counters"
-                  style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem"
-                >
+                <div class="guest-counters guest-counters--2col">
                   <div class="counter-item">
-                    <label
-                      class="counter-label"
-                      style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
-                      data-translate="adultsLabel"
-                      >Dospělí</label
-                    >
-                    <div
-                      class="counter-controls"
-                      style="
-                        display: flex;
-                        align-items: center;
-                        background: white;
-                        border: 1px solid #e2e8f0;
-                        border-radius: 6px;
-                      "
-                    >
+                    <label class="counter-label" data-translate="adultsLabel">Dospělí</label>
+                    <div class="counter-controls">
                       <button
+                        type="button"
                         class="counter-btn"
                         onclick="adjustBulkGuests('adults', -1)"
-                        style="
-                          padding: 0.5rem 0.75rem;
-                          border: none;
-                          background: transparent;
-                          cursor: pointer;
-                          font-size: 1.2rem;
-                        "
+                        aria-label="Snizit dospele"
                       >
                         -
                       </button>
-                      <span
-                        id="bulkAdults"
-                        class="counter-value"
-                        style="flex: 1; text-align: center; font-weight: 600"
-                        >10</span
-                      >
+                      <span id="bulkAdults" class="counter-value" aria-live="polite">10</span>
                       <button
+                        type="button"
                         class="counter-btn"
                         onclick="adjustBulkGuests('adults', 1)"
-                        style="
-                          padding: 0.5rem 0.75rem;
-                          border: none;
-                          background: transparent;
-                          cursor: pointer;
-                          font-size: 1.2rem;
-                        "
+                        aria-label="Zvysit dospele"
                       >
                         +
                       </button>
                     </div>
                   </div>
                   <div class="counter-item">
-                    <label
-                      class="counter-label"
-                      style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
-                      data-translate="childrenLabel"
-                      >Děti (3-17)</label
-                    >
-                    <div
-                      class="counter-controls"
-                      style="
-                        display: flex;
-                        align-items: center;
-                        background: white;
-                        border: 1px solid #e2e8f0;
-                        border-radius: 6px;
-                      "
-                    >
+                    <label class="counter-label" data-translate="childrenLabel">Děti (3-17)</label>
+                    <div class="counter-controls">
                       <button
+                        type="button"
                         class="counter-btn"
                         onclick="adjustBulkGuests('children', -1)"
-                        style="
-                          padding: 0.5rem 0.75rem;
-                          border: none;
-                          background: transparent;
-                          cursor: pointer;
-                          font-size: 1.2rem;
-                        "
+                        aria-label="Snizit deti"
                       >
                         -
                       </button>
-                      <span
-                        id="bulkChildren"
-                        class="counter-value"
-                        style="flex: 1; text-align: center; font-weight: 600"
-                        >0</span
-                      >
+                      <span id="bulkChildren" class="counter-value" aria-live="polite">0</span>
                       <button
+                        type="button"
                         class="counter-btn"
                         onclick="adjustBulkGuests('children', 1)"
-                        style="
-                          padding: 0.5rem 0.75rem;
-                          border: none;
-                          background: transparent;
-                          cursor: pointer;
-                          font-size: 1.2rem;
-                        "
+                        aria-label="Zvysit deti"
                       >
                         +
                       </button>

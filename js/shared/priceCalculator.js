@@ -273,11 +273,20 @@ class PriceCalculator {
    * Bulk pricing uses a different price structure with a base price for the entire chalet
    * plus per-person charges.
    *
+   * Supports two modes:
+   * 1. Simple mode: All guests have same guestType ('utia' or 'external')
+   * 2. Mixed mode: guestTypeBreakdown specifies counts per type (ÚTIA adults, external children, etc.)
+   *
    * @param {Object} options - Bulk pricing options
-   * @param {string} options.guestType - 'utia' or 'external'
-   * @param {number} options.adults - Number of adults
-   * @param {number} options.children - Number of children (3-17 years)
-   * @param {number} options.toddlers - Number of toddlers (0-3 years, free)
+   * @param {string} [options.guestType] - 'utia' or 'external' (used if guestTypeBreakdown not provided)
+   * @param {number} [options.adults] - Number of adults (used if guestTypeBreakdown not provided)
+   * @param {number} [options.children] - Number of children (used if guestTypeBreakdown not provided)
+   * @param {number} [options.toddlers] - Number of toddlers (0-3 years, free)
+   * @param {Object} [options.guestTypeBreakdown] - Mixed guest type breakdown
+   * @param {number} [options.guestTypeBreakdown.utiaAdults] - Number of ÚTIA adults
+   * @param {number} [options.guestTypeBreakdown.utiaChildren] - Number of ÚTIA children
+   * @param {number} [options.guestTypeBreakdown.externalAdults] - Number of external adults
+   * @param {number} [options.guestTypeBreakdown.externalChildren] - Number of external children
    * @param {number} options.nights - Number of nights
    * @param {Object} options.settings - Settings object with bulkPrices configuration
    * @returns {number} Total price in CZK
@@ -290,6 +299,7 @@ class PriceCalculator {
       // toddlers intentionally destructured but not used (they're free)
       // eslint-disable-next-line no-unused-vars -- Documenting that toddlers are accepted but not used
       toddlers = 0,
+      guestTypeBreakdown,
       nights = 1,
       settings,
     } = options;
@@ -306,8 +316,21 @@ class PriceCalculator {
     // Base price for entire chalet * nights
     let totalPrice = bulkPrices.basePrice * nights;
 
-    // Add per-person charges based on guest type
-    if (guestType === 'utia') {
+    // Mode 1: Mixed guest types via guestTypeBreakdown (SSOT for mixed ÚTIA/external)
+    if (guestTypeBreakdown) {
+      const {
+        utiaAdults = 0,
+        utiaChildren = 0,
+        externalAdults = 0,
+        externalChildren = 0,
+      } = guestTypeBreakdown;
+
+      totalPrice += utiaAdults * bulkPrices.utiaAdult * nights;
+      totalPrice += utiaChildren * bulkPrices.utiaChild * nights;
+      totalPrice += externalAdults * bulkPrices.externalAdult * nights;
+      totalPrice += externalChildren * bulkPrices.externalChild * nights;
+    } else if (guestType === 'utia') {
+      // Mode 2: Simple guest type (all guests same type) - backward compatible
       totalPrice += adults * bulkPrices.utiaAdult * nights;
       totalPrice += children * bulkPrices.utiaChild * nights;
     } else {
@@ -318,6 +341,69 @@ class PriceCalculator {
     // Toddlers are free (no charge)
 
     return Math.round(totalPrice); // Round to nearest CZK
+  }
+
+  /**
+   * Calculate bulk price breakdown for display purposes
+   * Returns individual price components for ÚTIA/external adults/children
+   *
+   * @param {Object} options - Same as calculateBulkPrice
+   * @returns {Object} Price breakdown with basePrice, utiaAdultsPrice, etc.
+   */
+  static calculateBulkPriceBreakdown(options) {
+    const {
+      guestType,
+      adults = 0,
+      children = 0,
+      guestTypeBreakdown,
+      nights = 1,
+      settings,
+    } = options;
+
+    if (!settings || !settings.bulkPrices) {
+      throw new Error('Chybí konfigurace cen pro hromadné rezervace');
+    }
+
+    const { bulkPrices } = settings;
+    const basePrice = bulkPrices.basePrice * nights;
+
+    let utiaAdults = 0;
+    let utiaChildren = 0;
+    let externalAdults = 0;
+    let externalChildren = 0;
+
+    if (guestTypeBreakdown) {
+      utiaAdults = guestTypeBreakdown.utiaAdults || 0;
+      utiaChildren = guestTypeBreakdown.utiaChildren || 0;
+      externalAdults = guestTypeBreakdown.externalAdults || 0;
+      externalChildren = guestTypeBreakdown.externalChildren || 0;
+    } else if (guestType === 'utia') {
+      utiaAdults = adults;
+      utiaChildren = children;
+    } else {
+      externalAdults = adults;
+      externalChildren = children;
+    }
+
+    return {
+      basePrice,
+      utiaAdultsPrice: utiaAdults * bulkPrices.utiaAdult * nights,
+      utiaChildrenPrice: utiaChildren * bulkPrices.utiaChild * nights,
+      externalAdultsPrice: externalAdults * bulkPrices.externalAdult * nights,
+      externalChildrenPrice: externalChildren * bulkPrices.externalChild * nights,
+      utiaAdults,
+      utiaChildren,
+      externalAdults,
+      externalChildren,
+      nights,
+      total: Math.round(
+        basePrice +
+          utiaAdults * bulkPrices.utiaAdult * nights +
+          utiaChildren * bulkPrices.utiaChild * nights +
+          externalAdults * bulkPrices.externalAdult * nights +
+          externalChildren * bulkPrices.externalChild * nights
+      ),
+    };
   }
 
   /**
@@ -468,9 +554,20 @@ class PriceCalculator {
         roomNights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
       }
 
-      // FIX 2025-11-06: Use NEW pricing model - base IS empty room price
-      // No need to subtract adult surcharge (that was OLD model)
-      const emptyRoomPrice = this.getEmptyRoomPrice(roomPriceConfig);
+      // FIX 2025-12-03: SSOT per-room empty room price
+      // Business rule: "Cena ÚTIA se použije, pokud je na pokoji alespoň 1 zaměstnanec ÚTIA"
+      const hasUtiaGuestInRoom =
+        utiaAdults > 0 || utiaChildren > 0 || roomGuests.guestType === 'utia';
+      const emptyRoomGuestKey = hasUtiaGuestInRoom ? 'utia' : 'external';
+
+      // Get empty room price config for this room's guest type
+      let emptyRoomPriceConfig;
+      if (hasRoomSizes) {
+        emptyRoomPriceConfig = settings.prices?.[emptyRoomGuestKey]?.[roomType];
+      } else {
+        emptyRoomPriceConfig = settings.prices?.[emptyRoomGuestKey];
+      }
+      const emptyRoomPrice = this.getEmptyRoomPrice(emptyRoomPriceConfig || roomPriceConfig);
 
       // Calculate surcharges - if ÚTIA/External breakdown is provided, use it
       let adultsPrice;
@@ -596,7 +693,7 @@ class PriceCalculator {
       // Base price
       html += `<div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">`;
       html += `<span>${t.basePrice}:</span>`;
-      html += `<span style="font-weight: 500;">${room.emptyRoomPrice.toLocaleString('cs-CZ')} Kč</span>`;
+      html += `<span style="font-weight: 500;">${BookingDisplayUtils.formatCurrency(room.emptyRoomPrice)}</span>`;
       html += `</div>`;
 
       // Adults - show ÚTIA/External breakdown if available
@@ -614,22 +711,22 @@ class PriceCalculator {
             const utiaRate = room.utiaAdultsPrice / room.utiaAdults;
             const externalRate = room.externalAdultsPrice / room.externalAdults;
             html += `<span>${t.adults}:</span>`;
-            html += `<span style="font-weight: 500;">+${room.adultsPrice.toLocaleString('cs-CZ')} Kč <span style="font-size: 0.85em; color: #666;">(${room.utiaAdults} ÚTIA × ${utiaRate} Kč + ${room.externalAdults} EXT × ${externalRate} Kč)</span></span>`;
+            html += `<span style="font-weight: 500;">+${BookingDisplayUtils.formatCurrency(room.adultsPrice)} <span style="font-size: 0.85em; color: #666;">(${room.utiaAdults} ÚTIA × ${utiaRate} Kč + ${room.externalAdults} EXT × ${externalRate} Kč)</span></span>`;
           } else if (room.utiaAdults > 0) {
             // All ÚTIA
             const utiaRate = room.utiaAdultsPrice / room.utiaAdults;
             html += `<span>${t.adults}:</span>`;
-            html += `<span style="font-weight: 500;">+${room.adultsPrice.toLocaleString('cs-CZ')} Kč <span style="font-size: 0.85em; color: #666;">(${room.utiaAdults} × ${utiaRate} Kč)</span></span>`;
+            html += `<span style="font-weight: 500;">+${BookingDisplayUtils.formatCurrency(room.adultsPrice)} <span style="font-size: 0.85em; color: #666;">(${room.utiaAdults} × ${utiaRate} Kč)</span></span>`;
           } else {
             // All External
             const externalRate = room.externalAdultsPrice / room.externalAdults;
             html += `<span>${t.adults}:</span>`;
-            html += `<span style="font-weight: 500;">+${room.adultsPrice.toLocaleString('cs-CZ')} Kč <span style="font-size: 0.85em; color: #666;">(${room.externalAdults} × ${externalRate} Kč)</span></span>`;
+            html += `<span style="font-weight: 500;">+${BookingDisplayUtils.formatCurrency(room.adultsPrice)} <span style="font-size: 0.85em; color: #666;">(${room.externalAdults} × ${externalRate} Kč)</span></span>`;
           }
         } else {
           // Fallback: simple display without breakdown
           html += `<span>${t.adults} (${room.adults}×):</span>`;
-          html += `<span style="font-weight: 500;">+${room.adultsPrice.toLocaleString('cs-CZ')} Kč</span>`;
+          html += `<span style="font-weight: 500;">+${BookingDisplayUtils.formatCurrency(room.adultsPrice)}</span>`;
         }
 
         html += `</div>`;
@@ -650,22 +747,22 @@ class PriceCalculator {
             const utiaRate = room.utiaChildrenPrice / room.utiaChildren;
             const externalRate = room.externalChildrenPrice / room.externalChildren;
             html += `<span>${t.children}:</span>`;
-            html += `<span style="font-weight: 500;">+${room.childrenPrice.toLocaleString('cs-CZ')} Kč <span style="font-size: 0.85em; color: #666;">(${room.utiaChildren} ÚTIA × ${utiaRate} Kč + ${room.externalChildren} EXT × ${externalRate} Kč)</span></span>`;
+            html += `<span style="font-weight: 500;">+${BookingDisplayUtils.formatCurrency(room.childrenPrice)} <span style="font-size: 0.85em; color: #666;">(${room.utiaChildren} ÚTIA × ${utiaRate} Kč + ${room.externalChildren} EXT × ${externalRate} Kč)</span></span>`;
           } else if (room.utiaChildren > 0) {
             // All ÚTIA
             const utiaRate = room.utiaChildrenPrice / room.utiaChildren;
             html += `<span>${t.children}:</span>`;
-            html += `<span style="font-weight: 500;">+${room.childrenPrice.toLocaleString('cs-CZ')} Kč <span style="font-size: 0.85em; color: #666;">(${room.utiaChildren} × ${utiaRate} Kč)</span></span>`;
+            html += `<span style="font-weight: 500;">+${BookingDisplayUtils.formatCurrency(room.childrenPrice)} <span style="font-size: 0.85em; color: #666;">(${room.utiaChildren} × ${utiaRate} Kč)</span></span>`;
           } else {
             // All External
             const externalRate = room.externalChildrenPrice / room.externalChildren;
             html += `<span>${t.children}:</span>`;
-            html += `<span style="font-weight: 500;">+${room.childrenPrice.toLocaleString('cs-CZ')} Kč <span style="font-size: 0.85em; color: #666;">(${room.externalChildren} × ${externalRate} Kč)</span></span>`;
+            html += `<span style="font-weight: 500;">+${BookingDisplayUtils.formatCurrency(room.childrenPrice)} <span style="font-size: 0.85em; color: #666;">(${room.externalChildren} × ${externalRate} Kč)</span></span>`;
           }
         } else {
           // Fallback: simple display without breakdown
           html += `<span>${t.children} (${room.children}×):</span>`;
-          html += `<span style="font-weight: 500;">+${room.childrenPrice.toLocaleString('cs-CZ')} Kč</span>`;
+          html += `<span style="font-weight: 500;">+${BookingDisplayUtils.formatCurrency(room.childrenPrice)}</span>`;
         }
 
         html += `</div>`;
@@ -682,14 +779,14 @@ class PriceCalculator {
       // Subtotal
       html += `<div style="display: flex; justify-content: space-between; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #cbd5e0; font-weight: 600;">`;
       html += `<span>${t.subtotal}:</span>`;
-      html += `<span style="color: #2c5282;">${room.subtotal.toLocaleString('cs-CZ')} Kč</span>`;
+      html += `<span style="color: #2c5282;">${BookingDisplayUtils.formatCurrency(room.subtotal)}</span>`;
       html += `</div>`;
 
       // Total for all nights (if more than 1 night)
       if (room.nights > 1) {
         html += `<div style="display: flex; justify-content: space-between; margin-top: 0.25rem; font-weight: 700; font-size: 1.05rem;">`;
         html += `<span>${t.total} ${room.nights} ${t.nights}:</span>`;
-        html += `<span style="color: #28a745;">${room.total.toLocaleString('cs-CZ')} Kč</span>`;
+        html += `<span style="color: #28a745;">${BookingDisplayUtils.formatCurrency(room.total)}</span>`;
         html += `</div>`;
       }
 
@@ -702,7 +799,7 @@ class PriceCalculator {
       html += `<div style="margin-top: 1rem; padding: 1rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; color: white;">`;
       html += `<div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: 700;">`;
       html += `<span>${t.grandTotal}:</span>`;
-      html += `<span>${grandTotal.toLocaleString('cs-CZ')} Kč</span>`;
+      html += `<span>${BookingDisplayUtils.formatCurrency(grandTotal)}</span>`;
       html += `</div>`;
       html += `</div>`;
     }

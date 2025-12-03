@@ -467,19 +467,24 @@ class UtilsModule {
         }
       }
 
-      // Fallback if we couldn't determine price (should not happen with proper configuration)
+      // SSOT 2025-12-03: Fallback to PriceCalculator defaults (no hardcoded prices)
       if (baseRoomPrice === null || baseRoomPrice === undefined || isNaN(baseRoomPrice)) {
-        console.warn('[utils.js] Missing empty room price configuration, using hardcoded fallback');
-        // Use room-type-specific fallback based on currentRoomId
-        const room = rooms.find((r) => r.id === currentRoomId);
-        const roomType = room?.type || 'small';
-        const isSmall = roomType === 'small';
-        baseRoomPrice = currentGuestType === 'utia' ? (isSmall ? 250 : 350) : isSmall ? 400 : 500;
+        console.warn(
+          '[utils.js] Missing empty room price configuration, using PriceCalculator defaults'
+        );
+        // Use PriceCalculator.getDefaultPrices() for SSOT (no hardcoded values)
+        const fallbackRoom = rooms.find((r) => r.id === currentRoomId);
+        const fallbackRoomType = fallbackRoom?.type || 'small';
+        const defaultPrices = PriceCalculator.getDefaultPrices();
+        // Note: reuse guestKey from outer scope (line 449) - same logic, no redeclaration needed
+        baseRoomPrice =
+          defaultPrices[guestKey]?.[fallbackRoomType]?.empty ||
+          defaultPrices[guestKey]?.small?.empty;
       }
 
       // Always update base price display
       if (basePriceEl) {
-        basePriceEl.textContent = `${baseRoomPrice.toLocaleString('cs-CZ')} Kč`;
+        basePriceEl.textContent = BookingDisplayUtils.formatCurrency(baseRoomPrice);
       }
 
       // Calculate nights as selected days - 1
@@ -544,12 +549,12 @@ class UtilsModule {
       totalPrice = pricePerNight * nights;
 
       // Update all price displays
-      priceEl.textContent = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
+      priceEl.textContent = BookingDisplayUtils.formatCurrency(totalPrice);
       if (nightsEl) {
         nightsEl.textContent = nights;
       }
       if (perNightEl) {
-        perNightEl.textContent = `${pricePerNight.toLocaleString('cs-CZ')} Kč`;
+        perNightEl.textContent = BookingDisplayUtils.formatCurrency(pricePerNight);
       }
 
       // Also update single room modal price displays
@@ -559,7 +564,7 @@ class UtilsModule {
         const modalTotalEl = modal.querySelector('#totalPrice');
 
         if (modalTotalEl) {
-          modalTotalEl.textContent = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
+          modalTotalEl.textContent = BookingDisplayUtils.formatCurrency(totalPrice);
         }
 
         // Update guest counts and surcharges display
@@ -604,7 +609,7 @@ class UtilsModule {
             const totalAdults = Math.max(0, guests.adults);
             if (totalAdults > 0) {
               const surcharge = totalAdults * roomPriceConfig.adult;
-              adultsSurcharge.textContent = `${surcharge.toLocaleString('cs-CZ')} Kč (${totalAdults} × ${roomPriceConfig.adult} Kč)`;
+              adultsSurcharge.textContent = `${BookingDisplayUtils.formatCurrency(surcharge)} (${totalAdults} × ${roomPriceConfig.adult} Kč)`;
               adultsPrice.style.display = 'flex';
             } else {
               adultsPrice.style.display = 'none';
@@ -617,7 +622,7 @@ class UtilsModule {
           if (childrenPrice && childrenSurcharge && roomPriceConfig) {
             if (guests.children > 0) {
               const surcharge = guests.children * roomPriceConfig.child;
-              childrenSurcharge.textContent = `${surcharge.toLocaleString('cs-CZ')} Kč (${guests.children} × ${roomPriceConfig.child} Kč)`;
+              childrenSurcharge.textContent = `${BookingDisplayUtils.formatCurrency(surcharge)} (${guests.children} × ${roomPriceConfig.child} Kč)`;
               childrenPrice.style.display = 'flex';
             } else {
               childrenPrice.style.display = 'none';

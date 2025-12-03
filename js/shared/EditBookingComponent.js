@@ -428,7 +428,10 @@ class EditBookingComponent {
               guestPriceType,
             });
           } else {
-            console.warn('[EditBookingComponent] Failed to parse per-room adult input ID:', inputId);
+            console.warn(
+              '[EditBookingComponent] Failed to parse per-room adult input ID:',
+              inputId
+            );
           }
         }
       }
@@ -487,7 +490,10 @@ class EditBookingComponent {
               guestPriceType,
             });
           } else {
-            console.warn('[EditBookingComponent] Failed to parse per-room child input ID:', inputId);
+            console.warn(
+              '[EditBookingComponent] Failed to parse per-room child input ID:',
+              inputId
+            );
           }
         }
       }
@@ -678,7 +684,7 @@ class EditBookingComponent {
     const roomsList = document.getElementById('editRoomsList');
     const rooms = this.settings?.rooms || [];
 
-    roomsList.innerHTML = '';
+    DOMUtils.clearElement(roomsList);
 
     rooms.forEach((room) => {
       const isSelected = this.editSelectedRooms.has(room.id);
@@ -825,7 +831,7 @@ class EditBookingComponent {
       type: 'warning',
       message: `Opravdu chcete odebrat tento pokoj z rezervace?\n\nJména hostů přiřazená k tomuto pokoji budou odstraněna.`,
       details: [
-        { label: 'Cena pokoje', value: `${roomPrice.toLocaleString('cs-CZ')} Kč` },
+        { label: 'Cena pokoje', value: BookingDisplayUtils.formatCurrency(roomPrice) },
         {
           label: 'Hosté',
           value: `${roomData.adults} dospělých, ${roomData.children} dětí`,
@@ -1662,30 +1668,18 @@ class EditBookingComponent {
 
       const nights = minStart && maxEnd ? DateUtils.getDaysBetween(minStart, maxEnd) : 0;
 
-      // FIX 2025-12-03: Calculate bulk price with per-guest breakdown
-      // Formula: basePrice + (utiaAdults × utiaAdult) + (externalAdults × externalAdult) +
-      //          (utiaChildren × utiaChild) + (externalChildren × externalChild) × nights
-      const { bulkPrices } = this.settings;
-      if (bulkPrices) {
-        totalPrice =
-          bulkPrices.basePrice * nights +
-          utiaAdults * bulkPrices.utiaAdult * nights +
-          externalAdults * bulkPrices.externalAdult * nights +
-          utiaChildren * bulkPrices.utiaChild * nights +
-          externalChildren * bulkPrices.externalChild * nights;
-      } else {
-        // Fallback to old method if bulkPrices not configured
-        totalPrice = PriceCalculator.calculateBulkPrice({
-          guestType: utiaAdults > 0 ? 'utia' : 'external',
-          adults: totalAdults,
-          children: totalChildren,
-          nights,
-          settings: this.settings,
-        });
-      }
+      // SSOT 2025-12-03: Use PriceCalculator.calculateBulkPrice() with guestTypeBreakdown
+      // This ensures consistent bulk pricing calculation across the entire codebase
+      totalPrice = PriceCalculator.calculateBulkPrice({
+        guestTypeBreakdown: { utiaAdults, utiaChildren, externalAdults, externalChildren },
+        nights,
+        settings: this.settings,
+      });
     } else {
-      // Regular pricing: sum individual room prices AND generate per-room breakdown
+      // SSOT 2025-12-03: Use PriceCalculator.calculatePerRoomPrices() for all room pricing
+      // This ensures consistent pricing calculation across the entire codebase
       const perRoomGuests = [];
+      const perRoomDates = {};
 
       for (const [roomId, roomData] of this.editSelectedRooms) {
         let dates = this.perRoomDates.get(roomId);
@@ -1704,10 +1698,10 @@ class EditBookingComponent {
           continue;
         }
 
-        const nights = DateUtils.getDaysBetween(dates.startDate, dates.endDate);
+        // Store dates for per-room nights calculation
+        perRoomDates[roomId] = dates;
 
-        // FIX 2025-12-03: Count ÚTIA vs External guests BEFORE price calculation
-        // This enables mixed guest type pricing (some ÚTIA, some external in same room)
+        // Count ÚTIA vs External guests from toggle states
         let utiaAdults = 0;
         let externalAdults = 0;
         let utiaChildren = 0;
@@ -1737,28 +1731,8 @@ class EditBookingComponent {
           }
         }
 
-        // FIX 2025-12-03: Calculate price using per-guest breakdown instead of single guestType
-        // This correctly handles mixed ÚTIA/external guests in the same room
-        const room = this.settings.rooms?.find((r) => r.id === roomId);
-        const roomType = room?.type || 'small';
-        const utiaRates = this.settings.prices?.utia?.[roomType] || { empty: 250, adult: 50, child: 25 };
-        const externalRates = this.settings.prices?.external?.[roomType] || { empty: 400, adult: 100, child: 50 };
-
-        // Empty room price: Use ÚTIA rate if at least one ÚTIA guest in this room
+        // Determine effective room guestType (ÚTIA if at least one ÚTIA guest)
         const hasUtiaGuest = utiaAdults > 0 || utiaChildren > 0;
-        const emptyRoomRate = hasUtiaGuest ? utiaRates.empty : externalRates.empty;
-
-        // Calculate room price with mixed guest types
-        const price =
-          emptyRoomRate * nights +
-          utiaAdults * utiaRates.adult * nights +
-          externalAdults * externalRates.adult * nights +
-          utiaChildren * utiaRates.child * nights +
-          externalChildren * externalRates.child * nights;
-
-        totalPrice += price;
-
-        // Determine effective room guestType based on majority (for roomData consistency)
         const effectiveGuestType = hasUtiaGuest ? 'utia' : 'external';
 
         // Add to per-room data with ÚTIA/External breakdown
@@ -1767,7 +1741,7 @@ class EditBookingComponent {
           adults: roomData.adults || 0,
           children: roomData.children || 0,
           toddlers: roomData.toddlers || 0,
-          guestType: effectiveGuestType, // FIX 2025-12-03: Use effective guestType based on actual guests
+          guestType: effectiveGuestType,
           utiaAdults,
           externalAdults,
           utiaChildren,
@@ -1775,32 +1749,32 @@ class EditBookingComponent {
         });
       }
 
-      // Generate per-room price breakdown (for both single and multi-room bookings)
+      // SSOT: Use PriceCalculator for both price calculation AND HTML breakdown
       if (perRoomGuests.length >= 1 && typeof PriceCalculator !== 'undefined') {
         try {
-          // Get the first room's dates to calculate common nights
-          const firstDates = Array.from(this.perRoomDates.values())[0];
-          const nights = firstDates
+          // Get default nights from first room (perRoomDates handles per-room nights)
+          const firstDates = Object.values(perRoomDates)[0];
+          const defaultNights = firstDates
             ? DateUtils.getDaysBetween(firstDates.startDate, firstDates.endDate)
             : 0;
 
-          // Determine guest type: ÚTIA if at least one room has ÚTIA guest, otherwise external
-          // This determines the empty room price (according to pricing rules)
-          const hasUtiaGuest = Array.from(this.editSelectedRooms.values()).some(
-            (room) => room.guestType === 'utia'
-          );
+          // Determine overall guest type for backward compatibility
+          const hasUtiaGuest = perRoomGuests.some((room) => room.guestType === 'utia');
           const guestType = hasUtiaGuest ? 'utia' : 'external';
 
           const perRoomPrices = PriceCalculator.calculatePerRoomPrices({
             guestType,
-            nights,
+            nights: defaultNights,
             settings: this.settings,
             perRoomGuests,
+            perRoomDates, // SSOT: Use per-room dates for accurate nights calculation
           });
 
+          // SSOT: Use grandTotal from PriceCalculator (no manual calculation!)
+          totalPrice = perRoomPrices.grandTotal;
           perRoomPriceHtml = PriceCalculator.formatPerRoomPricesHTML(perRoomPrices, 'cs');
         } catch (error) {
-          console.warn('Error generating per-room price breakdown:', error);
+          console.warn('Error calculating per-room prices:', error);
         }
       }
     }
@@ -1834,7 +1808,7 @@ class EditBookingComponent {
           totalPriceLabel.style.display = '';
         }
         priceContainer.style.display = '';
-        priceContainer.innerHTML = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
+        priceContainer.innerHTML = BookingDisplayUtils.formatCurrency(totalPrice);
       }
     }
   }
@@ -1991,17 +1965,15 @@ class EditBookingComponent {
     }
     formData.guestType = finalGuestType;
 
-    // Calculate total price based on booking type
+    // SSOT 2025-12-03: Calculate total price using PriceCalculator (no manual calculation)
     let totalPrice = 0;
     if (this.isBulkBooking) {
-      // FIX 2025-12-03: Count ÚTIA vs External guests separately from toggle states
-      // This enables mixed guest type pricing in bulk bookings
+      // Count ÚTIA vs External guests from toggle states
       let utiaAdults = 0;
       let externalAdults = 0;
       let utiaChildren = 0;
       let externalChildren = 0;
 
-      // Count adults from bulk toggle states
       for (let i = 1; i <= totalAdults; i += 1) {
         const toggleId = `bulkAdult${i}GuestTypeToggle`;
         const toggle = document.getElementById(toggleId);
@@ -2012,7 +1984,6 @@ class EditBookingComponent {
         }
       }
 
-      // Count children from bulk toggle states
       for (let i = 1; i <= totalChildren; i += 1) {
         const toggleId = `bulkChild${i}GuestTypeToggle`;
         const toggle = document.getElementById(toggleId);
@@ -2025,27 +1996,17 @@ class EditBookingComponent {
 
       const nights = DateUtils.getDaysBetween(minStart, maxEnd);
 
-      // Calculate bulk price with per-guest breakdown
-      const { bulkPrices } = this.settings;
-      if (bulkPrices) {
-        totalPrice =
-          bulkPrices.basePrice * nights +
-          utiaAdults * bulkPrices.utiaAdult * nights +
-          externalAdults * bulkPrices.externalAdult * nights +
-          utiaChildren * bulkPrices.utiaChild * nights +
-          externalChildren * bulkPrices.externalChild * nights;
-      } else {
-        // Fallback to old method if bulkPrices not configured
-        totalPrice = PriceCalculator.calculateBulkPrice({
-          guestType: utiaAdults > 0 ? 'utia' : 'external',
-          adults: totalAdults,
-          children: totalChildren,
-          nights,
-          settings: this.settings,
-        });
-      }
+      // SSOT: Use PriceCalculator.calculateBulkPrice() with guestTypeBreakdown
+      totalPrice = PriceCalculator.calculateBulkPrice({
+        guestTypeBreakdown: { utiaAdults, utiaChildren, externalAdults, externalChildren },
+        nights,
+        settings: this.settings,
+      });
     } else {
-      // FIX 2025-12-03: Regular pricing with per-guest breakdown for mixed ÚTIA/external
+      // SSOT: Build perRoomGuests and use PriceCalculator.calculatePerRoomPrices()
+      const perRoomGuests = [];
+      const perRoomDatesObj = {};
+
       for (const [roomId, dates] of this.perRoomDates) {
         const roomData = this.editSelectedRooms.get(roomId) || {
           guestType: 'external',
@@ -2053,7 +2014,7 @@ class EditBookingComponent {
           children: 0,
         };
 
-        const nights = DateUtils.getDaysBetween(dates.startDate, dates.endDate);
+        perRoomDatesObj[roomId] = dates;
 
         // Count ÚTIA vs External guests from toggle states
         let utiaAdults = 0;
@@ -2083,22 +2044,39 @@ class EditBookingComponent {
           }
         }
 
-        // Calculate price using per-guest breakdown
-        const room = this.settings.rooms?.find((r) => r.id === roomId);
-        const roomType = room?.type || 'small';
-        const utiaRates = this.settings.prices?.utia?.[roomType] || { empty: 250, adult: 50, child: 25 };
-        const externalRates = this.settings.prices?.external?.[roomType] || { empty: 400, adult: 100, child: 50 };
-
-        // Empty room price: Use ÚTIA rate if at least one ÚTIA guest
         const hasUtiaGuest = utiaAdults > 0 || utiaChildren > 0;
-        const emptyRoomRate = hasUtiaGuest ? utiaRates.empty : externalRates.empty;
+        perRoomGuests.push({
+          roomId,
+          adults: roomData.adults || 0,
+          children: roomData.children || 0,
+          toddlers: roomData.toddlers || 0,
+          guestType: hasUtiaGuest ? 'utia' : 'external',
+          utiaAdults,
+          externalAdults,
+          utiaChildren,
+          externalChildren,
+        });
+      }
 
-        totalPrice +=
-          emptyRoomRate * nights +
-          utiaAdults * utiaRates.adult * nights +
-          externalAdults * externalRates.adult * nights +
-          utiaChildren * utiaRates.child * nights +
-          externalChildren * externalRates.child * nights;
+      // SSOT: Calculate price using PriceCalculator
+      if (perRoomGuests.length > 0) {
+        const firstDates = Object.values(perRoomDatesObj)[0];
+        const defaultNights = firstDates
+          ? DateUtils.getDaysBetween(firstDates.startDate, firstDates.endDate)
+          : 0;
+
+        const hasUtiaGuest = perRoomGuests.some((room) => room.guestType === 'utia');
+        const guestType = hasUtiaGuest ? 'utia' : 'external';
+
+        const perRoomPrices = PriceCalculator.calculatePerRoomPrices({
+          guestType,
+          nights: defaultNights,
+          settings: this.settings,
+          perRoomGuests,
+          perRoomDates: perRoomDatesObj,
+        });
+
+        totalPrice = perRoomPrices.grandTotal;
       }
     }
     formData.totalPrice = totalPrice;
@@ -3427,9 +3405,7 @@ class EditBookingComponent {
     }
 
     // Clear calendar container
-    if (containerEl) {
-      containerEl.innerHTML = '';
-    }
+    DOMUtils.clearElement(containerEl);
 
     this.renderPerRoomList();
   }
@@ -3444,7 +3420,7 @@ class EditBookingComponent {
     }
 
     // Clear previous calendar
-    containerEl.innerHTML = '';
+    DOMUtils.clearElement(containerEl);
 
     const originalDates = this.perRoomDates.get(roomId);
 
@@ -3787,7 +3763,7 @@ class EditBookingComponent {
       return;
     }
 
-    containerEl.innerHTML = '';
+    DOMUtils.clearElement(containerEl);
 
     // Get current bulk dates (all rooms should have same dates in bulk booking)
     const firstRoomDates = this.perRoomDates.values().next().value;
@@ -3879,9 +3855,7 @@ class EditBookingComponent {
       saveBtn.style.display = 'none';
     }
 
-    if (containerEl) {
-      containerEl.innerHTML = '';
-    }
+    DOMUtils.clearElement(containerEl);
 
     this.renderPerRoomList();
   }

@@ -218,21 +218,10 @@ class SingleRoomBookingModule {
     const childrenNamesContainer = document.getElementById('singleRoomChildrenNamesContainer');
     const toddlersNamesContainer = document.getElementById('singleRoomToddlersNamesContainer');
 
-    if (adultsNamesContainer) {
-      while (adultsNamesContainer.firstChild) {
-        adultsNamesContainer.removeChild(adultsNamesContainer.firstChild);
-      }
-    }
-    if (childrenNamesContainer) {
-      while (childrenNamesContainer.firstChild) {
-        childrenNamesContainer.removeChild(childrenNamesContainer.firstChild);
-      }
-    }
-    if (toddlersNamesContainer) {
-      while (toddlersNamesContainer.firstChild) {
-        toddlersNamesContainer.removeChild(toddlersNamesContainer.firstChild);
-      }
-    }
+    // Use DOMUtils (SSOT) for safe DOM clearing
+    DOMUtils.clearElement(adultsNamesContainer);
+    DOMUtils.clearElement(childrenNamesContainer);
+    DOMUtils.clearElement(toddlersNamesContainer);
 
     // Reset guest type radio buttons
     const utiaRadio = document.querySelector('input[name="singleRoomGuestType"][value="utia"]');
@@ -564,9 +553,7 @@ class SingleRoomBookingModule {
 
       // Show success notification
       const translatedRoomName =
-        this.app.currentLanguage === 'cs'
-          ? room.name
-          : room.name.replace('Pokoj', 'Room');
+        this.app.currentLanguage === 'cs' ? room.name : room.name.replace('Pokoj', 'Room');
       this.app.showNotification(
         this.app.currentLanguage === 'cs'
           ? `${translatedRoomName} přidán do rezervace`
@@ -695,7 +682,7 @@ class SingleRoomBookingModule {
     // Adults section
     const adultsContainer = document.getElementById('singleRoomAdultsNamesContainer');
     if (adultsContainer) {
-      adultsContainer.innerHTML = '';
+      DOMUtils.clearElement(adultsContainer);
       if (adults > 0) {
         adultsContainer.style.display = 'block';
         const adultsHeader = document.createElement('h5');
@@ -858,7 +845,7 @@ class SingleRoomBookingModule {
     // Children section
     const childrenContainer = document.getElementById('singleRoomChildrenNamesContainer');
     if (childrenContainer) {
-      childrenContainer.innerHTML = '';
+      DOMUtils.clearElement(childrenContainer);
       if (children > 0) {
         childrenContainer.style.display = 'block';
         const childrenHeader = document.createElement('h5');
@@ -1021,7 +1008,7 @@ class SingleRoomBookingModule {
     // Toddlers section
     const toddlersContainer = document.getElementById('singleRoomToddlersNamesContainer');
     if (toddlersContainer) {
-      toddlersContainer.innerHTML = '';
+      DOMUtils.clearElement(toddlersContainer);
       if (toddlers > 0) {
         toddlersContainer.style.display = 'block';
         const toddlersHeader = document.createElement('h5');
@@ -1391,7 +1378,7 @@ class SingleRoomBookingModule {
     // Update base price display
     const basePriceElement = document.getElementById('basePrice');
     if (basePriceElement) {
-      const basePriceText = `${emptyRoomPrice.toLocaleString('cs-CZ')} Kč${hasUtiaGuest ? ' (ÚTIA)' : ' (EXT)'}`;
+      const basePriceText = `${BookingDisplayUtils.formatCurrency(emptyRoomPrice)}${hasUtiaGuest ? ' (ÚTIA)' : ' (EXT)'}`;
       basePriceElement.textContent = basePriceText;
     }
 
@@ -1421,15 +1408,15 @@ class SingleRoomBookingModule {
           const utiaAdultSurcharge = utiaAdults * utiaPrices.adult;
           const externalAdultSurcharge = externalAdults * externalPrices.adult;
           totalAdultSurcharge = utiaAdultSurcharge + externalAdultSurcharge;
-          adultSurchargeText = `${totalAdultSurcharge.toLocaleString('cs-CZ')} Kč (${utiaAdults} ÚTIA × ${utiaPrices.adult} Kč + ${externalAdults} EXT × ${externalPrices.adult} Kč)`;
+          adultSurchargeText = `${BookingDisplayUtils.formatCurrency(totalAdultSurcharge)} (${utiaAdults} ÚTIA × ${utiaPrices.adult} Kč + ${externalAdults} EXT × ${externalPrices.adult} Kč)`;
         } else if (utiaAdults > 0) {
           // All ÚTIA
           totalAdultSurcharge = utiaAdults * utiaPrices.adult;
-          adultSurchargeText = `${totalAdultSurcharge.toLocaleString('cs-CZ')} Kč (${utiaAdults} × ${utiaPrices.adult} Kč)`;
+          adultSurchargeText = `${BookingDisplayUtils.formatCurrency(totalAdultSurcharge)} (${utiaAdults} × ${utiaPrices.adult} Kč)`;
         } else {
           // All External
           totalAdultSurcharge = externalAdults * externalPrices.adult;
-          adultSurchargeText = `${totalAdultSurcharge.toLocaleString('cs-CZ')} Kč (${externalAdults} × ${externalPrices.adult} Kč)`;
+          adultSurchargeText = `${BookingDisplayUtils.formatCurrency(totalAdultSurcharge)} (${externalAdults} × ${externalPrices.adult} Kč)`;
         }
 
         adultsSurcharge.textContent = adultSurchargeText;
@@ -1452,15 +1439,15 @@ class SingleRoomBookingModule {
           const utiaChildSurcharge = utiaChildren * utiaPrices.child;
           const externalChildSurcharge = externalChildren * externalPrices.child;
           totalChildSurcharge = utiaChildSurcharge + externalChildSurcharge;
-          childSurchargeText = `${totalChildSurcharge.toLocaleString('cs-CZ')} Kč (${utiaChildren} ÚTIA × ${utiaPrices.child} Kč + ${externalChildren} EXT × ${externalPrices.child} Kč)`;
+          childSurchargeText = `${BookingDisplayUtils.formatCurrency(totalChildSurcharge)} (${utiaChildren} ÚTIA × ${utiaPrices.child} Kč + ${externalChildren} EXT × ${externalPrices.child} Kč)`;
         } else if (utiaChildren > 0) {
           // All ÚTIA
           totalChildSurcharge = utiaChildren * utiaPrices.child;
-          childSurchargeText = `${totalChildSurcharge.toLocaleString('cs-CZ')} Kč (${utiaChildren} × ${utiaPrices.child} Kč)`;
+          childSurchargeText = `${BookingDisplayUtils.formatCurrency(totalChildSurcharge)} (${utiaChildren} × ${utiaPrices.child} Kč)`;
         } else {
           // All External
           totalChildSurcharge = externalChildren * externalPrices.child;
-          childSurchargeText = `${totalChildSurcharge.toLocaleString('cs-CZ')} Kč (${externalChildren} × ${externalPrices.child} Kč)`;
+          childSurchargeText = `${BookingDisplayUtils.formatCurrency(totalChildSurcharge)} (${externalChildren} × ${externalPrices.child} Kč)`;
         }
 
         childrenSurcharge.textContent = childSurchargeText;
@@ -1485,7 +1472,7 @@ class SingleRoomBookingModule {
     // Update total price
     const totalPriceElement = document.getElementById('totalPrice');
     if (totalPriceElement) {
-      totalPriceElement.textContent = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
+      totalPriceElement.textContent = BookingDisplayUtils.formatCurrency(totalPrice);
     }
 
     // Also update the guest summary in modal header if it exists

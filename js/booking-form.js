@@ -34,12 +34,15 @@ class BookingFormModule {
    */
   setSubmitButtonLoading(loading) {
     const button = this.getSubmitButton();
-    if (!button) return;
+    if (!button) {
+      return;
+    }
 
     if (loading) {
       button.disabled = true;
       button.dataset.originalText = button.textContent;
-      button.textContent = this.app.currentLanguage === 'cs' ? '⏳ Zpracování...' : '⏳ Processing...';
+      button.textContent =
+        this.app.currentLanguage === 'cs' ? '⏳ Zpracování...' : '⏳ Processing...';
       button.style.opacity = '0.7';
       button.style.cursor = 'not-allowed';
     } else {
@@ -289,7 +292,7 @@ class BookingFormModule {
     html += `
             <div class="summary-total" style="margin-top: 1rem;">
                 <strong>${this.app.currentLanguage === 'cs' ? 'Celková cena rezervace' : 'Total Booking Price'}:</strong>
-                <strong style="font-size: 1.3rem; color: #28a745;">${totalPrice.toLocaleString('cs-CZ')} Kč</strong>
+                <strong style="font-size: 1.3rem; color: #28a745;">${BookingDisplayUtils.formatCurrency(totalPrice)}</strong>
             </div>
         </div>`;
 
@@ -324,135 +327,430 @@ class BookingFormModule {
     this.setSubmitButtonLoading(true);
 
     try {
-    // Get form values
-    const name = document.getElementById('name')?.value.trim() || '';
-    const email = document.getElementById('email')?.value.trim() || '';
-    // Combine phone prefix with number (remove spaces from number)
-    const phonePrefix = document.getElementById('phonePrefix')?.value || '+420';
-    const phoneNumber = document.getElementById('phone')?.value.trim().replace(/\s/gu, '') || '';
-    const phone = phonePrefix + phoneNumber;
-    const company = document.getElementById('company')?.value.trim() || '';
-    const address = document.getElementById('address')?.value.trim() || '';
-    const city = document.getElementById('city')?.value.trim() || '';
-    const zip = document.getElementById('zip')?.value.trim() || '';
-    const ico = document.getElementById('ico')?.value.trim() || '';
-    const dic = document.getElementById('dic')?.value.trim() || '';
-    const notes = document.getElementById('notes')?.value.trim() || '';
-    // Check both possible Christmas code inputs (main form and final booking form)
-    const christmasCode =
-      document.getElementById('christmasCode')?.value.trim() ||
-      document.getElementById('finalChristmasCode')?.value.trim() ||
-      '';
-    // Check both possible checkbox IDs (main form and final booking form)
-    const payFromBenefit =
-      document.getElementById('payFromBenefit')?.checked ||
-      document.getElementById('finalBookingBenefit')?.checked ||
-      false;
+      // Get form values
+      const name = document.getElementById('name')?.value.trim() || '';
+      const email = document.getElementById('email')?.value.trim() || '';
+      // Combine phone prefix with number (remove spaces from number)
+      const phonePrefix = document.getElementById('phonePrefix')?.value || '+420';
+      const phoneNumber = document.getElementById('phone')?.value.trim().replace(/\s/gu, '') || '';
+      const phone = phonePrefix + phoneNumber;
+      const company = document.getElementById('company')?.value.trim() || '';
+      const address = document.getElementById('address')?.value.trim() || '';
+      const city = document.getElementById('city')?.value.trim() || '';
+      const zip = document.getElementById('zip')?.value.trim() || '';
+      const ico = document.getElementById('ico')?.value.trim() || '';
+      const dic = document.getElementById('dic')?.value.trim() || '';
+      const notes = document.getElementById('notes')?.value.trim() || '';
+      // Check both possible Christmas code inputs (main form and final booking form)
+      const christmasCode =
+        document.getElementById('christmasCode')?.value.trim() ||
+        document.getElementById('finalChristmasCode')?.value.trim() ||
+        '';
+      // Check both possible checkbox IDs (main form and final booking form)
+      const payFromBenefit =
+        document.getElementById('payFromBenefit')?.checked ||
+        document.getElementById('finalBookingBenefit')?.checked ||
+        false;
 
-    // Validate required fields (IČO and company are optional)
-    if (!name || !email || !phoneNumber || !address || !city || !zip) {
-      console.warn('[BookingForm] Validation failed - missing required fields:', {
-        name: Boolean(name),
-        email: Boolean(email),
-        phoneNumber: Boolean(phoneNumber),
-        address: Boolean(address),
-        city: Boolean(city),
-        zip: Boolean(zip),
-      });
-      this.app.showNotification(
-        this.app.currentLanguage === 'cs'
-          ? 'Vyplňte prosím všechna povinná pole označená hvězdičkou (*)'
-          : 'Please fill in all required fields marked with asterisk (*)',
-        'error'
-      );
-      return;
-    }
-
-    // Validate email using ValidationUtils
-    if (!ValidationUtils.validateEmail(email)) {
-      const errorMsg = ValidationUtils.getValidationError('email', email, this.app.currentLanguage);
-      this.app.showNotification(errorMsg, 'error');
-      return;
-    }
-
-    // Validate phone using ValidationUtils
-    const phoneCountryCode = document.getElementById('phonePrefix')?.value || '+420';
-    if (!ValidationUtils.validatePhoneNumber(phoneNumber, phoneCountryCode)) {
-      const errorMsg = ValidationUtils.getValidationError(
-        'phoneNumber',
-        phoneNumber,
-        this.app.currentLanguage,
-        phoneCountryCode
-      );
-      this.app.showNotification(errorMsg, 'error');
-      return;
-    }
-
-    // Validate Christmas access code if required
-    if (this.app.tempReservations && this.app.tempReservations.length > 0) {
-      // Collect all dates from temporary reservations
-      const allDates = [];
-      let hasBulkBooking = false;
-
-      this.app.tempReservations.forEach((reservation) => {
-        const start = new Date(reservation.startDate);
-        const end = new Date(reservation.endDate);
-        const current = new Date(start);
-        // eslint-disable-next-line no-unmodified-loop-condition -- Loop condition correctly uses current date, which is modified inside loop
-        while (current <= end) {
-          allDates.push(dataManager.formatDate(current));
-          current.setDate(current.getDate() + 1);
-        }
-        if (reservation.isBulkBooking) {
-          hasBulkBooking = true;
-        }
-      });
-
-      // Check if Christmas code is required and if bulk is blocked
-      const { showCodeField, blockBulk } = await this.checkAndShowChristmasCodeField(
-        allDates,
-        hasBulkBooking
-      );
-
-      // Block bulk bookings if required (after Oct 1 for Christmas period)
-      if (blockBulk) {
+      // Validate required fields (IČO and company are optional)
+      if (!name || !email || !phoneNumber || !address || !city || !zip) {
+        console.warn('[BookingForm] Validation failed - missing required fields:', {
+          name: Boolean(name),
+          email: Boolean(email),
+          phoneNumber: Boolean(phoneNumber),
+          address: Boolean(address),
+          city: Boolean(city),
+          zip: Boolean(zip),
+        });
         this.app.showNotification(
           this.app.currentLanguage === 'cs'
-            ? 'Hromadné rezervace celé chaty nejsou po 1. říjnu povoleny pro vánoční období. Rezervujte jednotlivé pokoje.'
-            : 'Bulk bookings for the entire chalet are not allowed after October 1st for the Christmas period. Please book individual rooms.',
+            ? 'Vyplňte prosím všechna povinná pole označená hvězdičkou (*)'
+            : 'Please fill in all required fields marked with asterisk (*)',
           'error'
         );
         return;
       }
 
-      if (showCodeField && !christmasCode) {
-        this.app.showNotification(
-          this.app.currentLanguage === 'cs'
-            ? 'Vánoční přístupový kód je vyžadován pro rezervace ve vánočním období'
-            : 'Christmas access code is required for bookings during Christmas period',
-          'error'
+      // Validate email using ValidationUtils
+      if (!ValidationUtils.validateEmail(email)) {
+        const errorMsg = ValidationUtils.getValidationError(
+          'email',
+          email,
+          this.app.currentLanguage
         );
+        this.app.showNotification(errorMsg, 'error');
         return;
       }
 
-      // NEW 2025-10-16: Validate Christmas room limit for temp reservations
+      // Validate phone using ValidationUtils
+      const phoneCountryCode = document.getElementById('phonePrefix')?.value || '+420';
+      if (!ValidationUtils.validatePhoneNumber(phoneNumber, phoneCountryCode)) {
+        const errorMsg = ValidationUtils.getValidationError(
+          'phoneNumber',
+          phoneNumber,
+          this.app.currentLanguage,
+          phoneCountryCode
+        );
+        this.app.showNotification(errorMsg, 'error');
+        return;
+      }
+
+      // Validate Christmas access code if required
+      if (this.app.tempReservations && this.app.tempReservations.length > 0) {
+        // Collect all dates from temporary reservations
+        const allDates = [];
+        let hasBulkBooking = false;
+
+        this.app.tempReservations.forEach((reservation) => {
+          const start = new Date(reservation.startDate);
+          const end = new Date(reservation.endDate);
+          const current = new Date(start);
+          // eslint-disable-next-line no-unmodified-loop-condition -- Loop condition correctly uses current date, which is modified inside loop
+          while (current <= end) {
+            allDates.push(dataManager.formatDate(current));
+            current.setDate(current.getDate() + 1);
+          }
+          if (reservation.isBulkBooking) {
+            hasBulkBooking = true;
+          }
+        });
+
+        // Check if Christmas code is required and if bulk is blocked
+        const { showCodeField, blockBulk } = await this.checkAndShowChristmasCodeField(
+          allDates,
+          hasBulkBooking
+        );
+
+        // Block bulk bookings if required (after Oct 1 for Christmas period)
+        if (blockBulk) {
+          this.app.showNotification(
+            this.app.currentLanguage === 'cs'
+              ? 'Hromadné rezervace celé chaty nejsou po 1. říjnu povoleny pro vánoční období. Rezervujte jednotlivé pokoje.'
+              : 'Bulk bookings for the entire chalet are not allowed after October 1st for the Christmas period. Please book individual rooms.',
+            'error'
+          );
+          return;
+        }
+
+        if (showCodeField && !christmasCode) {
+          this.app.showNotification(
+            this.app.currentLanguage === 'cs'
+              ? 'Vánoční přístupový kód je vyžadován pro rezervace ve vánočním období'
+              : 'Christmas access code is required for bookings during Christmas period',
+            'error'
+          );
+          return;
+        }
+
+        // NEW 2025-10-16: Validate Christmas room limit for temp reservations
+        const settings = await dataManager.getSettings();
+        const christmasPeriodStart = settings.christmasPeriod?.start;
+
+        // Collect all room IDs from temp reservations
+        const allRoomIds = [];
+        const guestTypeTemp = this.app.tempReservations[0]?.guestType || 'utia';
+
+        this.app.tempReservations.forEach((res) => {
+          if (res.isBulkBooking && res.roomIds) {
+            allRoomIds.push(...res.roomIds);
+          } else if (res.roomId) {
+            allRoomIds.push(res.roomId);
+          }
+        });
+
+        const roomLimitCheck = ChristmasUtils.validateChristmasRoomLimit(
+          { rooms: allRoomIds, guestType: guestTypeTemp },
+          new Date(),
+          christmasPeriodStart
+        );
+
+        if (!roomLimitCheck.valid) {
+          this.app.showNotification(roomLimitCheck.error, 'error');
+          return;
+        }
+
+        if (roomLimitCheck.warning) {
+          // Show warning but allow to continue
+          this.app.showNotification(roomLimitCheck.warning, 'warning');
+        }
+      }
+
+      // Check if we're finalizing temporary reservations
+      if (
+        this.app.isFinalizingReservations &&
+        this.app.tempReservations &&
+        this.app.tempReservations.length > 0
+      ) {
+        // Calculate total guests for validation
+        let totalAdults = 0;
+        let totalChildren = 0;
+        let totalToddlers = 0;
+
+        this.app.tempReservations.forEach((reservation) => {
+          totalAdults += reservation.guests.adults || 0;
+          totalChildren += reservation.guests.children || 0;
+          totalToddlers += reservation.guests.toddlers || 0;
+        });
+
+        // Check if this is a bulk booking - bulk bookings already have guest names from the bulk modal
+        const isBulkBookingFlow = this.app.tempReservations.some((r) => r.isBulkBooking);
+
+        // Validate guest names if there are any guests (skip for bulk bookings - already validated in bulk modal)
+        if (!isBulkBookingFlow && totalAdults + totalChildren + totalToddlers > 0) {
+          const validation = this.validateGuestNames(totalAdults, totalChildren, totalToddlers);
+          if (!validation.valid) {
+            this.app.showNotification(validation.error, 'error');
+            return;
+          }
+        }
+
+        // Collect guest names (for non-bulk bookings only - bulk bookings use tempReservation.guestNames)
+        const guestNames = isBulkBookingFlow ? [] : this.collectGuestNames();
+
+        // Create bookings for all temporary reservations
+        let successCount = 0;
+        let errorCount = 0;
+
+        // NEW 2025-11-14: ALWAYS consolidate multi-room bookings into ONE booking
+        // Use perRoomDates to handle different date ranges per room
+        if (
+          this.app.tempReservations.length > 1 &&
+          !this.app.tempReservations.some((r) => r.isBulkBooking)
+        ) {
+          // Multiple rooms - create a SINGLE consolidated booking with perRoomDates
+          const allRoomIds = [];
+          let totalAdultsLocal = 0;
+          let totalChildrenLocal = 0;
+          let totalToddlersLocal = 0;
+          let totalPriceLocal = 0;
+          const guestTypesSet = new Set();
+          const roomGuestsMap = {};
+          const perRoomDatesMap = {};
+
+          // Calculate min/max dates across all rooms
+          let minStartDate = null;
+          let maxEndDate = null;
+
+          for (const tempReservation of this.app.tempReservations) {
+            allRoomIds.push(tempReservation.roomId);
+            totalAdultsLocal += tempReservation.guests.adults || 0;
+            totalChildrenLocal += tempReservation.guests.children || 0;
+            totalToddlersLocal += tempReservation.guests.toddlers || 0;
+            totalPriceLocal += tempReservation.totalPrice || 0;
+            guestTypesSet.add(tempReservation.guestType);
+
+            // Store per-room guest data
+            roomGuestsMap[tempReservation.roomId] = {
+              ...tempReservation.guests,
+              guestType: tempReservation.guestType,
+            };
+
+            // Store per-room dates
+            perRoomDatesMap[tempReservation.roomId] = {
+              startDate: tempReservation.startDate,
+              endDate: tempReservation.endDate,
+            };
+
+            // Track min/max dates
+            const roomStart = new Date(tempReservation.startDate);
+            const roomEnd = new Date(tempReservation.endDate);
+
+            if (!minStartDate || roomStart < new Date(minStartDate)) {
+              minStartDate = tempReservation.startDate;
+            }
+            if (!maxEndDate || roomEnd > new Date(maxEndDate)) {
+              maxEndDate = tempReservation.endDate;
+            }
+          }
+
+          // Determine guest type (prefer 'utia' if mixed)
+          const finalGuestType = guestTypesSet.has('utia') ? 'utia' : 'external';
+
+          const booking = {
+            name,
+            email,
+            phone,
+            company,
+            address,
+            city,
+            zip,
+            ico,
+            dic,
+            startDate: minStartDate, // Global min date
+            endDate: maxEndDate, // Global max date
+            rooms: allRoomIds,
+            guestType: finalGuestType,
+            adults: totalAdultsLocal,
+            children: totalChildrenLocal,
+            toddlers: totalToddlersLocal,
+            totalPrice: totalPriceLocal,
+            notes,
+            payFromBenefit,
+            christmasCode,
+            perRoomGuests: roomGuestsMap,
+            perRoomDates: perRoomDatesMap, // NEW: Per-room date ranges
+            sessionId: this.app.sessionId,
+            guestNames,
+          };
+
+          try {
+            await dataManager.createBooking(booking);
+            successCount = 1;
+          } catch (error) {
+            console.error('Error creating consolidated booking', error);
+            errorCount = 1;
+          }
+        } else {
+          // Single booking or bulk booking - handle normally
+          const formData = {
+            name,
+            email,
+            phone,
+            company,
+            address,
+            city,
+            zip,
+            ico,
+            dic,
+            notes,
+            payFromBenefit,
+            christmasCode,
+          };
+
+          for (const tempReservation of this.app.tempReservations) {
+            // eslint-disable-next-line no-await-in-loop -- Sequential processing required: each booking must check room availability before creating
+            const result = await this.processTempReservation(tempReservation, formData, guestNames);
+            // Use ternary to avoid max-depth violation
+            successCount += result.success ? 1 : 0;
+            errorCount += result.success ? 0 : 1;
+          }
+        }
+
+        // Delete proposed bookings from database
+        const deletePromises = this.app.tempReservations
+          .filter((tempReservation) => tempReservation.proposalId)
+          .map(async (tempReservation) => {
+            try {
+              await dataManager.deleteProposedBooking(tempReservation.proposalId);
+            } catch (error) {
+              console.error('Failed to delete proposed booking:', error);
+            }
+          });
+        await Promise.all(deletePromises);
+
+        // Clear all session proposed bookings (in case any were missed)
+        try {
+          await dataManager.clearSessionProposedBookings();
+        } catch (error) {
+          console.error('Failed to clear session proposed bookings:', error);
+        }
+
+        // Clear temporary reservations
+        this.app.tempReservations = [];
+        this.app.isFinalizingReservations = false;
+
+        // Hide the modal
+        const modal = document.getElementById('bookingFormModal');
+        if (modal) {
+          modal.classList.remove('active');
+        }
+
+        // Hide temp reservations container and finalize button
+        const tempSection = document.getElementById('tempReservationsSection');
+        if (tempSection) {
+          tempSection.style.display = 'none';
+        }
+        const tempContainer = document.getElementById('tempReservationsContainer');
+        if (tempContainer) {
+          tempContainer.style.display = 'none';
+        }
+        const finalizeDiv = document.getElementById('finalizeReservationsDiv');
+        if (finalizeDiv) {
+          finalizeDiv.style.display = 'none';
+        }
+
+        // Show result notification
+        if (successCount > 0 && errorCount === 0) {
+          this.app.showNotification(
+            this.app.currentLanguage === 'cs'
+              ? `✅ Všechny rezervace (${successCount}) byly úspěšně vytvořeny!`
+              : `✅ All reservations (${successCount}) created successfully!`,
+            'success',
+            6000
+          );
+        } else if (successCount > 0 && errorCount > 0) {
+          this.app.showNotification(
+            this.app.currentLanguage === 'cs'
+              ? `Částečný úspěch: ${successCount} rezervací vytvořeno, ${errorCount} selhalo`
+              : `Partial success: ${successCount} reservations created, ${errorCount} failed`,
+            'warning'
+          );
+        } else {
+          this.app.showNotification(
+            this.app.currentLanguage === 'cs'
+              ? 'Chyba při vytváření rezervací'
+              : 'Error creating reservations',
+            'error'
+          );
+        }
+
+        // Update temp reservations display (will hide the section since array is empty)
+        await this.app.displayTempReservations();
+
+        // Reload the calendar to show new bookings
+        await this.app.renderCalendar();
+        return;
+      }
+
+      // Regular booking flow (not finalization)
+      // Get guest type based on which booking mode is active
+      let guestType = 'utia'; // default
+      const singleRoomModal = document.getElementById('singleRoomBookingModal');
+      const bulkModal = document.getElementById('bulkBookingModal');
+
+      if (singleRoomModal && singleRoomModal.classList.contains('active')) {
+        // Single room booking mode
+        const singleGuestTypeInput = document.querySelector(
+          'input[name="singleRoomGuestType"]:checked'
+        );
+        guestType = singleGuestTypeInput ? singleGuestTypeInput.value : 'utia';
+      } else if (bulkModal && bulkModal.classList.contains('active')) {
+        // Bulk booking mode
+        const bulkGuestTypeInput = document.querySelector('input[name="bulkGuestType"]:checked');
+        guestType = bulkGuestTypeInput ? bulkGuestTypeInput.value : 'utia';
+      }
+
+      // Get dates - use exactly what user selected
+      const sortedDates = Array.from(this.app.selectedDates).sort();
+      const startDate = sortedDates[0];
+      const endDate = sortedDates[sortedDates.length - 1];
+
+      // Prepare rooms and guest data
+      const roomsData = [];
+      let totalAdults = 0;
+      let totalChildren = 0;
+      let totalToddlers = 0;
+
+      for (const roomId of this.app.selectedRooms) {
+        roomsData.push(roomId);
+        const guests = this.app.roomGuests.get(roomId) || { adults: 1, children: 0, toddlers: 0 };
+        totalAdults += guests.adults;
+        totalChildren += guests.children;
+        totalToddlers += guests.toddlers;
+      }
+
+      // NOTE: Guest names validation is only done during finalization (line ~430)
+      // Don't validate here - it blocks calendar interaction
+
+      // Collect guest names
+      const guestNames = this.collectGuestNames();
+
+      // NEW 2025-10-16: Validate Christmas room limit for regular booking flow
       const settings = await dataManager.getSettings();
       const christmasPeriodStart = settings.christmasPeriod?.start;
 
-      // Collect all room IDs from temp reservations
-      const allRoomIds = [];
-      const guestTypeTemp = this.app.tempReservations[0]?.guestType || 'utia';
-
-      this.app.tempReservations.forEach((res) => {
-        if (res.isBulkBooking && res.roomIds) {
-          allRoomIds.push(...res.roomIds);
-        } else if (res.roomId) {
-          allRoomIds.push(res.roomId);
-        }
-      });
-
       const roomLimitCheck = ChristmasUtils.validateChristmasRoomLimit(
-        { rooms: allRoomIds, guestType: guestTypeTemp },
+        { rooms: roomsData, guestType },
         new Date(),
         christmasPeriodStart
       );
@@ -466,350 +764,59 @@ class BookingFormModule {
         // Show warning but allow to continue
         this.app.showNotification(roomLimitCheck.warning, 'warning');
       }
-    }
 
-    // Check if we're finalizing temporary reservations
-    if (
-      this.app.isFinalizingReservations &&
-      this.app.tempReservations &&
-      this.app.tempReservations.length > 0
-    ) {
-      // Calculate total guests for validation
-      let totalAdults = 0;
-      let totalChildren = 0;
-      let totalToddlers = 0;
+      // Create booking
+      const booking = {
+        name,
+        email,
+        phone,
+        company,
+        address,
+        city,
+        zip,
+        ico,
+        dic,
+        startDate,
+        endDate,
+        rooms: roomsData,
+        guestType,
+        adults: totalAdults,
+        children: totalChildren,
+        toddlers: totalToddlers,
+        notes,
+        payFromBenefit,
+        roomGuests: Object.fromEntries(this.app.roomGuests),
+        guestNames, // Include guest names
+      };
 
-      this.app.tempReservations.forEach((reservation) => {
-        totalAdults += reservation.guests.adults || 0;
-        totalChildren += reservation.guests.children || 0;
-        totalToddlers += reservation.guests.toddlers || 0;
-      });
-
-      // Check if this is a bulk booking - bulk bookings already have guest names from the bulk modal
-      const isBulkBookingFlow = this.app.tempReservations.some((r) => r.isBulkBooking);
-
-      // Validate guest names if there are any guests (skip for bulk bookings - already validated in bulk modal)
-      if (!isBulkBookingFlow && totalAdults + totalChildren + totalToddlers > 0) {
-        const validation = this.validateGuestNames(totalAdults, totalChildren, totalToddlers);
-        if (!validation.valid) {
-          this.app.showNotification(validation.error, 'error');
-          return;
-        }
-      }
-
-      // Collect guest names (for non-bulk bookings only - bulk bookings use tempReservation.guestNames)
-      const guestNames = isBulkBookingFlow ? [] : this.collectGuestNames();
-
-      // Create bookings for all temporary reservations
-      let successCount = 0;
-      let errorCount = 0;
-
-      // NEW 2025-11-14: ALWAYS consolidate multi-room bookings into ONE booking
-      // Use perRoomDates to handle different date ranges per room
-      if (
-        this.app.tempReservations.length > 1 &&
-        !this.app.tempReservations.some((r) => r.isBulkBooking)
-      ) {
-        // Multiple rooms - create a SINGLE consolidated booking with perRoomDates
-        const allRoomIds = [];
-        let totalAdultsLocal = 0;
-        let totalChildrenLocal = 0;
-        let totalToddlersLocal = 0;
-        let totalPriceLocal = 0;
-        const guestTypesSet = new Set();
-        const roomGuestsMap = {};
-        const perRoomDatesMap = {};
-
-        // Calculate min/max dates across all rooms
-        let minStartDate = null;
-        let maxEndDate = null;
-
-        for (const tempReservation of this.app.tempReservations) {
-          allRoomIds.push(tempReservation.roomId);
-          totalAdultsLocal += tempReservation.guests.adults || 0;
-          totalChildrenLocal += tempReservation.guests.children || 0;
-          totalToddlersLocal += tempReservation.guests.toddlers || 0;
-          totalPriceLocal += tempReservation.totalPrice || 0;
-          guestTypesSet.add(tempReservation.guestType);
-
-          // Store per-room guest data
-          roomGuestsMap[tempReservation.roomId] = {
-            ...tempReservation.guests,
-            guestType: tempReservation.guestType,
-          };
-
-          // Store per-room dates
-          perRoomDatesMap[tempReservation.roomId] = {
-            startDate: tempReservation.startDate,
-            endDate: tempReservation.endDate,
-          };
-
-          // Track min/max dates
-          const roomStart = new Date(tempReservation.startDate);
-          const roomEnd = new Date(tempReservation.endDate);
-
-          if (!minStartDate || roomStart < new Date(minStartDate)) {
-            minStartDate = tempReservation.startDate;
-          }
-          if (!maxEndDate || roomEnd > new Date(maxEndDate)) {
-            maxEndDate = tempReservation.endDate;
-          }
-        }
-
-        // Determine guest type (prefer 'utia' if mixed)
-        const finalGuestType = guestTypesSet.has('utia') ? 'utia' : 'external';
-
-        const booking = {
-          name,
-          email,
-          phone,
-          company,
-          address,
-          city,
-          zip,
-          ico,
-          dic,
-          startDate: minStartDate, // Global min date
-          endDate: maxEndDate, // Global max date
-          rooms: allRoomIds,
-          guestType: finalGuestType,
-          adults: totalAdultsLocal,
-          children: totalChildrenLocal,
-          toddlers: totalToddlersLocal,
-          totalPrice: totalPriceLocal,
-          notes,
-          payFromBenefit,
-          christmasCode,
-          perRoomGuests: roomGuestsMap,
-          perRoomDates: perRoomDatesMap, // NEW: Per-room date ranges
-          sessionId: this.app.sessionId,
-          guestNames,
-        };
-
-        try {
-          await dataManager.createBooking(booking);
-          successCount = 1;
-        } catch (error) {
-          console.error('Error creating consolidated booking', error);
-          errorCount = 1;
-        }
-      } else {
-        // Single booking or bulk booking - handle normally
-        const formData = {
-          name,
-          email,
-          phone,
-          company,
-          address,
-          city,
-          zip,
-          ico,
-          dic,
-          notes,
-          payFromBenefit,
-          christmasCode,
-        };
-
-        for (const tempReservation of this.app.tempReservations) {
-          // eslint-disable-next-line no-await-in-loop -- Sequential processing required: each booking must check room availability before creating
-          const result = await this.processTempReservation(tempReservation, formData, guestNames);
-          // Use ternary to avoid max-depth violation
-          successCount += result.success ? 1 : 0;
-          errorCount += result.success ? 0 : 1;
-        }
-      }
-
-      // Delete proposed bookings from database
-      const deletePromises = this.app.tempReservations
-        .filter((tempReservation) => tempReservation.proposalId)
-        .map(async (tempReservation) => {
-          try {
-            await dataManager.deleteProposedBooking(tempReservation.proposalId);
-          } catch (error) {
-            console.error('Failed to delete proposed booking:', error);
-          }
-        });
-      await Promise.all(deletePromises);
-
-      // Clear all session proposed bookings (in case any were missed)
       try {
-        await dataManager.clearSessionProposedBookings();
-      } catch (error) {
-        console.error('Failed to clear session proposed bookings:', error);
-      }
+        const result = await dataManager.createBooking(booking);
 
-      // Clear temporary reservations
-      this.app.tempReservations = [];
-      this.app.isFinalizingReservations = false;
+        // Hide modal
+        if (this.app.currentBookingRoom) {
+          this.app.singleRoomBooking.hideRoomBookingModal();
+        } else {
+          this.hideBookingModal();
+        }
 
-      // Hide the modal
-      const modal = document.getElementById('bookingFormModal');
-      if (modal) {
-        modal.classList.remove('active');
-      }
-
-      // Hide temp reservations container and finalize button
-      const tempSection = document.getElementById('tempReservationsSection');
-      if (tempSection) {
-        tempSection.style.display = 'none';
-      }
-      const tempContainer = document.getElementById('tempReservationsContainer');
-      if (tempContainer) {
-        tempContainer.style.display = 'none';
-      }
-      const finalizeDiv = document.getElementById('finalizeReservationsDiv');
-      if (finalizeDiv) {
-        finalizeDiv.style.display = 'none';
-      }
-
-      // Show result notification
-      if (successCount > 0 && errorCount === 0) {
+        // Show success toast notification
         this.app.showNotification(
           this.app.currentLanguage === 'cs'
-            ? `✅ Všechny rezervace (${successCount}) byly úspěšně vytvořeny!`
-            : `✅ All reservations (${successCount}) created successfully!`,
+            ? '✅ Rezervace byla úspěšně vytvořena!'
+            : '✅ Booking created successfully!',
           'success',
           6000
         );
-      } else if (successCount > 0 && errorCount > 0) {
-        this.app.showNotification(
-          this.app.currentLanguage === 'cs'
-            ? `Částečný úspěch: ${successCount} rezervací vytvořeno, ${errorCount} selhalo`
-            : `Partial success: ${successCount} reservations created, ${errorCount} failed`,
-          'warning'
-        );
-      } else {
-        this.app.showNotification(
-          this.app.currentLanguage === 'cs'
-            ? 'Chyba při vytváření rezervací'
-            : 'Error creating reservations',
-          'error'
-        );
-      }
 
-      // Update temp reservations display (will hide the section since array is empty)
-      await this.app.displayTempReservations();
+        // Show success notification with edit link
+        if (result.editToken) {
+          const editUrl = `${window.location.origin}/edit.html?token=${result.editToken}`;
 
-      // Reload the calendar to show new bookings
-      await this.app.renderCalendar();
-      return;
-    }
-
-    // Regular booking flow (not finalization)
-    // Get guest type based on which booking mode is active
-    let guestType = 'utia'; // default
-    const singleRoomModal = document.getElementById('singleRoomBookingModal');
-    const bulkModal = document.getElementById('bulkBookingModal');
-
-    if (singleRoomModal && singleRoomModal.classList.contains('active')) {
-      // Single room booking mode
-      const singleGuestTypeInput = document.querySelector(
-        'input[name="singleRoomGuestType"]:checked'
-      );
-      guestType = singleGuestTypeInput ? singleGuestTypeInput.value : 'utia';
-    } else if (bulkModal && bulkModal.classList.contains('active')) {
-      // Bulk booking mode
-      const bulkGuestTypeInput = document.querySelector('input[name="bulkGuestType"]:checked');
-      guestType = bulkGuestTypeInput ? bulkGuestTypeInput.value : 'utia';
-    }
-
-    // Get dates - use exactly what user selected
-    const sortedDates = Array.from(this.app.selectedDates).sort();
-    const startDate = sortedDates[0];
-    const endDate = sortedDates[sortedDates.length - 1];
-
-    // Prepare rooms and guest data
-    const roomsData = [];
-    let totalAdults = 0;
-    let totalChildren = 0;
-    let totalToddlers = 0;
-
-    for (const roomId of this.app.selectedRooms) {
-      roomsData.push(roomId);
-      const guests = this.app.roomGuests.get(roomId) || { adults: 1, children: 0, toddlers: 0 };
-      totalAdults += guests.adults;
-      totalChildren += guests.children;
-      totalToddlers += guests.toddlers;
-    }
-
-    // NOTE: Guest names validation is only done during finalization (line ~430)
-    // Don't validate here - it blocks calendar interaction
-
-    // Collect guest names
-    const guestNames = this.collectGuestNames();
-
-    // NEW 2025-10-16: Validate Christmas room limit for regular booking flow
-    const settings = await dataManager.getSettings();
-    const christmasPeriodStart = settings.christmasPeriod?.start;
-
-    const roomLimitCheck = ChristmasUtils.validateChristmasRoomLimit(
-      { rooms: roomsData, guestType },
-      new Date(),
-      christmasPeriodStart
-    );
-
-    if (!roomLimitCheck.valid) {
-      this.app.showNotification(roomLimitCheck.error, 'error');
-      return;
-    }
-
-    if (roomLimitCheck.warning) {
-      // Show warning but allow to continue
-      this.app.showNotification(roomLimitCheck.warning, 'warning');
-    }
-
-    // Create booking
-    const booking = {
-      name,
-      email,
-      phone,
-      company,
-      address,
-      city,
-      zip,
-      ico,
-      dic,
-      startDate,
-      endDate,
-      rooms: roomsData,
-      guestType,
-      adults: totalAdults,
-      children: totalChildren,
-      toddlers: totalToddlers,
-      notes,
-      payFromBenefit,
-      roomGuests: Object.fromEntries(this.app.roomGuests),
-      guestNames, // Include guest names
-    };
-
-    try {
-      const result = await dataManager.createBooking(booking);
-
-      // Hide modal
-      if (this.app.currentBookingRoom) {
-        this.app.singleRoomBooking.hideRoomBookingModal();
-      } else {
-        this.hideBookingModal();
-      }
-
-      // Show success toast notification
-      this.app.showNotification(
-        this.app.currentLanguage === 'cs'
-          ? '✅ Rezervace byla úspěšně vytvořena!'
-          : '✅ Booking created successfully!',
-        'success',
-        6000
-      );
-
-      // Show success notification with edit link
-      if (result.editToken) {
-        const editUrl = `${window.location.origin}/edit.html?token=${result.editToken}`;
-
-        // Create success modal with edit link
-        const modal = document.createElement('div');
-        modal.className = 'modal active';
-        modal.style.zIndex = '10000';
-        modal.innerHTML = `
+          // Create success modal with edit link
+          const modal = document.createElement('div');
+          modal.className = 'modal active';
+          modal.style.zIndex = '10000';
+          modal.innerHTML = `
           <div class="modal-content" style="max-width: 600px; text-align: center;">
             <div style="margin-bottom: 2rem;">
               <div style="font-size: 4rem; color: #10b981;">✓</div>
@@ -866,68 +873,68 @@ class BookingFormModule {
             </button>
           </div>
         `;
-        document.body.appendChild(modal);
+          document.body.appendChild(modal);
 
-        // Add event listener for copy button
-        const copyBtn = document.getElementById('copyEditLinkBtn');
-        if (copyBtn) {
-          copyBtn.addEventListener('click', async () => {
-            try {
-              await navigator.clipboard.writeText(editUrl);
-              const originalText = copyBtn.textContent;
-              copyBtn.textContent =
-                this.app.currentLanguage === 'cs' ? '✓ Zkopírováno!' : '✓ Copied!';
-              setTimeout(() => {
-                copyBtn.textContent = originalText;
-              }, 2000);
-            } catch (error) {
-              console.error('Failed to copy to clipboard:', error);
-              this.app.showNotification(
-                this.app.currentLanguage === 'cs'
-                  ? 'Chyba při kopírování odkazu'
-                  : 'Failed to copy link',
-                'error'
-              );
-            }
-          });
+          // Add event listener for copy button
+          const copyBtn = document.getElementById('copyEditLinkBtn');
+          if (copyBtn) {
+            copyBtn.addEventListener('click', async () => {
+              try {
+                await navigator.clipboard.writeText(editUrl);
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent =
+                  this.app.currentLanguage === 'cs' ? '✓ Zkopírováno!' : '✓ Copied!';
+                setTimeout(() => {
+                  copyBtn.textContent = originalText;
+                }, 2000);
+              } catch (error) {
+                console.error('Failed to copy to clipboard:', error);
+                this.app.showNotification(
+                  this.app.currentLanguage === 'cs'
+                    ? 'Chyba při kopírování odkazu'
+                    : 'Failed to copy link',
+                  'error'
+                );
+              }
+            });
+          }
+
+          // Add event listener for close button
+          const closeBtn = document.getElementById('closeSuccessModal');
+          if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+              modal.remove();
+              // Reload calendar to show new booking
+              this.app.renderCalendar();
+            });
+          }
+        } else {
+          // Fallback to simple notification
+          this.app.showNotification(
+            this.app.currentLanguage === 'cs'
+              ? '✓ Rezervace byla úspěšně vytvořena'
+              : '✓ Booking created successfully',
+            'success'
+          );
         }
 
-        // Add event listener for close button
-        const closeBtn = document.getElementById('closeSuccessModal');
-        if (closeBtn) {
-          closeBtn.addEventListener('click', () => {
-            modal.remove();
-            // Reload calendar to show new booking
-            this.app.renderCalendar();
-          });
-        }
-      } else {
-        // Fallback to simple notification
+        // Highlight new booking in calendar
+        await this.app.calendar.highlightNewBooking(booking);
+      } catch (error) {
+        console.error('[BookingForm] Booking creation failed:', error);
+        console.error('[BookingForm] Error details:', {
+          message: error.message,
+          stack: error.stack,
+          response: error.response,
+        });
         this.app.showNotification(
           this.app.currentLanguage === 'cs'
-            ? '✓ Rezervace byla úspěšně vytvořena'
-            : '✓ Booking created successfully',
-          'success'
+            ? `Chyba při vytváření rezervace: ${error.message || 'Neznámá chyba'}`
+            : `Error creating booking: ${error.message || 'Unknown error'}`,
+          'error'
         );
       }
-
-      // Highlight new booking in calendar
-      await this.app.calendar.highlightNewBooking(booking);
-    } catch (error) {
-      console.error('[BookingForm] Booking creation failed:', error);
-      console.error('[BookingForm] Error details:', {
-        message: error.message,
-        stack: error.stack,
-        response: error.response,
-      });
-      this.app.showNotification(
-        this.app.currentLanguage === 'cs'
-          ? `Chyba při vytváření rezervace: ${error.message || 'Neznámá chyba'}`
-          : `Error creating booking: ${error.message || 'Unknown error'}`,
-        'error'
-      );
-    }
-    // End of inner try-catch for booking creation
+      // End of inner try-catch for booking creation
     } finally {
       // Always reset submitting state (outer finally for double-click protection)
       this.isSubmitting = false;
@@ -968,9 +975,7 @@ class BookingFormModule {
 
     // Clear summary
     const summaryEl = document.getElementById('bookingSummary');
-    if (summaryEl) {
-      summaryEl.innerHTML = '';
-    }
+    DOMUtils.clearElement(summaryEl);
   }
 
   validatePhoneNumber(input) {

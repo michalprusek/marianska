@@ -64,6 +64,28 @@ class BookingApp {
     return IdGenerator.generateSessionId();
   }
 
+  /**
+   * XSS prevention: HTML escaping helper for user-provided content
+   * SSOT 2025-12-03: Delegate to DOMUtils.escapeHtml()
+   * @param {string} unsafe - Potentially unsafe string from user input
+   * @returns {string} - HTML-escaped safe string
+   */
+  escapeHtml(unsafe) {
+    if (window.DOMUtils && window.DOMUtils.escapeHtml) {
+      return window.DOMUtils.escapeHtml(unsafe);
+    }
+    // Fallback (shouldn't happen if domUtils.js is loaded)
+    if (!unsafe) {
+      return '';
+    }
+    return String(unsafe)
+      .replace(/&/gu, '&amp;')
+      .replace(/</gu, '&lt;')
+      .replace(/>/gu, '&gt;')
+      .replace(/"/gu, '&quot;')
+      .replace(/'/gu, '&#039;');
+  }
+
   async init() {
     // Initialize data storage
     await dataManager.initData();
@@ -829,9 +851,7 @@ class BookingApp {
         sectionDiv.style.display = 'none';
       }
       containerDiv.style.display = 'none';
-      if (listDiv) {
-        listDiv.innerHTML = '';
-      }
+      DOMUtils.clearElement(listDiv);
       if (totalPriceSpan) {
         totalPriceSpan.textContent = '0 Kč';
       }
@@ -929,7 +949,7 @@ class BookingApp {
                     booking.guestNames && booking.guestNames.length > 0
                       ? `
                   <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
-                    👤 ${booking.guestNames[0].firstName} ${booking.guestNames[0].lastName}${booking.guestNames.length > 1 ? ` +${booking.guestNames.length - 1} ${this.currentLanguage === 'cs' ? 'další' : 'other'}` : ''}
+                    👤 ${this.escapeHtml(booking.guestNames[0].firstName)} ${this.escapeHtml(booking.guestNames[0].lastName)}${booking.guestNames.length > 1 ? ` +${booking.guestNames.length - 1} ${this.currentLanguage === 'cs' ? 'další' : 'other'}` : ''}
                   </div>
                   `
                       : ''
@@ -940,7 +960,7 @@ class BookingApp {
                   <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e0e0e0;">
                     <div style="font-size: 0.85rem; color: var(--gray-500);">${this.currentLanguage === 'cs' ? 'Cena za pobyt:' : 'Price for stay:'}</div>
                     <div style="font-size: 1.25rem; font-weight: 700; color: #8b5cf6;">
-                      ${booking.totalPrice.toLocaleString('cs-CZ')} Kč
+                      ${BookingDisplayUtils.formatCurrency(booking.totalPrice)}
                     </div>
                   </div>
                 </div>
@@ -994,7 +1014,7 @@ class BookingApp {
                     booking.guestNames && booking.guestNames.length > 0
                       ? `
                   <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
-                    👤 ${booking.guestNames[0].firstName} ${booking.guestNames[0].lastName}${booking.guestNames.length > 1 ? ` +${booking.guestNames.length - 1} ${this.currentLanguage === 'cs' ? 'další' : 'other'}` : ''}
+                    👤 ${this.escapeHtml(booking.guestNames[0].firstName)} ${this.escapeHtml(booking.guestNames[0].lastName)}${booking.guestNames.length > 1 ? ` +${booking.guestNames.length - 1} ${this.currentLanguage === 'cs' ? 'další' : 'other'}` : ''}
                   </div>
                   `
                       : ''
@@ -1005,7 +1025,7 @@ class BookingApp {
                   <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e0e0e0;">
                     <div style="font-size: 0.85rem; color: var(--gray-500);">${this.currentLanguage === 'cs' ? 'Cena za pobyt:' : 'Price for stay:'}</div>
                     <div style="font-size: 1.25rem; font-weight: 700; color: var(--primary-color);">
-                      ${booking.totalPrice.toLocaleString('cs-CZ')} Kč
+                      ${BookingDisplayUtils.formatCurrency(booking.totalPrice)}
                     </div>
                   </div>
                 </div>
@@ -1040,7 +1060,7 @@ class BookingApp {
 
     // Update total price
     if (totalPriceSpan) {
-      totalPriceSpan.textContent = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
+      totalPriceSpan.textContent = BookingDisplayUtils.formatCurrency(totalPrice);
     }
 
     // Show finalize button when there are reservations
@@ -1550,7 +1570,7 @@ class BookingApp {
     // Update room capacity grid with floor information
     const capacityGrid = document.getElementById('roomCapacityGrid');
     if (capacityGrid) {
-      capacityGrid.innerHTML = '';
+      DOMUtils.clearElement(capacityGrid);
       let totalBeds = 0;
 
       // Get translation function
@@ -1707,7 +1727,7 @@ class BookingApp {
                             ${t('utiaEmployees')}
                         </h4>
                         <ul style="list-style: none; padding: 0; margin: 0;">
-                            <li style="padding: 0.25rem 0;">${t('bulkPriceBasePriceCottage')}: <strong>${bulkPricesSettings.basePrice.toLocaleString('cs-CZ')} Kč${t('perNight')}</strong></li>
+                            <li style="padding: 0.25rem 0;">${t('bulkPriceBasePriceCottage')}: <strong>${BookingDisplayUtils.formatCurrency(bulkPricesSettings.basePrice)}${t('perNight')}</strong></li>
                             <li style="padding: 0.25rem 0;">${t('bulkPriceAdultSurcharge')}: <strong>${bulkPricesSettings.utiaAdult} Kč</strong></li>
                             <li style="padding: 0.25rem 0;">${t('bulkPriceChildSurcharge')}: <strong>${bulkPricesSettings.utiaChild} Kč</strong></li>
                             <li style="padding: 0.25rem 0; color: var(--success-600);"><strong>${t('bulkPriceToddlersFree')}</strong></li>
@@ -1720,7 +1740,7 @@ class BookingApp {
                             ${t('externalGuests')}
                         </h4>
                         <ul style="list-style: none; padding: 0; margin: 0;">
-                            <li style="padding: 0.25rem 0;">${t('bulkPriceBasePriceCottage')}: <strong>${bulkPricesSettings.basePrice.toLocaleString('cs-CZ')} Kč${t('perNight')}</strong></li>
+                            <li style="padding: 0.25rem 0;">${t('bulkPriceBasePriceCottage')}: <strong>${BookingDisplayUtils.formatCurrency(bulkPricesSettings.basePrice)}${t('perNight')}</strong></li>
                             <li style="padding: 0.25rem 0;">${t('bulkPriceAdultSurcharge')}: <strong>${bulkPricesSettings.externalAdult} Kč</strong></li>
                             <li style="padding: 0.25rem 0;">${t('bulkPriceChildSurcharge')}: <strong>${bulkPricesSettings.externalChild} Kč</strong></li>
                             <li style="padding: 0.25rem 0; color: var(--success-600);"><strong>${t('bulkPriceToddlersFree')}</strong></li>
@@ -1776,9 +1796,7 @@ class BookingApp {
       }
 
       // Translated room name
-      const roomName = isCs
-        ? reservation.roomName
-        : reservation.roomName.replace('Pokoj', 'Room');
+      const roomName = isCs ? reservation.roomName : reservation.roomName.replace('Pokoj', 'Room');
 
       // Guest labels
       const adultLabel = isCs
