@@ -453,8 +453,12 @@ class SingleRoomBookingModule {
     const fallbackGuestType = guestTypeInput ? guestTypeInput.value : 'external';
 
     // Determine actual guest type for the booking:
-    // If at least ONE guest is ÚTIA, the entire booking uses ÚTIA pricing
-    const hasUtiaGuest = guestNames.some((guest) => guest.guestPriceType === 'utia');
+    // If at least ONE PAYING guest (adult or child) is ÚTIA, the room uses ÚTIA pricing
+    // FIX 2025-12-03: Exclude toddlers - they cannot be ÚTIA employees and don't affect pricing
+    // (per CLAUDE.md: "Děti do 3 let (toddlers) vždy zdarma")
+    const hasUtiaGuest = guestNames.some(
+      (guest) => guest.guestPriceType === 'utia' && guest.personType !== 'toddler'
+    );
     const guestType = hasUtiaGuest ? 'utia' : 'external';
 
     // FIX 2025-11-06: Construct perRoomGuests with guestType BEFORE price calculation
@@ -1287,11 +1291,14 @@ class SingleRoomBookingModule {
       const children = guestNames.filter((g) => g.personType === 'child').length;
       const toddlers = guestNames.filter((g) => g.personType === 'toddler').length;
 
-      // FIX: Determine actual guest type based on whether ANY guest is ÚTIA
+      // FIX: Determine actual guest type based on whether ANY PAYING guest is ÚTIA
       // This MUST be calculated BEFORE creating perRoomGuests
+      // FIX 2025-12-03: Exclude toddlers - they're free and shouldn't affect base room price
       const hasUtiaGuest =
         guestNames && guestNames.length > 0
-          ? guestNames.some((guest) => guest.guestPriceType === 'utia')
+          ? guestNames.some(
+              (guest) => guest.guestPriceType === 'utia' && guest.personType !== 'toddler'
+            )
           : true; // FIX 2025-11-07: Default to ÚTIA when no guests yet (matches default radio selection)
       const actualGuestType = hasUtiaGuest ? 'utia' : 'external';
 
@@ -1338,10 +1345,13 @@ class SingleRoomBookingModule {
     const room = settings.rooms?.find((r) => r.id === roomId);
     const roomType = room?.type || 'small';
 
-    // Determine actual guest type based on whether ANY guest is ÚTIA
+    // Determine actual guest type based on whether ANY PAYING guest is ÚTIA
+    // FIX 2025-12-03: Exclude toddlers - they're free and shouldn't affect base room price
     const hasUtiaGuest =
       guestNames && guestNames.length > 0
-        ? guestNames.some((guest) => guest.guestPriceType === 'utia')
+        ? guestNames.some(
+            (guest) => guest.guestPriceType === 'utia' && guest.personType !== 'toddler'
+          )
         : true; // FIX 2025-11-07: Default to ÚTIA when no guests yet (matches default radio selection)
     const actualGuestType = hasUtiaGuest ? 'utia' : 'external';
 

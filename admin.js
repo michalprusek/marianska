@@ -204,7 +204,7 @@ class AdminPanel {
       return html;
     }
 
-    // Fallback: display by person type only (backward compatible for single-room or legacy bookings)
+    // Single room or bulk booking: display by person type only (no per-room breakdown needed)
     let html = '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem;">';
 
     const adults = booking.guestNames.filter((g) => g.personType === 'adult');
@@ -983,11 +983,8 @@ class AdminPanel {
                                       })
                                       .join('')
                                   : `
-                            <div style="color: #6b7280;">
-                              Dospělí: ${booking.adults}, Děti: ${booking.children}, Batolata: ${booking.toddlers}
-                              <div style="margin-top: 0.5rem; color: #9ca3af; font-size: 0.85rem;">
-                                (Starší formát - bez rozdělení po pokojích)
-                              </div>
+                            <div style="color: #ef4444; font-size: 0.85rem;">
+                              ⚠️ Chybí údaje o hostech v pokojích (celkem: ${booking.adults} dosp., ${booking.children} děti, ${booking.toddlers} bat.)
                             </div>
                           `
                             }
@@ -3663,18 +3660,67 @@ class AdminPanel {
       }
 
       // Calculate nights for each room
+      // FIX 2025-12-03: Extract per-room guest type breakdown from guestNames
+      // guestNames contains individual guests with their guestPriceType (utia/external)
       const perRoomGuests = [];
       for (const roomId of booking.rooms) {
         const roomGuests = booking.perRoomGuests[roomId];
         if (roomGuests) {
-          // SSOT FIX 2025-12-03: Include per-room guestType for correct price calculation
-          // Each room can have different guest type (utia vs external)
+          // Count ÚTIA vs External guests for this room from guestNames
+          let utiaAdults = 0;
+          let externalAdults = 0;
+          let utiaChildren = 0;
+          let externalChildren = 0;
+
+          if (booking.guestNames && Array.isArray(booking.guestNames)) {
+            // Filter guests assigned to this room
+            // FIX 2025-12-03: Use String() for type-safe comparison (roomId may be string or number)
+            const roomGuestNames = booking.guestNames.filter(
+              (g) => String(g.roomId) === String(roomId)
+            );
+            for (const guest of roomGuestNames) {
+              // FIX 2025-12-03: Log when guestPriceType falls back to 'external' (data integrity check)
+              if (!guest.guestPriceType) {
+                console.warn('[AdminPanel] Missing guestPriceType for guest, defaulting to external:', {
+                  bookingId: booking.id,
+                  guestName: `${guest.firstName} ${guest.lastName}`,
+                  roomId: guest.roomId,
+                });
+              }
+              const priceType = guest.guestPriceType || 'external';
+              const personType = guest.personType || 'adult';
+
+              if (personType === 'adult') {
+                if (priceType === 'utia') {
+                  utiaAdults += 1;
+                } else {
+                  externalAdults += 1;
+                }
+              } else if (personType === 'child') {
+                if (priceType === 'utia') {
+                  utiaChildren += 1;
+                } else {
+                  externalChildren += 1;
+                }
+              }
+              // toddlers don't affect pricing
+            }
+          }
+
+          // Determine room guestType: ÚTIA if any ÚTIA guests in this room
+          const hasUtiaGuest = utiaAdults > 0 || utiaChildren > 0;
+          const roomGuestType = hasUtiaGuest ? 'utia' : (roomGuests.guestType || booking.guestType || 'external');
+
           perRoomGuests.push({
             roomId,
             adults: roomGuests.adults || 0,
             children: roomGuests.children || 0,
             toddlers: roomGuests.toddlers || 0,
-            guestType: roomGuests.guestType || booking.guestType || 'utia',
+            guestType: roomGuestType,
+            utiaAdults,
+            externalAdults,
+            utiaChildren,
+            externalChildren,
           });
         }
       }
@@ -3700,23 +3746,34 @@ class AdminPanel {
         perRoomDates: booking.perRoomDates || null, // NEW: Pass per-room dates
       });
 
-      // SSOT FIX 2025-12-03: Log warning if breakdown differs from stored price
-      // This helps identify data inconsistencies for debugging
+      // Format HTML
+      let html = PriceCalculator.formatPerRoomPricesHTML(perRoomPrices, 'cs');
+
+      // SSOT FIX 2025-12-03: Surface price discrepancy to UI (not just console)
+      // This helps admin identify data inconsistencies directly in the interface
       if (perRoomPrices.grandTotal !== (booking.totalPrice || 0)) {
+        const difference = Math.abs((booking.totalPrice || 0) - perRoomPrices.grandTotal);
         console.warn('[AdminPanel] Price discrepancy detected:', {
           bookingId: booking.id,
           storedPrice: booking.totalPrice,
           calculatedPrice: perRoomPrices.grandTotal,
-          difference: Math.abs((booking.totalPrice || 0) - perRoomPrices.grandTotal),
+          difference,
           note: 'This may indicate legacy data or pricing model change',
         });
+        html += `<div style="margin-top: 0.5rem; padding: 0.5rem; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 4px; font-size: 0.85rem;">
+          ⚠️ Uložená cena (${booking.totalPrice} Kč) se liší od přepočtené (${perRoomPrices.grandTotal} Kč) o ${difference} Kč
+        </div>`;
       }
 
-      // Format HTML
-      return PriceCalculator.formatPerRoomPricesHTML(perRoomPrices, 'cs');
+      return html;
     } catch (error) {
-      console.warn('Error generating per-room price breakdown:', error);
-      return '';
+      console.error('[AdminPanel] Failed to generate price breakdown:', {
+        error: error.message,
+        bookingId: booking?.id,
+      });
+      return `<div style="color: #dc2626; padding: 0.5rem; font-size: 0.85rem;">
+        ⚠️ Chyba při generování rozpisu cen
+      </div>`;
     }
   }
 

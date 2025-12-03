@@ -3,7 +3,8 @@
 
 class DataManager {
   constructor() {
-    this.apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api';
+    // FIX 2025-12-03: Always use relative path through nginx (CSP blocks http://localhost:3000 from https)
+    this.apiUrl = '/api';
     this.cachedData = null;
     // REMOVED 2025-12-03: localStorage fallback (storageKey) - server is required
     this.syncInterval = null;
