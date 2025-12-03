@@ -404,6 +404,8 @@ class EditBookingComponent {
               lastName,
               guestPriceType,
             });
+          } else {
+            console.warn('[EditBookingComponent] Failed to parse bulk adult input ID:', inputId);
           }
         } else {
           // Per-room input format: room12AdultFirstName1
@@ -425,6 +427,8 @@ class EditBookingComponent {
               lastName,
               guestPriceType,
             });
+          } else {
+            console.warn('[EditBookingComponent] Failed to parse per-room adult input ID:', inputId);
           }
         }
       }
@@ -459,6 +463,8 @@ class EditBookingComponent {
               lastName,
               guestPriceType,
             });
+          } else {
+            console.warn('[EditBookingComponent] Failed to parse bulk child input ID:', inputId);
           }
         } else {
           // Per-room input format: room12ChildFirstName1
@@ -480,6 +486,8 @@ class EditBookingComponent {
               lastName,
               guestPriceType,
             });
+          } else {
+            console.warn('[EditBookingComponent] Failed to parse per-room child input ID:', inputId);
           }
         }
       }
@@ -719,7 +727,7 @@ class EditBookingComponent {
                   style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
               </div>
               <div>
-                <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem; color: #4b5563; font-weight: 500; height: 2.25rem; line-height: 1.2;">Batolata (0-3 roky):</label>
+                <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem; color: #4b5563; font-weight: 500; height: 2.25rem; line-height: 1.2;">Batolata (0-2 roky):</label>
                 <input type="number" min="0" value="${roomData.toddlers}"
                   onchange="${onChangePrefix}.editComponent.updateRoomGuests('${room.id}', 'toddlers', parseInt(this.value))"
                   style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
@@ -1552,14 +1560,6 @@ class EditBookingComponent {
     if (roomData.guestType !== newGuestType) {
       roomData.guestType = newGuestType;
       this.editSelectedRooms.set(roomId, roomData);
-
-      // Also update the room-level guest type dropdown if it exists
-      const roomGuestTypeSelect = document.querySelector(
-        `select[onchange*="updateRoomGuestType('${roomId}'"]`
-      );
-      if (roomGuestTypeSelect) {
-        roomGuestTypeSelect.value = newGuestType;
-      }
     }
   }
 
@@ -2574,7 +2574,7 @@ class EditBookingComponent {
                   style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
               </div>
               <div>
-                <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem; color: #4b5563; font-weight: 500;">Batolata (0-3 roky):</label>
+                <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem; color: #4b5563; font-weight: 500;">Batolata (0-2 roky):</label>
                 <input type="number" min="0" value="${roomData.toddlers}"
                   onchange="${onChangePrefix}.editComponent.updateRoomGuests('${room.id}', 'toddlers', parseInt(this.value))"
                   style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
@@ -2746,7 +2746,7 @@ class EditBookingComponent {
     if (toddlers > 0) {
       guestInputs += `
         <div style="margin-bottom: 1rem;">
-          <h4 style="font-size: 0.875rem; font-weight: 600; color: #0284c7; margin-bottom: 0.5rem;">Batolata (0-3 roky) - Zdarma</h4>
+          <h4 style="font-size: 0.875rem; font-weight: 600; color: #0284c7; margin-bottom: 0.5rem;">Batolata (0-2 roky) - Zdarma</h4>
       `;
 
       for (let i = 1; i <= toddlers; i++) {
@@ -3154,7 +3154,7 @@ class EditBookingComponent {
           </div>
           <div>
             <label style="font-size: 0.75rem; display: block; margin-bottom: 0.5rem; color: #6b21a8; font-weight: 600;">
-              Batolata (0-3 roky):
+              Batolata (0-2 roky):
             </label>
             <input
               type="number"
