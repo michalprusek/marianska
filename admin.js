@@ -3674,8 +3674,19 @@ class AdminPanel {
 
           if (booking.guestNames && Array.isArray(booking.guestNames)) {
             // Filter guests assigned to this room
-            const roomGuestNames = booking.guestNames.filter((g) => g.roomId === roomId);
+            // FIX 2025-12-03: Use String() for type-safe comparison (roomId may be string or number)
+            const roomGuestNames = booking.guestNames.filter(
+              (g) => String(g.roomId) === String(roomId)
+            );
             for (const guest of roomGuestNames) {
+              // FIX 2025-12-03: Log when guestPriceType falls back to 'external' (data integrity check)
+              if (!guest.guestPriceType) {
+                console.warn('[AdminPanel] Missing guestPriceType for guest, defaulting to external:', {
+                  bookingId: booking.id,
+                  guestName: `${guest.firstName} ${guest.lastName}`,
+                  roomId: guest.roomId,
+                });
+              }
               const priceType = guest.guestPriceType || 'external';
               const personType = guest.personType || 'adult';
 
@@ -3735,23 +3746,34 @@ class AdminPanel {
         perRoomDates: booking.perRoomDates || null, // NEW: Pass per-room dates
       });
 
-      // SSOT FIX 2025-12-03: Log warning if breakdown differs from stored price
-      // This helps identify data inconsistencies for debugging
+      // Format HTML
+      let html = PriceCalculator.formatPerRoomPricesHTML(perRoomPrices, 'cs');
+
+      // SSOT FIX 2025-12-03: Surface price discrepancy to UI (not just console)
+      // This helps admin identify data inconsistencies directly in the interface
       if (perRoomPrices.grandTotal !== (booking.totalPrice || 0)) {
+        const difference = Math.abs((booking.totalPrice || 0) - perRoomPrices.grandTotal);
         console.warn('[AdminPanel] Price discrepancy detected:', {
           bookingId: booking.id,
           storedPrice: booking.totalPrice,
           calculatedPrice: perRoomPrices.grandTotal,
-          difference: Math.abs((booking.totalPrice || 0) - perRoomPrices.grandTotal),
+          difference,
           note: 'This may indicate legacy data or pricing model change',
         });
+        html += `<div style="margin-top: 0.5rem; padding: 0.5rem; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 4px; font-size: 0.85rem;">
+          ⚠️ Uložená cena (${booking.totalPrice} Kč) se liší od přepočtené (${perRoomPrices.grandTotal} Kč) o ${difference} Kč
+        </div>`;
       }
 
-      // Format HTML
-      return PriceCalculator.formatPerRoomPricesHTML(perRoomPrices, 'cs');
+      return html;
     } catch (error) {
-      console.warn('Error generating per-room price breakdown:', error);
-      return '';
+      console.error('[AdminPanel] Failed to generate price breakdown:', {
+        error: error.message,
+        bookingId: booking?.id,
+      });
+      return `<div style="color: #dc2626; padding: 0.5rem; font-size: 0.85rem;">
+        ⚠️ Chyba při generování rozpisu cen
+      </div>`;
     }
   }
 

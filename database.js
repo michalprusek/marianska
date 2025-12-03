@@ -620,6 +620,7 @@ class DatabaseManager {
 
       deleteGuestNamesByBooking: this.db.prepare('DELETE FROM guest_names WHERE booking_id = ?'),
 
+      // FIX 2025-12-03: SQLite compatibility - use CASE instead of NULLS LAST (SQLite doesn't support NULLS LAST)
       getGuestNamesByBooking: this.db.prepare(`
         SELECT person_type, first_name, last_name, order_index, room_id, guest_type
         FROM guest_names
@@ -1004,8 +1005,12 @@ class DatabaseManager {
             });
           }
         } catch (error) {
-          // Ignore JSON parse errors, use fallback from booking_rooms
-          console.warn('Failed to parse per_room_guests for booking', booking.id, error);
+          // FIX 2025-12-03: Improved error logging for data integrity tracking
+          console.error('[Database] Failed to parse per_room_guests JSON:', {
+            bookingId: booking.id,
+            rawValue: booking.per_room_guests?.substring(0, 200), // Truncate for logging
+            error: error.message,
+          });
         }
       }
 
@@ -1138,8 +1143,12 @@ class DatabaseManager {
             });
           }
         } catch (error) {
-          // Ignore JSON parse errors, use fallback from booking_rooms
-          console.warn('Failed to parse per_room_guests for booking', booking.id, error);
+          // FIX 2025-12-03: Improved error logging for data integrity tracking
+          console.error('[Database] Failed to parse per_room_guests JSON:', {
+            bookingId: booking.id,
+            rawValue: booking.per_room_guests?.substring(0, 200), // Truncate for logging
+            error: error.message,
+          });
         }
       }
 

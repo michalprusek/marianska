@@ -1297,11 +1297,18 @@ class BookingFormModule {
 
       // Collect guest names from all temp reservations
       // CRITICAL FIX 2025-12-03: Enrich guestNames with roomId and guestPriceType from parent reservation
-      this.app.tempReservations.forEach((reservation) => {
+      this.app.tempReservations.forEach((reservation, index) => {
+        // FIX 2025-12-03: Validate roomId exists before assignment
+        if (!reservation.roomId) {
+          console.error('[BookingForm] Reservation missing roomId:', {
+            reservationIndex: index,
+            guestCount: reservation.guestNames?.length,
+          });
+        }
         if (reservation.guestNames && Array.isArray(reservation.guestNames)) {
           const guestNamesWithRoomData = reservation.guestNames.map((guest) => ({
             ...guest,
-            roomId: reservation.roomId,
+            roomId: reservation.roomId || null, // Explicit null is better than undefined
             guestPriceType: reservation.guestType || 'utia',
           }));
           guestNames.push(...guestNamesWithRoomData);

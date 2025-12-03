@@ -1739,8 +1739,19 @@ class EditBookingComponent {
         const room = this.settings.rooms?.find((r) => r.id === roomId);
         const roomType = room?.type || 'small';
         const defaultPrices = PriceCalculator.getDefaultPrices();
-        const utiaRates = this.settings.prices?.utia?.[roomType] || defaultPrices.utia[roomType];
-        const externalRates = this.settings.prices?.external?.[roomType] || defaultPrices.external[roomType];
+
+        // FIX 2025-12-03: Log when falling back to default prices (data integrity check)
+        let utiaRates = this.settings.prices?.utia?.[roomType];
+        let externalRates = this.settings.prices?.external?.[roomType];
+        if (!utiaRates || !externalRates) {
+          console.error('[EditBookingComponent] Missing price configuration, using defaults:', {
+            roomType,
+            hasUtia: !!utiaRates,
+            hasExternal: !!externalRates,
+          });
+          utiaRates = utiaRates || defaultPrices.utia[roomType];
+          externalRates = externalRates || defaultPrices.external[roomType];
+        }
 
         // Empty room price: Use ÚTIA rate if at least one ÚTIA guest in this room
         const hasUtiaGuest = utiaAdults > 0 || utiaChildren > 0;
@@ -1798,7 +1809,13 @@ class EditBookingComponent {
 
           perRoomPriceHtml = PriceCalculator.formatPerRoomPricesHTML(perRoomPrices, 'cs');
         } catch (error) {
-          console.warn('Error generating per-room price breakdown:', error);
+          console.error('[EditBookingComponent] Failed to generate price breakdown:', {
+            error: error.message,
+            bookingId: this.currentBooking?.id,
+          });
+          perRoomPriceHtml = `<div style="color: #dc2626; padding: 0.5rem; font-size: 0.85rem;">
+            ⚠️ Chyba při generování rozpisu cen
+          </div>`;
         }
       }
     }

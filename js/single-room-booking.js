@@ -453,8 +453,9 @@ class SingleRoomBookingModule {
     const fallbackGuestType = guestTypeInput ? guestTypeInput.value : 'external';
 
     // Determine actual guest type for the booking:
-    // If at least ONE PAYING guest is ÚTIA, the entire booking uses ÚTIA pricing
-    // FIX 2025-12-03: Exclude toddlers - they're free and shouldn't affect base room price
+    // If at least ONE PAYING guest (adult or child) is ÚTIA, the room uses ÚTIA pricing
+    // FIX 2025-12-03: Exclude toddlers - they cannot be ÚTIA employees and don't affect pricing
+    // (per CLAUDE.md: "Děti do 3 let (toddlers) vždy zdarma")
     const hasUtiaGuest = guestNames.some(
       (guest) => guest.guestPriceType === 'utia' && guest.personType !== 'toddler'
     );
