@@ -1157,8 +1157,11 @@ class AdminPanel {
                     }
 
                     ${
-                      // NEW 2025-11-14: Show per-room breakdown for new bookings (not price-locked)
-                      !booking.priceLocked
+                      // Show price breakdown:
+                      // - Bulk bookings: ALWAYS show unified bulk format (even if price-locked)
+                      // - Regular bookings (not price-locked): Show per-room breakdown
+                      // - Regular bookings (price-locked): Show simple total price
+                      booking.isBulkBooking || !booking.priceLocked
                         ? `
                     <div style="margin-bottom: 1rem;">
                         ${await this.generatePerRoomPriceBreakdown(booking)}
@@ -3104,71 +3107,126 @@ class AdminPanel {
   }
 
   async loadStatistics() {
-    const bookings = await dataManager.getAllBookings();
     const container = document.getElementById('statistics');
+    const bookings = await dataManager.getAllBookings();
 
+    // Get date range from inputs (default to current month)
+    const fromInput = document.getElementById('statsFromDate');
+    const toInput = document.getElementById('statsToDate');
+
+    const today = new Date();
+    const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+
+    // Set defaults if empty
+    if (!fromInput.value) fromInput.value = currentMonth;
+    if (!toInput.value) toInput.value = currentMonth;
+
+    const fromDate = new Date(fromInput.value + '-01');
+    const toDate = new Date(toInput.value + '-01');
+    toDate.setMonth(toDate.getMonth() + 1); // Move to next month
+    toDate.setDate(0); // Last day of selected month
+
+    // Filter bookings by date range
+    const filteredBookings = bookings.filter((booking) => {
+      const bookingStart = new Date(booking.startDate);
+      return bookingStart >= fromDate && bookingStart <= toDate;
+    });
+
+    // Calculate ALL stats from filtered bookings
     const stats = {
-      total: bookings.length,
-      thisMonth: 0,
+      total: filteredBookings.length,
       totalRevenue: 0,
       averagePrice: 0,
       occupancyRate: 0,
     };
 
-    const today = new Date();
-    const thisMonth = today.getMonth();
-    const thisYear = today.getFullYear();
-
-    bookings.forEach((booking) => {
-      const bookingDate = new Date(booking.startDate);
-      if (bookingDate.getMonth() === thisMonth && bookingDate.getFullYear() === thisYear) {
-        stats.thisMonth += 1;
-      }
-      stats.totalRevenue += booking.totalPrice;
+    filteredBookings.forEach((booking) => {
+      stats.totalRevenue += booking.totalPrice || 0;
     });
 
-    stats.averagePrice = bookings.length > 0 ? Math.round(stats.totalRevenue / bookings.length) : 0;
+    if (filteredBookings.length > 0) {
+      stats.averagePrice = Math.round(stats.totalRevenue / filteredBookings.length);
+    }
 
-    // Calculate occupancy rate for the current month
-    const daysInMonth = new Date(thisYear, thisMonth + 1, 0).getDate();
-    const totalRoomDays = daysInMonth * 9; // 9 rooms
+    // Calculate occupancy rate for the selected period
+    const monthsDiff =
+      (toDate.getFullYear() - fromDate.getFullYear()) * 12 + (toDate.getMonth() - fromDate.getMonth()) + 1;
+    let totalRoomDays = 0;
+
+    // Calculate total room-days in the period
+    const tempDate = new Date(fromDate);
+    for (let m = 0; m < monthsDiff; m++) {
+      const daysInMonth = new Date(tempDate.getFullYear(), tempDate.getMonth() + 1, 0).getDate();
+      totalRoomDays += daysInMonth * 9; // 9 rooms
+      tempDate.setMonth(tempDate.getMonth() + 1);
+    }
+
+    // Calculate booked room-days
     let bookedRoomDays = 0;
-
-    bookings.forEach((booking) => {
+    filteredBookings.forEach((booking) => {
       const start = new Date(booking.startDate);
       const end = new Date(booking.endDate);
-
-      if (start.getMonth() === thisMonth && start.getFullYear() === thisYear) {
-        // P1 FIX: Remove +1 (was adding extra day)
-        const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-        bookedRoomDays += days * booking.rooms.length;
-      }
+      const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+      bookedRoomDays += days * (booking.rooms?.length || 1);
     });
 
-    stats.occupancyRate = Math.round((bookedRoomDays / totalRoomDays) * 100);
+    stats.occupancyRate = totalRoomDays > 0 ? Math.round((bookedRoomDays / totalRoomDays) * 100) : 0;
 
+    // Format period label
+    const periodLabel =
+      fromInput.value === toInput.value
+        ? this.formatMonth(fromInput.value)
+        : `${this.formatMonth(fromInput.value)} - ${this.formatMonth(toInput.value)}`;
+
+    // Render statistics
     container.innerHTML = `
-            <div style="padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md);">
-                <div style="font-size: 2rem; font-weight: 700; color: var(--primary-color);">${stats.total}</div>
-                <div style="color: var(--gray-600);">Celkem rezervací</div>
-            </div>
-            <div style="padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md);">
-                <div style="font-size: 2rem; font-weight: 700; color: var(--success-color);">${stats.thisMonth}</div>
-                <div style="color: var(--gray-600);">Tento měsíc</div>
-            </div>
-            <div style="padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md);">
-                <div style="font-size: 2rem; font-weight: 700; color: var(--primary-color);">${stats.totalRevenue} Kč</div>
-                <div style="color: var(--gray-600);">Celkové příjmy</div>
-            </div>
-            <div style="padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md);">
-                <div style="font-size: 2rem; font-weight: 700; color: var(--warning-color);">${stats.averagePrice} Kč</div>
-                <div style="color: var(--gray-600);">Průměrná cena</div>
-            </div>
-            <div style="padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md);">
-                <div style="font-size: 2rem; font-weight: 700; color: var(--secondary-color);">${stats.occupancyRate}%</div>
-                <div style="color: var(--gray-600);">Obsazenost tento měsíc</div>
-            </div>
-        `;
+      <div style="padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md);">
+        <div style="font-size: 2rem; font-weight: 700; color: var(--primary-color);">${stats.total}</div>
+        <div style="color: var(--gray-600);">Počet rezervací</div>
+      </div>
+      <div style="padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md);">
+        <div style="font-size: 2rem; font-weight: 700; color: var(--primary-color);">${stats.totalRevenue.toLocaleString('cs-CZ')} Kč</div>
+        <div style="color: var(--gray-600);">Celkové příjmy</div>
+      </div>
+      <div style="padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md);">
+        <div style="font-size: 2rem; font-weight: 700; color: #f59e0b;">${stats.averagePrice.toLocaleString('cs-CZ')} Kč</div>
+        <div style="color: var(--gray-600);">Průměrná cena</div>
+      </div>
+      <div style="padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md);">
+        <div style="font-size: 2rem; font-weight: 700; color: #10b981;">${stats.occupancyRate}%</div>
+        <div style="color: var(--gray-600);">Obsazenost</div>
+      </div>
+      <div style="grid-column: 1 / -1; padding: 0.75rem; text-align: center; color: var(--gray-500); font-size: 0.875rem; background: var(--gray-100); border-radius: var(--radius-sm);">
+        📅 Období: <strong>${periodLabel}</strong>
+      </div>
+    `;
+  }
+
+  resetStatisticsFilter() {
+    const today = new Date();
+    const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+    document.getElementById('statsFromDate').value = currentMonth;
+    document.getElementById('statsToDate').value = currentMonth;
+    this.loadStatistics();
+  }
+
+  formatMonth(monthStr) {
+    const [year, month] = monthStr.split('-');
+    const months = [
+      'leden',
+      'únor',
+      'březen',
+      'duben',
+      'květen',
+      'červen',
+      'červenec',
+      'srpen',
+      'září',
+      'říjen',
+      'listopad',
+      'prosinec',
+    ];
+    return `${months[parseInt(month, 10) - 1]} ${year}`;
   }
 
   async loadEmailTemplate() {
@@ -3656,19 +3714,31 @@ class AdminPanel {
   }
 
   /**
-   * Generate per-room price breakdown HTML
+   * Generate price breakdown HTML
+   * For bulk bookings: Shows unified bulk format (base price + guest surcharges)
+   * For regular bookings: Shows per-room breakdown
+   *
    * @param {Object} booking - Booking object
-   * @returns {Promise<string>} HTML string with per-room price breakdown
+   * @returns {Promise<string>} HTML string with price breakdown
    */
   async generatePerRoomPriceBreakdown(booking) {
     try {
+      const settings = await dataManager.getSettings();
+      if (!settings) {
+        return '';
+      }
+
+      // CRITICAL: Bulk bookings have unified format (NOT per-room breakdown)
+      if (booking.isBulkBooking && settings.bulkPrices) {
+        return this.generateBulkPriceBreakdownHTML(booking, settings);
+      }
+
       // Check if we have per-room guest data
       if (!booking.perRoomGuests || Object.keys(booking.perRoomGuests).length === 0) {
         return '';
       }
 
-      const settings = await dataManager.getSettings();
-      if (!settings || !settings.prices) {
+      if (!settings.prices) {
         return '';
       }
 
@@ -3712,6 +3782,165 @@ class AdminPanel {
     } catch (error) {
       console.warn('Error generating per-room price breakdown:', error);
       return '';
+    }
+  }
+
+  /**
+   * Generate unified bulk price breakdown HTML
+   * Shows: Base price + ÚTIA guests + External guests + Total
+   *
+   * @param {Object} booking - Booking object with bulk booking data
+   * @param {Object} settings - Settings with bulkPrices configuration
+   * @returns {string} HTML string with bulk price breakdown
+   */
+  generateBulkPriceBreakdownHTML(booking, settings) {
+    const { bulkPrices } = settings;
+    const nights = Math.ceil(
+      (new Date(booking.endDate) - new Date(booking.startDate)) / (1000 * 60 * 60 * 24)
+    );
+
+    // Count guests by type from guestNames if available
+    let utiaAdults = 0;
+    let utiaChildren = 0;
+    let externalAdults = 0;
+    let externalChildren = 0;
+    let toddlers = 0;
+
+    if (booking.guestNames && booking.guestNames.length > 0) {
+      for (const guest of booking.guestNames) {
+        const priceType = guest.guestPriceType || 'external';
+        const personType = guest.personType || 'adult';
+
+        if (personType === 'toddler') {
+          toddlers++;
+        } else if (priceType === 'utia') {
+          if (personType === 'child') {
+            utiaChildren++;
+          } else {
+            utiaAdults++;
+          }
+        } else {
+          if (personType === 'child') {
+            externalChildren++;
+          } else {
+            externalAdults++;
+          }
+        }
+      }
+    } else {
+      // Fallback to booking-level counts
+      if (booking.guestType === 'utia') {
+        utiaAdults = booking.adults || 0;
+        utiaChildren = booking.children || 0;
+      } else {
+        externalAdults = booking.adults || 0;
+        externalChildren = booking.children || 0;
+      }
+      toddlers = booking.toddlers || 0;
+    }
+
+    // Calculate prices
+    const basePrice = bulkPrices.basePrice * nights;
+    const utiaAdultsPrice = utiaAdults * bulkPrices.utiaAdult * nights;
+    const utiaChildrenPrice = utiaChildren * bulkPrices.utiaChild * nights;
+    const externalAdultsPrice = externalAdults * bulkPrices.externalAdult * nights;
+    const externalChildrenPrice = externalChildren * bulkPrices.externalChild * nights;
+    const totalPrice = basePrice + utiaAdultsPrice + utiaChildrenPrice + externalAdultsPrice + externalChildrenPrice;
+
+    // Build HTML
+    let html = `
+      <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1px solid #86efac; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;">
+        <div style="font-weight: 600; color: #166534; margin-bottom: 1rem; font-size: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 1.2rem;">🏠</span> Hromadná rezervace celé chaty
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+          <!-- Base price -->
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; background: white; border-radius: 6px;">
+            <span style="color: #374151;">Základní cena za chatu</span>
+            <span style="font-weight: 600; color: #059669;">${bulkPrices.basePrice.toLocaleString('cs-CZ')} Kč/noc</span>
+          </div>`;
+
+    // ÚTIA guests
+    if (utiaAdults > 0) {
+      html += `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.5rem 0.5rem 1.5rem; color: #374151;">
+            <span>ÚTIA ${this._getGuestLabelAdmin(utiaAdults, 'adult')}</span>
+            <span style="color: #059669;">+${utiaAdultsPrice.toLocaleString('cs-CZ')} Kč</span>
+          </div>`;
+    }
+    if (utiaChildren > 0) {
+      html += `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.5rem 0.5rem 1.5rem; color: #374151;">
+            <span>ÚTIA ${this._getGuestLabelAdmin(utiaChildren, 'child')}</span>
+            <span style="color: #059669;">+${utiaChildrenPrice.toLocaleString('cs-CZ')} Kč</span>
+          </div>`;
+    }
+
+    // External guests
+    if (externalAdults > 0) {
+      html += `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.5rem 0.5rem 1.5rem; color: #374151;">
+            <span>Externí ${this._getGuestLabelAdmin(externalAdults, 'adult')}</span>
+            <span style="color: #059669;">+${externalAdultsPrice.toLocaleString('cs-CZ')} Kč</span>
+          </div>`;
+    }
+    if (externalChildren > 0) {
+      html += `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.5rem 0.5rem 1.5rem; color: #374151;">
+            <span>Externí ${this._getGuestLabelAdmin(externalChildren, 'child')}</span>
+            <span style="color: #059669;">+${externalChildrenPrice.toLocaleString('cs-CZ')} Kč</span>
+          </div>`;
+    }
+
+    // Toddlers (free)
+    if (toddlers > 0) {
+      html += `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.5rem 0.5rem 1.5rem; color: #6b7280; font-style: italic;">
+            <span>${this._getGuestLabelAdmin(toddlers, 'toddler')}</span>
+            <span>zdarma</span>
+          </div>`;
+    }
+
+    // Nights multiplier
+    html += `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: #e5e7eb; border-radius: 6px; margin-top: 0.5rem;">
+            <span style="color: #374151; font-weight: 500;">Počet nocí</span>
+            <span style="font-weight: 600; color: #374151;">× ${nights}</span>
+          </div>`;
+
+    // Total
+    html += `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; margin-top: 0.5rem;">
+            <span style="color: white; font-weight: 600; font-size: 1.1rem;">Celková cena</span>
+            <span style="color: white; font-weight: 700; font-size: 1.25rem;">${totalPrice.toLocaleString('cs-CZ')} Kč</span>
+          </div>
+        </div>
+      </div>`;
+
+    return html;
+  }
+
+  /**
+   * Get Czech guest label with proper pluralization for admin panel
+   * @param {number} count - Number of guests
+   * @param {string} type - 'adult', 'child', or 'toddler'
+   * @returns {string} Formatted label
+   */
+  _getGuestLabelAdmin(count, type) {
+    if (type === 'adult') {
+      if (count === 1) return '1 dospělý';
+      if (count >= 2 && count <= 4) return `${count} dospělí`;
+      return `${count} dospělých`;
+    } else if (type === 'child') {
+      if (count === 1) return '1 dítě (3-17 let)';
+      if (count >= 2 && count <= 4) return `${count} děti (3-17 let)`;
+      return `${count} dětí (3-17 let)`;
+    } else {
+      // toddler
+      if (count === 1) return '1 batole (0-2 roky)';
+      if (count >= 2 && count <= 4) return `${count} batolata (0-2 roky)`;
+      return `${count} batolat (0-2 roky)`;
     }
   }
 

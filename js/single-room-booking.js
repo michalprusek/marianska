@@ -290,6 +290,8 @@ class SingleRoomBookingModule {
         allowPast: false,
         enforceContiguous: true,
         minNights: 2,
+        // CRITICAL: Pass sessionId to exclude user's own proposed bookings during edit
+        sessionId: this.app.sessionId,
         onDateSelect: async () => {
           // Sync with app's selectedDates
           this.app.selectedDates = this.miniCalendar.selectedDates;
@@ -314,6 +316,11 @@ class SingleRoomBookingModule {
 
     // Sync app's selectedDates with calendar's selectedDates (for subsequent opens)
     this.miniCalendar.selectedDates = this.app.selectedDates;
+
+    // CRITICAL FIX: Always update sessionId before rendering to exclude user's own proposed bookings
+    // This is essential when editing a proposed reservation - without this, user's own reservation
+    // would show as yellow (blocked) and they couldn't modify the dates
+    this.miniCalendar.config.sessionId = this.app.sessionId;
 
     // Render calendar
     await this.miniCalendar.render();
@@ -556,10 +563,14 @@ class SingleRoomBookingModule {
       this.app.tempReservations.push(tempBooking);
 
       // Show success notification
+      const translatedRoomName =
+        this.app.currentLanguage === 'cs'
+          ? room.name
+          : room.name.replace('Pokoj', 'Room');
       this.app.showNotification(
         this.app.currentLanguage === 'cs'
-          ? `${room.name} přidán do rezervace`
-          : `${room.name} added to reservation`,
+          ? `${translatedRoomName} přidán do rezervace`
+          : `${translatedRoomName} added to reservation`,
         'success'
       );
 

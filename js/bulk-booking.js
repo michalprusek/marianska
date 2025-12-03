@@ -213,6 +213,11 @@ class BulkBookingModule {
     // Sync module's bulkSelectedDates with calendar's selectedDates (for subsequent opens)
     this.bulkCalendar.selectedDates = this.bulkSelectedDates;
 
+    // CRITICAL FIX: Always update sessionId before rendering to exclude user's own proposed bookings
+    // This is essential when editing a proposed reservation - without this, user's own reservation
+    // would show as yellow (blocked) and they couldn't modify the dates
+    this.bulkCalendar.config.sessionId = this.app.sessionId;
+
     // Render calendar
     await this.bulkCalendar.render();
   }
@@ -724,6 +729,13 @@ class BulkBookingModule {
     if (this.app.editingReservation) {
       this.app.editingReservation = null;
     }
+
+    // FIX 2025-12-03: Reset button text to "Vytvořit rezervaci" when modal is closed
+    const confirmBtn = document.getElementById('confirmBulkBookingBtn');
+    if (confirmBtn) {
+      confirmBtn.textContent =
+        this.app.currentLanguage === 'cs' ? 'Vytvořit rezervaci' : 'Create Reservation';
+    }
   }
 
   async confirmBulkDates() {
@@ -1199,12 +1211,13 @@ class BulkBookingModule {
 
       this.hideBulkBookingModal();
 
-      // Show success and refresh
+      // Show success toast notification
       this.app.showNotification(
         this.app.currentLanguage === 'cs'
-          ? '✓ Hromadná rezervace byla úspěšně vytvořena'
-          : '✓ Bulk booking created successfully',
-        'success'
+          ? '✅ Hromadná rezervace byla úspěšně vytvořena!'
+          : '✅ Bulk booking created successfully!',
+        'success',
+        6000
       );
 
       await this.app.renderCalendar();

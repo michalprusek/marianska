@@ -308,6 +308,11 @@
     container.appendChild(notification);
     notification.style.pointerEvents = 'auto';
 
+    // Trigger slide-in animation after brief delay (for CSS transition to work)
+    requestAnimationFrame(function() {
+      notification.classList.add('show');
+    });
+
     // Auto-remove after duration
     var timeoutId = setTimeout(function () {
       notification.classList.add('notification-hide');

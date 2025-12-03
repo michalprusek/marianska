@@ -935,7 +935,7 @@ class BookingApp {
                       : ''
                   }
                   <div style="font-size: 0.9rem; color: var(--gray-600);">
-                    🏷️ Typ: <span style="font-weight: 600;">${guestTypeText}</span>
+                    🏷️ ${this.currentLanguage === 'cs' ? 'Typ' : 'Type'}: <span style="font-weight: 600;">${guestTypeText}</span>
                   </div>
                   <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e0e0e0;">
                     <div style="font-size: 0.85rem; color: var(--gray-500);">${this.currentLanguage === 'cs' ? 'Cena za pobyt:' : 'Price for stay:'}</div>
@@ -976,7 +976,11 @@ class BookingApp {
               <div style="flex: 1;">
                 <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
                   <span style="background: #ff4444; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">${this.currentLanguage === 'cs' ? 'NAVRHOVANÁ' : 'PROPOSED'}</span>
-                  <strong style="color: var(--primary-color); font-size: 1.1rem;">${booking.roomName}</strong>
+                  <strong style="color: var(--primary-color); font-size: 1.1rem;">${
+                    this.currentLanguage === 'cs'
+                      ? booking.roomName
+                      : booking.roomName.replace('Pokoj', 'Room')
+                  }</strong>
                 </div>
                 <div style="background: white; padding: 0.75rem; border-radius: 6px; border: 1px solid #e0e0e0;">
                   <div style="color: var(--gray-700); font-size: 0.95rem; margin-bottom: 0.5rem;">
@@ -996,7 +1000,7 @@ class BookingApp {
                       : ''
                   }
                   <div style="font-size: 0.9rem; color: var(--gray-600);">
-                    🏷️ Typ: <span style="font-weight: 600;">${guestTypeText}</span>
+                    🏷️ ${this.currentLanguage === 'cs' ? 'Typ' : 'Type'}: <span style="font-weight: 600;">${guestTypeText}</span>
                   </div>
                   <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e0e0e0;">
                     <div style="font-size: 0.85rem; color: var(--gray-500);">${this.currentLanguage === 'cs' ? 'Cena za pobyt:' : 'Price for stay:'}</div>
@@ -1208,6 +1212,13 @@ class BookingApp {
         if (guestSection) {
           guestSection.style.display = 'block';
         }
+
+        // FIX 2025-12-03: Change button text to "Uložit" (Save) when editing bulk booking
+        // (same as single room booking edit mode)
+        const confirmBulkBtn = document.getElementById('confirmBulkBookingBtn');
+        if (confirmBulkBtn) {
+          confirmBulkBtn.textContent = this.currentLanguage === 'cs' ? 'Uložit' : 'Save';
+        }
       } else {
         console.error('Bulk booking modal or module not available');
         this.showNotification(
@@ -1390,14 +1401,20 @@ class BookingApp {
             <div style="padding: 0.75rem; background: linear-gradient(135deg, #f3e8ff, #fef3ff); border: 1px solid #8b5cf6; border-radius: var(--radius-sm); margin-bottom: 0.5rem;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                  <strong style="color: #8b5cf6;">🏠 Hromadná rezervace celé chaty</strong><br>
+                  <strong style="color: #8b5cf6;">🏠 ${
+                    this.currentLanguage === 'cs'
+                      ? 'Hromadná rezervace celé chaty'
+                      : 'Bulk Booking - Entire Cottage'
+                  }</strong><br>
                   <span style="font-size: 0.9rem; color: var(--gray-600);">
                     ${reservation.startDate} → ${reservation.endDate} (${reservation.nights} ${
                       this.currentLanguage === 'cs' ? 'nocí' : 'nights'
                     })
                   </span><br>
                   <span style="font-size: 0.9rem; color: var(--gray-600);">
-                    ${reservation.roomIds.length} pokojů, ${reservation.guests.adults} ${
+                    ${reservation.roomIds.length} ${
+                      this.currentLanguage === 'cs' ? 'pokojů' : 'rooms'
+                    }, ${reservation.guests.adults} ${
                       this.currentLanguage === 'cs' ? 'dospělí' : 'adults'
                     }${
                       reservation.guests.children > 0
@@ -1422,7 +1439,11 @@ class BookingApp {
             <div style="padding: 0.75rem; background: var(--gray-50); border-radius: var(--radius-sm); margin-bottom: 0.5rem;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                  <strong>${reservation.roomName}</strong><br>
+                  <strong>${
+                    this.currentLanguage === 'cs'
+                      ? reservation.roomName
+                      : reservation.roomName.replace('Pokoj', 'Room')
+                  }</strong><br>
                   <span style="font-size: 0.9rem; color: var(--gray-600);">
                     ${reservation.startDate} → ${reservation.endDate} (${reservation.nights} ${
                       this.currentLanguage === 'cs' ? 'nocí' : 'nights'
@@ -1734,36 +1755,71 @@ class BookingApp {
     let summaryHTML = '';
 
     displayReservations.forEach((reservation) => {
-      const guestTypeLabel = reservation.guestType === 'utia' ? 'ÚTIA' : 'Externí';
+      const isCs = this.currentLanguage === 'cs';
+      const guestTypeLabel =
+        reservation.guestType === 'utia' ? 'ÚTIA' : isCs ? 'Externí' : 'External';
       const guestDetails = reservation.guests;
+      const dateLocale = isCs ? 'cs-CZ' : 'en-US';
 
       // Determine nights label
       let nightsLabel;
-      if (reservation.nights === 1) {
-        nightsLabel = 'noc';
-      } else if (reservation.nights < 5) {
-        nightsLabel = 'noci';
+      if (isCs) {
+        if (reservation.nights === 1) {
+          nightsLabel = 'noc';
+        } else if (reservation.nights < 5) {
+          nightsLabel = 'noci';
+        } else {
+          nightsLabel = 'nocí';
+        }
       } else {
-        nightsLabel = 'nocí';
+        nightsLabel = reservation.nights === 1 ? 'night' : 'nights';
       }
+
+      // Translated room name
+      const roomName = isCs
+        ? reservation.roomName
+        : reservation.roomName.replace('Pokoj', 'Room');
+
+      // Guest labels
+      const adultLabel = isCs
+        ? guestDetails.adults === 1
+          ? 'dospělý'
+          : 'dospělí'
+        : guestDetails.adults === 1
+          ? 'adult'
+          : 'adults';
+      const childLabel = isCs
+        ? guestDetails.children === 1
+          ? 'dítě'
+          : 'děti'
+        : guestDetails.children === 1
+          ? 'child'
+          : 'children';
+      const toddlerLabel = isCs
+        ? guestDetails.toddlers === 1
+          ? 'batole'
+          : 'batolata'
+        : guestDetails.toddlers === 1
+          ? 'toddler'
+          : 'toddlers';
 
       summaryHTML += `
         <div style="padding: 0.5rem; margin-bottom: 0.5rem; background: white; border-radius: 4px; border-left: 3px solid var(--primary-color);">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-              <strong>${reservation.roomName}</strong> | ${guestTypeLabel}
+              <strong>${roomName}</strong> | ${guestTypeLabel}
               <div style="font-size: 0.85rem; color: var(--gray-600); margin-top: 0.25rem;">
-                ${new Date(reservation.startDate).toLocaleDateString('cs-CZ')} - ${new Date(reservation.endDate).toLocaleDateString('cs-CZ')}
+                ${new Date(reservation.startDate).toLocaleDateString(dateLocale)} - ${new Date(reservation.endDate).toLocaleDateString(dateLocale)}
                 (${reservation.nights} ${nightsLabel})
               </div>
               <div style="font-size: 0.85rem; color: var(--gray-600);">
-                👤 ${guestDetails.adults} ${guestDetails.adults === 1 ? 'dospělý' : 'dospělí'}
-                ${guestDetails.children > 0 ? `, ${guestDetails.children} ${guestDetails.children === 1 ? 'dítě' : 'děti'}` : ''}
-                ${guestDetails.toddlers > 0 ? `, ${guestDetails.toddlers} ${guestDetails.toddlers === 1 ? 'batole' : 'batolata'}` : ''}
+                👤 ${guestDetails.adults} ${adultLabel}
+                ${guestDetails.children > 0 ? `, ${guestDetails.children} ${childLabel}` : ''}
+                ${guestDetails.toddlers > 0 ? `, ${guestDetails.toddlers} ${toddlerLabel}` : ''}
               </div>
             </div>
             <div style="text-align: right;">
-              <strong style="color: var(--primary-color);">${reservation.totalPrice.toLocaleString('cs-CZ')} Kč</strong>
+              <strong style="color: var(--primary-color);">${reservation.totalPrice.toLocaleString(dateLocale)} Kč</strong>
             </div>
           </div>
         </div>
@@ -1772,7 +1828,8 @@ class BookingApp {
     });
 
     summaryDiv.innerHTML = summaryHTML;
-    totalPriceSpan.textContent = `${totalPrice.toLocaleString('cs-CZ')} Kč`;
+    const priceLocale = this.currentLanguage === 'cs' ? 'cs-CZ' : 'en-US';
+    totalPriceSpan.textContent = `${totalPrice.toLocaleString(priceLocale)} Kč`;
   }
 
   closeFinalBookingModal() {
@@ -1849,10 +1906,14 @@ class BookingApp {
         createdBookings.push(booking);
       } else {
         // If any booking fails, show error
+        const roomNameError =
+          this.currentLanguage === 'cs'
+            ? tempReservation.roomName
+            : tempReservation.roomName.replace('Pokoj', 'Room');
         this.showNotification(
           this.currentLanguage === 'cs'
-            ? `Chyba při vytváření rezervace pro ${tempReservation.roomName}`
-            : `Error creating booking for ${tempReservation.roomName}`,
+            ? `Chyba při vytváření rezervace pro ${roomNameError}`
+            : `Error creating booking for ${roomNameError}`,
           'error'
         );
         return;

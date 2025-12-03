@@ -2204,6 +2204,12 @@ input:checked + .slider:before {
   animation: toast-exit 0.3s ease-in forwards;
 }
 
+.notification-hide {
+  opacity: 0;
+  transform: translateX(calc(100% + 20px)) !important;
+  transition: all 0.3s ease-in;
+}
+
 /* Confirm Dialog Styles */
 .confirm-overlay {
   position: fixed;
