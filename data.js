@@ -5,7 +5,7 @@ class DataManager {
   constructor() {
     this.apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api';
     this.cachedData = null;
-    this.storageKey = 'chataMarianska';
+    // REMOVED 2025-12-03: localStorage fallback (storageKey) - server is required
     this.syncInterval = null;
     this.lastSync = null;
     this.sessionId = this.getOrCreateSessionId();
@@ -50,69 +50,63 @@ class DataManager {
     }
   }
 
-  // P2 FIX: Safe localStorage setter with error handling
-  safeSetLocalStorage(key, data) {
-    try {
-      const jsonString = JSON.stringify(data);
-      localStorage.setItem(key, jsonString);
-      return true;
-    } catch (error) {
-      if (error.name === 'QuotaExceededError') {
-        console.warn('[DataManager] LocalStorage quota exceeded - clearing old data');
-        // Try to clear and retry once
-        try {
-          localStorage.clear();
-          localStorage.setItem(key, JSON.stringify(data));
-          return true;
-        } catch (retryError) {
-          console.error('[DataManager] LocalStorage unavailable:', retryError);
-          return false;
-        }
-      } else {
-        console.error('[DataManager] LocalStorage error:', error);
-        return false;
-      }
-    }
-  }
+  // REMOVED 2025-12-03: safeSetLocalStorage() - no longer storing data to localStorage
 
   async initData() {
-    // Try to load from server FIRST (with 10s timeout to prevent hanging)
+    // 2025-12-03: Server is REQUIRED - no localStorage fallback
+    // Load from server with 10s timeout
     try {
       const response = await this.fetchWithTimeout(`${this.apiUrl}/data`);
       if (response.ok) {
         this.cachedData = await response.json();
         this.lastSync = Date.now();
-        // Save to localStorage as backup
-        this.safeSetLocalStorage(this.storageKey, this.cachedData);
-
         // Start auto-sync
         this.startAutoSync();
         return;
       }
+      // Server responded but not OK
+      throw new Error(`Server returned status ${response.status}`);
     } catch (error) {
-      console.error('Server not available:', error);
+      console.error('[DataManager] Server not available:', error);
+      // Show user-friendly error message
+      this.showServerUnavailableError();
+      // Use empty default data to prevent complete failure
+      this.cachedData = this.getDefaultData();
+      // Start sync attempts to recover when server comes back
+      this.startAutoSync();
     }
+  }
 
-    // Fallback to localStorage if server is not available
-    const savedData = localStorage.getItem(this.storageKey);
-    if (savedData) {
-      try {
-        this.cachedData = JSON.parse(savedData);
-
-        // Try to sync with server
-        this.startAutoSync();
-        return;
-      } catch (error) {
-        console.error('Error parsing localStorage data:', error);
-      }
+  /**
+   * Show error message when server is unavailable
+   * 2025-12-03: Added as part of localStorage removal
+   */
+  showServerUnavailableError() {
+    // Check if error already shown to prevent duplicate messages
+    if (document.getElementById('server-unavailable-error')) {
+      return;
     }
-
-    // Last resort - use default data
-    this.cachedData = this.getDefaultData();
-    localStorage.setItem(this.storageKey, JSON.stringify(this.cachedData));
-
-    // Start sync attempts
-    this.startAutoSync();
+    const errorDiv = document.createElement('div');
+    errorDiv.id = 'server-unavailable-error';
+    errorDiv.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: #dc2626;
+      color: white;
+      padding: 1rem;
+      text-align: center;
+      z-index: 10000;
+      font-weight: 600;
+    `;
+    errorDiv.innerHTML = `
+      ⚠️ Server není dostupný. Rezervační systém vyžaduje připojení k serveru.
+      <button onclick="location.reload()" style="margin-left: 1rem; padding: 0.25rem 0.75rem; cursor: pointer;">
+        Zkusit znovu
+      </button>
+    `;
+    document.body.prepend(errorDiv);
   }
 
   // Start automatic synchronization every 30 seconds (reduced from 5s to prevent rate limiting)
@@ -152,7 +146,7 @@ class DataManager {
         if (forceRefresh) {
           // Force refresh - ignore timestamps
           this.cachedData = serverData;
-          localStorage.setItem(this.storageKey, JSON.stringify(this.cachedData));
+          // REMOVED 2025-12-03: localStorage backup - server is source of truth
 
           // Trigger UI update
           if (window.app) {
@@ -167,7 +161,7 @@ class DataManager {
           if (serverTimestamp > localTimestamp) {
             // Server has newer data - update local
             this.cachedData = serverData;
-            localStorage.setItem(this.storageKey, JSON.stringify(this.cachedData));
+            // REMOVED 2025-12-03: localStorage backup - server is source of truth
 
             // Debounce calendar re-renders to prevent rate limiting
             // Only render if: no render pending AND at least 10 seconds since last render
@@ -1302,73 +1296,10 @@ class DataManager {
     return settings.rooms || data.rooms || this.getDefaultData().settings.rooms;
   }
 
-  // Mock email service
-  sendEmail(to, subject, body) {
-    console.info('=== MOCK EMAIL ===');
-    console.info('To:', to);
-    console.info('Subject:', subject);
-    console.info('Body:', body);
-    console.info('==================');
-
-    const emails = JSON.parse(localStorage.getItem('mockEmails') || '[]');
-    emails.push({
-      to,
-      subject,
-      body,
-      sentAt: new Date().toISOString(),
-    });
-    localStorage.setItem('mockEmails', JSON.stringify(emails));
-
-    return true;
-  }
-
-  async sendBookingConfirmation(booking) {
-    const editUrl = `${window.location.origin}/edit.html?token=${booking.editToken}`;
-    const settings = await this.getSettings();
-    const emailSettings = settings.emailTemplate || {};
-
-    const subject = emailSettings.subject
-      ? emailSettings.subject.replace('{booking_id}', booking.id)
-      : `Potvrzení rezervace - ${booking.id}`;
-
-    let body =
-      emailSettings.template ||
-      `Dobrý den {name},
-
-děkujeme za Vaši rezervaci v chatě Mariánská.
-
-DETAIL REZERVACE:
-================
-Číslo rezervace: {booking_id}
-Datum příjezdu: {start_date}
-Datum odjezdu: {end_date}
-Pokoje: {rooms}
-Počet hostů: {adults} dospělých, {children} dětí, {toddlers} batolat
-Celková cena: {total_price} Kč
-
-Pro úpravu nebo zrušení rezervace použijte tento odkaz:
-{edit_url}
-
-S pozdravem,
-Chata Mariánská`;
-
-    const startDate = new Date(booking.startDate);
-    const endDate = new Date(booking.endDate);
-
-    body = body
-      .replace(/\{booking_id\}/gu, booking.id)
-      .replace(/\{name\}/gu, booking.name)
-      .replace(/\{start_date\}/gu, startDate.toLocaleDateString('cs-CZ'))
-      .replace(/\{end_date\}/gu, endDate.toLocaleDateString('cs-CZ'))
-      .replace(/\{rooms\}/gu, booking.rooms.join(', '))
-      .replace(/\{total_price\}/gu, booking.totalPrice)
-      .replace(/\{adults\}/gu, booking.adults)
-      .replace(/\{children\}/gu, booking.children)
-      .replace(/\{toddlers\}/gu, booking.toddlers)
-      .replace(/\{edit_url\}/gu, editUrl);
-
-    return this.sendEmail(booking.email, subject, body);
-  }
+  // REMOVED 2025-12-03: Mock email service (sendEmail, sendBookingConfirmation)
+  // - Used mockEmails localStorage which exposed data in DevTools
+  // - Real email sending is handled by js/shared/emailService.js on server
+  // - Server calls EmailService.sendBookingConfirmation() in POST /api/booking
 
   async sendContactMessage(bookingId, fromEmail, message) {
     try {

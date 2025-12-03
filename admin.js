@@ -665,27 +665,12 @@ class AdminPanel {
 
       bookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-      // Pre-calculate all booking prices in parallel to avoid N+1 query problem.
-      // Fetch settings once and pass to all calculations for better performance.
-      const settings = await dataManager.getSettings();
+      // SSOT FIX 2025-12-03: Use stored price directly - NO recalculation!
+      // booking.totalPrice is the authoritative value calculated by server at creation/update.
+      // Admin panel should NEVER recalculate for display - only use stored value.
       const bookingPrices = new Map();
-
-      const pricePromises = bookings.map(async (booking) => ({
-        id: booking.id,
-        price: await this.calculateActualPrice(booking, settings),
-      }));
-
-      // Use Promise.allSettled to handle failures gracefully without breaking entire table
-      const priceResults = await Promise.allSettled(pricePromises);
-      priceResults.forEach((result, index) => {
-        if (result.status === 'fulfilled') {
-          bookingPrices.set(result.value.id, result.value.price);
-        } else {
-          // Fallback to stored price if calculation fails
-          const booking = bookings[index];
-          bookingPrices.set(booking.id, booking.totalPrice || 0);
-          console.error(`Price calculation failed for booking ${booking.id}:`, result.reason);
-        }
+      bookings.forEach((booking) => {
+        bookingPrices.set(booking.id, this.getBookingPrice(booking));
       });
 
       // Process bookings to create table rows
@@ -805,130 +790,20 @@ class AdminPanel {
   }
 
   /**
-   * Calculate the current total price for a booking using latest settings.
+   * SSOT FIX 2025-12-03: Get the authoritative price for a booking.
    *
-   * For price-locked bookings (created before 2025-11-04), returns the stored totalPrice
-   * to honor legacy pricing model where first adult was free. For new bookings, dynamically
-   * calculates from per-room breakdown to reflect current price settings.
+   * booking.totalPrice IS the single source of truth - it was calculated
+   * by the server using PriceCalculator at creation/update time.
    *
-   * @param {Object} booking - Booking object with perRoomDates, perRoomGuests, priceLocked
-   * @param {Object} settings - Settings object (optional, will fetch if not provided)
-   * @returns {Promise<number>} Total price in CZK (Czech Koruna), never negative
+   * Admin panel should NEVER recalculate prices for display purposes.
+   * The only valid use case for client-side recalculation is edit preview
+   * (handled by EditBookingComponent).
    *
-   * @example
-   * // Price-locked booking (legacy)
-   * const oldBooking = { priceLocked: true, totalPrice: 1500 };
-   * await calculateActualPrice(oldBooking); // Returns 1500 (stored price)
-   *
-   * @example
-   * // Dynamic pricing (new booking)
-   * const newBooking = {
-   *   priceLocked: false,
-   *   perRoomDates: { '12': { startDate: '2025-10-15', endDate: '2025-10-18' } },
-   *   perRoomGuests: { '12': { adults: 2, children: 1, guestType: 'utia' } }
-   * };
-   * await calculateActualPrice(newBooking, settings); // Calculates from current settings
+   * @param {Object} booking - Booking object with totalPrice
+   * @returns {number} The stored totalPrice (authoritative value, never negative)
    */
-  async calculateActualPrice(booking, settings = null) {
-    // Price-locked bookings (created before 2025-11-04) use old pricing model
-    // where first adult was free. We must honor their locked totalPrice to avoid
-    // retroactively overcharging customers. See CLAUDE.md "Backward Compatibility"
-    if (booking.priceLocked) {
-      return booking.totalPrice || 0;
-    }
-
-    // FIX 2025-12-02: Bulk bookings use a completely different pricing model
-    // (flat base + per-person charges with guestTypeBreakdown) that cannot be
-    // recalculated from per-room data. Always return the stored totalPrice.
-    if (booking.isBulkBooking) {
-      return booking.totalPrice || 0;
-    }
-
-    // Bulk bookings and legacy single-room bookings don't have per-room breakdown.
-    // Fall back to stored totalPrice which was calculated correctly at creation time.
-    // Dynamic recalculation only applies to new bookings with perRoomDates structure.
-    if (!booking.perRoomDates || Object.keys(booking.perRoomDates).length === 0) {
-      return booking.totalPrice || 0;
-    }
-
-    // Fetch settings if not provided (for backward compatibility with existing calls)
-    if (!settings) {
-      settings = await dataManager.getSettings();
-    }
-
-    // Calculate price using per-room breakdown
-    let grandTotal = 0;
-
-    for (const [roomId, dates] of Object.entries(booking.perRoomDates)) {
-      // Legacy bookings may lack perRoomGuests data (created before 2025-11-04).
-      // Fallback to minimum valid booking (1 adult) at external pricing to avoid
-      // undercharging. Admin should manually verify and correct if needed.
-      const roomGuests = booking.perRoomGuests?.[roomId] || {
-        adults: 1,
-        children: 0,
-        toddlers: 0,
-        guestType: 'external', // Conservative default - never undercharge
-      };
-
-      // Validate date structure to prevent NaN calculations
-      if (!dates.startDate || !dates.endDate) {
-        console.warn(`Missing dates for room ${roomId} in booking ${booking.id}, skipping room`);
-        continue;
-      }
-
-      // Calculate nights using inclusive date model (checkout day counts as occupied)
-      const startDate = new Date(dates.startDate);
-      const endDate = new Date(dates.endDate);
-      const nights = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-
-      // Validate nights calculation
-      if (isNaN(nights) || nights <= 0) {
-        console.warn(
-          `Invalid nights calculation (${nights}) for room ${roomId} in booking ${booking.id}, skipping room`
-        );
-        continue;
-      }
-
-      // Find room configuration to determine size (small <4 beds, large ≥4 beds)
-      const room = settings.rooms.find((r) => r.id === roomId);
-      if (!room) {
-        console.warn(
-          `Room ${roomId} not found in settings for booking ${booking.id}, using stored price`
-        );
-        return booking.totalPrice || 0;
-      }
-
-      // Room size determines base price tier
-      const isLargeRoom = room.capacity >= 4;
-
-      // Get price configuration for guest type and room size
-      // Structure: settings.prices[guestType][roomSize] = { empty, adult, child }
-      const guestTypeKey = roomGuests.guestType === 'utia' ? 'utia' : 'external';
-      const roomSizeKey = isLargeRoom ? 'large' : 'small';
-      const roomPriceConfig = settings.prices[guestTypeKey]?.[roomSizeKey];
-
-      if (!roomPriceConfig) {
-        console.error(
-          `Missing price config for ${guestTypeKey}/${roomSizeKey} in booking ${booking.id}`
-        );
-        return booking.totalPrice || 0;
-      }
-
-      // Extract price components from configuration
-      const basePrice = roomPriceConfig.empty || 0;
-      const adultCharge = roomPriceConfig.adult || 0;
-      const childCharge = roomPriceConfig.child || 0;
-
-      // Calculate per-night price: base (empty room) + all adults + all children
-      // Note: In new pricing model (post 2025-11-04), ALL adults are charged
-      const perNight =
-        basePrice + roomGuests.adults * adultCharge + roomGuests.children * childCharge;
-
-      // Add this room's total to grand total
-      grandTotal += perNight * nights;
-    }
-
-    return grandTotal;
+  getBookingPrice(booking) {
+    return booking.totalPrice || 0;
   }
 
   filterBookings(searchTerm) {
@@ -2619,7 +2494,12 @@ class AdminPanel {
       }
 
       // Check for overlapping periods
-      const newPeriod = { start: startDate, end: endDate, year };
+      const newPeriod = {
+        start: startDate,
+        end: endDate,
+        year,
+        periodId: IdGenerator.generateChristmasPeriodId(), // Generate unique ID for reliable deletion
+      };
       const overlapping = settings.christmasPeriods.some((period) => {
         const periodStart = new Date(period.start);
         const periodEnd = new Date(period.end);
@@ -2659,10 +2539,15 @@ class AdminPanel {
       const settings = await dataManager.getSettings();
 
       // Try to find period either by periodId or by index for backward compatibility
+      // FIX: Detect if periodId is an actual ID (starts with 'XMAS') or a stringified index
       let period = null;
-      if (periodId && periodId !== index) {
+      const isActualPeriodId = typeof periodId === 'string' && periodId.startsWith('XMAS');
+
+      if (isActualPeriodId) {
         period = settings.christmasPeriods?.find((p) => p.periodId === periodId);
-      } else if (settings.christmasPeriods && settings.christmasPeriods[index]) {
+      }
+      // Fallback to index-based lookup if period not found by ID
+      if (!period && settings.christmasPeriods && settings.christmasPeriods[index]) {
         period = settings.christmasPeriods[index];
       }
 
@@ -3782,11 +3667,14 @@ class AdminPanel {
       for (const roomId of booking.rooms) {
         const roomGuests = booking.perRoomGuests[roomId];
         if (roomGuests) {
+          // SSOT FIX 2025-12-03: Include per-room guestType for correct price calculation
+          // Each room can have different guest type (utia vs external)
           perRoomGuests.push({
             roomId,
             adults: roomGuests.adults || 0,
             children: roomGuests.children || 0,
             toddlers: roomGuests.toddlers || 0,
+            guestType: roomGuests.guestType || booking.guestType || 'utia',
           });
         }
       }
@@ -3811,6 +3699,18 @@ class AdminPanel {
         perRoomGuests,
         perRoomDates: booking.perRoomDates || null, // NEW: Pass per-room dates
       });
+
+      // SSOT FIX 2025-12-03: Log warning if breakdown differs from stored price
+      // This helps identify data inconsistencies for debugging
+      if (perRoomPrices.grandTotal !== (booking.totalPrice || 0)) {
+        console.warn('[AdminPanel] Price discrepancy detected:', {
+          bookingId: booking.id,
+          storedPrice: booking.totalPrice,
+          calculatedPrice: perRoomPrices.grandTotal,
+          difference: Math.abs((booking.totalPrice || 0) - perRoomPrices.grandTotal),
+          note: 'This may indicate legacy data or pricing model change',
+        });
+      }
 
       // Format HTML
       return PriceCalculator.formatPerRoomPricesHTML(perRoomPrices, 'cs');

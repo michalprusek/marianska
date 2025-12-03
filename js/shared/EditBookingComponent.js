@@ -1741,12 +1741,12 @@ class EditBookingComponent {
         // This correctly handles mixed ÚTIA/external guests in the same room
         const room = this.settings.rooms?.find((r) => r.id === roomId);
         const roomType = room?.type || 'small';
-        const utiaRates = this.settings.prices?.utia?.[roomType] || { emptyRoom: 250, adult: 50, child: 25 };
-        const externalRates = this.settings.prices?.external?.[roomType] || { emptyRoom: 400, adult: 100, child: 50 };
+        const utiaRates = this.settings.prices?.utia?.[roomType] || { empty: 250, adult: 50, child: 25 };
+        const externalRates = this.settings.prices?.external?.[roomType] || { empty: 400, adult: 100, child: 50 };
 
         // Empty room price: Use ÚTIA rate if at least one ÚTIA guest in this room
         const hasUtiaGuest = utiaAdults > 0 || utiaChildren > 0;
-        const emptyRoomRate = hasUtiaGuest ? utiaRates.emptyRoom : externalRates.emptyRoom;
+        const emptyRoomRate = hasUtiaGuest ? utiaRates.empty : externalRates.empty;
 
         // Calculate room price with mixed guest types
         const price =
@@ -2086,12 +2086,12 @@ class EditBookingComponent {
         // Calculate price using per-guest breakdown
         const room = this.settings.rooms?.find((r) => r.id === roomId);
         const roomType = room?.type || 'small';
-        const utiaRates = this.settings.prices?.utia?.[roomType] || { emptyRoom: 250, adult: 50, child: 25 };
-        const externalRates = this.settings.prices?.external?.[roomType] || { emptyRoom: 400, adult: 100, child: 50 };
+        const utiaRates = this.settings.prices?.utia?.[roomType] || { empty: 250, adult: 50, child: 25 };
+        const externalRates = this.settings.prices?.external?.[roomType] || { empty: 400, adult: 100, child: 50 };
 
         // Empty room price: Use ÚTIA rate if at least one ÚTIA guest
         const hasUtiaGuest = utiaAdults > 0 || utiaChildren > 0;
-        const emptyRoomRate = hasUtiaGuest ? utiaRates.emptyRoom : externalRates.emptyRoom;
+        const emptyRoomRate = hasUtiaGuest ? utiaRates.empty : externalRates.empty;
 
         totalPrice +=
           emptyRoomRate * nights +
