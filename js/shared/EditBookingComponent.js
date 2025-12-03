@@ -1780,7 +1780,11 @@ class EditBookingComponent {
     }
 
     // Add per-room breakdown if available (insert after the total price container)
-    const priceSection = priceContainer.closest('div[style*="background: #fef3c7"]');
+    // FIX 2025-12-03: Use .edit-price-box class OR inline style selector for compatibility
+    const priceSection =
+      priceContainer.closest('.edit-price-box') ||
+      priceContainer.closest('div[style*="background: #fef3c7"]');
+
     if (priceSection) {
       // Remove any existing per-room breakdown
       const existingBreakdown = priceSection.querySelector('.per-room-prices');
@@ -1810,6 +1814,9 @@ class EditBookingComponent {
         priceContainer.style.display = '';
         priceContainer.innerHTML = BookingDisplayUtils.formatCurrency(totalPrice);
       }
+    } else {
+      // FIX 2025-12-03: Fallback - always update price even if section not found
+      priceContainer.innerHTML = BookingDisplayUtils.formatCurrency(totalPrice);
     }
   }
 
