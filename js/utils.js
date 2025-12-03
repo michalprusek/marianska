@@ -287,12 +287,22 @@ class UtilsModule {
     const display = document.getElementById('selectedDatesDisplay');
     const confirmBtn = document.getElementById('confirmSingleRoomBtn');
 
-    if (!display) {
-      return;
-    }
+    // NEW: Also update dateSelectionSummary in single room booking modal
+    const dateSelectionSummary = document.getElementById('dateSelectionSummary');
+    const selectedDateRange = document.getElementById('selectedDateRange');
+    const nightsCount = document.getElementById('nightsCount');
+
+    // Calculate total nights (selected days - 1)
+    const totalNights = Math.max(0, this.app.selectedDates.size - 1);
 
     if (this.app.selectedDates.size === 0) {
-      display.style.display = 'none';
+      if (display) {
+        display.style.display = 'none';
+      }
+      // Hide dateSelectionSummary when no dates selected
+      if (dateSelectionSummary) {
+        dateSelectionSummary.style.display = 'none';
+      }
       // Disable the confirm button when no dates are selected
       if (confirmBtn) {
         confirmBtn.disabled = true;
@@ -300,10 +310,14 @@ class UtilsModule {
       return;
     }
 
-    display.style.display = 'block';
+    if (display) {
+      display.style.display = 'block';
+    }
 
-    // Calculate total nights (selected days - 1)
-    const totalNights = Math.max(0, this.app.selectedDates.size - 1);
+    // Show dateSelectionSummary when dates are selected
+    if (dateSelectionSummary) {
+      dateSelectionSummary.style.display = 'block';
+    }
 
     // Enable/disable the confirm button based on nights
     if (confirmBtn) {
@@ -313,41 +327,65 @@ class UtilsModule {
     const sortedDates = Array.from(this.app.selectedDates).sort();
     const ranges = this.getDateRanges(sortedDates);
 
-    let html = '<div class="selected-dates-list">';
-    ranges.forEach((range) => {
-      const start = new Date(range.start);
-      const end = new Date(range.end);
+    // Get the first (and typically only) date range for display
+    const firstRange = ranges[0];
+    if (firstRange) {
+      const start = new Date(firstRange.start);
+      const end = new Date(firstRange.end);
       const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-      const nights = days - 1; // nights = days - 1
+      const nights = days - 1;
 
-      if (range.start === range.end) {
-        html += `<div class="selected-date-range">
-                    <span>${this.formatDateDisplay(start)}</span>
-                    <span class="nights-count">0 ${this.app.currentLanguage === 'cs' ? 'nocí' : 'nights'}</span>
-                </div>`;
-      } else {
-        let nightsLabel;
-        if (this.app.currentLanguage === 'cs') {
-          if (nights === 1) {
-            nightsLabel = 'noc';
-          } else if (nights < 5) {
-            nightsLabel = 'noci';
-          } else {
-            nightsLabel = 'nocí';
-          }
+      // Update dateSelectionSummary elements (single room modal)
+      if (selectedDateRange) {
+        if (firstRange.start === firstRange.end) {
+          selectedDateRange.textContent = this.formatDateDisplay(start);
         } else {
-          nightsLabel = nights === 1 ? 'night' : 'nights';
+          selectedDateRange.textContent = `${this.formatDateDisplay(start)} - ${this.formatDateDisplay(end)}`;
         }
-
-        html += `<div class="selected-date-range">
-                    <span>${this.formatDateDisplay(start)} - ${this.formatDateDisplay(end)}</span>
-                    <span class="nights-count">${nights} ${nightsLabel}</span>
-                </div>`;
       }
-    });
-    html += '</div>';
+      if (nightsCount) {
+        nightsCount.textContent = nights.toString();
+      }
+    }
 
-    display.innerHTML = html;
+    // Update selectedDatesDisplay (if exists - for other modals)
+    if (display) {
+      let html = '<div class="selected-dates-list">';
+      ranges.forEach((range) => {
+        const start = new Date(range.start);
+        const end = new Date(range.end);
+        const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+        const nights = days - 1; // nights = days - 1
+
+        if (range.start === range.end) {
+          html += `<div class="selected-date-range">
+                      <span>${this.formatDateDisplay(start)}</span>
+                      <span class="nights-count">0 ${this.app.currentLanguage === 'cs' ? 'nocí' : 'nights'}</span>
+                  </div>`;
+        } else {
+          let nightsLabel;
+          if (this.app.currentLanguage === 'cs') {
+            if (nights === 1) {
+              nightsLabel = 'noc';
+            } else if (nights < 5) {
+              nightsLabel = 'noci';
+            } else {
+              nightsLabel = 'nocí';
+            }
+          } else {
+            nightsLabel = nights === 1 ? 'night' : 'nights';
+          }
+
+          html += `<div class="selected-date-range">
+                      <span>${this.formatDateDisplay(start)} - ${this.formatDateDisplay(end)}</span>
+                      <span class="nights-count">${nights} ${nightsLabel}</span>
+                  </div>`;
+        }
+      });
+      html += '</div>';
+
+      display.innerHTML = html;
+    }
   }
 
   async updatePriceCalculation() {

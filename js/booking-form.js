@@ -666,9 +666,10 @@ class BookingFormModule {
       if (successCount > 0 && errorCount === 0) {
         this.app.showNotification(
           this.app.currentLanguage === 'cs'
-            ? `✓ Všechny rezervace (${successCount}) byly úspěšně vytvořeny`
-            : `✓ All reservations (${successCount}) created successfully`,
-          'success'
+            ? `✅ Všechny rezervace (${successCount}) byly úspěšně vytvořeny!`
+            : `✅ All reservations (${successCount}) created successfully!`,
+          'success',
+          6000
         );
       } else if (successCount > 0 && errorCount > 0) {
         this.app.showNotification(
@@ -790,6 +791,15 @@ class BookingFormModule {
       } else {
         this.hideBookingModal();
       }
+
+      // Show success toast notification
+      this.app.showNotification(
+        this.app.currentLanguage === 'cs'
+          ? '✅ Rezervace byla úspěšně vytvořena!'
+          : '✅ Booking created successfully!',
+        'success',
+        6000
+      );
 
       // Show success notification with edit link
       if (result.editToken) {

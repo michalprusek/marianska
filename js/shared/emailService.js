@@ -179,6 +179,11 @@ class EmailService {
       return 'Rozpis ceny není k dispozici';
     }
 
+    // CRITICAL: Bulk bookings have special unified format (not per-room)
+    if (booking.isBulkBooking && settings.bulkPrices) {
+      return this.generateBulkPriceBreakdown(booking, settings);
+    }
+
     const guestKey = booking.guestType === 'utia' ? 'utia' : 'external';
     const priceConfig = settings.prices[guestKey];
     const nights = DateUtils.getDaysBetween(booking.startDate, booking.endDate);
@@ -234,14 +239,69 @@ class EmailService {
     }
 
     // Handle single-date bookings (all rooms same dates)
+    // Count guests by type from guestNames array (matches frontend logic)
+    let utiaAdults = 0;
+    let utiaChildren = 0;
+    let externalAdults = 0;
+    let externalChildren = 0;
+    let toddlers = 0;
+
+    const guestNames = booking.guestNames || [];
+    for (const guest of guestNames) {
+      const priceType = guest.guestPriceType || 'external';
+      const personType = guest.personType || 'adult';
+
+      if (personType === 'toddler') {
+        toddlers++;
+        continue; // Toddlers are free
+      }
+
+      if (priceType === 'utia') {
+        if (personType === 'adult') {
+          utiaAdults++;
+        } else if (personType === 'child') {
+          utiaChildren++;
+        }
+      } else {
+        // External
+        if (personType === 'adult') {
+          externalAdults++;
+        } else if (personType === 'child') {
+          externalChildren++;
+        }
+      }
+    }
+
+    // Fallback if no guestNames: use booking counts with default type
+    if (guestNames.length === 0) {
+      const defaultType = booking.guestType || 'external';
+      if (defaultType === 'utia') {
+        utiaAdults = booking.adults || 0;
+        utiaChildren = booking.children || 0;
+      } else {
+        externalAdults = booking.adults || 0;
+        externalChildren = booking.children || 0;
+      }
+      toddlers = booking.toddlers || 0;
+    }
+
+    const totalAdults = utiaAdults + externalAdults;
+    const totalChildren = utiaChildren + externalChildren;
+
+    // Determine actual guest type for room pricing (ÚTIA if any guest is ÚTIA)
+    const hasUtiaGuest = utiaAdults > 0 || utiaChildren > 0;
+    const actualGuestKey = hasUtiaGuest ? 'utia' : 'external';
+    const actualPriceConfig = settings.prices[actualGuestKey];
+
     let breakdown = '';
     let totalPrice = 0;
 
+    // Room base prices
     for (const roomId of booking.rooms || []) {
       const room = settings.rooms.find((r) => r.id === roomId);
       const roomType = room?.type || 'small';
       const roomBeds = room?.beds || '?';
-      const roomPriceConfig = priceConfig?.[roomType];
+      const roomPriceConfig = actualPriceConfig?.[roomType];
 
       if (!roomPriceConfig) {
         continue;
@@ -250,41 +310,85 @@ class EmailService {
       // NEW MODEL 2025-11-10: Only 'empty' field (room-size based pricing)
       const emptyRoomPrice = roomPriceConfig.empty || 0;
       const basePrice = emptyRoomPrice * nights;
+      const guestTypeLabel = hasUtiaGuest ? 'ÚTIA' : 'EXT';
 
       breakdown += `Pokoj ${roomId} (${roomBeds} lůžka)\n`;
-      breakdown += `  Základní cena: ${emptyRoomPrice} Kč/noc × ${nights} nocí = ${basePrice} Kč\n\n`;
+      breakdown += `  Základní cena (${guestTypeLabel}): ${emptyRoomPrice} Kč/noc × ${nights} nocí = ${basePrice} Kč\n\n`;
       totalPrice += basePrice;
     }
 
-    // Add guests surcharge (distributed across rooms)
-    if (booking.adults > 0 || booking.children > 0) {
-      // Calculate average price config
-      const avgAdult =
-        booking.rooms.reduce((sum, roomId) => {
-          const room = settings.rooms.find((r) => r.id === roomId);
-          const roomType = room?.type || 'small';
-          return sum + (priceConfig?.[roomType]?.adult || 0);
-        }, 0) / booking.rooms.length;
+    // Add guests surcharge with ÚTIA vs External differentiation
+    if (totalAdults > 0 || totalChildren > 0) {
+      // Get pricing for both types
+      const utiaPrices = settings.prices.utia;
+      const externalPrices = settings.prices.external;
 
-      const avgChild =
-        booking.rooms.reduce((sum, roomId) => {
-          const room = settings.rooms.find((r) => r.id === roomId);
-          const roomType = room?.type || 'small';
-          return sum + (priceConfig?.[roomType]?.child || 0);
-        }, 0) / booking.rooms.length;
+      // Calculate average adult/child prices per room type
+      const getAvgPrice = (priceConfig, field) => {
+        return (
+          booking.rooms.reduce((sum, roomId) => {
+            const room = settings.rooms.find((r) => r.id === roomId);
+            const roomType = room?.type || 'small';
+            return sum + (priceConfig?.[roomType]?.[field] || 0);
+          }, 0) / booking.rooms.length
+        );
+      };
 
-      breakdown += 'Hosté (napříč všemi pokoji)\n';
+      const utiaAdultPrice = Math.round(getAvgPrice(utiaPrices, 'adult'));
+      const utiaChildPrice = Math.round(getAvgPrice(utiaPrices, 'child'));
+      const externalAdultPrice = Math.round(getAvgPrice(externalPrices, 'adult'));
+      const externalChildPrice = Math.round(getAvgPrice(externalPrices, 'child'));
 
-      if (booking.adults > 0) {
-        const adultsPrice = booking.adults * Math.round(avgAdult) * nights;
-        breakdown += `  Dospělí: ${booking.adults} × ${Math.round(avgAdult)} Kč/noc × ${nights} nocí = ${adultsPrice} Kč\n`;
-        totalPrice += adultsPrice;
+      breakdown += 'PŘÍPLATKY ZA HOSTY:\n';
+
+      // Adults breakdown
+      if (totalAdults > 0) {
+        if (utiaAdults > 0 && externalAdults > 0) {
+          // Mixed pricing
+          const utiaAdultTotal = utiaAdults * utiaAdultPrice * nights;
+          const externalAdultTotal = externalAdults * externalAdultPrice * nights;
+          breakdown += `  ÚTIA dospělí: ${utiaAdults} × ${utiaAdultPrice} Kč/noc × ${nights} nocí = ${utiaAdultTotal} Kč\n`;
+          breakdown += `  Externí dospělí: ${externalAdults} × ${externalAdultPrice} Kč/noc × ${nights} nocí = ${externalAdultTotal} Kč\n`;
+          totalPrice += utiaAdultTotal + externalAdultTotal;
+        } else if (utiaAdults > 0) {
+          // All ÚTIA
+          const adultTotal = utiaAdults * utiaAdultPrice * nights;
+          breakdown += `  Dospělí (ÚTIA): ${utiaAdults} × ${utiaAdultPrice} Kč/noc × ${nights} nocí = ${adultTotal} Kč\n`;
+          totalPrice += adultTotal;
+        } else {
+          // All External
+          const adultTotal = externalAdults * externalAdultPrice * nights;
+          breakdown += `  Dospělí (EXT): ${externalAdults} × ${externalAdultPrice} Kč/noc × ${nights} nocí = ${adultTotal} Kč\n`;
+          totalPrice += adultTotal;
+        }
       }
 
-      if (booking.children > 0) {
-        const childrenPrice = booking.children * Math.round(avgChild) * nights;
-        breakdown += `  Děti: ${booking.children} × ${Math.round(avgChild)} Kč/noc × ${nights} nocí = ${childrenPrice} Kč\n`;
-        totalPrice += childrenPrice;
+      // Children breakdown
+      if (totalChildren > 0) {
+        if (utiaChildren > 0 && externalChildren > 0) {
+          // Mixed pricing
+          const utiaChildTotal = utiaChildren * utiaChildPrice * nights;
+          const externalChildTotal = externalChildren * externalChildPrice * nights;
+          breakdown += `  ÚTIA děti: ${utiaChildren} × ${utiaChildPrice} Kč/noc × ${nights} nocí = ${utiaChildTotal} Kč\n`;
+          breakdown += `  Externí děti: ${externalChildren} × ${externalChildPrice} Kč/noc × ${nights} nocí = ${externalChildTotal} Kč\n`;
+          totalPrice += utiaChildTotal + externalChildTotal;
+        } else if (utiaChildren > 0) {
+          // All ÚTIA
+          const childTotal = utiaChildren * utiaChildPrice * nights;
+          breakdown += `  Děti (ÚTIA): ${utiaChildren} × ${utiaChildPrice} Kč/noc × ${nights} nocí = ${childTotal} Kč\n`;
+          totalPrice += childTotal;
+        } else {
+          // All External
+          const childTotal = externalChildren * externalChildPrice * nights;
+          breakdown += `  Děti (EXT): ${externalChildren} × ${externalChildPrice} Kč/noc × ${nights} nocí = ${childTotal} Kč\n`;
+          totalPrice += childTotal;
+        }
+      }
+
+      // Toddlers (always free)
+      if (toddlers > 0) {
+        const label = toddlers === 1 ? '1 batole' : `${toddlers} batolat`;
+        breakdown += `  Batolata (do 3 let): ${label} = zdarma\n`;
       }
 
       breakdown += '\n';
@@ -295,6 +399,175 @@ class EmailService {
     const finalPrice = booking.totalPrice || totalPrice;
     breakdown += `CELKOVÁ CENA: ${finalPrice} Kč`;
     return breakdown.trim();
+  }
+
+  /**
+   * Generate bulk booking price breakdown in unified format (not per-room)
+   * Matches the frontend display in bulk-booking.js
+   * @param {Object} booking - Booking data
+   * @param {Object} settings - System settings with bulkPrices
+   * @returns {string} Formatted price breakdown
+   * @private
+   */
+  generateBulkPriceBreakdown(booking, settings) {
+    const nights = DateUtils.getDaysBetween(booking.startDate, booking.endDate);
+    const { bulkPrices } = settings;
+
+    // Default bulk prices if not fully configured
+    const defaultBulkPrices = {
+      basePrice: 2000,
+      utiaAdult: 100,
+      utiaChild: 0,
+      externalAdult: 250,
+      externalChild: 50,
+    };
+
+    const prices = { ...defaultBulkPrices, ...bulkPrices };
+
+    // Count guests by type (ÚTIA vs External) from guestNames array
+    let utiaAdults = 0;
+    let utiaChildren = 0;
+    let externalAdults = 0;
+    let externalChildren = 0;
+    let toddlers = 0;
+
+    const guestNames = booking.guestNames || [];
+    for (const guest of guestNames) {
+      const priceType = guest.guestPriceType || 'external';
+      const personType = guest.personType || 'adult';
+
+      if (personType === 'toddler') {
+        toddlers++;
+        continue; // Toddlers are free
+      }
+
+      if (priceType === 'utia') {
+        if (personType === 'adult') {
+          utiaAdults++;
+        } else if (personType === 'child') {
+          utiaChildren++;
+        }
+      } else {
+        // External
+        if (personType === 'adult') {
+          externalAdults++;
+        } else if (personType === 'child') {
+          externalChildren++;
+        }
+      }
+    }
+
+    // If no guestNames, fall back to total counts with default type
+    if (guestNames.length === 0) {
+      const defaultType = booking.guestType || 'external';
+      if (defaultType === 'utia') {
+        utiaAdults = booking.adults || 0;
+        utiaChildren = booking.children || 0;
+      } else {
+        externalAdults = booking.adults || 0;
+        externalChildren = booking.children || 0;
+      }
+      toddlers = booking.toddlers || 0;
+    }
+
+    const lines = [];
+
+    // Section 1: Per night breakdown
+    lines.push('CENA ZA JEDNU NOC:');
+    lines.push(`  Základní cena za chatu: ${prices.basePrice.toLocaleString('cs-CZ')} Kč/noc`);
+
+    let pricePerNight = prices.basePrice;
+
+    // ÚTIA adults
+    if (utiaAdults > 0) {
+      const utiaAdultTotal = utiaAdults * prices.utiaAdult;
+      const label = this._getGuestLabel(utiaAdults, 'adult');
+      lines.push(
+        `  ÚTIA hosté: ${label} × ${prices.utiaAdult.toLocaleString('cs-CZ')} Kč/noc = +${utiaAdultTotal.toLocaleString('cs-CZ')} Kč/noc`
+      );
+      pricePerNight += utiaAdultTotal;
+    }
+
+    // External adults
+    if (externalAdults > 0) {
+      const externalAdultTotal = externalAdults * prices.externalAdult;
+      const label = this._getGuestLabel(externalAdults, 'adult');
+      lines.push(
+        `  Externí hosté: ${label} × ${prices.externalAdult.toLocaleString('cs-CZ')} Kč/noc = +${externalAdultTotal.toLocaleString('cs-CZ')} Kč/noc`
+      );
+      pricePerNight += externalAdultTotal;
+    }
+
+    // ÚTIA children (if price > 0 or children > 0)
+    if (utiaChildren > 0) {
+      const utiaChildTotal = utiaChildren * prices.utiaChild;
+      const label = this._getGuestLabel(utiaChildren, 'child');
+      if (prices.utiaChild > 0) {
+        lines.push(
+          `  ÚTIA děti: ${label} × ${prices.utiaChild.toLocaleString('cs-CZ')} Kč/noc = +${utiaChildTotal.toLocaleString('cs-CZ')} Kč/noc`
+        );
+      } else {
+        lines.push(`  ÚTIA děti: ${label} = zdarma`);
+      }
+      pricePerNight += utiaChildTotal;
+    }
+
+    // External children
+    if (externalChildren > 0) {
+      const externalChildTotal = externalChildren * prices.externalChild;
+      const label = this._getGuestLabel(externalChildren, 'child');
+      lines.push(
+        `  Externí děti: ${label} × ${prices.externalChild.toLocaleString('cs-CZ')} Kč/noc = +${externalChildTotal.toLocaleString('cs-CZ')} Kč/noc`
+      );
+      pricePerNight += externalChildTotal;
+    }
+
+    // Toddlers (always free)
+    if (toddlers > 0) {
+      const label = toddlers === 1 ? '1 batole' : `${toddlers} batolat`;
+      lines.push(`  Batolata (do 3 let): ${label} = zdarma`);
+    }
+
+    lines.push(`  ─────────────────────────────`);
+    lines.push(`  Cena za noc celkem: ${pricePerNight.toLocaleString('cs-CZ')} Kč`);
+
+    // Section 2: Nights multiplier
+    lines.push('');
+    lines.push(`POČET NOCÍ: × ${nights}`);
+
+    // Section 3: Final price (use stored totalPrice from database)
+    const finalPrice = booking.totalPrice || pricePerNight * nights;
+    lines.push('');
+    lines.push(`CELKOVÁ CENA: ${finalPrice.toLocaleString('cs-CZ')} Kč`);
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Helper function for Czech pluralization of guest counts
+   * @param {number} count - Number of guests
+   * @param {string} type - 'adult' or 'child'
+   * @returns {string} Pluralized label
+   * @private
+   */
+  _getGuestLabel(count, type) {
+    if (type === 'adult') {
+      if (count === 1) {
+        return '1 dospělý';
+      }
+      if (count >= 2 && count <= 4) {
+        return `${count} dospělí`;
+      }
+      return `${count} dospělých`;
+    }
+    // child
+    if (count === 1) {
+      return '1 dítě';
+    }
+    if (count >= 2 && count <= 4) {
+      return `${count} děti`;
+    }
+    return `${count} dětí`;
   }
 
   /**

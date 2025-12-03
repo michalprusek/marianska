@@ -369,6 +369,7 @@ class EditBookingComponent {
 
   /**
    * Collect guest names from the generated form inputs
+   * Supports both per-room inputs (room12AdultFirstName1) and bulk inputs (bulkAdultFirstName1)
    * @returns {Array<Object>} Array of guest name objects
    */
   collectGuestNames() {
@@ -386,27 +387,49 @@ class EditBookingComponent {
       const firstName = adultFirstNames[i].value.trim();
       const lastName = adultLastNames[i].value.trim();
       if (firstName && lastName) {
-        // Extract room ID and guest index from input ID (format: room12AdultFirstName1)
         const inputId = adultFirstNames[i].id;
-        const roomIdMatch = inputId.match(/room(\d+)/);
-        const guestIndexMatch = inputId.match(/AdultFirstName(\d+)/);
+        const isBulk = adultFirstNames[i].dataset.bulk === 'true';
 
-        if (roomIdMatch && guestIndexMatch) {
-          const roomId = roomIdMatch[1];
-          const guestIndex = guestIndexMatch[1];
+        if (isBulk) {
+          // Bulk input format: bulkAdultFirstName1
+          const guestIndexMatch = inputId.match(/bulkAdultFirstName(\d+)/);
+          if (guestIndexMatch) {
+            const guestIndex = guestIndexMatch[1];
+            const toggleInput = document.getElementById(`bulkAdult${guestIndex}GuestTypeToggle`);
+            const guestPriceType = toggleInput && toggleInput.checked ? 'external' : 'utia';
 
-          // Get toggle switch to determine guestPriceType
-          const toggleInput = document.getElementById(
-            `room${roomId}Adult${guestIndex}GuestTypeToggle`
-          );
-          const guestPriceType = toggleInput && toggleInput.checked ? 'external' : 'utia';
+            guestNames.push({
+              personType: 'adult',
+              firstName,
+              lastName,
+              guestPriceType,
+            });
+          } else {
+            console.warn('[EditBookingComponent] Failed to parse bulk adult input ID:', inputId);
+          }
+        } else {
+          // Per-room input format: room12AdultFirstName1
+          const roomIdMatch = inputId.match(/room(\d+)/);
+          const guestIndexMatch = inputId.match(/AdultFirstName(\d+)/);
 
-          guestNames.push({
-            personType: 'adult',
-            firstName,
-            lastName,
-            guestPriceType,
-          });
+          if (roomIdMatch && guestIndexMatch) {
+            const roomId = roomIdMatch[1];
+            const guestIndex = guestIndexMatch[1];
+
+            const toggleInput = document.getElementById(
+              `room${roomId}Adult${guestIndex}GuestTypeToggle`
+            );
+            const guestPriceType = toggleInput && toggleInput.checked ? 'external' : 'utia';
+
+            guestNames.push({
+              personType: 'adult',
+              firstName,
+              lastName,
+              guestPriceType,
+            });
+          } else {
+            console.warn('[EditBookingComponent] Failed to parse per-room adult input ID:', inputId);
+          }
         }
       }
     }
@@ -423,27 +446,49 @@ class EditBookingComponent {
       const firstName = childFirstNames[i].value.trim();
       const lastName = childLastNames[i].value.trim();
       if (firstName && lastName) {
-        // Extract room ID and guest index from input ID (format: room12ChildFirstName1)
         const inputId = childFirstNames[i].id;
-        const roomIdMatch = inputId.match(/room(\d+)/);
-        const guestIndexMatch = inputId.match(/ChildFirstName(\d+)/);
+        const isBulk = childFirstNames[i].dataset.bulk === 'true';
 
-        if (roomIdMatch && guestIndexMatch) {
-          const roomId = roomIdMatch[1];
-          const guestIndex = guestIndexMatch[1];
+        if (isBulk) {
+          // Bulk input format: bulkChildFirstName1
+          const guestIndexMatch = inputId.match(/bulkChildFirstName(\d+)/);
+          if (guestIndexMatch) {
+            const guestIndex = guestIndexMatch[1];
+            const toggleInput = document.getElementById(`bulkChild${guestIndex}GuestTypeToggle`);
+            const guestPriceType = toggleInput && toggleInput.checked ? 'external' : 'utia';
 
-          // Get toggle switch to determine guestPriceType
-          const toggleInput = document.getElementById(
-            `room${roomId}Child${guestIndex}GuestTypeToggle`
-          );
-          const guestPriceType = toggleInput && toggleInput.checked ? 'external' : 'utia';
+            guestNames.push({
+              personType: 'child',
+              firstName,
+              lastName,
+              guestPriceType,
+            });
+          } else {
+            console.warn('[EditBookingComponent] Failed to parse bulk child input ID:', inputId);
+          }
+        } else {
+          // Per-room input format: room12ChildFirstName1
+          const roomIdMatch = inputId.match(/room(\d+)/);
+          const guestIndexMatch = inputId.match(/ChildFirstName(\d+)/);
 
-          guestNames.push({
-            personType: 'child',
-            firstName,
-            lastName,
-            guestPriceType,
-          });
+          if (roomIdMatch && guestIndexMatch) {
+            const roomId = roomIdMatch[1];
+            const guestIndex = guestIndexMatch[1];
+
+            const toggleInput = document.getElementById(
+              `room${roomId}Child${guestIndex}GuestTypeToggle`
+            );
+            const guestPriceType = toggleInput && toggleInput.checked ? 'external' : 'utia';
+
+            guestNames.push({
+              personType: 'child',
+              firstName,
+              lastName,
+              guestPriceType,
+            });
+          } else {
+            console.warn('[EditBookingComponent] Failed to parse per-room child input ID:', inputId);
+          }
         }
       }
     }
@@ -550,6 +595,7 @@ class EditBookingComponent {
         endDate: this.originalEndDate,
         rooms: this.currentBooking.rooms || [],
       },
+      sessionId: this.sessionId, // CRITICAL: Pass edit session ID to exclude own proposed bookings
     });
 
     await this.editCalendar.render();
@@ -666,12 +712,8 @@ class EditBookingComponent {
           isSelected
             ? `
           <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #d1d5db;">
-            <select onchange="${onChangePrefix}.editComponent.updateRoomGuestType('${room.id}', this.value)"
-              style="width: 100%; padding: 0.5rem; margin-bottom: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;">
-              <option value="utia" ${roomData.guestType === 'utia' ? 'selected' : ''}>Zaměstnanec ÚTIA</option>
-              <option value="external" ${roomData.guestType === 'external' ? 'selected' : ''}>Externí host</option>
-            </select>
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-top: 0.5rem;">
+            <!-- Guest type select removed - each guest has individual ÚTIA/EXT toggle in guest names section -->
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;">
               <div>
                 <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem; color: #4b5563; font-weight: 500; height: 2.25rem; line-height: 1.2;">Dospělí (18+):</label>
                 <input type="number" min="1" value="${roomData.adults}"
@@ -685,7 +727,7 @@ class EditBookingComponent {
                   style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
               </div>
               <div>
-                <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem; color: #4b5563; font-weight: 500; height: 2.25rem; line-height: 1.2;">Batolata (0-3 roky):</label>
+                <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem; color: #4b5563; font-weight: 500; height: 2.25rem; line-height: 1.2;">Batolata (0-2 roky):</label>
                 <input type="number" min="0" value="${roomData.toddlers}"
                   onchange="${onChangePrefix}.editComponent.updateRoomGuests('${room.id}', 'toddlers', parseInt(this.value))"
                   style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
@@ -1317,6 +1359,110 @@ class EditBookingComponent {
         }
       }
     }
+
+    // Also populate bulk guest name inputs (for bulk bookings)
+    this.populateBulkGuestNames(adultNames, childNames, toddlerNames);
+
+    // FIX 2025-12-03: Recalculate price after populating bulk guest names with their toggle states
+    // This ensures the price reflects the correct ÚTIA/External split on modal open
+    if (this.isBulkBooking) {
+      // Use setTimeout to ensure DOM toggles are fully rendered before reading their states
+      setTimeout(() => {
+        this.updateTotalPrice();
+      }, 100);
+    }
+  }
+
+  /**
+   * Populate existing guest names into bulk booking input fields
+   * @param {Array} adultNames - Array of adult guest names
+   * @param {Array} childNames - Array of child guest names
+   * @param {Array} toddlerNames - Array of toddler guest names
+   */
+  populateBulkGuestNames(adultNames, childNames, toddlerNames) {
+    // Populate bulk adults
+    for (let i = 1; i <= adultNames.length; i += 1) {
+      const guest = adultNames[i - 1];
+      if (!guest) {
+        continue; // eslint-disable-line no-continue
+      }
+
+      const firstNameInput = document.getElementById(`bulkAdultFirstName${i}`);
+      const lastNameInput = document.getElementById(`bulkAdultLastName${i}`);
+      const toggleInput = document.getElementById(`bulkAdult${i}GuestTypeToggle`);
+      const toggleText = document.getElementById(`bulkAdult${i}ToggleText`);
+
+      if (firstNameInput && !firstNameInput.value) {
+        firstNameInput.value = guest.firstName || '';
+      }
+      if (lastNameInput && !lastNameInput.value) {
+        lastNameInput.value = guest.lastName || '';
+      }
+
+      if (toggleInput && (guest.guestPriceType || guest.guestType)) {
+        const type = guest.guestPriceType ?? guest.guestType;
+        const isExternal = type === 'external';
+        toggleInput.checked = isExternal;
+
+        const label = toggleInput.closest('label');
+        if (label) {
+          const slider = label.querySelector('span[style*="background-color"]');
+          const thumb = slider?.querySelector('span[style*="border-radius: 50%"]');
+          this.updateToggleVisualState(slider, thumb, toggleText, isExternal);
+        }
+      }
+    }
+
+    // Populate bulk children
+    for (let i = 1; i <= childNames.length; i += 1) {
+      const guest = childNames[i - 1];
+      if (!guest) {
+        continue; // eslint-disable-line no-continue
+      }
+
+      const firstNameInput = document.getElementById(`bulkChildFirstName${i}`);
+      const lastNameInput = document.getElementById(`bulkChildLastName${i}`);
+      const toggleInput = document.getElementById(`bulkChild${i}GuestTypeToggle`);
+      const toggleText = document.getElementById(`bulkChild${i}ToggleText`);
+
+      if (firstNameInput && !firstNameInput.value) {
+        firstNameInput.value = guest.firstName || '';
+      }
+      if (lastNameInput && !lastNameInput.value) {
+        lastNameInput.value = guest.lastName || '';
+      }
+
+      if (toggleInput && (guest.guestPriceType || guest.guestType)) {
+        const type = guest.guestPriceType ?? guest.guestType;
+        const isExternal = type === 'external';
+        toggleInput.checked = isExternal;
+
+        const label = toggleInput.closest('label');
+        if (label) {
+          const slider = label.querySelector('span[style*="background-color"]');
+          const thumb = slider?.querySelector('span[style*="border-radius: 50%"]');
+          this.updateToggleVisualState(slider, thumb, toggleText, isExternal);
+        }
+      }
+    }
+
+    // Populate bulk toddlers
+    for (let i = 1; i <= toddlerNames.length; i += 1) {
+      const guest = toddlerNames[i - 1];
+      if (!guest) {
+        continue; // eslint-disable-line no-continue
+      }
+
+      const firstNameInput = document.getElementById(`bulkToddlerFirstName${i}`);
+      const lastNameInput = document.getElementById(`bulkToddlerLastName${i}`);
+
+      if (firstNameInput && !firstNameInput.value) {
+        firstNameInput.value = guest.firstName || '';
+      }
+      if (lastNameInput && !lastNameInput.value) {
+        lastNameInput.value = guest.lastName || '';
+      }
+    }
   }
 
   /**
@@ -1414,14 +1560,6 @@ class EditBookingComponent {
     if (roomData.guestType !== newGuestType) {
       roomData.guestType = newGuestType;
       this.editSelectedRooms.set(roomId, roomData);
-
-      // Also update the room-level guest type dropdown if it exists
-      const roomGuestTypeSelect = document.querySelector(
-        `select[onchange*="updateRoomGuestType('${roomId}'"]`
-      );
-      if (roomGuestTypeSelect) {
-        roomGuestTypeSelect.value = newGuestType;
-      }
     }
   }
 
@@ -1466,23 +1604,40 @@ class EditBookingComponent {
 
     // Use bulk pricing for bulk bookings
     if (this.isBulkBooking) {
-      // Aggregate guest data across all rooms
+      // FIX 2025-12-03: Count ÚTIA vs External guests separately from toggle states
+      // This enables mixed guest type pricing in bulk bookings
       let totalAdults = 0;
       let totalChildren = 0;
-      const guestTypes = new Set();
+      let utiaAdults = 0;
+      let externalAdults = 0;
+      let utiaChildren = 0;
+      let externalChildren = 0;
 
       for (const roomData of this.editSelectedRooms.values()) {
         totalAdults += roomData.adults || 0;
         totalChildren += roomData.children || 0;
-        guestTypes.add(roomData.guestType);
       }
 
-      // Determine aggregated guest type
-      let finalGuestType = 'external';
-      if (guestTypes.size === 1) {
-        finalGuestType = Array.from(guestTypes)[0];
-      } else if (guestTypes.has('utia')) {
-        finalGuestType = 'utia';
+      // Count adults from bulk toggle states
+      for (let i = 1; i <= totalAdults; i += 1) {
+        const toggleId = `bulkAdult${i}GuestTypeToggle`;
+        const toggle = document.getElementById(toggleId);
+        if (toggle && toggle.checked) {
+          externalAdults += 1;
+        } else {
+          utiaAdults += 1;
+        }
+      }
+
+      // Count children from bulk toggle states
+      for (let i = 1; i <= totalChildren; i += 1) {
+        const toggleId = `bulkChild${i}GuestTypeToggle`;
+        const toggle = document.getElementById(toggleId);
+        if (toggle && toggle.checked) {
+          externalChildren += 1;
+        } else {
+          utiaChildren += 1;
+        }
       }
 
       // Calculate nights from global booking dates
@@ -1507,14 +1662,27 @@ class EditBookingComponent {
 
       const nights = minStart && maxEnd ? DateUtils.getDaysBetween(minStart, maxEnd) : 0;
 
-      // Use bulk price calculator
-      totalPrice = PriceCalculator.calculateBulkPrice({
-        guestType: finalGuestType,
-        adults: totalAdults,
-        children: totalChildren,
-        nights,
-        settings: this.settings,
-      });
+      // FIX 2025-12-03: Calculate bulk price with per-guest breakdown
+      // Formula: basePrice + (utiaAdults × utiaAdult) + (externalAdults × externalAdult) +
+      //          (utiaChildren × utiaChild) + (externalChildren × externalChild) × nights
+      const { bulkPrices } = this.settings;
+      if (bulkPrices) {
+        totalPrice =
+          bulkPrices.basePrice * nights +
+          utiaAdults * bulkPrices.utiaAdult * nights +
+          externalAdults * bulkPrices.externalAdult * nights +
+          utiaChildren * bulkPrices.utiaChild * nights +
+          externalChildren * bulkPrices.externalChild * nights;
+      } else {
+        // Fallback to old method if bulkPrices not configured
+        totalPrice = PriceCalculator.calculateBulkPrice({
+          guestType: utiaAdults > 0 ? 'utia' : 'external',
+          adults: totalAdults,
+          children: totalChildren,
+          nights,
+          settings: this.settings,
+        });
+      }
     } else {
       // Regular pricing: sum individual room prices AND generate per-room breakdown
       const perRoomGuests = [];
@@ -1537,25 +1705,15 @@ class EditBookingComponent {
         }
 
         const nights = DateUtils.getDaysBetween(dates.startDate, dates.endDate);
-        const price = PriceCalculator.calculatePrice({
-          guestType: roomData.guestType,
-          adults: roomData.adults,
-          children: roomData.children,
-          nights,
-          rooms: [roomId], // CRITICAL: PriceCalculator needs rooms array for room-size-based pricing
-          roomsCount: 1,
-          settings: this.settings,
-        });
 
-        totalPrice += price;
-
-        // Count ÚTIA vs External guests for this room
+        // FIX 2025-12-03: Count ÚTIA vs External guests BEFORE price calculation
+        // This enables mixed guest type pricing (some ÚTIA, some external in same room)
         let utiaAdults = 0;
         let externalAdults = 0;
         let utiaChildren = 0;
         let externalChildren = 0;
 
-        // Count adults
+        // Count adults from toggle states
         const totalAdults = roomData.adults || 0;
         for (let i = 1; i <= totalAdults; i += 1) {
           const toggleId = `room${roomId}Adult${i}GuestTypeToggle`;
@@ -1567,7 +1725,7 @@ class EditBookingComponent {
           }
         }
 
-        // Count children
+        // Count children from toggle states
         const totalChildren = roomData.children || 0;
         for (let i = 1; i <= totalChildren; i += 1) {
           const toggleId = `room${roomId}Child${i}GuestTypeToggle`;
@@ -1579,13 +1737,37 @@ class EditBookingComponent {
           }
         }
 
+        // FIX 2025-12-03: Calculate price using per-guest breakdown instead of single guestType
+        // This correctly handles mixed ÚTIA/external guests in the same room
+        const room = this.settings.rooms?.find((r) => r.id === roomId);
+        const roomType = room?.type || 'small';
+        const utiaRates = this.settings.prices?.utia?.[roomType] || { emptyRoom: 250, adult: 50, child: 25 };
+        const externalRates = this.settings.prices?.external?.[roomType] || { emptyRoom: 400, adult: 100, child: 50 };
+
+        // Empty room price: Use ÚTIA rate if at least one ÚTIA guest in this room
+        const hasUtiaGuest = utiaAdults > 0 || utiaChildren > 0;
+        const emptyRoomRate = hasUtiaGuest ? utiaRates.emptyRoom : externalRates.emptyRoom;
+
+        // Calculate room price with mixed guest types
+        const price =
+          emptyRoomRate * nights +
+          utiaAdults * utiaRates.adult * nights +
+          externalAdults * externalRates.adult * nights +
+          utiaChildren * utiaRates.child * nights +
+          externalChildren * externalRates.child * nights;
+
+        totalPrice += price;
+
+        // Determine effective room guestType based on majority (for roomData consistency)
+        const effectiveGuestType = hasUtiaGuest ? 'utia' : 'external';
+
         // Add to per-room data with ÚTIA/External breakdown
         perRoomGuests.push({
           roomId,
           adults: roomData.adults || 0,
           children: roomData.children || 0,
           toddlers: roomData.toddlers || 0,
-          guestType: roomData.guestType || this.guestType || 'external', // FIX 2025-12: Add guestType
+          guestType: effectiveGuestType, // FIX 2025-12-03: Use effective guestType based on actual guests
           utiaAdults,
           externalAdults,
           utiaChildren,
@@ -1812,17 +1994,58 @@ class EditBookingComponent {
     // Calculate total price based on booking type
     let totalPrice = 0;
     if (this.isBulkBooking) {
-      // Use bulk pricing for bulk bookings
+      // FIX 2025-12-03: Count ÚTIA vs External guests separately from toggle states
+      // This enables mixed guest type pricing in bulk bookings
+      let utiaAdults = 0;
+      let externalAdults = 0;
+      let utiaChildren = 0;
+      let externalChildren = 0;
+
+      // Count adults from bulk toggle states
+      for (let i = 1; i <= totalAdults; i += 1) {
+        const toggleId = `bulkAdult${i}GuestTypeToggle`;
+        const toggle = document.getElementById(toggleId);
+        if (toggle && toggle.checked) {
+          externalAdults += 1;
+        } else {
+          utiaAdults += 1;
+        }
+      }
+
+      // Count children from bulk toggle states
+      for (let i = 1; i <= totalChildren; i += 1) {
+        const toggleId = `bulkChild${i}GuestTypeToggle`;
+        const toggle = document.getElementById(toggleId);
+        if (toggle && toggle.checked) {
+          externalChildren += 1;
+        } else {
+          utiaChildren += 1;
+        }
+      }
+
       const nights = DateUtils.getDaysBetween(minStart, maxEnd);
-      totalPrice = PriceCalculator.calculateBulkPrice({
-        guestType: finalGuestType,
-        adults: totalAdults,
-        children: totalChildren,
-        nights,
-        settings: this.settings,
-      });
+
+      // Calculate bulk price with per-guest breakdown
+      const { bulkPrices } = this.settings;
+      if (bulkPrices) {
+        totalPrice =
+          bulkPrices.basePrice * nights +
+          utiaAdults * bulkPrices.utiaAdult * nights +
+          externalAdults * bulkPrices.externalAdult * nights +
+          utiaChildren * bulkPrices.utiaChild * nights +
+          externalChildren * bulkPrices.externalChild * nights;
+      } else {
+        // Fallback to old method if bulkPrices not configured
+        totalPrice = PriceCalculator.calculateBulkPrice({
+          guestType: utiaAdults > 0 ? 'utia' : 'external',
+          adults: totalAdults,
+          children: totalChildren,
+          nights,
+          settings: this.settings,
+        });
+      }
     } else {
-      // Regular pricing: sum individual room prices
+      // FIX 2025-12-03: Regular pricing with per-guest breakdown for mixed ÚTIA/external
       for (const [roomId, dates] of this.perRoomDates) {
         const roomData = this.editSelectedRooms.get(roomId) || {
           guestType: 'external',
@@ -1831,15 +2054,51 @@ class EditBookingComponent {
         };
 
         const nights = DateUtils.getDaysBetween(dates.startDate, dates.endDate);
-        totalPrice += PriceCalculator.calculatePrice({
-          guestType: roomData.guestType,
-          adults: roomData.adults,
-          children: roomData.children,
-          nights,
-          rooms: [roomId], // CRITICAL: PriceCalculator needs rooms array for room-size-based pricing
-          roomsCount: 1,
-          settings: this.settings,
-        });
+
+        // Count ÚTIA vs External guests from toggle states
+        let utiaAdults = 0;
+        let externalAdults = 0;
+        let utiaChildren = 0;
+        let externalChildren = 0;
+
+        const roomAdults = roomData.adults || 0;
+        for (let i = 1; i <= roomAdults; i += 1) {
+          const toggleId = `room${roomId}Adult${i}GuestTypeToggle`;
+          const toggle = document.getElementById(toggleId);
+          if (toggle && toggle.checked) {
+            externalAdults += 1;
+          } else {
+            utiaAdults += 1;
+          }
+        }
+
+        const roomChildren = roomData.children || 0;
+        for (let i = 1; i <= roomChildren; i += 1) {
+          const toggleId = `room${roomId}Child${i}GuestTypeToggle`;
+          const toggle = document.getElementById(toggleId);
+          if (toggle && toggle.checked) {
+            externalChildren += 1;
+          } else {
+            utiaChildren += 1;
+          }
+        }
+
+        // Calculate price using per-guest breakdown
+        const room = this.settings.rooms?.find((r) => r.id === roomId);
+        const roomType = room?.type || 'small';
+        const utiaRates = this.settings.prices?.utia?.[roomType] || { emptyRoom: 250, adult: 50, child: 25 };
+        const externalRates = this.settings.prices?.external?.[roomType] || { emptyRoom: 400, adult: 100, child: 50 };
+
+        // Empty room price: Use ÚTIA rate if at least one ÚTIA guest
+        const hasUtiaGuest = utiaAdults > 0 || utiaChildren > 0;
+        const emptyRoomRate = hasUtiaGuest ? utiaRates.emptyRoom : externalRates.emptyRoom;
+
+        totalPrice +=
+          emptyRoomRate * nights +
+          utiaAdults * utiaRates.adult * nights +
+          externalAdults * externalRates.adult * nights +
+          utiaChildren * utiaRates.child * nights +
+          externalChildren * externalRates.child * nights;
       }
     }
     formData.totalPrice = totalPrice;
@@ -2300,11 +2559,7 @@ class EditBookingComponent {
           isSelected
             ? `
           <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #d1d5db;">
-            <select onchange="${onChangePrefix}.editComponent.updateRoomGuestType('${room.id}', this.value)"
-              style="width: 100%; padding: 0.5rem; margin-bottom: 0.75rem; border: 1px solid #d1d5db; border-radius: 4px;">
-              <option value="utia" ${roomData.guestType === 'utia' ? 'selected' : ''}>Zaměstnanec ÚTIA</option>
-              <option value="external" ${roomData.guestType === 'external' ? 'selected' : ''}>Externí host</option>
-            </select>
+            <!-- Guest type select removed - each guest has individual ÚTIA/EXT toggle in guest names section -->
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;">
               <div>
                 <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem; color: #4b5563; font-weight: 500;">Dospělí (18+):</label>
@@ -2319,7 +2574,7 @@ class EditBookingComponent {
                   style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
               </div>
               <div>
-                <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem; color: #4b5563; font-weight: 500;">Batolata (0-3 roky):</label>
+                <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem; color: #4b5563; font-weight: 500;">Batolata (0-2 roky):</label>
                 <input type="number" min="0" value="${roomData.toddlers}"
                   onchange="${onChangePrefix}.editComponent.updateRoomGuests('${room.id}', 'toddlers', parseInt(this.value))"
                   style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
@@ -2491,7 +2746,7 @@ class EditBookingComponent {
     if (toddlers > 0) {
       guestInputs += `
         <div style="margin-bottom: 1rem;">
-          <h4 style="font-size: 0.875rem; font-weight: 600; color: #0284c7; margin-bottom: 0.5rem;">Batolata (0-3 roky) - Zdarma</h4>
+          <h4 style="font-size: 0.875rem; font-weight: 600; color: #0284c7; margin-bottom: 0.5rem;">Batolata (0-2 roky) - Zdarma</h4>
       `;
 
       for (let i = 1; i <= toddlers; i++) {
@@ -2537,7 +2792,7 @@ class EditBookingComponent {
   }
 
   /**
-   * Render guest list for bulk bookings with color-coded badges
+   * Render guest list for bulk bookings with editable input fields
    * @param {number} totalAdults - Total number of adults
    * @param {number} totalChildren - Total number of children
    * @param {number} totalToddlers - Total number of toddlers
@@ -2551,52 +2806,196 @@ class EditBookingComponent {
       return '';
     }
 
-    const guestTypeLabel = currentGuestType === 'utia' ? 'Zaměstnanec ÚTIA' : 'Externí host';
-    const guestTypeBadgeColor = currentGuestType === 'utia' ? '#10b981' : '#f59e0b';
-    const guestTypeBgColor = currentGuestType === 'utia' ? '#d1fae5' : '#fef3c7';
+    const onChangePrefix = this.mode === 'admin' ? 'adminPanel' : 'editPage';
+    let guestInputs = '';
 
-    let guestList = '';
-
-    // Add adults with badges
-    for (let i = 1; i <= totalAdults; i++) {
-      guestList += `
-        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: white; border: 1px solid #d8b4fe; border-radius: 4px; font-size: 0.875rem;">
-          <span style="padding: 0.25rem 0.5rem; background: ${guestTypeBgColor}; color: ${guestTypeBadgeColor}; border-radius: 4px; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">${guestTypeLabel}</span>
-          <span style="color: #6b21a8;">👤 Dospělý ${i}</span>
-        </div>
+    // Generate adult name inputs with toggle switches
+    if (totalAdults > 0) {
+      guestInputs += `
+        <div style="margin-bottom: 1rem;">
+          <h4 style="font-size: 0.875rem; font-weight: 600; color: #059669; margin-bottom: 0.5rem;">Dospělí (18+ let)</h4>
       `;
+
+      for (let i = 1; i <= totalAdults; i++) {
+        const isExternal = currentGuestType === 'external';
+        guestInputs += `
+          <div style="display: flex; align-items: end; gap: 0.75rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;">
+            <div style="flex: 1; min-width: 0;">
+              <label style="display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;">Křestní jméno *</label>
+              <input type="text"
+                id="bulkAdultFirstName${i}"
+                placeholder="např. Jan"
+                minlength="2"
+                maxlength="50"
+                data-bulk="true"
+                data-guest-type="adult"
+                data-guest-index="${i}"
+                style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
+            </div>
+            <div style="flex: 1; min-width: 0;">
+              <label style="display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;">Příjmení *</label>
+              <input type="text"
+                id="bulkAdultLastName${i}"
+                placeholder="např. Novák"
+                minlength="2"
+                maxlength="50"
+                data-bulk="true"
+                data-guest-type="adult"
+                data-guest-index="${i}"
+                style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 0.25rem; flex-shrink: 0;">
+              <label style="position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer; margin-top: 1.5rem;">
+                <input type="checkbox"
+                  id="bulkAdult${i}GuestTypeToggle"
+                  data-bulk="true"
+                  data-guest-type="adult"
+                  data-guest-index="${i}"
+                  ${isExternal ? 'checked' : ''}
+                  onchange="${onChangePrefix}.editComponent.toggleBulkGuestType('adult', ${i}, this.checked)"
+                  style="opacity: 0; width: 0; height: 0;" />
+                <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${isExternal ? '#f59e0b' : '#059669'}; transition: 0.3s; border-radius: 24px;">
+                  <span style="position: absolute; content: ''; height: 18px; width: 18px; left: ${isExternal ? '23px' : '3px'}; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%;"></span>
+                </span>
+              </label>
+              <span id="bulkAdult${i}ToggleText" style="font-size: 0.75rem; font-weight: 600; color: ${isExternal ? '#f59e0b' : '#059669'}; min-width: 32px; text-align: center;">${isExternal ? 'EXT' : 'ÚTIA'}</span>
+            </div>
+          </div>
+        `;
+      }
+
+      guestInputs += `</div>`;
     }
 
-    // Add children with badges
-    for (let i = 1; i <= totalChildren; i++) {
-      guestList += `
-        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: white; border: 1px solid #d8b4fe; border-radius: 4px; font-size: 0.875rem;">
-          <span style="padding: 0.25rem 0.5rem; background: ${guestTypeBgColor}; color: ${guestTypeBadgeColor}; border-radius: 4px; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">${guestTypeLabel}</span>
-          <span style="color: #6b21a8;">👶 Dítě ${i}</span>
-        </div>
+    // Generate children name inputs with toggle switches
+    if (totalChildren > 0) {
+      guestInputs += `
+        <div style="margin-bottom: 1rem;">
+          <h4 style="font-size: 0.875rem; font-weight: 600; color: #059669; margin-bottom: 0.5rem;">Děti (3-17 let)</h4>
       `;
+
+      for (let i = 1; i <= totalChildren; i++) {
+        const isExternal = currentGuestType === 'external';
+        guestInputs += `
+          <div style="display: flex; align-items: end; gap: 0.75rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;">
+            <div style="flex: 1; min-width: 0;">
+              <label style="display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;">Křestní jméno *</label>
+              <input type="text"
+                id="bulkChildFirstName${i}"
+                placeholder="např. Anna"
+                minlength="2"
+                maxlength="50"
+                data-bulk="true"
+                data-guest-type="child"
+                data-guest-index="${i}"
+                style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
+            </div>
+            <div style="flex: 1; min-width: 0;">
+              <label style="display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;">Příjmení *</label>
+              <input type="text"
+                id="bulkChildLastName${i}"
+                placeholder="např. Nováková"
+                minlength="2"
+                maxlength="50"
+                data-bulk="true"
+                data-guest-type="child"
+                data-guest-index="${i}"
+                style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 0.25rem; flex-shrink: 0;">
+              <label style="position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer; margin-top: 1.5rem;">
+                <input type="checkbox"
+                  id="bulkChild${i}GuestTypeToggle"
+                  data-bulk="true"
+                  data-guest-type="child"
+                  data-guest-index="${i}"
+                  ${isExternal ? 'checked' : ''}
+                  onchange="${onChangePrefix}.editComponent.toggleBulkGuestType('child', ${i}, this.checked)"
+                  style="opacity: 0; width: 0; height: 0;" />
+                <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${isExternal ? '#f59e0b' : '#059669'}; transition: 0.3s; border-radius: 24px;">
+                  <span style="position: absolute; content: ''; height: 18px; width: 18px; left: ${isExternal ? '23px' : '3px'}; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%;"></span>
+                </span>
+              </label>
+              <span id="bulkChild${i}ToggleText" style="font-size: 0.75rem; font-weight: 600; color: ${isExternal ? '#f59e0b' : '#059669'}; min-width: 32px; text-align: center;">${isExternal ? 'EXT' : 'ÚTIA'}</span>
+            </div>
+          </div>
+        `;
+      }
+
+      guestInputs += `</div>`;
     }
 
-    // Add toddlers (always free, no guest type badge needed)
-    for (let i = 1; i <= totalToddlers; i++) {
-      guestList += `
-        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: white; border: 1px solid #d8b4fe; border-radius: 4px; font-size: 0.875rem;">
-          <span style="padding: 0.25rem 0.5rem; background: #e0f2fe; color: #0284c7; border-radius: 4px; font-weight: 600; font-size: 0.75rem; white-space: nowrap;">Zdarma (free)</span>
-          <span style="color: #6b21a8;">🍼 Batole <span style="color: #9ca3af; font-size: 0.75rem;">(Toddler)</span> ${i}</span>
-        </div>
+    // Generate toddler name inputs (no toggle - always free)
+    if (totalToddlers > 0) {
+      guestInputs += `
+        <div style="margin-bottom: 1rem;">
+          <h4 style="font-size: 0.875rem; font-weight: 600; color: #0284c7; margin-bottom: 0.5rem;">🍼 Batolata (0-2 let) - zdarma</h4>
       `;
+
+      for (let i = 1; i <= totalToddlers; i++) {
+        guestInputs += `
+          <div style="display: flex; align-items: end; gap: 0.75rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #bae6fd; border-radius: 6px; background-color: #f0f9ff;">
+            <div style="flex: 1; min-width: 0;">
+              <label style="display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;">Křestní jméno</label>
+              <input type="text"
+                id="bulkToddlerFirstName${i}"
+                placeholder="např. Marek"
+                maxlength="50"
+                data-bulk="true"
+                data-guest-type="toddler"
+                data-guest-index="${i}"
+                style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
+            </div>
+            <div style="flex: 1; min-width: 0;">
+              <label style="display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;">Příjmení</label>
+              <input type="text"
+                id="bulkToddlerLastName${i}"
+                placeholder="např. Novák"
+                maxlength="50"
+                data-bulk="true"
+                data-guest-type="toddler"
+                data-guest-index="${i}"
+                style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" />
+            </div>
+          </div>
+        `;
+      }
+
+      guestInputs += `</div>`;
     }
 
     return `
-      <div style="margin-top: 1.5rem;">
-        <label style="display: block; font-weight: 600; color: #6b21a8; margin-bottom: 0.75rem; font-size: 0.875rem;">
-          👥 SEZNAM HOSTŮ (${totalGuests})
-        </label>
-        <div style="max-height: 300px; overflow-y: auto; padding: 0.75rem; background: white; border: 1px solid #d8b4fe; border-radius: 8px; display: flex; flex-direction: column; gap: 0.5rem;">
-          ${guestList}
-        </div>
+      <div id="bulkGuestNamesSection" style="margin-top: 1.5rem; padding: 1rem; background: #f0fdf4; border: 2px solid #10b981; border-radius: 8px;">
+        <h3 style="margin: 0 0 1rem 0; color: #047857; font-size: 0.9375rem;">👥 Jména ubytovaných osob (${totalGuests})</h3>
+        ${guestInputs}
       </div>
     `;
+  }
+
+  /**
+   * Toggle guest type for individual bulk guest
+   * @param {string} guestType - 'adult' or 'child'
+   * @param {number} index - Guest index
+   * @param {boolean} isExternal - Whether guest is external
+   */
+  toggleBulkGuestType(guestType, index, isExternal) {
+    const toggleId = `bulk${guestType.charAt(0).toUpperCase() + guestType.slice(1)}${index}GuestTypeToggle`;
+    const textId = `bulk${guestType.charAt(0).toUpperCase() + guestType.slice(1)}${index}ToggleText`;
+
+    const toggleInput = document.getElementById(toggleId);
+    const toggleText = document.getElementById(textId);
+
+    if (toggleInput && toggleText) {
+      const label = toggleInput.closest('label');
+      if (label) {
+        const slider = label.querySelector('span[style*="background-color"]');
+        const thumb = slider?.querySelector('span[style*="border-radius: 50%"]');
+        this.updateToggleVisualState(slider, thumb, toggleText, isExternal);
+      }
+    }
+
+    // FIX 2025-12-03: Recalculate price when bulk guest type toggles change
+    this.updateTotalPrice();
   }
 
   /**
@@ -2701,27 +3100,7 @@ class EditBookingComponent {
         </div>
       </div>
 
-      <!-- Guest Type -->
-      <div style="margin-bottom: 1.5rem;">
-        <label style="display: block; font-weight: 600; color: #6b21a8; margin-bottom: 0.5rem; font-size: 0.875rem;">
-          👤 TYP HOSTA
-        </label>
-        <select
-          id="bulkGuestType"
-          onchange="${onChangePrefix}.editComponent.updateBulkGuestType(this.value)"
-          style="
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid #d8b4fe;
-            border-radius: 8px;
-            font-size: 1rem;
-            background: white;
-            cursor: pointer;
-          ">
-          <option value="utia" ${currentGuestType === 'utia' ? 'selected' : ''}>Zaměstnanec ÚTIA</option>
-          <option value="external" ${currentGuestType === 'external' ? 'selected' : ''}>Externí host</option>
-        </select>
-      </div>
+      <!-- Guest Type removed for bulk bookings - each guest has individual ÚTIA/EXT toggle -->
 
       <!-- Guest Counts -->
       <div style="margin-bottom: 1rem;">
@@ -2775,7 +3154,7 @@ class EditBookingComponent {
           </div>
           <div>
             <label style="font-size: 0.75rem; display: block; margin-bottom: 0.5rem; color: #6b21a8; font-weight: 600;">
-              Batolata (0-3 roky):
+              Batolata (0-2 roky):
             </label>
             <input
               type="number"
@@ -2812,34 +3191,15 @@ class EditBookingComponent {
       </div>
 
       ${this.renderBulkGuestList(totalAdults, totalChildren, totalToddlers, currentGuestType)}
-
-      <!-- Save Button -->
-      <div style="margin-top: 1.5rem; text-align: center;">
-        <button
-          type="button"
-          onclick="${onChangePrefix}.editComponent.saveChanges()"
-          class="btn btn-success"
-          style="
-            padding: 0.875rem 2rem;
-            font-size: 1rem;
-            font-weight: 600;
-            background: linear-gradient(135deg, #059669 0%, #047857 100%);
-            border: none;
-            border-radius: 8px;
-            color: white;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
-            transition: all 0.2s ease;
-          "
-          onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(5, 150, 105, 0.4)';"
-          onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(5, 150, 105, 0.3)';"
-        >
-          💾 Uložit změny
-        </button>
-      </div>
     `;
 
     roomsList.appendChild(summaryCard);
+
+    // Populate existing guest names after rendering bulk card
+    // Use setTimeout to ensure DOM elements exist
+    setTimeout(() => {
+      this.populateGuestNamesInRooms();
+    }, 50);
   }
 
   /**

@@ -1693,13 +1693,31 @@
           class="tab-content"
         >
           <h2>Statistiky</h2>
+
+          <!-- Date Range Filter -->
+          <div style="margin-bottom: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: end; padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md); border: 1px solid var(--gray-200);">
+            <div>
+              <label style="display: block; font-size: 0.875rem; color: var(--gray-600); margin-bottom: 0.25rem; font-weight: 500;">Od:</label>
+              <input type="month" id="statsFromDate" style="padding: 0.5rem 0.75rem; border: 1px solid var(--gray-300); border-radius: var(--radius-sm); font-size: 0.875rem;" />
+            </div>
+            <div>
+              <label style="display: block; font-size: 0.875rem; color: var(--gray-600); margin-bottom: 0.25rem; font-weight: 500;">Do:</label>
+              <input type="month" id="statsToDate" style="padding: 0.5rem 0.75rem; border: 1px solid var(--gray-300); border-radius: var(--radius-sm); font-size: 0.875rem;" />
+            </div>
+            <button onclick="adminPanel.loadStatistics()" class="button-primary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+              📊 Filtrovat
+            </button>
+            <button onclick="adminPanel.resetStatisticsFilter()" class="button-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+              ↺ Reset
+            </button>
+          </div>
+
           <div
             id="statistics"
             style="
               display: grid;
               grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
               gap: 1rem;
-              margin-top: 1rem;
             "
           >
             <!-- Statistics will be populated here -->
