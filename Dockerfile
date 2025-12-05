@@ -37,6 +37,7 @@ COPY js/ ./js/
 COPY css/ ./css/
 COPY migrations/ ./migrations/
 COPY *.html ./
+COPY admin.js ./
 COPY favicon.* ./
 
 # Create directories for runtime data
