@@ -417,22 +417,13 @@ class DataManager {
         throw new Error('Požadavek vypršel - zkuste to prosím znovu');
       }
 
-      // If server is completely unavailable, fall back to local-only mode
+      // CRITICAL FIX: Never silently create local-only bookings
+      // This was causing phantom bookings that users thought were confirmed but weren't synced
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        const booking = {
-          ...bookingData,
-          id: IdGenerator.generateBookingId(),
-          editToken: IdGenerator.generateEditToken(),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-
-        const data = await this.getData();
-        data.bookings.push(booking);
-        this.cachedData = data;
-        // NEW UNIFIED (2025-12-04): Removed localStorage - server is SSOT
-
-        return booking;
+        throw new Error(
+          'Server není dostupný. Rezervace nebyla vytvořena. ' +
+          'Zkontrolujte připojení k internetu a zkuste to znovu.'
+        );
       }
 
       // Re-throw other errors (validation, conflicts, etc.)
@@ -501,21 +492,13 @@ class DataManager {
     } catch (error) {
       console.error('Error deleting booking via API:', error);
 
-      // If server is completely unavailable, fall back to local deletion
+      // CRITICAL FIX: Never silently delete bookings locally
+      // This was causing bookings to "reappear" after sync because they were only deleted locally
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        console.warn('Server unavailable - deleting booking in offline mode');
-
-        const data = await this.getData();
-        const initialLength = data.bookings.length;
-        data.bookings = data.bookings.filter((b) => b.id !== bookingId);
-
-        if (data.bookings.length < initialLength) {
-          this.cachedData = data;
-          // NEW UNIFIED (2025-12-04): Removed localStorage - server is SSOT
-          return true;
-        }
-
-        throw new Error('Rezervace nebyla nalezena');
+        throw new Error(
+          'Server není dostupný. Rezervace nebyla zrušena. ' +
+          'Zkontrolujte připojení k internetu a zkuste to znovu.'
+        );
       }
 
       // Re-throw other errors
@@ -1179,16 +1162,31 @@ class DataManager {
 
         return data.proposalId;
       } else {
-        // Log server error response for debugging
+        // Server rejected the proposed booking - throw error instead of returning null
         const errorData = await response.json().catch(() => ({}));
         console.error('[DataManager] Server rejected proposed booking:', response.status, errorData);
+
+        // Throw with meaningful message based on status
+        if (response.status === 409) {
+          throw new Error('Termín již není dostupný - někdo jiný právě provádí rezervaci.');
+        }
+        throw new Error(errorData.error || `Server odmítl požadavek (${response.status})`);
       }
     } catch (error) {
       // Log with more detail for debugging
       const errorType = error.name === 'AbortError' ? 'timeout' : 'network';
       console.error(`[DataManager] Error creating proposed booking (${errorType}):`, error.message || error);
+
+      // Re-throw the error instead of returning null silently
+      // This allows callers to properly handle the failure
+      if (error.name === 'AbortError') {
+        throw new Error('Požadavek vypršel - zkuste to prosím znovu');
+      }
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        throw new Error('Server není dostupný - zkontrolujte připojení k internetu');
+      }
+      throw error;
     }
-    return null;
   }
 
   async deleteProposedBooking(proposalId) {

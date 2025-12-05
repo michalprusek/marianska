@@ -4,6 +4,18 @@
  */
 
 class NotificationManager {
+    /**
+     * Escape HTML to prevent XSS attacks
+     * @param {string} text - Text to escape
+     * @returns {string} - Escaped text safe for innerHTML
+     */
+    static escapeHtml(text) {
+        if (typeof text !== 'string') return String(text);
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
     constructor() {
         this.container = null;
         this.injectStyles();
@@ -115,9 +127,11 @@ class NotificationManager {
             info: 'ℹ️',
         };
 
+        // Use safe HTML construction to prevent XSS
+        const safeMessage = NotificationManager.escapeHtml(message);
         toast.innerHTML = `
       <div class="notification-icon">${icons[type] || icons.info}</div>
-      <div class="notification-content">${message}</div>
+      <div class="notification-content">${safeMessage}</div>
       <button class="notification-close">&times;</button>
     `;
 

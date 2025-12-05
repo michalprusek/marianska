@@ -11,6 +11,47 @@ class CreateBookingComponent {
     }
 
     /**
+     * Escape HTML to prevent XSS attacks
+     * @param {string} text - Text to escape
+     * @returns {string} - Escaped text safe for innerHTML
+     */
+    escapeHtml(text) {
+        if (typeof text !== 'string') return String(text);
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /**
+     * Map technical error messages to user-friendly messages
+     * @param {Error} error - The error object
+     * @returns {string} - User-friendly error message
+     */
+    getUserFriendlyError(error) {
+        const message = error.message || String(error);
+
+        // Map common technical errors to user-friendly messages
+        const errorMappings = [
+            { pattern: /SQLITE_CONSTRAINT|UNIQUE constraint/i, message: 'Termín byl právě zarezervován někým jiným. Zkuste vybrat jiný termín.' },
+            { pattern: /timeout|AbortError|vypršel/i, message: 'Server neodpovídá. Zkuste to prosím za chvíli.' },
+            { pattern: /Failed to fetch|NetworkError|network/i, message: 'Připojení k serveru selhalo. Zkontrolujte připojení k internetu.' },
+            { pattern: /conflict|obsazen/i, message: 'Vybraný termín již není dostupný. Zkuste vybrat jiný termín.' },
+            { pattern: /capacity|kapacita/i, message: 'Překročena kapacita pokoje. Zkontrolujte počet hostů.' },
+            { pattern: /validation|validace/i, message: 'Některé údaje nejsou správně vyplněny. Zkontrolujte formulář.' },
+            { pattern: /unauthorized|neautorizovan/i, message: 'Nemáte oprávnění provést tuto akci.' },
+        ];
+
+        for (const mapping of errorMappings) {
+            if (mapping.pattern.test(message)) {
+                return mapping.message;
+            }
+        }
+
+        // If no mapping found, return a generic message with sanitized original
+        return 'Nastala chyba při vytváření rezervace. Zkuste to prosím znovu.';
+    }
+
+    /**
      * Initialize the component
      */
     init() {
@@ -144,17 +185,25 @@ class CreateBookingComponent {
         let html = '';
         let totalPrice = 0;
 
-        // Group by reservation
+        // Group by reservation - use escapeHtml to prevent XSS
         for (const res of this.app.tempReservations) {
+            const safeRoomName = this.escapeHtml(res.roomName || res.roomNames || 'Pokoj');
+            const safeStartDate = this.escapeHtml(DateUtils.formatDateDisplay(new Date(res.startDate)));
+            const safeEndDate = this.escapeHtml(DateUtils.formatDateDisplay(new Date(res.endDate)));
+            const adults = parseInt(res.guests?.adults, 10) || 0;
+            const children = parseInt(res.guests?.children, 10) || 0;
+            const toddlers = parseInt(res.guests?.toddlers, 10) || 0;
+            const price = parseFloat(res.totalPrice) || 0;
+
             html += `
         <div class="summary-item" style="border-bottom: 1px solid #eee; padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
-          <div style="font-weight: bold;">${res.roomName || res.roomNames}</div>
-          <div>${DateUtils.formatDateDisplay(new Date(res.startDate))} - ${DateUtils.formatDateDisplay(new Date(res.endDate))}</div>
-          <div>${res.guests.adults} dosp., ${res.guests.children} dětí, ${res.guests.toddlers} batolat</div>
-          <div style="font-weight: bold; color: var(--primary-color);">${res.totalPrice.toLocaleString('cs-CZ')} Kč</div>
+          <div style="font-weight: bold;">${safeRoomName}</div>
+          <div>${safeStartDate} - ${safeEndDate}</div>
+          <div>${adults} dosp., ${children} dětí, ${toddlers} batolat</div>
+          <div style="font-weight: bold; color: var(--primary-color);">${price.toLocaleString('cs-CZ')} Kč</div>
         </div>
       `;
-            totalPrice += res.totalPrice;
+            totalPrice += price;
         }
 
         html += `
@@ -179,8 +228,34 @@ class CreateBookingComponent {
 
         const formData = this.contactForm.getData();
 
-        // Additional validation (Christmas code, room limits)
-        // ... (logic from booking-form.js) ...
+        // Additional validation: Christmas code if required
+        const christmasCodeRequired = await this.checkChristmasCodeRequirement();
+        if (christmasCodeRequired && !formData.christmasCode) {
+            this.app.showNotification('Pro vánoční období je vyžadován přístupový kód.', 'error');
+            return;
+        }
+
+        // Validate Christmas code if provided
+        if (christmasCodeRequired && formData.christmasCode) {
+            const settings = await dataManager.getSettings();
+            const validCodes = settings.christmasAccessCodes || [];
+            if (!validCodes.includes(formData.christmasCode.trim().toUpperCase())) {
+                this.app.showNotification('Neplatný vánoční přístupový kód.', 'error');
+                return;
+            }
+        }
+
+        // Validate room limits for Christmas period (max 2 rooms before October 1st)
+        const isBulkBooking = this.app.tempReservations.some(r => r.isBulkBooking);
+        if (!isBulkBooking && christmasCodeRequired) {
+            const totalRooms = this.app.tempReservations.reduce((sum, res) => {
+                return sum + (res.roomIds ? res.roomIds.length : 1);
+            }, 0);
+            if (totalRooms > 2) {
+                this.app.showNotification('V období Vánoc lze rezervovat maximálně 2 pokoje.', 'error');
+                return;
+            }
+        }
 
         this.isSubmitting = true;
         const submitBtn = document.getElementById('createBookingSubmit');
@@ -190,13 +265,7 @@ class CreateBookingComponent {
         }
 
         try {
-            // Create consolidated booking
-            // Logic copied/adapted from booking-form.js consolidateTempReservations
-
-            // ... (implementation of booking creation) ...
-            // For brevity, I will call the existing logic in booking-form.js if possible, 
-            // or reimplement it here. Since we are refactoring, I should reimplement it cleanly.
-
+            // Create consolidated booking from temporary reservations
             await this.createBookings(formData);
 
             this.app.showNotification('Rezervace úspěšně vytvořena!', 'success');
@@ -209,7 +278,9 @@ class CreateBookingComponent {
 
         } catch (error) {
             console.error('Booking creation failed:', error);
-            this.app.showNotification('Chyba při vytváření rezervace: ' + error.message, 'error');
+            // Use user-friendly error message instead of raw error.message
+            const userMessage = this.getUserFriendlyError(error);
+            this.app.showNotification(userMessage, 'error');
         } finally {
             this.isSubmitting = false;
             if (submitBtn) {
@@ -220,25 +291,12 @@ class CreateBookingComponent {
     }
 
     async createBookings(formData) {
-        // Consolidate temp reservations into one booking if possible
-        // (Logic adapted from booking-form.js)
+        // Validate we have reservations to process
+        if (!this.app.tempReservations || this.app.tempReservations.length === 0) {
+            throw new Error('Žádné rezervace k vytvoření');
+        }
 
-        if (this.app.tempReservations.length === 0) return;
-
-        // Prepare booking object
-        const booking = {
-            ...formData,
-            sessionId: this.app.sessionId,
-            // ... other fields derived from tempReservations
-        };
-
-        // If multiple rooms, we need to handle perRoomGuests and perRoomDates
-        // ... (logic to construct complex booking object) ...
-
-        // This part is complex and was in booking-form.js. 
-        // I will need to copy that logic here to ensure it works correctly.
-
-        // Reusing the logic from booking-form.js lines 506-580
+        // Consolidate temporary reservations into a single booking object
         const allRoomIds = [];
         let totalAdults = 0;
         let totalChildren = 0;
@@ -251,26 +309,20 @@ class CreateBookingComponent {
         let minStartDate = null;
         let maxEndDate = null;
 
+        // Process each temporary reservation
         for (const res of this.app.tempReservations) {
-            const roomIds = res.isBulkBooking ? res.roomIds : [res.roomId];
+            const roomIds = res.isBulkBooking ? (res.roomIds || []) : [res.roomId];
 
             roomIds.forEach(rid => {
+                if (!rid) return; // Skip invalid room IDs
                 allRoomIds.push(rid);
-                // For bulk, we might need to distribute guests or use what's in res
-                // But tempReservations structure for bulk might be different.
-                // Assuming standard structure.
 
+                // Store per-room guest information
                 roomGuestsMap[rid] = {
-                    adults: res.guests.adults, // This might be total for bulk? 
-                    // Wait, bulk booking has total guests. We need to distribute or store as is.
-                    // If isBulkBooking, we usually don't have per-room breakdown in tempReservations yet?
-                    // Actually bulk booking modal creates one temp reservation with isBulkBooking=true.
-
-                    // Let's simplify: If it's a consolidated booking, we use the data we have.
-
-                    children: res.guests.children,
-                    toddlers: res.guests.toddlers,
-                    guestType: res.guestType
+                    adults: res.guests?.adults || 0,
+                    children: res.guests?.children || 0,
+                    toddlers: res.guests?.toddlers || 0,
+                    guestType: res.guestType || 'utia'
                 };
 
                 perRoomDatesMap[rid] = {
@@ -279,28 +331,34 @@ class CreateBookingComponent {
                 };
             });
 
-            totalAdults += res.guests.adults;
-            totalChildren += res.guests.children;
-            totalToddlers += res.guests.toddlers;
-            totalPrice += res.totalPrice;
-            guestTypesSet.add(res.guestType);
+            totalAdults += res.guests?.adults || 0;
+            totalChildren += res.guests?.children || 0;
+            totalToddlers += res.guests?.toddlers || 0;
+            totalPrice += res.totalPrice || 0;
+            guestTypesSet.add(res.guestType || 'utia');
 
             if (!minStartDate || new Date(res.startDate) < new Date(minStartDate)) minStartDate = res.startDate;
             if (!maxEndDate || new Date(res.endDate) > new Date(maxEndDate)) maxEndDate = res.endDate;
         }
 
-        booking.startDate = minStartDate;
-        booking.endDate = maxEndDate;
-        booking.rooms = allRoomIds;
-        booking.guestType = guestTypesSet.has('utia') ? 'utia' : 'external';
-        booking.adults = totalAdults;
-        booking.children = totalChildren;
-        booking.toddlers = totalToddlers;
-        booking.totalPrice = totalPrice;
-        booking.perRoomGuests = roomGuestsMap;
-        booking.perRoomDates = perRoomDatesMap;
+        // Construct the final booking object
+        const booking = {
+            ...formData,
+            sessionId: this.app.sessionId,
+            startDate: minStartDate,
+            endDate: maxEndDate,
+            rooms: allRoomIds,
+            guestType: guestTypesSet.has('utia') ? 'utia' : 'external',
+            adults: totalAdults,
+            children: totalChildren,
+            toddlers: totalToddlers,
+            totalPrice: totalPrice,
+            perRoomGuests: roomGuestsMap,
+            perRoomDates: perRoomDatesMap,
+            isBulkBooking: this.app.tempReservations.some(r => r.isBulkBooking)
+        };
 
-        // Call API
+        // Call API to create the booking
         await dataManager.createBooking(booking);
 
         // Cleanup proposed bookings

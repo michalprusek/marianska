@@ -776,7 +776,8 @@ class EditBookingRooms {
         if (cancelBtn) cancelBtn.onclick = () => this.editComponent.cancelRoomEdit();
         if (saveBtn) saveBtn.onclick = () => this.editComponent.saveRoomDates(roomId);
 
-        this.renderPerRoomList();
+        // FIX: Initialize calendar BEFORE rendering to prevent race condition
+        // Calendar state must be ready before we render the room list
         await this.editComponent.calendar.initializeRoomCalendar({
             roomId,
             originalDates: this.editComponent.perRoomDates.get(roomId),
@@ -785,6 +786,8 @@ class EditBookingRooms {
             bookingId: this.editComponent.currentBooking.id,
             sessionId: this.editComponent.sessionId
         });
+        // Now render after calendar is ready
+        this.renderPerRoomList();
         this.editComponent.updateRoomDateDisplay();
     }
 

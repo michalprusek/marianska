@@ -53,9 +53,15 @@ class EditBookingGuests {
         const firstNames = document.querySelectorAll(`input[data-guest-type="${type}"][id*="${typeCap}FirstName"]`);
         const lastNames = document.querySelectorAll(`input[data-guest-type="${type}"][id*="${typeCap}LastName"]`);
 
-        for (let i = 0; i < firstNames.length; i++) {
-            const firstName = firstNames[i].value.trim();
-            const lastName = lastNames[i].value.trim();
+        // FIX: Bounds checking - ensure both arrays have the same length to prevent null reference
+        const minLength = Math.min(firstNames.length, lastNames.length);
+        if (firstNames.length !== lastNames.length) {
+            console.warn(`[EditBookingGuests] Mismatched input counts for ${type}: firstNames=${firstNames.length}, lastNames=${lastNames.length}`);
+        }
+
+        for (let i = 0; i < minLength; i++) {
+            const firstName = firstNames[i]?.value?.trim() || '';
+            const lastName = lastNames[i]?.value?.trim() || '';
 
             if (firstName && lastName) {
                 const inputId = firstNames[i].id;

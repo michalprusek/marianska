@@ -373,6 +373,40 @@ function requireSession(req, res, next) {
   return next();
 }
 
+/**
+ * Helper to validate admin session from request headers
+ * Returns { isAdmin: boolean, error: { status, message } | null }
+ * DRY: Extracted from duplicated validation logic in PUT/DELETE booking endpoints
+ */
+function validateAdminSession(req) {
+  const sessionToken = req.headers['x-session-token'];
+
+  if (!sessionToken) {
+    return { isAdmin: false, error: null }; // No session token provided, not an error (user might use editToken)
+  }
+
+  const session = db.getAdminSession(sessionToken);
+
+  if (!session) {
+    return {
+      isAdmin: false,
+      error: { status: 401, message: 'Neplatný session token - přihlaste se znovu' },
+    };
+  }
+
+  // Check if session expired
+  const expiresAt = new Date(session.expires_at).getTime();
+  if (expiresAt < Date.now()) {
+    db.deleteAdminSession(sessionToken);
+    return {
+      isAdmin: false,
+      error: { status: 401, message: 'Session vypršela - přihlaste se znovu' },
+    };
+  }
+
+  return { isAdmin: true, error: null, session };
+}
+
 // Middleware that accepts either API key or session token
 function requireApiKeyOrSession(req, res, next) {
   // Check for API key first
@@ -976,30 +1010,13 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       return res.status(404).json({ error: 'Rezervace nenalezena' });
     }
 
-    // Verify edit token or session
-    const sessionToken = req.headers['x-session-token'];
-    let isAdmin = false;
-
-    // FIX 2025-12-04: Properly validate session if token provided
-    if (sessionToken) {
-      const session = db.getAdminSession(sessionToken);
-
-      // Check if session exists
-      if (!session) {
-        return res.status(401).json({ error: 'Neplatný session token - přihlaste se znovu' });
-      }
-
-      // Check if session expired
-      const expiresAt = new Date(session.expires_at).getTime();
-      if (expiresAt < Date.now()) {
-        db.deleteAdminSession(sessionToken);
-        return res.status(401).json({ error: 'Session vypršela - přihlaste se znovu' });
-      }
-
-      // Session valid
-      isAdmin = true;
+    // DRY: Use shared helper for admin session validation
+    const { isAdmin, error: sessionError } = validateAdminSession(req);
+    if (sessionError) {
+      return res.status(sessionError.status).json({ error: sessionError.message });
     }
 
+    // If not admin, verify edit token
     if (!isAdmin) {
       if (!editToken || editToken !== existingBooking.editToken) {
         return res.status(403).json({ error: 'Neplatný editační token' });
@@ -1597,33 +1614,14 @@ app.delete('/api/booking/:id', writeLimiter, async (req, res) => {
       return res.status(404).json({ error: 'Rezervace nenalezena' });
     }
 
-    // FIXED: Check for admin session first (admins can delete any booking)
-    const sessionToken = req.headers['x-session-token'];
-    let isAdmin = false;
-
-    // FIX 2025-12-04: Properly validate session if token provided
-    if (sessionToken) {
-      const session = db.getAdminSession(sessionToken);
-
-      // Check if session exists
-      if (!session) {
-        return res.status(401).json({ error: 'Neplatný session token - přihlaste se znovu' });
-      }
-
-      // Check if session expired
-      const expiresAt = new Date(session.expires_at).getTime();
-      if (expiresAt < Date.now()) {
-        db.deleteAdminSession(sessionToken);
-        return res.status(401).json({ error: 'Session vypršela - přihlaste se znovu' });
-      }
-
-      // Session valid
-      isAdmin = true;
+    // DRY: Use shared helper for admin session validation
+    let { isAdmin, error: sessionError } = validateAdminSession(req);
+    if (sessionError) {
+      return res.status(sessionError.status).json({ error: sessionError.message });
     }
 
-    // Verify edit token or admin session
+    // Fallback: Check if API key is provided for admin access (legacy/script access)
     if (!isAdmin) {
-      // Fallback: Check if API key is provided for admin access (legacy/script access)
       const apiKey = req.headers['x-api-key'];
       if (apiKey && apiKey === process.env.API_KEY) {
         isAdmin = true;
