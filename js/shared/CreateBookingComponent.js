@@ -298,6 +298,7 @@ class CreateBookingComponent {
 
         // Consolidate temporary reservations into a single booking object
         const allRoomIds = [];
+        const allGuestNames = [];
         let totalAdults = 0;
         let totalChildren = 0;
         let totalToddlers = 0;
@@ -331,6 +332,19 @@ class CreateBookingComponent {
                 };
             });
 
+            // Collect guest names from each temp reservation
+            // FIX: Guest names were not being collected, causing "Jména hostů jsou povinná" error
+            if (res.guestNames && Array.isArray(res.guestNames)) {
+                // For single room bookings, add roomId to each guest
+                const roomId = res.isBulkBooking ? null : res.roomId;
+                res.guestNames.forEach(guest => {
+                    allGuestNames.push({
+                        ...guest,
+                        roomId: guest.roomId || roomId
+                    });
+                });
+            }
+
             totalAdults += res.guests?.adults || 0;
             totalChildren += res.guests?.children || 0;
             totalToddlers += res.guests?.toddlers || 0;
@@ -353,6 +367,7 @@ class CreateBookingComponent {
             children: totalChildren,
             toddlers: totalToddlers,
             totalPrice: totalPrice,
+            guestNames: allGuestNames, // FIX: Include guest names in booking
             perRoomGuests: roomGuestsMap,
             perRoomDates: perRoomDatesMap,
             isBulkBooking: this.app.tempReservations.some(r => r.isBulkBooking)
