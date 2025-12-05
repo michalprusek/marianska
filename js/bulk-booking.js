@@ -608,20 +608,33 @@ class BulkBookingModule {
 
     // Maximum 26 guests validation
     if (totalGuests > 26) {
-      if (capacityWarning) capacityWarning.style.display = 'block';
-      if (minimumWarning) minimumWarning.style.display = 'none';
-      if (confirmBtn) confirmBtn.disabled = true;
+      if (capacityWarning) {
+        capacityWarning.style.display = 'block';
+      }
+      if (minimumWarning) {
+        minimumWarning.style.display = 'none';
+      }
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+      }
       return;
-    } else {
-      if (capacityWarning) capacityWarning.style.display = 'none';
+    }
+    if (capacityWarning) {
+      capacityWarning.style.display = 'none';
     }
 
     // Minimum 10 guests validation for bulk events
     if (totalGuests < 10) {
-      if (minimumWarning) minimumWarning.style.display = 'block';
-      if (confirmBtn) confirmBtn.disabled = true;
+      if (minimumWarning) {
+        minimumWarning.style.display = 'block';
+      }
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+      }
     } else {
-      if (minimumWarning) minimumWarning.style.display = 'none';
+      if (minimumWarning) {
+        minimumWarning.style.display = 'none';
+      }
       if (confirmBtn && this.bulkSelectedDates.size > 0) {
         confirmBtn.disabled = false;
       }
@@ -633,10 +646,12 @@ class BulkBookingModule {
     const childrenEl = document.getElementById('bulkChildren');
     const element = document.getElementById(`bulk${type.charAt(0).toUpperCase() + type.slice(1)}`);
 
-    if (!element) return;
+    if (!element) {
+      return;
+    }
 
-    let value = parseInt(element.textContent, 10) || 0;
-    let newValue = Math.max(0, value + change);
+    const value = parseInt(element.textContent, 10) || 0;
+    const newValue = Math.max(0, value + change);
 
     // Minimum 10 guests (adults + children) validation for bulk events
     const currentAdults = parseInt(adultsEl?.textContent, 10) || 0;
@@ -749,9 +764,15 @@ class BulkBookingModule {
     const adultsContainer = document.getElementById('bulkAdultsNamesContainer');
     const childrenContainer = document.getElementById('bulkChildrenNamesContainer');
     const toddlersContainer = document.getElementById('bulkToddlersNamesContainer');
-    if (adultsContainer) adultsContainer.innerHTML = '';
-    if (childrenContainer) childrenContainer.innerHTML = '';
-    if (toddlersContainer) toddlersContainer.innerHTML = '';
+    if (adultsContainer) {
+      adultsContainer.innerHTML = '';
+    }
+    if (childrenContainer) {
+      childrenContainer.innerHTML = '';
+    }
+    if (toddlersContainer) {
+      toddlersContainer.innerHTML = '';
+    }
 
     // FIX 2025-12-03: Reset button text to "Vytvořit rezervaci" when modal is closed
     const confirmBtn = document.getElementById('confirmBulkBookingBtn');
@@ -874,10 +895,10 @@ class BulkBookingModule {
 
     // FIX 2025-12-02: Count guests per type using toggles (same logic as updateBulkPriceCalculation)
     // This ensures sidebar price matches modal price when using per-person guest type toggles
-    let utiaAdults = 0,
-      externalAdults = 0;
-    let utiaChildren = 0,
-      externalChildren = 0;
+    let utiaAdults = 0;
+    let externalAdults = 0;
+    let utiaChildren = 0;
+    let externalChildren = 0;
 
     const guestNamesSection = document.getElementById('bulkGuestNamesSection');
     if (guestNamesSection && guestNamesSection.style.display !== 'none') {
@@ -886,11 +907,15 @@ class BulkBookingModule {
         const isUtia = !toggle.checked; // Unchecked = ÚTIA, Checked = External
         const toggleGuestType = toggle.getAttribute('data-guest-type');
         if (isUtia) {
-          if (toggleGuestType === 'adult') utiaAdults++;
-          else if (toggleGuestType === 'child') utiaChildren++;
-        } else {
-          if (toggleGuestType === 'adult') externalAdults++;
-          else if (toggleGuestType === 'child') externalChildren++;
+          if (toggleGuestType === 'adult') {
+            utiaAdults++;
+          } else if (toggleGuestType === 'child') {
+            utiaChildren++;
+          }
+        } else if (toggleGuestType === 'adult') {
+          externalAdults++;
+        } else if (toggleGuestType === 'child') {
+          externalChildren++;
         }
       });
     }
@@ -1283,6 +1308,319 @@ class BulkBookingModule {
       { showNotification: (msg, type) => window.notificationManager?.show(msg, type) },
       this.app.currentLanguage || 'cs'
     );
+  }
+
+  /**
+   * Open bulk booking modal in admin edit mode
+   * Pre-fills with existing booking data and uses admin callbacks
+   * @param {Object} booking - Full booking object from database
+   * @param {Object} callbacks - Admin callbacks {onSubmit, onCancel, onDelete}
+   */
+  async openForAdminEdit(booking, callbacks) {
+    // Store admin edit context
+    this.adminEditContext = {
+      booking,
+      callbacks,
+      isAdminEdit: true,
+    };
+
+    const modal = document.getElementById('bulkBookingModal');
+
+    // Reset state
+    this.bulkSelectedDates.clear();
+    this.bulkDragStart = null;
+    this.bulkDragEnd = null;
+    this.bulkIsDragging = false;
+
+    // Pre-fill dates from booking
+    const start = new Date(`${booking.startDate}T12:00:00`);
+    const end = new Date(`${booking.endDate}T12:00:00`);
+    const current = new Date(start);
+
+    while (current <= end) {
+      const dateStr = DateUtils.formatDate(current);
+      this.bulkSelectedDates.add(dateStr);
+      current.setDate(current.getDate() + 1);
+    }
+
+    // Pre-fill guest counts
+    // FIX 2025-12-05: For bulk bookings, count from guestNames (SSOT), not booking_rooms sum
+    // The database.js sums guests from all rooms, which gives wrong total for bulk bookings
+    // where each room may have guests assigned. Use guestNames as the authoritative source.
+    let adults = 10; // Default fallback
+    let children = 0;
+    let toddlers = 0;
+
+    if (booking.guestNames && booking.guestNames.length > 0) {
+      // Count from guestNames (SSOT)
+      adults = booking.guestNames.filter((g) => g.personType === 'adult').length || 10;
+      children = booking.guestNames.filter((g) => g.personType === 'child').length || 0;
+      toddlers = booking.guestNames.filter((g) => g.personType === 'toddler').length || 0;
+    } else if (booking.guestTypeBreakdown) {
+      // Fallback to guestTypeBreakdown if available
+      adults =
+        (booking.guestTypeBreakdown.utiaAdults || 0) +
+        (booking.guestTypeBreakdown.externalAdults || 0);
+      children =
+        (booking.guestTypeBreakdown.utiaChildren || 0) +
+        (booking.guestTypeBreakdown.externalChildren || 0);
+      toddlers = booking.toddlers || 0;
+    } else {
+      // Last resort: use booking values (may be incorrect for legacy bookings)
+      adults = booking.adults || 10;
+      children = booking.children || 0;
+      toddlers = booking.toddlers || 0;
+    }
+
+    const bulkAdults = document.getElementById('bulkAdults');
+    const bulkChildren = document.getElementById('bulkChildren');
+    const bulkToddlers = document.getElementById('bulkToddlers');
+
+    if (bulkAdults) {
+      bulkAdults.textContent = adults.toString();
+    }
+    if (bulkChildren) {
+      bulkChildren.textContent = children.toString();
+    }
+    if (bulkToddlers) {
+      bulkToddlers.textContent = toddlers.toString();
+    }
+
+    // Render calendar with pre-selected dates
+    await this.renderBulkCalendar();
+
+    // Sync calendar with this module's dates
+    if (this.bulkCalendar) {
+      this.bulkCalendar.selectedDates = this.bulkSelectedDates;
+      await this.bulkCalendar.render();
+    }
+
+    this.updateBulkSelectedDatesDisplay();
+    this.updateBulkCapacityCheck();
+
+    // Generate guest names with existing data FIRST (so toggles exist)
+    this.generateGuestNamesInputs(adults, children, toddlers, booking.guestNames || null);
+
+    // FIX 2025-12-05: Calculate price AFTER generating guest name inputs
+    // The price calculation reads toggle states, so toggles must exist first
+    await this.updateBulkPriceCalculation();
+
+    // Show modal
+    modal.classList.add('active');
+
+    // Update confirm button for edit mode
+    const confirmBtn = document.getElementById('confirmBulkBookingBtn');
+    if (confirmBtn) {
+      confirmBtn.textContent = 'Uložit změny';
+      // Store original onclick handler
+      this._originalConfirmHandler = confirmBtn.onclick;
+      // Replace with admin edit handler
+      confirmBtn.onclick = () => this.confirmAdminEdit();
+    }
+
+    // Update cancel/close button
+    const closeBtn = modal.querySelector('.modal-close');
+    if (closeBtn) {
+      this._originalCloseHandler = closeBtn.onclick;
+      closeBtn.onclick = () => this.cancelAdminEdit();
+    }
+  }
+
+  /**
+   * Confirm admin edit - collect data and call admin callback
+   */
+  async confirmAdminEdit() {
+    if (!this.adminEditContext) {
+      console.error('No admin edit context');
+      return;
+    }
+
+    // Validate dates
+    if (this.bulkSelectedDates.size < 2) {
+      window.notificationManager?.show('Vyberte prosím termín (min. 1 noc)', 'warning');
+      return;
+    }
+
+    // Get dates
+    const sortedDates = Array.from(this.bulkSelectedDates).sort();
+    const startDate = sortedDates[0];
+    const endDate = sortedDates[sortedDates.length - 1];
+    const nights = sortedDates.length - 1;
+
+    // Get guest counts
+    const adults = parseInt(document.getElementById('bulkAdults')?.textContent, 10) || 10;
+    const children = parseInt(document.getElementById('bulkChildren')?.textContent, 10) || 0;
+    const toddlers = parseInt(document.getElementById('bulkToddlers')?.textContent, 10) || 0;
+
+    // Validate minimum
+    if (adults + children < 10) {
+      window.notificationManager?.show('Hromadná rezervace vyžaduje min. 10 osob', 'warning');
+      return;
+    }
+
+    // Validate guest names
+    const guestNames = this.collectGuestNames();
+    if (guestNames === null) {
+      return; // Validation failed
+    }
+
+    // Count ÚTIA vs External guests
+    let utiaAdults = 0;
+    let utiaChildren = 0;
+    let externalAdults = 0;
+    let externalChildren = 0;
+    for (const guest of guestNames) {
+      if (guest.personType === 'toddler') {
+        continue;
+      }
+      if (guest.guestPriceType === 'utia') {
+        if (guest.personType === 'adult') {
+          utiaAdults++;
+        } else {
+          utiaChildren++;
+        }
+      } else if (guest.personType === 'adult') {
+        externalAdults++;
+      } else {
+        externalChildren++;
+      }
+    }
+
+    // Calculate price using PriceCalculator
+    const settings = await dataManager.getSettings();
+    const price = PriceCalculator.calculateMixedBulkPrice({
+      utiaAdults,
+      externalAdults,
+      utiaChildren,
+      externalChildren,
+      nights,
+      settings,
+    });
+
+    // Determine overall guest type
+    const guestType =
+      utiaAdults + utiaChildren >= externalAdults + externalChildren ? 'utia' : 'external';
+
+    // FIX 2025-12-05: Generate perRoomGuests with smart allocation
+    // This ensures the database stores correct per-room guest distribution
+    const allRooms = await dataManager.getRooms();
+    const perRoomGuests = {};
+
+    // Get room capacities (sorted by capacity desc, then by room ID)
+    const roomsWithCapacity = allRooms
+      .map((room) => ({
+        id: room.id,
+        capacity: room.beds || 2,
+      }))
+      .sort((a, b) => {
+        if (b.capacity !== a.capacity) {
+          return b.capacity - a.capacity; // Larger rooms first
+        }
+        return a.id.localeCompare(b.id); // Then by room ID
+      });
+
+    // Allocate guests to rooms based on capacity
+    let remainingAdults = adults;
+    let remainingChildren = children;
+
+    for (const room of roomsWithCapacity) {
+      if (remainingAdults === 0 && remainingChildren === 0) {
+        // No more guests - leave room empty
+        perRoomGuests[room.id] = {
+          adults: 0,
+          children: 0,
+          toddlers: 0,
+          guestType,
+        };
+        continue;
+      }
+
+      // Calculate how many guests to put in this room (up to capacity)
+      const availableSpace = room.capacity;
+      const guestsToAllocate = Math.min(availableSpace, remainingAdults + remainingChildren);
+
+      // Prioritize adults first, then children
+      const adultsInRoom = Math.min(remainingAdults, guestsToAllocate);
+      const childrenInRoom = Math.min(remainingChildren, guestsToAllocate - adultsInRoom);
+
+      perRoomGuests[room.id] = {
+        adults: adultsInRoom,
+        children: childrenInRoom,
+        toddlers: 0,
+        guestType,
+      };
+
+      // Update remaining counts
+      remainingAdults -= adultsInRoom;
+      remainingChildren -= childrenInRoom;
+    }
+
+    // Build form data
+    const formData = {
+      startDate,
+      endDate,
+      adults,
+      children,
+      toddlers,
+      guestType,
+      guestNames,
+      totalPrice: price,
+      isBulkBooking: true,
+      rooms: this.adminEditContext.booking.rooms, // Keep original rooms
+      perRoomGuests, // FIX 2025-12-05: Include smart room allocation
+      guestTypeBreakdown: {
+        utiaAdults,
+        externalAdults,
+        utiaChildren,
+        externalChildren,
+      },
+    };
+
+    // Call admin callback
+    this.adminEditContext.callbacks.onSubmit?.(formData);
+
+    // Clean up
+    this.cleanupAdminEdit();
+  }
+
+  /**
+   * Cancel admin edit - close modal and call cancel callback
+   */
+  cancelAdminEdit() {
+    if (this.adminEditContext?.callbacks?.onCancel) {
+      this.adminEditContext.callbacks.onCancel();
+    }
+    this.cleanupAdminEdit();
+  }
+
+  /**
+   * Clean up after admin edit (success or cancel)
+   */
+  cleanupAdminEdit() {
+    // Restore original handlers
+    const confirmBtn = document.getElementById('confirmBulkBookingBtn');
+    if (confirmBtn && this._originalConfirmHandler) {
+      confirmBtn.onclick = this._originalConfirmHandler;
+      confirmBtn.textContent =
+        this.app.currentLanguage === 'cs' ? 'Vytvořit rezervaci' : 'Create Reservation';
+    }
+
+    const modal = document.getElementById('bulkBookingModal');
+    const closeBtn = modal?.querySelector('.modal-close');
+    if (closeBtn && this._originalCloseHandler) {
+      closeBtn.onclick = this._originalCloseHandler;
+    }
+
+    // Close modal
+    modal?.classList.remove('active');
+
+    // Clear context
+    this.adminEditContext = null;
+    this._originalConfirmHandler = null;
+    this._originalCloseHandler = null;
+
+    // Clean up state
+    this.bulkSelectedDates.clear();
   }
 }
 

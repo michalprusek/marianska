@@ -71,7 +71,7 @@ const adminAuthCode = fs.readFileSync(
     path.join(__dirname, '../../js/admin/AdminAuth.js'),
     'utf8'
 );
-eval(adminAuthCode);
+eval(adminAuthCode + '; global.AdminAuth = AdminAuth;');
 
 describe('AdminAuth', () => {
     let auth;
@@ -85,6 +85,12 @@ describe('AdminAuth', () => {
 
         // Reset fetch mock
         global.fetch.mockClear();
+        global.fetch.mockImplementation(() =>
+            Promise.resolve({
+                ok: true,
+                json: () => Promise.resolve({ success: true }),
+            })
+        );
 
         // Create mock callbacks
         mockCallbacks = {
@@ -106,14 +112,16 @@ describe('AdminAuth', () => {
     });
 
     describe('isSessionValid', () => {
+        // SECURITY FIX: Tests now use sessionStorageMock (not localStorage)
+        // AdminAuth.js uses sessionStorage for better security
         test('should return false when no session token exists', () => {
-            localStorageMock.getItem.mockImplementation((key) => null);
+            sessionStorageMock.getItem.mockImplementation((key) => null);
 
             expect(auth.isSessionValid()).toBe(false);
         });
 
         test('should return false when session token exists but no expiry', () => {
-            localStorageMock.getItem.mockImplementation((key) => {
+            sessionStorageMock.getItem.mockImplementation((key) => {
                 if (key === 'adminSessionToken') return 'valid-token';
                 return null;
             });
@@ -123,7 +131,7 @@ describe('AdminAuth', () => {
 
         test('should return false when session has expired', () => {
             const pastDate = new Date(Date.now() - 1000).toISOString();
-            localStorageMock.getItem.mockImplementation((key) => {
+            sessionStorageMock.getItem.mockImplementation((key) => {
                 if (key === 'adminSessionToken') return 'valid-token';
                 if (key === 'adminSessionExpiry') return pastDate;
                 return null;
@@ -134,7 +142,7 @@ describe('AdminAuth', () => {
 
         test('should return true when session is valid and not expired', () => {
             const futureDate = new Date(Date.now() + 86400000).toISOString(); // +1 day
-            localStorageMock.getItem.mockImplementation((key) => {
+            sessionStorageMock.getItem.mockImplementation((key) => {
                 if (key === 'adminSessionToken') return 'valid-token';
                 if (key === 'adminSessionExpiry') return futureDate;
                 return null;
@@ -146,7 +154,7 @@ describe('AdminAuth', () => {
         test('should correctly parse ISO timestamp format', () => {
             // Test with exact ISO format that server returns
             const futureDate = '2099-12-31T23:59:59.000Z';
-            localStorageMock.getItem.mockImplementation((key) => {
+            sessionStorageMock.getItem.mockImplementation((key) => {
                 if (key === 'adminSessionToken') return 'valid-token';
                 if (key === 'adminSessionExpiry') return futureDate;
                 return null;
@@ -156,7 +164,7 @@ describe('AdminAuth', () => {
         });
 
         test('should return false for invalid date format', () => {
-            localStorageMock.getItem.mockImplementation((key) => {
+            sessionStorageMock.getItem.mockImplementation((key) => {
                 if (key === 'adminSessionToken') return 'valid-token';
                 if (key === 'adminSessionExpiry') return 'invalid-date';
                 return null;
@@ -168,9 +176,10 @@ describe('AdminAuth', () => {
     });
 
     describe('validateSession', () => {
+        // SECURITY FIX: Tests now use sessionStorageMock
         test('should return true and not logout when session is valid', () => {
             const futureDate = new Date(Date.now() + 86400000).toISOString();
-            localStorageMock.getItem.mockImplementation((key) => {
+            sessionStorageMock.getItem.mockImplementation((key) => {
                 if (key === 'adminSessionToken') return 'valid-token';
                 if (key === 'adminSessionExpiry') return futureDate;
                 return null;
@@ -183,7 +192,7 @@ describe('AdminAuth', () => {
 
         test('should return false, show error, and logout when session expired', () => {
             const pastDate = new Date(Date.now() - 1000).toISOString();
-            localStorageMock.getItem.mockImplementation((key) => {
+            sessionStorageMock.getItem.mockImplementation((key) => {
                 if (key === 'adminSessionToken') return 'valid-token';
                 if (key === 'adminSessionExpiry') return pastDate;
                 return null;
@@ -197,7 +206,7 @@ describe('AdminAuth', () => {
         });
 
         test('should return false and logout when no session exists', () => {
-            localStorageMock.getItem.mockImplementation(() => null);
+            sessionStorageMock.getItem.mockImplementation(() => null);
 
             expect(auth.validateSession()).toBe(false);
             expect(mockCallbacks.onShowError).toHaveBeenCalled();
@@ -206,9 +215,10 @@ describe('AdminAuth', () => {
     });
 
     describe('checkAuthentication', () => {
+        // SECURITY FIX: Tests now use sessionStorageMock
         test('should call onLoginSuccess when session is valid', async () => {
             const futureDate = new Date(Date.now() + 86400000).toISOString();
-            localStorageMock.getItem.mockImplementation((key) => {
+            sessionStorageMock.getItem.mockImplementation((key) => {
                 if (key === 'adminSessionToken') return 'valid-token';
                 if (key === 'adminSessionExpiry') return futureDate;
                 return null;
@@ -221,7 +231,7 @@ describe('AdminAuth', () => {
 
         test('should logout and show error when session expired', async () => {
             const pastDate = new Date(Date.now() - 1000).toISOString();
-            localStorageMock.getItem.mockImplementation((key) => {
+            sessionStorageMock.getItem.mockImplementation((key) => {
                 if (key === 'adminSessionToken') return 'valid-token';
                 if (key === 'adminSessionExpiry') return pastDate;
                 return null;
@@ -236,7 +246,7 @@ describe('AdminAuth', () => {
         });
 
         test('should not call any callbacks when no session exists', async () => {
-            localStorageMock.getItem.mockImplementation(() => null);
+            sessionStorageMock.getItem.mockImplementation(() => null);
 
             await auth.checkAuthentication();
 
@@ -247,20 +257,25 @@ describe('AdminAuth', () => {
     });
 
     describe('logout', () => {
-        test('should clear localStorage session data', () => {
-            localStorageMock.getItem.mockImplementation((key) => {
+        test('should clear sessionStorage session data (more secure than localStorage)', () => {
+            // SECURITY FIX: Now uses sessionStorage instead of localStorage
+            sessionStorageMock.getItem.mockImplementation((key) => {
                 if (key === 'adminSessionToken') return 'test-token';
                 return null;
             });
 
             auth.logout();
 
+            // Should clear from sessionStorage (primary)
+            expect(sessionStorageMock.removeItem).toHaveBeenCalledWith('adminSessionToken');
+            expect(sessionStorageMock.removeItem).toHaveBeenCalledWith('adminSessionExpiry');
+            // Should also clear localStorage for legacy cleanup
             expect(localStorageMock.removeItem).toHaveBeenCalledWith('adminSessionToken');
             expect(localStorageMock.removeItem).toHaveBeenCalledWith('adminSessionExpiry');
         });
 
         test('should call logout API endpoint', () => {
-            localStorageMock.getItem.mockImplementation((key) => {
+            sessionStorageMock.getItem.mockImplementation((key) => {
                 if (key === 'adminSessionToken') return 'test-token';
                 return null;
             });

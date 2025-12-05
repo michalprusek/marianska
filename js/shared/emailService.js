@@ -324,15 +324,12 @@ class EmailService {
       const externalPrices = settings.prices.external;
 
       // Calculate average adult/child prices per room type
-      const getAvgPrice = (priceConfig, field) => {
-        return (
-          booking.rooms.reduce((sum, roomId) => {
-            const room = settings.rooms.find((r) => r.id === roomId);
-            const roomType = room?.type || 'small';
-            return sum + (priceConfig?.[roomType]?.[field] || 0);
-          }, 0) / booking.rooms.length
-        );
-      };
+      const getAvgPrice = (priceConfig, field) =>
+        booking.rooms.reduce((sum, roomId) => {
+          const room = settings.rooms.find((r) => r.id === roomId);
+          const roomType = room?.type || 'small';
+          return sum + (priceConfig?.[roomType]?.[field] || 0);
+        }, 0) / booking.rooms.length;
 
       const utiaAdultPrice = Math.round(getAvgPrice(utiaPrices, 'adult'));
       const utiaChildPrice = Math.round(getAvgPrice(utiaPrices, 'child'));
@@ -876,14 +873,21 @@ ${perRoomPriceHtml}
           smtpCode: error.responseCode || 'unknown',
           stack: error.stack,
         });
-        return { email: adminEmail, success: false, error: error.message, smtpCode: error.responseCode };
+        return {
+          email: adminEmail,
+          success: false,
+          error: error.message,
+          smtpCode: error.responseCode,
+        };
       }
     });
 
     // Use allSettled to ensure all promises complete even if some fail
     const settledResults = await Promise.allSettled(sendPromises);
     return settledResults.map((r) =>
-      r.status === 'fulfilled' ? r.value : { success: false, error: r.reason?.message || 'Unknown error' }
+      r.status === 'fulfilled'
+        ? r.value
+        : { success: false, error: r.reason?.message || 'Unknown error' }
     );
   }
 
@@ -1588,7 +1592,9 @@ Automatická zpráva - neodpovídejte
     // Use allSettled to ensure all promises complete even if some fail
     const settledResults = await Promise.allSettled(sendPromises);
     const results = settledResults.map((r) =>
-      r.status === 'fulfilled' ? r.value : { success: false, error: r.reason?.message || 'Unknown error' }
+      r.status === 'fulfilled'
+        ? r.value
+        : { success: false, error: r.reason?.message || 'Unknown error' }
     );
 
     const successCount = results.filter((r) => r.success).length;

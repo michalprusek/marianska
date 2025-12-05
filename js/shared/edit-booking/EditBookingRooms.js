@@ -3,63 +3,65 @@
  * Handles room list rendering, toggling, and removal for the booking edit flow.
  */
 class EditBookingRooms {
-    constructor(editComponent) {
-        this.editComponent = editComponent;
+  constructor(editComponent) {
+    this.editComponent = editComponent;
+  }
+
+  /**
+   * Render rooms list with per-room guest configuration
+   */
+  renderPerRoomList() {
+    const roomsList = document.getElementById('editRoomsList');
+    if (!roomsList) {
+      return;
     }
 
-    /**
-     * Render rooms list with per-room guest configuration
-     */
-    renderPerRoomList() {
-        const roomsList = document.getElementById('editRoomsList');
-        if (!roomsList) {
-            return;
-        }
+    roomsList.textContent = '';
 
-        roomsList.textContent = '';
-
-        // Initialize per-room dates if empty
-        if (this.editComponent.perRoomDates.size === 0 && this.editComponent.currentBooking) {
-            console.warn('[EditBookingRooms] perRoomDates empty, initializing from currentBooking');
-            (this.editComponent.currentBooking.rooms || []).forEach((roomId) => {
-                this.editComponent.perRoomDates.set(roomId, {
-                    startDate: this.editComponent.currentBooking.startDate,
-                    endDate: this.editComponent.currentBooking.endDate,
-                });
-            });
-        }
-
-        // Show bulk booking badge if applicable
-        if (this.editComponent.isBulkBooking) {
-            this.renderBulkBadge(roomsList);
-            this.renderBulkSummaryCard();
-            return;
-        }
-
-        const onChangePrefix = this.editComponent.mode === 'admin' ? 'adminPanel' : 'editPage';
-
-        // Filter rooms to show ONLY those in the original booking
-        const roomsToShow = this.editComponent.settings.rooms.filter((r) => this.editComponent.originalRooms.includes(r.id));
-
-        // Show informational banner about edit restrictions
-        if (roomsToShow.length < this.editComponent.settings.rooms.length) {
-            this.renderInfoBanner(roomsList);
-        }
-
-        // Show ONLY rooms from original booking with per-room configuration
-        for (const room of roomsToShow) {
-            this.renderRoomCard(room, roomsList, onChangePrefix);
-        }
-
-        // Populate existing guest names after rendering all rooms
-        setTimeout(() => {
-            this.populateGuestNamesInRooms();
-        }, 50);
+    // Initialize per-room dates if empty
+    if (this.editComponent.perRoomDates.size === 0 && this.editComponent.currentBooking) {
+      console.warn('[EditBookingRooms] perRoomDates empty, initializing from currentBooking');
+      (this.editComponent.currentBooking.rooms || []).forEach((roomId) => {
+        this.editComponent.perRoomDates.set(roomId, {
+          startDate: this.editComponent.currentBooking.startDate,
+          endDate: this.editComponent.currentBooking.endDate,
+        });
+      });
     }
 
-    renderBulkBadge(container) {
-        const bulkBadge = document.createElement('div');
-        bulkBadge.style.cssText = `
+    // Show bulk booking badge if applicable
+    if (this.editComponent.isBulkBooking) {
+      this.renderBulkBadge(roomsList);
+      this.renderBulkSummaryCard();
+      return;
+    }
+
+    const onChangePrefix = this.editComponent.mode === 'admin' ? 'adminPanel' : 'editPage';
+
+    // Filter rooms to show ONLY those in the original booking
+    const roomsToShow = this.editComponent.settings.rooms.filter((r) =>
+      this.editComponent.originalRooms.includes(r.id)
+    );
+
+    // Show informational banner about edit restrictions
+    if (roomsToShow.length < this.editComponent.settings.rooms.length) {
+      this.renderInfoBanner(roomsList);
+    }
+
+    // Show ONLY rooms from original booking with per-room configuration
+    for (const room of roomsToShow) {
+      this.renderRoomCard(room, roomsList, onChangePrefix);
+    }
+
+    // Populate existing guest names after rendering all rooms
+    setTimeout(() => {
+      this.populateGuestNamesInRooms();
+    }, 50);
+  }
+
+  renderBulkBadge(container) {
+    const bulkBadge = document.createElement('div');
+    bulkBadge.style.cssText = `
             padding: 1rem;
             margin-bottom: 1rem;
             border-radius: 8px;
@@ -69,7 +71,7 @@ class EditBookingRooms {
             text-align: center;
             box-shadow: 0 4px 6px rgba(124, 58, 237, 0.3);
         `;
-        bulkBadge.innerHTML = `
+    bulkBadge.innerHTML = `
             <div style="font-size: 1.25rem; margin-bottom: 0.5rem;">
                 🏠 HROMADNÁ REZERVACE CELÉ CHATY
             </div>
@@ -77,12 +79,12 @@ class EditBookingRooms {
                 Všech 9 pokojů je rezervováno společně.
             </div>
         `;
-        container.appendChild(bulkBadge);
-    }
+    container.appendChild(bulkBadge);
+  }
 
-    renderInfoBanner(container) {
-        const infoBanner = document.createElement('div');
-        infoBanner.style.cssText = `
+  renderInfoBanner(container) {
+    const infoBanner = document.createElement('div');
+    infoBanner.style.cssText = `
             display: flex;
             align-items: center;
             gap: 1rem;
@@ -94,39 +96,39 @@ class EditBookingRooms {
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             border-left: 4px solid #0369a1;
         `;
-        infoBanner.innerHTML = `
+    infoBanner.innerHTML = `
             <div style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; background: rgba(255, 255, 255, 0.2); border-radius: 50%; font-size: 20px; flex-shrink: 0;">ℹ️</div>
             <div style="flex: 1; display: flex; flex-direction: column; gap: 0.25rem;">
                 <div style="font-weight: 600; font-size: 15px;">Režim editace</div>
                 <div style="font-size: 14px; opacity: 0.95; line-height: 1.4;">Režim editace: Pokoje lze odebrat kliknutím na zatržítko (zobrazí se potvrzení). Nové pokoje nelze přidávat.</div>
             </div>
         `;
-        container.appendChild(infoBanner);
+    container.appendChild(infoBanner);
+  }
+
+  renderRoomCard(room, container, onChangePrefix) {
+    const isSelected = this.editComponent.editSelectedRooms.has(room.id);
+    const dates = this.editComponent.perRoomDates.get(room.id);
+    const isEditing = this.editComponent.currentEditingRoom === room.id;
+    const roomData = this.editComponent.editSelectedRooms.get(room.id) || {
+      guestType: 'external',
+      adults: 1,
+      children: 0,
+      toddlers: 0,
+    };
+
+    let borderColor = '#e5e7eb';
+    let backgroundColor = 'white';
+    if (isEditing) {
+      borderColor = '#0d9488';
+      backgroundColor = '#f0fdfa';
+    } else if (isSelected) {
+      borderColor = '#10b981';
+      backgroundColor = '#f0fdf4';
     }
 
-    renderRoomCard(room, container, onChangePrefix) {
-        const isSelected = this.editComponent.editSelectedRooms.has(room.id);
-        const dates = this.editComponent.perRoomDates.get(room.id);
-        const isEditing = this.editComponent.currentEditingRoom === room.id;
-        const roomData = this.editComponent.editSelectedRooms.get(room.id) || {
-            guestType: 'external',
-            adults: 1,
-            children: 0,
-            toddlers: 0,
-        };
-
-        let borderColor = '#e5e7eb';
-        let backgroundColor = 'white';
-        if (isEditing) {
-            borderColor = '#0d9488';
-            backgroundColor = '#f0fdfa';
-        } else if (isSelected) {
-            borderColor = '#10b981';
-            backgroundColor = '#f0fdf4';
-        }
-
-        const roomCard = document.createElement('div');
-        roomCard.style.cssText = `
+    const roomCard = document.createElement('div');
+    roomCard.style.cssText = `
             padding: 1rem;
             border: 2px solid ${borderColor};
             border-radius: 8px;
@@ -134,19 +136,22 @@ class EditBookingRooms {
             margin-bottom: 0.5rem;
         `;
 
-        let dateInfo = '';
-        if (isSelected && dates) {
-            const startFormatted = DateUtils.formatDateDisplay(DateUtils.parseDate(dates.startDate), 'cs');
-            const endFormatted = DateUtils.formatDateDisplay(DateUtils.parseDate(dates.endDate), 'cs');
-            dateInfo = `
+    let dateInfo = '';
+    if (isSelected && dates) {
+      const startFormatted = DateUtils.formatDateDisplay(
+        DateUtils.parseDate(dates.startDate),
+        'cs'
+      );
+      const endFormatted = DateUtils.formatDateDisplay(DateUtils.parseDate(dates.endDate), 'cs');
+      dateInfo = `
                 <div style="margin-top: 0.5rem; color: #059669; font-weight: 600;">
                     📅 ${startFormatted} - ${endFormatted}
                     <button type="button" onclick="${onChangePrefix}.editComponent.rooms.openRoomCalendar('${room.id}')" class="btn btn-primary" style="padding: 0.25rem 0.75rem; margin-left: 0.5rem; font-size: 0.875rem;">Změnit termín</button>
                 </div>
             `;
-        }
+    }
 
-        roomCard.innerHTML = `
+    roomCard.innerHTML = `
             <label style="cursor: ${this.editComponent.isBulkBooking ? 'not-allowed' : 'pointer'}; display: flex; align-items: flex-start; gap: 0.5rem; opacity: ${this.editComponent.isBulkBooking ? '0.7' : '1'};">
                 <input type="checkbox" ${isSelected ? 'checked' : ''}
                     ${this.editComponent.isBulkBooking ? 'disabled' : ''}
@@ -163,24 +168,24 @@ class EditBookingRooms {
             ${isSelected ? this.renderGuestCounts(room, roomData, onChangePrefix) : ''}
         `;
 
-        container.appendChild(roomCard);
+    container.appendChild(roomCard);
 
-        if (isSelected) {
-            const guestNamesHTML = this.renderGuestListForRoom(room.id, roomData);
-            if (guestNamesHTML) {
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = guestNamesHTML;
-                const guestNamesContainer = tempDiv.firstElementChild;
-                const guestConfigSection = roomCard.querySelector('div[style*="display: grid"]');
-                if (guestConfigSection) {
-                    guestConfigSection.insertAdjacentElement('afterend', guestNamesContainer);
-                }
-            }
+    if (isSelected) {
+      const guestNamesHTML = this.renderGuestListForRoom(room.id, roomData);
+      if (guestNamesHTML) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = guestNamesHTML;
+        const guestNamesContainer = tempDiv.firstElementChild;
+        const guestConfigSection = roomCard.querySelector('div[style*="display: grid"]');
+        if (guestConfigSection) {
+          guestConfigSection.insertAdjacentElement('afterend', guestNamesContainer);
         }
+      }
     }
+  }
 
-    renderGuestCounts(room, roomData, onChangePrefix) {
-        return `
+  renderGuestCounts(room, roomData, onChangePrefix) {
+    return `
             <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #d1d5db;">
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;">
                     <div>
@@ -204,49 +209,51 @@ class EditBookingRooms {
                 </div>
             </div>
         `;
+  }
+
+  renderGuestListForRoom(roomId, roomData) {
+    const adults = roomData.adults || 0;
+    const children = roomData.children || 0;
+    const toddlers = roomData.toddlers || 0;
+    const totalGuests = adults + children + toddlers;
+
+    if (totalGuests === 0) {
+      return '';
     }
 
-    renderGuestListForRoom(roomId, roomData) {
-        const adults = roomData.adults || 0;
-        const children = roomData.children || 0;
-        const toddlers = roomData.toddlers || 0;
-        const totalGuests = adults + children + toddlers;
+    const onChangePrefix = this.editComponent.mode === 'admin' ? 'adminPanel' : 'editPage';
+    let guestInputs = '';
 
-        if (totalGuests === 0) return '';
-
-        const onChangePrefix = this.editComponent.mode === 'admin' ? 'adminPanel' : 'editPage';
-        let guestInputs = '';
-
-        if (adults > 0) {
-            guestInputs += `<div style="margin-bottom: 1rem;"><h4 style="font-size: 0.875rem; font-weight: 600; color: #059669; margin-bottom: 0.5rem;">Dospělí (18+ let)</h4>`;
-            for (let i = 1; i <= adults; i++) {
-                guestInputs += this.renderGuestInput(roomId, 'adult', i, onChangePrefix);
-            }
-            guestInputs += `</div>`;
-        }
-
-        if (children > 0) {
-            guestInputs += `<div style="margin-bottom: 1rem;"><h4 style="font-size: 0.875rem; font-weight: 600; color: #059669; margin-bottom: 0.5rem;">Děti (3-17 let)</h4>`;
-            for (let i = 1; i <= children; i++) {
-                guestInputs += this.renderGuestInput(roomId, 'child', i, onChangePrefix);
-            }
-            guestInputs += `</div>`;
-        }
-
-        if (toddlers > 0) {
-            guestInputs += `<div style="margin-bottom: 1rem;"><h4 style="font-size: 0.875rem; font-weight: 600; color: #0284c7; margin-bottom: 0.5rem;">Batolata (0-2 roky) - Zdarma</h4>`;
-            for (let i = 1; i <= toddlers; i++) {
-                guestInputs += this.renderToddlerInput(roomId, i);
-            }
-            guestInputs += `</div>`;
-        }
-
-        return `<div style="margin-top: 1rem; padding: 1rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;">${guestInputs}</div>`;
+    if (adults > 0) {
+      guestInputs += `<div style="margin-bottom: 1rem;"><h4 style="font-size: 0.875rem; font-weight: 600; color: #059669; margin-bottom: 0.5rem;">Dospělí (18+ let)</h4>`;
+      for (let i = 1; i <= adults; i++) {
+        guestInputs += this.renderGuestInput(roomId, 'adult', i, onChangePrefix);
+      }
+      guestInputs += `</div>`;
     }
 
-    renderGuestInput(roomId, type, index, onChangePrefix) {
-        const typeCap = type.charAt(0).toUpperCase() + type.slice(1);
-        return `
+    if (children > 0) {
+      guestInputs += `<div style="margin-bottom: 1rem;"><h4 style="font-size: 0.875rem; font-weight: 600; color: #059669; margin-bottom: 0.5rem;">Děti (3-17 let)</h4>`;
+      for (let i = 1; i <= children; i++) {
+        guestInputs += this.renderGuestInput(roomId, 'child', i, onChangePrefix);
+      }
+      guestInputs += `</div>`;
+    }
+
+    if (toddlers > 0) {
+      guestInputs += `<div style="margin-bottom: 1rem;"><h4 style="font-size: 0.875rem; font-weight: 600; color: #0284c7; margin-bottom: 0.5rem;">Batolata (0-2 roky) - Zdarma</h4>`;
+      for (let i = 1; i <= toddlers; i++) {
+        guestInputs += this.renderToddlerInput(roomId, i);
+      }
+      guestInputs += `</div>`;
+    }
+
+    return `<div style="margin-top: 1rem; padding: 1rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;">${guestInputs}</div>`;
+  }
+
+  renderGuestInput(roomId, type, index, onChangePrefix) {
+    const typeCap = type.charAt(0).toUpperCase() + type.slice(1);
+    return `
             <div style="display: flex; align-items: end; gap: 0.75rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;">
                 <div style="flex: 1; min-width: 0;">
                     <label style="display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;">Křestní jméno *</label>
@@ -267,10 +274,10 @@ class EditBookingRooms {
                 </div>
             </div>
         `;
-    }
+  }
 
-    renderToddlerInput(roomId, index) {
-        return `
+  renderToddlerInput(roomId, index) {
+    return `
             <div style="display: flex; align-items: end; gap: 0.75rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e0f2fe; border-radius: 6px; background-color: #f0f9ff;">
                 <div style="flex: 1; min-width: 0;">
                     <label style="display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #374151;">Křestní jméno *</label>
@@ -282,350 +289,546 @@ class EditBookingRooms {
                 </div>
             </div>
         `;
+  }
+
+  toggleRoom(roomId) {
+    if (this.editComponent.isBulkBooking) {
+      this.editComponent.showNotification(
+        'Hromadné rezervace celé chaty nelze měnit po jednotlivých pokojích.',
+        'warning',
+        4000
+      );
+      return;
     }
 
-    toggleRoom(roomId) {
-        if (this.editComponent.isBulkBooking) {
-            this.editComponent.showNotification('Hromadné rezervace celé chaty nelze měnit po jednotlivých pokojích.', 'warning', 4000);
-            return;
-        }
-
-        if (!this.editComponent.editSelectedRooms.has(roomId) && !this.editComponent.originalRooms.includes(roomId)) {
-            this.editComponent.showNotification('⚠️ V editaci nelze přidávat nové pokoje.', 'warning', 4000);
-            requestAnimationFrame(() => this.renderPerRoomList());
-            return;
-        }
-
-        if (this.editComponent.editSelectedRooms.has(roomId) && this.editComponent.originalRooms.includes(roomId)) {
-            if (this.editComponent.editSelectedRooms.size === 1) {
-                this.handleLastRoomRemoval();
-                return;
-            }
-            this.confirmRoomRemoval(roomId);
-            return;
-        }
-
-        if (!this.editComponent.editSelectedRooms.has(roomId) && this.editComponent.originalRooms.includes(roomId)) {
-            this.addRoomBack(roomId);
-        }
+    if (
+      !this.editComponent.editSelectedRooms.has(roomId) &&
+      !this.editComponent.originalRooms.includes(roomId)
+    ) {
+      this.editComponent.showNotification(
+        '⚠️ V editaci nelze přidávat nové pokoje.',
+        'warning',
+        4000
+      );
+      requestAnimationFrame(() => this.renderPerRoomList());
+      return;
     }
 
-    async confirmRoomRemoval(roomId) {
-        const room = this.editComponent.settings.rooms.find((r) => r.id === roomId);
-        const roomData = this.editComponent.editSelectedRooms.get(roomId);
-        const dates = this.editComponent.perRoomDates.get(roomId);
-
-        if (!room || !roomData || !dates) return;
-
-        const nights = DateUtils.getDaysBetween(dates.startDate, dates.endDate);
-        const roomPrice = PriceCalculator.calculatePrice({
-            guestType: roomData.guestType,
-            adults: roomData.adults,
-            children: roomData.children,
-            toddlers: roomData.toddlers || 0,
-            nights,
-            rooms: [roomId],
-            roomsCount: 1,
-            settings: this.editComponent.settings,
-        });
-
-        const confirmed = await modalDialog.confirm({
-            title: `Odebrat pokoj ${room.name}?`,
-            icon: '🗑️',
-            type: 'warning',
-            message: `Opravdu chcete odebrat tento pokoj z rezervace?\n\nJména hostů přiřazená k tomuto pokoji budou odstraněna.`,
-            details: [
-                { label: 'Cena pokoje', value: `${roomPrice.toLocaleString('cs-CZ')} Kč` },
-                { label: 'Hosté', value: `${roomData.adults} dospělých, ${roomData.children} dětí` },
-                { label: 'Zbývající pokoje', value: (this.editComponent.editSelectedRooms.size - 1).toString() },
-            ],
-            confirmText: 'Odebrat pokoj',
-            cancelText: 'Zrušit',
-        });
-
-        if (!confirmed) {
-            requestAnimationFrame(() => this.renderPerRoomList());
-            return;
-        }
-
-        this.removeRoom(roomId);
+    if (
+      this.editComponent.editSelectedRooms.has(roomId) &&
+      this.editComponent.originalRooms.includes(roomId)
+    ) {
+      if (this.editComponent.editSelectedRooms.size === 1) {
+        this.handleLastRoomRemoval();
+        return;
+      }
+      this.confirmRoomRemoval(roomId);
+      return;
     }
 
-    async handleLastRoomRemoval() {
-        const confirmed = await modalDialog.confirm({
-            title: 'VAROVÁNÍ: Smazání celé rezervace',
-            icon: '⚠️',
-            type: 'danger',
-            message: 'Odebíráte poslední pokoj z rezervace!\n\nTato akce SMAŽE celou rezervaci včetně všech údajů.\n\nOpravdu chcete pokračovat?',
-            confirmText: 'Ano, smazat rezervaci',
-            cancelText: 'Zrušit',
-        });
+    if (
+      !this.editComponent.editSelectedRooms.has(roomId) &&
+      this.editComponent.originalRooms.includes(roomId)
+    ) {
+      this.addRoomBack(roomId);
+    }
+  }
 
-        if (!confirmed) {
-            requestAnimationFrame(() => this.renderPerRoomList());
-            return;
-        }
+  async confirmRoomRemoval(roomId) {
+    const room = this.editComponent.settings.rooms.find((r) => r.id === roomId);
+    const roomData = this.editComponent.editSelectedRooms.get(roomId);
+    const dates = this.editComponent.perRoomDates.get(roomId);
 
-        if (this.editComponent.onDelete) {
-            try {
-                await this.editComponent.onDelete(this.editComponent.currentBooking.id);
-            } catch (error) {
-                this.editComponent.showNotification(`❌ Chyba při mazání rezervace: ${error.message}`, 'error', 5000);
-            }
-        }
+    if (!room || !roomData || !dates) {
+      return;
     }
 
-    removeRoom(roomId) {
-        const roomData = this.editComponent.editSelectedRooms.get(roomId);
-        const roomDates = this.editComponent.perRoomDates.get(roomId);
+    const nights = DateUtils.getDaysBetween(dates.startDate, dates.endDate);
+    const roomPrice = PriceCalculator.calculatePrice({
+      guestType: roomData.guestType,
+      adults: roomData.adults,
+      children: roomData.children,
+      toddlers: roomData.toddlers || 0,
+      nights,
+      rooms: [roomId],
+      roomsCount: 1,
+      settings: this.editComponent.settings,
+    });
 
-        if (roomData && roomDates) {
-            const undoState = {
-                roomId,
-                roomData: { ...roomData },
-                roomDates: { ...roomDates },
-                timestamp: Date.now(),
-            };
-            this.editComponent.undoStack.push(undoState);
-            const timeoutId = setTimeout(() => {
-                this.editComponent.expireUndo(roomId);
-            }, this.editComponent.UNDO_TIME_LIMIT);
-            this.editComponent.undoTimeouts.set(roomId, timeoutId);
-            this.editComponent.logRoomChange('room_removed', roomId, {
-                beforeState: { roomData, roomDates },
-                afterState: null,
-                changeDetails: `Room ${roomId} removed from booking`,
-            });
-        }
+    const confirmed = await modalDialog.confirm({
+      title: `Odebrat pokoj ${room.name}?`,
+      icon: '🗑️',
+      type: 'warning',
+      message: `Opravdu chcete odebrat tento pokoj z rezervace?\n\nJména hostů přiřazená k tomuto pokoji budou odstraněna.`,
+      details: [
+        { label: 'Cena pokoje', value: `${roomPrice.toLocaleString('cs-CZ')} Kč` },
+        { label: 'Hosté', value: `${roomData.adults} dospělých, ${roomData.children} dětí` },
+        {
+          label: 'Zbývající pokoje',
+          value: (this.editComponent.editSelectedRooms.size - 1).toString(),
+        },
+      ],
+      confirmText: 'Odebrat pokoj',
+      cancelText: 'Zrušit',
+    });
 
-        this.editComponent.editSelectedRooms.delete(roomId);
-        this.editComponent.perRoomDates.delete(roomId);
-
-        if (this.editComponent.sessionId && typeof dataManager !== 'undefined') {
-            dataManager.clearSessionProposedBookings(this.editComponent.sessionId).catch(console.warn);
-        }
-
-        this.editComponent.updateGlobalBookingDates();
-        this.editComponent.updateTotalPrice();
-        this.renderPerRoomList();
-
-        const room = this.editComponent.settings.rooms.find((r) => r.id === roomId);
-        const roomName = room ? room.name : `Pokoj ${roomId}`;
-        this.editComponent.showNotificationWithUndo(`✅ ${roomName} byl odebrán z rezervace`, roomId, 'success', this.editComponent.UNDO_TIME_LIMIT);
+    if (!confirmed) {
+      requestAnimationFrame(() => this.renderPerRoomList());
+      return;
     }
 
-    addRoomBack(roomId) {
-        const room = this.editComponent.settings.rooms.find((r) => r.id === roomId);
-        if (!room) return;
+    this.removeRoom(roomId);
+  }
 
-        this.editComponent.editSelectedRooms.set(roomId, {
-            guestType: 'utia',
-            adults: 1,
-            children: 0,
-            toddlers: 0,
-        });
+  async handleLastRoomRemoval() {
+    const confirmed = await modalDialog.confirm({
+      title: 'VAROVÁNÍ: Smazání celé rezervace',
+      icon: '⚠️',
+      type: 'danger',
+      message:
+        'Odebíráte poslední pokoj z rezervace!\n\nTato akce SMAŽE celou rezervaci včetně všech údajů.\n\nOpravdu chcete pokračovat?',
+      confirmText: 'Ano, smazat rezervaci',
+      cancelText: 'Zrušit',
+    });
 
-        let defaultDates = {
-            startDate: this.editComponent.editStartDate,
-            endDate: this.editComponent.editEndDate,
-        };
-
-        if (this.editComponent.perRoomDates.size > 0) {
-            const firstDates = this.editComponent.perRoomDates.values().next().value;
-            defaultDates = { ...firstDates };
-        }
-
-        this.editComponent.perRoomDates.set(roomId, defaultDates);
-        this.editComponent.updateGlobalBookingDates();
-        this.editComponent.updateTotalPrice();
-        this.renderPerRoomList();
-        this.editComponent.showNotification(`✅ ${room.name} byl vrácen do rezervace`, 'success');
+    if (!confirmed) {
+      requestAnimationFrame(() => this.renderPerRoomList());
+      return;
     }
 
-    updateRoomGuests(roomId, field, value) {
-        const roomData = this.editComponent.editSelectedRooms.get(roomId);
-        if (!roomData) return;
+    if (this.editComponent.onDelete) {
+      try {
+        await this.editComponent.onDelete(this.editComponent.currentBooking.id);
+      } catch (error) {
+        this.editComponent.showNotification(
+          `❌ Chyba při mazání rezervace: ${error.message}`,
+          'error',
+          5000
+        );
+      }
+    }
+  }
 
-        const room = this.editComponent.settings.rooms.find((r) => r.id === roomId);
-        if (!room) return;
+  removeRoom(roomId) {
+    const roomData = this.editComponent.editSelectedRooms.get(roomId);
+    const roomDates = this.editComponent.perRoomDates.get(roomId);
 
-        const oldValue = roomData[field];
-        const numValue = parseInt(value, 10);
-
-        if (isNaN(numValue) || numValue < 0) {
-            this.editComponent.showNotification('Počet hostů musí být kladné číslo', 'warning');
-            this.editComponent.revertInputValue(roomId, field, oldValue);
-            return;
-        }
-
-        if (field === 'adults' && numValue < 1) {
-            this.editComponent.showNotification('Musí být alespoň 1 dospělý v pokoji', 'warning');
-            this.editComponent.revertInputValue(roomId, field, oldValue);
-            return;
-        }
-
-        if (field === 'adults' || field === 'children') {
-            const projectedAdults = field === 'adults' ? numValue : roomData.adults;
-            const projectedChildren = field === 'children' ? numValue : roomData.children;
-            const totalGuests = projectedAdults + projectedChildren;
-
-            if (totalGuests > room.beds) {
-                this.editComponent.showNotification(`⚠️ Kapacita pokoje ${room.name}: ${room.beds} lůžek.`, 'error', 4000);
-                this.editComponent.revertInputValue(roomId, field, oldValue);
-                return;
-            }
-        }
-
-        roomData[field] = numValue;
-        this.editComponent.updateTotalPrice();
-        this.renderPerRoomList();
+    if (roomData && roomDates) {
+      const undoState = {
+        roomId,
+        roomData: { ...roomData },
+        roomDates: { ...roomDates },
+        timestamp: Date.now(),
+      };
+      this.editComponent.undoStack.push(undoState);
+      const timeoutId = setTimeout(() => {
+        this.editComponent.expireUndo(roomId);
+      }, this.editComponent.UNDO_TIME_LIMIT);
+      this.editComponent.undoTimeouts.set(roomId, timeoutId);
+      this.editComponent.logRoomChange('room_removed', roomId, {
+        beforeState: { roomData, roomDates },
+        afterState: null,
+        changeDetails: `Room ${roomId} removed from booking`,
+      });
     }
 
-    toggleGuestType(roomId, guestType, index, isExternal) {
-        const toggleId = `room${roomId}${guestType.charAt(0).toUpperCase() + guestType.slice(1)}${index}GuestTypeToggle`;
-        const toggleTextId = `room${roomId}${guestType.charAt(0).toUpperCase() + guestType.slice(1)}${index}ToggleText`;
+    this.editComponent.editSelectedRooms.delete(roomId);
+    this.editComponent.perRoomDates.delete(roomId);
+
+    if (this.editComponent.sessionId && typeof dataManager !== 'undefined') {
+      dataManager.clearSessionProposedBookings(this.editComponent.sessionId).catch(console.warn);
+    }
+
+    this.editComponent.updateGlobalBookingDates();
+    this.editComponent.updateTotalPrice();
+    this.renderPerRoomList();
+
+    const room = this.editComponent.settings.rooms.find((r) => r.id === roomId);
+    const roomName = room ? room.name : `Pokoj ${roomId}`;
+    this.editComponent.showNotificationWithUndo(
+      `✅ ${roomName} byl odebrán z rezervace`,
+      roomId,
+      'success',
+      this.editComponent.UNDO_TIME_LIMIT
+    );
+  }
+
+  addRoomBack(roomId) {
+    const room = this.editComponent.settings.rooms.find((r) => r.id === roomId);
+    if (!room) {
+      return;
+    }
+
+    this.editComponent.editSelectedRooms.set(roomId, {
+      guestType: 'utia',
+      adults: 1,
+      children: 0,
+      toddlers: 0,
+    });
+
+    let defaultDates = {
+      startDate: this.editComponent.editStartDate,
+      endDate: this.editComponent.editEndDate,
+    };
+
+    if (this.editComponent.perRoomDates.size > 0) {
+      const firstDates = this.editComponent.perRoomDates.values().next().value;
+      defaultDates = { ...firstDates };
+    }
+
+    this.editComponent.perRoomDates.set(roomId, defaultDates);
+    this.editComponent.updateGlobalBookingDates();
+    this.editComponent.updateTotalPrice();
+    this.renderPerRoomList();
+    this.editComponent.showNotification(`✅ ${room.name} byl vrácen do rezervace`, 'success');
+  }
+
+  updateRoomGuests(roomId, field, value) {
+    const roomData = this.editComponent.editSelectedRooms.get(roomId);
+    if (!roomData) {
+      return;
+    }
+
+    const room = this.editComponent.settings.rooms.find((r) => r.id === roomId);
+    if (!room) {
+      return;
+    }
+
+    const oldValue = roomData[field];
+    const numValue = parseInt(value, 10);
+
+    if (isNaN(numValue) || numValue < 0) {
+      this.editComponent.showNotification('Počet hostů musí být kladné číslo', 'warning');
+      this.editComponent.revertInputValue(roomId, field, oldValue);
+      return;
+    }
+
+    if (field === 'adults' && numValue < 1) {
+      this.editComponent.showNotification('Musí být alespoň 1 dospělý v pokoji', 'warning');
+      this.editComponent.revertInputValue(roomId, field, oldValue);
+      return;
+    }
+
+    if (field === 'adults' || field === 'children') {
+      const projectedAdults = field === 'adults' ? numValue : roomData.adults;
+      const projectedChildren = field === 'children' ? numValue : roomData.children;
+      const totalGuests = projectedAdults + projectedChildren;
+
+      if (totalGuests > room.beds) {
+        this.editComponent.showNotification(
+          `⚠️ Kapacita pokoje ${room.name}: ${room.beds} lůžek.`,
+          'error',
+          4000
+        );
+        this.editComponent.revertInputValue(roomId, field, oldValue);
+        return;
+      }
+    }
+
+    // FIX 2025-12-05: Collect current guest data from DOM BEFORE re-rendering
+    const currentGuestData = this._collectCurrentGuestDataFromDOM();
+
+    roomData[field] = numValue;
+    this.editComponent.updateTotalPrice();
+    this.renderPerRoomList();
+
+    // FIX 2025-12-05: Restore guest data AFTER re-rendering
+    setTimeout(() => {
+      this._restoreGuestDataToDOM(currentGuestData);
+      this.editComponent.updateTotalPrice();
+    }, 50);
+  }
+
+  /**
+   * Collect current guest names and types from DOM inputs
+   * FIX 2025-12-05: Preserve guest data when re-rendering after count change
+   * @returns {Array<Object>} Array of guest data objects
+   */
+  _collectCurrentGuestDataFromDOM() {
+    const guestData = [];
+
+    for (const [roomId, roomData] of this.editComponent.editSelectedRooms.entries()) {
+      // Collect adults
+      for (let i = 1; i <= (roomData.adults || 0); i++) {
+        const firstName = document.getElementById(`room${roomId}AdultFirstName${i}`)?.value || '';
+        const lastName = document.getElementById(`room${roomId}AdultLastName${i}`)?.value || '';
+        const toggle = document.getElementById(`room${roomId}Adult${i}GuestTypeToggle`);
+        const isExternal = toggle?.checked || false;
+
+        if (firstName || lastName) {
+          guestData.push({
+            roomId,
+            personType: 'adult',
+            index: i,
+            firstName,
+            lastName,
+            guestPriceType: isExternal ? 'external' : 'utia',
+          });
+        }
+      }
+
+      // Collect children
+      for (let i = 1; i <= (roomData.children || 0); i++) {
+        const firstName = document.getElementById(`room${roomId}ChildFirstName${i}`)?.value || '';
+        const lastName = document.getElementById(`room${roomId}ChildLastName${i}`)?.value || '';
+        const toggle = document.getElementById(`room${roomId}Child${i}GuestTypeToggle`);
+        const isExternal = toggle?.checked || false;
+
+        if (firstName || lastName) {
+          guestData.push({
+            roomId,
+            personType: 'child',
+            index: i,
+            firstName,
+            lastName,
+            guestPriceType: isExternal ? 'external' : 'utia',
+          });
+        }
+      }
+
+      // Collect toddlers
+      for (let i = 1; i <= (roomData.toddlers || 0); i++) {
+        const firstName = document.getElementById(`room${roomId}ToddlerFirstName${i}`)?.value || '';
+        const lastName = document.getElementById(`room${roomId}ToddlerLastName${i}`)?.value || '';
+
+        if (firstName || lastName) {
+          guestData.push({
+            roomId,
+            personType: 'toddler',
+            index: i,
+            firstName,
+            lastName,
+            guestPriceType: 'utia',
+          });
+        }
+      }
+    }
+
+    return guestData;
+  }
+
+  /**
+   * Restore guest data to DOM inputs after re-rendering
+   * FIX 2025-12-05: Preserve guest data when re-rendering after count change
+   * @param {Array<Object>} guestData - Array of guest data objects
+   */
+  _restoreGuestDataToDOM(guestData) {
+    for (const guest of guestData) {
+      const typeCap = guest.personType.charAt(0).toUpperCase() + guest.personType.slice(1);
+
+      const firstNameInput = document.getElementById(
+        `room${guest.roomId}${typeCap}FirstName${guest.index}`
+      );
+      const lastNameInput = document.getElementById(
+        `room${guest.roomId}${typeCap}LastName${guest.index}`
+      );
+      const toggleInput = document.getElementById(
+        `room${guest.roomId}${typeCap}${guest.index}GuestTypeToggle`
+      );
+      const toggleText = document.getElementById(
+        `room${guest.roomId}${typeCap}${guest.index}ToggleText`
+      );
+
+      if (firstNameInput) {
+        firstNameInput.value = guest.firstName;
+      }
+      if (lastNameInput) {
+        lastNameInput.value = guest.lastName;
+      }
+
+      if (toggleInput && guest.personType !== 'toddler') {
+        const isExternal = guest.guestPriceType === 'external';
+        toggleInput.checked = isExternal;
+
+        const label = toggleInput.closest('label');
+        if (label) {
+          const slider = label.querySelector('span[style*="background-color"]');
+          const thumb = slider?.querySelector('span[style*="border-radius: 50%"]');
+          this.updateToggleVisualState(slider, thumb, toggleText, isExternal);
+        }
+      }
+    }
+  }
+
+  toggleGuestType(roomId, guestType, index, isExternal) {
+    const toggleId = `room${roomId}${guestType.charAt(0).toUpperCase() + guestType.slice(1)}${index}GuestTypeToggle`;
+    const toggleTextId = `room${roomId}${guestType.charAt(0).toUpperCase() + guestType.slice(1)}${index}ToggleText`;
+    const toggle = document.getElementById(toggleId);
+    const toggleText = document.getElementById(toggleTextId);
+
+    if (!toggle || !toggleText) {
+      return;
+    }
+
+    const label = toggle.closest('label');
+    if (!label) {
+      return;
+    }
+    const slider = label.querySelector('span[style*="background-color"]');
+    const thumb = slider?.querySelector('span[style*="border-radius: 50%"]');
+
+    this.updateToggleVisualState(slider, thumb, toggleText, isExternal);
+    this.updateRoomGuestTypeFromToggles(roomId);
+    this.editComponent.updateTotalPrice();
+  }
+
+  updateToggleVisualState(slider, thumb, toggleText, isExternal) {
+    if (!slider || !thumb) {
+      return;
+    }
+    const color = isExternal ? '#dc2626' : '#059669';
+    slider.style.backgroundColor = color;
+    thumb.style.transform = isExternal ? 'translateX(20px)' : 'translateX(0)';
+    if (toggleText) {
+      toggleText.textContent = isExternal ? 'EXT' : 'ÚTIA';
+      toggleText.style.color = color;
+    }
+  }
+
+  updateRoomGuestTypeFromToggles(roomId) {
+    const roomData = this.editComponent.editSelectedRooms.get(roomId);
+    if (!roomData) {
+      return;
+    }
+
+    let hasUtiaGuest = false;
+    const totalAdults = roomData.adults || 0;
+    for (let i = 1; i <= totalAdults; i++) {
+      const toggleId = `room${roomId}Adult${i}GuestTypeToggle`;
+      const toggle = document.getElementById(toggleId);
+      if (toggle && !toggle.checked) {
+        hasUtiaGuest = true;
+        break;
+      }
+    }
+
+    if (!hasUtiaGuest) {
+      const totalChildren = roomData.children || 0;
+      for (let i = 1; i <= totalChildren; i++) {
+        const toggleId = `room${roomId}Child${i}GuestTypeToggle`;
         const toggle = document.getElementById(toggleId);
-        const toggleText = document.getElementById(toggleTextId);
+        if (toggle && !toggle.checked) {
+          hasUtiaGuest = true;
+          break;
+        }
+      }
+    }
 
-        if (!toggle || !toggleText) return;
+    roomData.guestType = hasUtiaGuest ? 'utia' : 'external';
+  }
 
-        const label = toggle.closest('label');
-        if (!label) return;
+  populateGuestNamesInRooms() {
+    if (!this.editComponent.currentBooking || !this.editComponent.currentBooking.guestNames) {
+      return;
+    }
+
+    const allGuestNames = this.editComponent.currentBooking.guestNames;
+    const adultNames = allGuestNames.filter((g) => g.personType === 'adult');
+    const childNames = allGuestNames.filter((g) => g.personType === 'child');
+    const toddlerNames = allGuestNames.filter((g) => g.personType === 'toddler');
+
+    let adultIndex = 0;
+    let childIndex = 0;
+    let toddlerIndex = 0;
+
+    for (const [roomId, roomData] of this.editComponent.editSelectedRooms.entries()) {
+      for (let i = 1; i <= roomData.adults; i++) {
+        const guest = adultNames[adultIndex++];
+        if (!guest) {
+          continue;
+        }
+        this.populateGuestInput(roomId, 'Adult', i, guest);
+      }
+      for (let i = 1; i <= roomData.children; i++) {
+        const guest = childNames[childIndex++];
+        if (!guest) {
+          continue;
+        }
+        this.populateGuestInput(roomId, 'Child', i, guest);
+      }
+      for (let i = 1; i <= roomData.toddlers; i++) {
+        const guest = toddlerNames[toddlerIndex++];
+        if (!guest) {
+          continue;
+        }
+        this.populateGuestInput(roomId, 'Toddler', i, guest);
+      }
+    }
+
+    this.populateBulkGuestNames(adultNames, childNames, toddlerNames);
+    setTimeout(() => this.editComponent.updateTotalPrice(), 100);
+  }
+
+  populateGuestInput(roomId, type, index, guest) {
+    const firstNameInput = document.getElementById(`room${roomId}${type}FirstName${index}`);
+    const lastNameInput = document.getElementById(`room${roomId}${type}LastName${index}`);
+    const toggleInput = document.getElementById(`room${roomId}${type}${index}GuestTypeToggle`);
+    const toggleText = document.getElementById(`room${roomId}${type}${index}ToggleText`);
+
+    if (firstNameInput && !firstNameInput.value) {
+      firstNameInput.value = guest.firstName || '';
+    }
+    if (lastNameInput && !lastNameInput.value) {
+      lastNameInput.value = guest.lastName || '';
+    }
+
+    if (toggleInput && (guest.guestPriceType || guest.guestType)) {
+      const isExternal = (guest.guestPriceType ?? guest.guestType) === 'external';
+      toggleInput.checked = isExternal;
+      const label = toggleInput.closest('label');
+      if (label) {
         const slider = label.querySelector('span[style*="background-color"]');
         const thumb = slider?.querySelector('span[style*="border-radius: 50%"]');
-
         this.updateToggleVisualState(slider, thumb, toggleText, isExternal);
-        this.updateRoomGuestTypeFromToggles(roomId);
-        this.editComponent.updateTotalPrice();
+      }
+    }
+  }
+
+  renderBulkSummaryCard() {
+    const roomsList = document.getElementById('editRoomsList');
+    if (!roomsList) {
+      return;
     }
 
-    updateToggleVisualState(slider, thumb, toggleText, isExternal) {
-        if (!slider || !thumb) return;
-        const color = isExternal ? '#dc2626' : '#059669';
-        slider.style.backgroundColor = color;
-        thumb.style.transform = isExternal ? 'translateX(20px)' : 'translateX(0)';
-        if (toggleText) {
-            toggleText.textContent = isExternal ? 'EXT' : 'ÚTIA';
-            toggleText.style.color = color;
-        }
+    let minStart = null;
+    let maxEnd = null;
+    let totalAdults = 0;
+    let totalChildren = 0;
+    let totalToddlers = 0;
+
+    for (const dates of this.editComponent.perRoomDates.values()) {
+      if (!minStart || dates.startDate < minStart) {
+        minStart = dates.startDate;
+      }
+      if (!maxEnd || dates.endDate > maxEnd) {
+        maxEnd = dates.endDate;
+      }
     }
 
-    updateRoomGuestTypeFromToggles(roomId) {
-        const roomData = this.editComponent.editSelectedRooms.get(roomId);
-        if (!roomData) return;
-
-        let hasUtiaGuest = false;
-        const totalAdults = roomData.adults || 0;
-        for (let i = 1; i <= totalAdults; i++) {
-            const toggleId = `room${roomId}Adult${i}GuestTypeToggle`;
-            const toggle = document.getElementById(toggleId);
-            if (toggle && !toggle.checked) {
-                hasUtiaGuest = true;
-                break;
-            }
-        }
-
-        if (!hasUtiaGuest) {
-            const totalChildren = roomData.children || 0;
-            for (let i = 1; i <= totalChildren; i++) {
-                const toggleId = `room${roomId}Child${i}GuestTypeToggle`;
-                const toggle = document.getElementById(toggleId);
-                if (toggle && !toggle.checked) {
-                    hasUtiaGuest = true;
-                    break;
-                }
-            }
-        }
-
-        roomData.guestType = hasUtiaGuest ? 'utia' : 'external';
+    if (!minStart && this.editComponent.originalStartDate) {
+      minStart = this.editComponent.originalStartDate;
+    }
+    if (!maxEnd && this.editComponent.originalEndDate) {
+      maxEnd = this.editComponent.originalEndDate;
     }
 
-    populateGuestNamesInRooms() {
-        if (!this.editComponent.currentBooking || !this.editComponent.currentBooking.guestNames) return;
-
-        const allGuestNames = this.editComponent.currentBooking.guestNames;
-        const adultNames = allGuestNames.filter((g) => g.personType === 'adult');
-        const childNames = allGuestNames.filter((g) => g.personType === 'child');
-        const toddlerNames = allGuestNames.filter((g) => g.personType === 'toddler');
-
-        let adultIndex = 0;
-        let childIndex = 0;
-        let toddlerIndex = 0;
-
-        for (const [roomId, roomData] of this.editComponent.editSelectedRooms.entries()) {
-            for (let i = 1; i <= roomData.adults; i++) {
-                const guest = adultNames[adultIndex++];
-                if (!guest) continue;
-                this.populateGuestInput(roomId, 'Adult', i, guest);
-            }
-            for (let i = 1; i <= roomData.children; i++) {
-                const guest = childNames[childIndex++];
-                if (!guest) continue;
-                this.populateGuestInput(roomId, 'Child', i, guest);
-            }
-            for (let i = 1; i <= roomData.toddlers; i++) {
-                const guest = toddlerNames[toddlerIndex++];
-                if (!guest) continue;
-                this.populateGuestInput(roomId, 'Toddler', i, guest);
-            }
-        }
-
-        this.populateBulkGuestNames(adultNames, childNames, toddlerNames);
-        setTimeout(() => this.editComponent.updateTotalPrice(), 100);
+    for (const roomData of this.editComponent.editSelectedRooms.values()) {
+      totalAdults += roomData.adults || 0;
+      totalChildren += roomData.children || 0;
+      totalToddlers += roomData.toddlers || 0;
     }
 
-    populateGuestInput(roomId, type, index, guest) {
-        const firstNameInput = document.getElementById(`room${roomId}${type}FirstName${index}`);
-        const lastNameInput = document.getElementById(`room${roomId}${type}LastName${index}`);
-        const toggleInput = document.getElementById(`room${roomId}${type}${index}GuestTypeToggle`);
-        const toggleText = document.getElementById(`room${roomId}${type}${index}ToggleText`);
+    const startFormatted = minStart
+      ? DateUtils.formatDateDisplay(DateUtils.parseDate(minStart), 'cs')
+      : 'N/A';
+    const endFormatted = maxEnd
+      ? DateUtils.formatDateDisplay(DateUtils.parseDate(maxEnd), 'cs')
+      : 'N/A';
+    const totalCapacity = BookingUtils.getTotalCapacity(this.editComponent.settings.rooms);
+    const onChangePrefix = this.editComponent.mode === 'admin' ? 'adminPanel' : 'editPage';
 
-        if (firstNameInput && !firstNameInput.value) firstNameInput.value = guest.firstName || '';
-        if (lastNameInput && !lastNameInput.value) lastNameInput.value = guest.lastName || '';
-
-        if (toggleInput && (guest.guestPriceType || guest.guestType)) {
-            const isExternal = (guest.guestPriceType ?? guest.guestType) === 'external';
-            toggleInput.checked = isExternal;
-            const label = toggleInput.closest('label');
-            if (label) {
-                const slider = label.querySelector('span[style*="background-color"]');
-                const thumb = slider?.querySelector('span[style*="border-radius: 50%"]');
-                this.updateToggleVisualState(slider, thumb, toggleText, isExternal);
-            }
-        }
-    }
-
-    renderBulkSummaryCard() {
-        const roomsList = document.getElementById('editRoomsList');
-        if (!roomsList) return;
-
-        let minStart = null;
-        let maxEnd = null;
-        let totalAdults = 0;
-        let totalChildren = 0;
-        let totalToddlers = 0;
-
-        for (const dates of this.editComponent.perRoomDates.values()) {
-            if (!minStart || dates.startDate < minStart) minStart = dates.startDate;
-            if (!maxEnd || dates.endDate > maxEnd) maxEnd = dates.endDate;
-        }
-
-        if (!minStart && this.editComponent.originalStartDate) minStart = this.editComponent.originalStartDate;
-        if (!maxEnd && this.editComponent.originalEndDate) maxEnd = this.editComponent.originalEndDate;
-
-        for (const roomData of this.editComponent.editSelectedRooms.values()) {
-            totalAdults += roomData.adults || 0;
-            totalChildren += roomData.children || 0;
-            totalToddlers += roomData.toddlers || 0;
-        }
-
-        const startFormatted = minStart ? DateUtils.formatDateDisplay(DateUtils.parseDate(minStart), 'cs') : 'N/A';
-        const endFormatted = maxEnd ? DateUtils.formatDateDisplay(DateUtils.parseDate(maxEnd), 'cs') : 'N/A';
-        const totalCapacity = BookingUtils.getTotalCapacity(this.editComponent.settings.rooms);
-        const onChangePrefix = this.editComponent.mode === 'admin' ? 'adminPanel' : 'editPage';
-
-        const summaryCard = document.createElement('div');
-        summaryCard.style.cssText = `
+    const summaryCard = document.createElement('div');
+    summaryCard.style.cssText = `
             padding: 1.5rem;
             border: 2px solid #7c3aed;
             border-radius: 12px;
@@ -633,7 +836,7 @@ class EditBookingRooms {
             box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15);
         `;
 
-        summaryCard.innerHTML = `
+    summaryCard.innerHTML = `
             <div style="margin-bottom: 1.5rem;">
                 <label style="display: block; font-weight: 600; color: #6b21a8; margin-bottom: 0.5rem; font-size: 0.875rem;">📅 TERMÍN REZERVACE</label>
                 <div style="display: flex; align-items: center; gap: 0.75rem;">
@@ -660,143 +863,179 @@ class EditBookingRooms {
             </div>
         `;
 
-        roomsList.appendChild(summaryCard);
+    roomsList.appendChild(summaryCard);
+  }
+
+  updateBulkGuests(field, newTotal) {
+    const numValue = parseInt(newTotal, 10);
+    if (isNaN(numValue) || numValue < 0) {
+      this.editComponent.showNotification('Počet hostů musí být kladné číslo', 'warning');
+      this.renderPerRoomList();
+      return;
     }
 
-    updateBulkGuests(field, newTotal) {
-        const numValue = parseInt(newTotal, 10);
-        if (isNaN(numValue) || numValue < 0) {
-            this.editComponent.showNotification('Počet hostů musí být kladné číslo', 'warning');
-            this.renderPerRoomList();
-            return;
-        }
+    if (field === 'adults' && numValue < 1) {
+      this.editComponent.showNotification('Musí být alespoň 1 dospělý v celé rezervaci', 'warning');
+      this.renderPerRoomList();
+      return;
+    }
 
-        if (field === 'adults' && numValue < 1) {
-            this.editComponent.showNotification('Musí být alespoň 1 dospělý v celé rezervaci', 'warning');
-            this.renderPerRoomList();
-            return;
-        }
+    const totalCapacity = BookingUtils.getTotalCapacity(this.editComponent.settings.rooms);
+    if (field === 'adults' || field === 'children') {
+      let currentAdults = 0;
+      let currentChildren = 0;
+      for (const roomData of this.editComponent.editSelectedRooms.values()) {
+        currentAdults += roomData.adults || 0;
+        currentChildren += roomData.children || 0;
+      }
+      const projectedAdults = field === 'adults' ? numValue : currentAdults;
+      const projectedChildren = field === 'children' ? numValue : currentChildren;
+      const totalGuests = projectedAdults + projectedChildren;
 
-        const totalCapacity = BookingUtils.getTotalCapacity(this.editComponent.settings.rooms);
-        if (field === 'adults' || field === 'children') {
-            let currentAdults = 0;
-            let currentChildren = 0;
-            for (const roomData of this.editComponent.editSelectedRooms.values()) {
-                currentAdults += roomData.adults || 0;
-                currentChildren += roomData.children || 0;
-            }
-            const projectedAdults = field === 'adults' ? numValue : currentAdults;
-            const projectedChildren = field === 'children' ? numValue : currentChildren;
-            const totalGuests = projectedAdults + projectedChildren;
-
-            if (totalGuests > totalCapacity) {
-                this.editComponent.showNotification(`⚠️ Kapacita chaty: ${totalCapacity} lůžek.`, 'error', 4000);
-                this.renderPerRoomList();
-                return;
-            }
-        }
-
-        const roomsWithCapacity = Array.from(this.editComponent.editSelectedRooms.entries()).map(([roomId, roomData]) => {
-            const room = this.editComponent.settings.rooms.find((r) => r.id === roomId);
-            return { roomId, roomData, capacity: room ? room.beds : 4 };
-        });
-
-        roomsWithCapacity.sort((a, b) => b.capacity - a.capacity);
-
-        let remaining = numValue;
-        const distribution = new Map();
-        const avgPerRoom = Math.floor(numValue / roomsWithCapacity.length);
-
-        for (const room of roomsWithCapacity) {
-            const allocated = Math.min(avgPerRoom, room.capacity);
-            distribution.set(room.roomId, allocated);
-            remaining -= allocated;
-        }
-
-        for (const room of roomsWithCapacity) {
-            if (remaining === 0) break;
-            const currentAllocation = distribution.get(room.roomId);
-            const canAdd = Math.min(remaining, room.capacity - currentAllocation);
-            if (canAdd > 0) {
-                distribution.set(room.roomId, currentAllocation + canAdd);
-                remaining -= canAdd;
-            }
-        }
-
-        if (remaining > 0) {
-            this.editComponent.showNotification(`⚠️ Nelze distribuovat všechny hosty s ohledem na kapacity jednotlivých pokojů.`, 'error', 4000);
-            this.renderPerRoomList();
-            return;
-        }
-
-        for (const [roomId, count] of distribution.entries()) {
-            const roomData = this.editComponent.editSelectedRooms.get(roomId);
-            if (roomData) roomData[field] = count;
-        }
-
+      if (totalGuests > totalCapacity) {
+        this.editComponent.showNotification(
+          `⚠️ Kapacita chaty: ${totalCapacity} lůžek.`,
+          'error',
+          4000
+        );
         this.renderPerRoomList();
-        this.editComponent.updateTotalPrice();
-        this.populateGuestNamesInRooms();
+        return;
+      }
     }
 
-    populateBulkGuestNames(adultNames, childNames, toddlerNames) {
-        // Implementation for bulk guest names population
-        // Similar to populateGuestNamesInRooms but targeting bulk inputs
-        // Note: Bulk inputs for names are not shown in the current UI design for bulk edit, 
-        // as names are still per-room or handled differently. 
-        // However, if we need to support bulk name inputs, we would add logic here.
-        // For now, based on the original code, it seems bulk inputs might be generated dynamically elsewhere or not used in the same way.
-        // Checking original code: populateBulkGuestNames calls populateGuestInput with bulk IDs.
-        // But renderBulkSummaryCard doesn't seem to generate name inputs, only counts.
-        // Wait, renderGuestListForRoom generates inputs.
-        // In bulk mode, we might still show per-room name inputs?
-        // The original code had populateBulkGuestNames. Let's include it if it was there.
-    }
+    // FIX 2025-12-05: Collect current guest data from DOM BEFORE re-rendering
+    const currentGuestData = this._collectCurrentGuestDataFromDOM();
 
-    async openRoomCalendar(roomId) {
-        this.editComponent.currentEditingRoom = roomId;
-        this.editComponent.tempRoomStartDate = null;
-        this.editComponent.tempRoomEndDate = null;
-
+    const roomsWithCapacity = Array.from(this.editComponent.editSelectedRooms.entries()).map(
+      ([roomId, roomData]) => {
         const room = this.editComponent.settings.rooms.find((r) => r.id === roomId);
-        const roomNameEl = document.getElementById('editingRoomName');
-        if (roomNameEl && room) roomNameEl.textContent = room.name;
+        return { roomId, roomData, capacity: room ? room.beds : 4 };
+      }
+    );
 
-        const headerEl = document.getElementById('editCalendarHeader');
-        const containerEl = document.getElementById('editCalendarContainer');
-        const selectedDatesContainer = document.getElementById('editSelectedDatesContainer');
-        const saveBtn = document.getElementById('saveRoomDatesBtn');
+    roomsWithCapacity.sort((a, b) => b.capacity - a.capacity);
 
-        if (headerEl) headerEl.style.display = 'block';
-        if (containerEl) containerEl.style.display = 'block';
-        if (selectedDatesContainer) selectedDatesContainer.style.display = 'block';
-        if (saveBtn) saveBtn.style.display = 'block';
+    let remaining = numValue;
+    const distribution = new Map();
+    const avgPerRoom = Math.floor(numValue / roomsWithCapacity.length);
 
-        const cancelBtn = document.getElementById('cancelRoomEditBtn');
-        if (cancelBtn) cancelBtn.onclick = () => this.editComponent.cancelRoomEdit();
-        if (saveBtn) saveBtn.onclick = () => this.editComponent.saveRoomDates(roomId);
-
-        // FIX: Initialize calendar BEFORE rendering to prevent race condition
-        // Calendar state must be ready before we render the room list
-        await this.editComponent.calendar.initializeRoomCalendar({
-            roomId,
-            originalDates: this.editComponent.perRoomDates.get(roomId),
-            onDateSelect: (d) => this.editComponent.handleRoomDateSelect(roomId, d),
-            onDateDeselect: (d) => this.editComponent.handleRoomDateDeselect(roomId, d),
-            bookingId: this.editComponent.currentBooking.id,
-            sessionId: this.editComponent.sessionId
-        });
-        // Now render after calendar is ready
-        this.renderPerRoomList();
-        this.editComponent.updateRoomDateDisplay();
+    for (const room of roomsWithCapacity) {
+      const allocated = Math.min(avgPerRoom, room.capacity);
+      distribution.set(room.roomId, allocated);
+      remaining -= allocated;
     }
 
-    async openBulkCalendar() {
-        // Similar to openRoomCalendar but for bulk
-        // Calls editComponent.calendar.initializeBulkCalendar (if we create it) or reuses main calendar
-        // For now, delegating back to editComponent to handle logic
-        this.editComponent.openBulkCalendar();
+    for (const room of roomsWithCapacity) {
+      if (remaining === 0) {
+        break;
+      }
+      const currentAllocation = distribution.get(room.roomId);
+      const canAdd = Math.min(remaining, room.capacity - currentAllocation);
+      if (canAdd > 0) {
+        distribution.set(room.roomId, currentAllocation + canAdd);
+        remaining -= canAdd;
+      }
     }
+
+    if (remaining > 0) {
+      this.editComponent.showNotification(
+        `⚠️ Nelze distribuovat všechny hosty s ohledem na kapacity jednotlivých pokojů.`,
+        'error',
+        4000
+      );
+      this.renderPerRoomList();
+      return;
+    }
+
+    for (const [roomId, count] of distribution.entries()) {
+      const roomData = this.editComponent.editSelectedRooms.get(roomId);
+      if (roomData) {
+        roomData[field] = count;
+      }
+    }
+
+    this.renderPerRoomList();
+    this.editComponent.updateTotalPrice();
+
+    // FIX 2025-12-05: Restore guest data AFTER re-rendering
+    setTimeout(() => {
+      this._restoreGuestDataToDOM(currentGuestData);
+      this.editComponent.updateTotalPrice();
+    }, 50);
+  }
+
+  populateBulkGuestNames(adultNames, childNames, toddlerNames) {
+    // Implementation for bulk guest names population
+    // Similar to populateGuestNamesInRooms but targeting bulk inputs
+    // Note: Bulk inputs for names are not shown in the current UI design for bulk edit,
+    // as names are still per-room or handled differently.
+    // However, if we need to support bulk name inputs, we would add logic here.
+    // For now, based on the original code, it seems bulk inputs might be generated dynamically elsewhere or not used in the same way.
+    // Checking original code: populateBulkGuestNames calls populateGuestInput with bulk IDs.
+    // But renderBulkSummaryCard doesn't seem to generate name inputs, only counts.
+    // Wait, renderGuestListForRoom generates inputs.
+    // In bulk mode, we might still show per-room name inputs?
+    // The original code had populateBulkGuestNames. Let's include it if it was there.
+  }
+
+  async openRoomCalendar(roomId) {
+    this.editComponent.currentEditingRoom = roomId;
+    this.editComponent.tempRoomStartDate = null;
+    this.editComponent.tempRoomEndDate = null;
+
+    const room = this.editComponent.settings.rooms.find((r) => r.id === roomId);
+    const roomNameEl = document.getElementById('editingRoomName');
+    if (roomNameEl && room) {
+      roomNameEl.textContent = room.name;
+    }
+
+    const headerEl = document.getElementById('editCalendarHeader');
+    const containerEl = document.getElementById('editCalendarContainer');
+    const selectedDatesContainer = document.getElementById('editSelectedDatesContainer');
+    const saveBtn = document.getElementById('saveRoomDatesBtn');
+
+    if (headerEl) {
+      headerEl.style.display = 'block';
+    }
+    if (containerEl) {
+      containerEl.style.display = 'block';
+    }
+    if (selectedDatesContainer) {
+      selectedDatesContainer.style.display = 'block';
+    }
+    if (saveBtn) {
+      saveBtn.style.display = 'block';
+    }
+
+    const cancelBtn = document.getElementById('cancelRoomEditBtn');
+    if (cancelBtn) {
+      cancelBtn.onclick = () => this.editComponent.cancelRoomEdit();
+    }
+    if (saveBtn) {
+      saveBtn.onclick = () => this.editComponent.saveRoomDates(roomId);
+    }
+
+    // FIX: Initialize calendar BEFORE rendering to prevent race condition
+    // Calendar state must be ready before we render the room list
+    await this.editComponent.calendar.initializeRoomCalendar({
+      roomId,
+      originalDates: this.editComponent.perRoomDates.get(roomId),
+      onDateSelect: (d) => this.editComponent.handleRoomDateSelect(roomId, d),
+      onDateDeselect: (d) => this.editComponent.handleRoomDateDeselect(roomId, d),
+      bookingId: this.editComponent.currentBooking.id,
+      sessionId: this.editComponent.sessionId,
+    });
+    // Now render after calendar is ready
+    this.renderPerRoomList();
+    this.editComponent.updateRoomDateDisplay();
+  }
+
+  async openBulkCalendar() {
+    // Similar to openRoomCalendar but for bulk
+    // Calls editComponent.calendar.initializeBulkCalendar (if we create it) or reuses main calendar
+    // For now, delegating back to editComponent to handle logic
+    this.editComponent.openBulkCalendar();
+  }
 }
 
 window.EditBookingRooms = EditBookingRooms;

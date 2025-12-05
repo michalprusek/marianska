@@ -4,32 +4,34 @@
  */
 
 class NotificationManager {
-    /**
-     * Escape HTML to prevent XSS attacks
-     * @param {string} text - Text to escape
-     * @returns {string} - Escaped text safe for innerHTML
-     */
-    static escapeHtml(text) {
-        if (typeof text !== 'string') return String(text);
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+  /**
+   * Escape HTML to prevent XSS attacks
+   * @param {string} text - Text to escape
+   * @returns {string} - Escaped text safe for innerHTML
+   */
+  static escapeHtml(text) {
+    if (typeof text !== 'string') {
+      return String(text);
+    }
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  constructor() {
+    this.container = null;
+    this.injectStyles();
+    this.createContainer();
+  }
+
+  injectStyles() {
+    if (document.getElementById('notification-manager-styles')) {
+      return;
     }
 
-    constructor() {
-        this.container = null;
-        this.injectStyles();
-        this.createContainer();
-    }
-
-    injectStyles() {
-        if (document.getElementById('notification-manager-styles')) {
-            return;
-        }
-
-        const style = document.createElement('style');
-        style.id = 'notification-manager-styles';
-        style.textContent = `
+    const style = document.createElement('style');
+    style.id = 'notification-manager-styles';
+    style.textContent = `
       .notification-container {
         position: fixed;
         bottom: 20px;
@@ -96,71 +98,71 @@ class NotificationManager {
         to { transform: translateX(100%); opacity: 0; }
       }
     `;
-        document.head.appendChild(style);
+    document.head.appendChild(style);
+  }
+
+  createContainer() {
+    if (document.getElementById('notification-container')) {
+      this.container = document.getElementById('notification-container');
+      return;
     }
+    this.container = document.createElement('div');
+    this.container.id = 'notification-container';
+    this.container.className = 'notification-container';
+    document.body.appendChild(this.container);
+  }
 
-    createContainer() {
-        if (document.getElementById('notification-container')) {
-            this.container = document.getElementById('notification-container');
-            return;
-        }
-        this.container = document.createElement('div');
-        this.container.id = 'notification-container';
-        this.container.className = 'notification-container';
-        document.body.appendChild(this.container);
-    }
+  /**
+   * Show a notification toast
+   * @param {string} message - Message to display
+   * @param {string} type - 'success', 'error', 'warning', 'info'
+   * @param {number} duration - Duration in ms (default: 5000)
+   */
+  show(message, type = 'info', duration = 5000) {
+    const toast = document.createElement('div');
+    toast.className = `notification-toast ${type}`;
 
-    /**
-     * Show a notification toast
-     * @param {string} message - Message to display
-     * @param {string} type - 'success', 'error', 'warning', 'info'
-     * @param {number} duration - Duration in ms (default: 5000)
-     */
-    show(message, type = 'info', duration = 5000) {
-        const toast = document.createElement('div');
-        toast.className = `notification-toast ${type}`;
+    const icons = {
+      success: '✅',
+      error: '❌',
+      warning: '⚠️',
+      info: 'ℹ️',
+    };
 
-        const icons = {
-            success: '✅',
-            error: '❌',
-            warning: '⚠️',
-            info: 'ℹ️',
-        };
-
-        // Use safe HTML construction to prevent XSS
-        const safeMessage = NotificationManager.escapeHtml(message);
-        toast.innerHTML = `
+    // Use safe HTML construction to prevent XSS
+    const safeMessage = NotificationManager.escapeHtml(message);
+    toast.innerHTML = `
       <div class="notification-icon">${icons[type] || icons.info}</div>
       <div class="notification-content">${safeMessage}</div>
       <button class="notification-close">&times;</button>
     `;
 
-        // Close button handler
-        const closeBtn = toast.querySelector('.notification-close');
-        closeBtn.onclick = () => this.close(toast);
+    // Close button handler
+    const closeBtn = toast.querySelector('.notification-close');
+    closeBtn.onclick = () => this.close(toast);
 
-        this.container.appendChild(toast);
+    this.container.appendChild(toast);
 
-        // Auto close
-        if (duration > 0) {
-            setTimeout(() => {
-                if (toast.parentElement) {
-                    this.close(toast);
-                }
-            }, duration);
+    // Auto close
+    if (duration > 0) {
+      setTimeout(() => {
+        if (toast.parentElement) {
+          this.close(toast);
         }
-
-        return toast;
+      }, duration);
     }
 
-    close(toast) {
-        toast.style.animation = 'slideOutRight 0.3s ease-in forwards';
-        setTimeout(() => {
-            if (toast.parentElement) {
-                toast.remove();
-            }
-        }, 300);
-    }
+    return toast;
+  }
+
+  close(toast) {
+    toast.style.animation = 'slideOutRight 0.3s ease-in forwards';
+    setTimeout(() => {
+      if (toast.parentElement) {
+        toast.remove();
+      }
+    }, 300);
+  }
 }
 
 // Create singleton instance
@@ -168,11 +170,11 @@ const notificationManager = new NotificationManager();
 
 // Make available globally
 if (typeof window !== 'undefined') {
-    window.NotificationManager = NotificationManager;
-    window.notificationManager = notificationManager;
+  window.NotificationManager = NotificationManager;
+  window.notificationManager = notificationManager;
 }
 
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { NotificationManager, notificationManager };
+  module.exports = { NotificationManager, notificationManager };
 }

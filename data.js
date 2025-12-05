@@ -21,11 +21,13 @@ class DataManager {
   }
 
   getOrCreateSessionId() {
-    let sessionId = sessionStorage.getItem('bookingSessionId');
+    // FIX 2025-12-05: Changed from sessionStorage to localStorage for persistence across page refreshes
+    // This ensures proposed bookings survive browser refresh and can be recovered
+    let sessionId = localStorage.getItem('bookingSessionId');
     if (!sessionId) {
       // CRITICAL FIX 2025-10-07: Use IdGenerator (SSOT) instead of inline generation
       sessionId = IdGenerator.generateSessionId();
-      sessionStorage.setItem('bookingSessionId', sessionId);
+      localStorage.setItem('bookingSessionId', sessionId);
     }
     return sessionId;
   }
@@ -204,8 +206,11 @@ class DataManager {
   }
 
   async updateAdminPanelIfActive() {
-    if (window.adminPanel && document.querySelector('#bookingsTab')?.classList.contains('active')) {
-      await window.adminPanel.loadBookings();
+    if (
+      window.adminPanel?.bookings &&
+      document.querySelector('#bookingsTab')?.classList.contains('active')
+    ) {
+      await window.adminPanel.bookings.loadBookings();
     }
   }
 
@@ -393,8 +398,8 @@ class DataManager {
         if (response.status === 429) {
           throw new Error(
             errorData.error ||
-            errorData.message ||
-            'Překročili jste limit. Zkuste to prosím později.'
+              errorData.message ||
+              'Překročili jste limit. Zkuste to prosím později.'
           );
         }
 
@@ -422,7 +427,7 @@ class DataManager {
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
         throw new Error(
           'Server není dostupný. Rezervace nebyla vytvořena. ' +
-          'Zkontrolujte připojení k internetu a zkuste to znovu.'
+            'Zkontrolujte připojení k internetu a zkuste to znovu.'
         );
       }
 
@@ -497,7 +502,7 @@ class DataManager {
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
         throw new Error(
           'Server není dostupný. Rezervace nebyla zrušena. ' +
-          'Zkontrolujte připojení k internetu a zkuste to znovu.'
+            'Zkontrolujte připojení k internetu a zkuste to znovu.'
         );
       }
 
@@ -601,19 +606,42 @@ class DataManager {
       const sessionToExclude = shouldExcludeSession ? this.sessionId : excludeSessionId;
 
       // Filter proposed bookings for this room (excluding own session)
-      const relevantProposals = proposedBookings.filter(
-        (pb) =>
-          pb.rooms.includes(roomId) &&
-          (sessionToExclude === '' || pb.session_id !== sessionToExclude)
-      );
+      // FIX 2025-12-05: Support both server format (sessionId) and cache format (session_id)
+      const relevantProposals = proposedBookings.filter((pb) => {
+        // Support both naming conventions
+        const pbSessionId = pb.session_id || pb.sessionId;
+        return (
+          pb.rooms.includes(roomId) && (sessionToExclude === '' || pbSessionId !== sessionToExclude)
+        );
+      });
 
       // Check if nights are occupied by proposed bookings
       for (const pb of relevantProposals) {
+        // FIX 2025-12-05: Get dates from perRoomDates if available (server format),
+        // otherwise fall back to start_date/end_date (cache format)
+        let startDate;
+        let endDate;
+
+        if (pb.perRoomDates && pb.perRoomDates[roomId]) {
+          // Server format: perRoomDates contains per-room date ranges
+          startDate = pb.perRoomDates[roomId].startDate;
+          endDate = pb.perRoomDates[roomId].endDate;
+        } else {
+          // Cache format or legacy: dates directly on the proposal object
+          startDate = pb.start_date || pb.startDate;
+          endDate = pb.end_date || pb.endDate;
+        }
+
+        if (!startDate || !endDate) {
+          console.warn('[getRoomAvailability] Proposed booking missing dates:', pb);
+          continue;
+        }
+
         // Night is occupied if nightDate >= proposalStart AND nightDate < proposalEnd
-        if (DateUtils.isNightOccupied(nightBefore, pb.start_date, pb.end_date)) {
+        if (DateUtils.isNightOccupied(nightBefore, startDate, endDate)) {
           proposedNightBeforeOccupied = true;
         }
-        if (DateUtils.isNightOccupied(nightAfter, pb.start_date, pb.end_date)) {
+        if (DateUtils.isNightOccupied(nightAfter, startDate, endDate)) {
           proposedNightAfterOccupied = true;
         }
       }
@@ -1031,7 +1059,7 @@ class DataManager {
       // and expose plaintext passwords in client-side code
       return {
         success: false,
-        error: 'Server není dostupný - nelze ověřit přihlášení'
+        error: 'Server není dostupný - nelze ověřit přihlášení',
       };
     }
   }
@@ -1040,12 +1068,16 @@ class DataManager {
   // Removed: getApiKey() - deprecated method, use getSessionToken() instead
 
   getSessionToken() {
-    return localStorage.getItem('adminSessionToken');
+    // SECURITY FIX: Use sessionStorage (more secure than localStorage)
+    return sessionStorage.getItem('adminSessionToken');
   }
 
   // Handle 401 errors by triggering admin logout
   handleUnauthorizedError() {
-    // Clear session data (changed to localStorage for persistence)
+    // SECURITY FIX: Clear from sessionStorage (more secure)
+    sessionStorage.removeItem('adminSessionToken');
+    sessionStorage.removeItem('adminSessionExpiry');
+    // Also clear localStorage for legacy cleanup
     localStorage.removeItem('adminSessionToken');
     localStorage.removeItem('adminSessionExpiry');
 
@@ -1145,36 +1177,47 @@ class DataManager {
         this.proposalId = data.proposalId;
 
         // Update cache in-place instead of invalidating (prevents immediate re-fetch)
+        // FIX 2025-12-05: Use server-compatible format with perRoomDates structure
         if (this.proposedBookingsCache && Array.isArray(this.proposedBookingsCache)) {
-          // Add new proposal to cache
+          // Build perRoomDates structure for cache consistency
+          const perRoomDates = {};
+          for (const roomId of requestData.rooms) {
+            perRoomDates[roomId] = {
+              startDate: requestData.startDate,
+              endDate: requestData.endDate,
+            };
+          }
+
+          // Add new proposal to cache in server-compatible format
           this.proposedBookingsCache.push({
-            proposal_id: data.proposalId,
-            session_id: requestData.sessionId,
-            start_date: requestData.startDate,
-            end_date: requestData.endDate,
+            proposalId: data.proposalId,
+            sessionId: requestData.sessionId,
             rooms: requestData.rooms,
-            created_at: new Date().toISOString(),
+            perRoomDates,
+            createdAt: new Date().toISOString(),
           });
           // Refresh cache timestamp to keep it valid
           this.proposedBookingsCacheTime = Date.now();
         }
 
         return data.proposalId;
-      } else {
-        // Server rejected the proposed booking - throw error instead of returning null
-        const errorData = await response.json().catch(() => ({}));
-        console.error('[DataManager] Server rejected proposed booking:', response.status, errorData);
-
-        // Throw with meaningful message based on status
-        if (response.status === 409) {
-          throw new Error('Termín již není dostupný - někdo jiný právě provádí rezervaci.');
-        }
-        throw new Error(errorData.error || `Server odmítl požadavek (${response.status})`);
       }
+      // Server rejected the proposed booking - throw error instead of returning null
+      const errorData = await response.json().catch(() => ({}));
+      console.error('[DataManager] Server rejected proposed booking:', response.status, errorData);
+
+      // Throw with meaningful message based on status
+      if (response.status === 409) {
+        throw new Error('Termín již není dostupný - někdo jiný právě provádí rezervaci.');
+      }
+      throw new Error(errorData.error || `Server odmítl požadavek (${response.status})`);
     } catch (error) {
       // Log with more detail for debugging
       const errorType = error.name === 'AbortError' ? 'timeout' : 'network';
-      console.error(`[DataManager] Error creating proposed booking (${errorType}):`, error.message || error);
+      console.error(
+        `[DataManager] Error creating proposed booking (${errorType}):`,
+        error.message || error
+      );
 
       // Re-throw the error instead of returning null silently
       // This allows callers to properly handle the failure
@@ -1200,24 +1243,31 @@ class DataManager {
         }
 
         // Update cache in-place instead of invalidating (prevents immediate re-fetch)
+        // FIX 2025-12-05: Support both naming conventions (proposalId and proposal_id)
         if (this.proposedBookingsCache && Array.isArray(this.proposedBookingsCache)) {
-          // Remove deleted proposal from cache
+          // Remove deleted proposal from cache - support both naming conventions
           this.proposedBookingsCache = this.proposedBookingsCache.filter(
-            (pb) => pb.proposal_id !== proposalId
+            (pb) => (pb.proposalId || pb.proposal_id) !== proposalId
           );
           // Refresh cache timestamp to keep it valid
           this.proposedBookingsCacheTime = Date.now();
         }
 
         return true;
-      } else {
-        console.warn('[DataManager] Server rejected delete proposed booking:', response.status);
       }
+      // SECURITY FIX: Log and throw error instead of silent failure
+      const errorText = await response.text().catch(() => 'Unknown error');
+      console.error('[DataManager] Server rejected delete proposed booking:', response.status, errorText);
+      throw new Error(`Nepodařilo se smazat návrh rezervace (${response.status})`);
     } catch (error) {
       const errorType = error.name === 'AbortError' ? 'timeout' : 'network';
-      console.error(`[DataManager] Error deleting proposed booking (${errorType}):`, error.message || error);
+      console.error(
+        `[DataManager] Error deleting proposed booking (${errorType}):`,
+        error.message || error
+      );
+      // SECURITY FIX: Re-throw error so callers can handle it properly
+      throw error;
     }
-    return false;
   }
 
   async clearSessionProposedBookings() {
@@ -1228,18 +1278,29 @@ class DataManager {
 
       if (response.ok) {
         this.proposalId = null;
+        // Also clear cache
+        if (this.proposedBookingsCache && Array.isArray(this.proposedBookingsCache)) {
+          this.proposedBookingsCache = this.proposedBookingsCache.filter(
+            (pb) => pb.sessionId !== this.sessionId
+          );
+          this.proposedBookingsCacheTime = Date.now();
+        }
         return true;
-      } else {
-        console.warn('[DataManager] Server rejected clear session proposals:', response.status);
       }
+      // SECURITY FIX: Log and throw error instead of silent failure
+      const errorText = await response.text().catch(() => 'Unknown error');
+      console.error('[DataManager] Server rejected clear session proposals:', response.status, errorText);
+      throw new Error(`Nepodařilo se vyčistit návrhy rezervací (${response.status})`);
     } catch (error) {
       const errorType = error.name === 'AbortError' ? 'timeout' : 'network';
-      console.error(`[DataManager] Error clearing session proposed bookings (${errorType}):`, error.message || error);
+      console.error(
+        `[DataManager] Error clearing session proposed bookings (${errorType}):`,
+        error.message || error
+      );
+      // SECURITY FIX: Re-throw error so callers can handle it properly
+      throw error;
     }
-    return false;
   }
-
-
 
   // Get room configuration
   async getRooms() {
@@ -1279,7 +1340,7 @@ class DataManager {
         // Return error message instead of false so UI can display it
         throw new Error(
           errorData.error ||
-          `Nepodařilo se odeslat zprávu (${response.status}): ${response.statusText}`
+            `Nepodařilo se odeslat zprávu (${response.status}): ${response.statusText}`
         );
       }
 
@@ -1319,13 +1380,35 @@ class DataManager {
   // NOTE: createProposedBooking() is defined earlier in this class (supports both object and explicit params)
 
   async deleteProposedBookingsForSession(sessionId) {
-    if (!sessionId) return;
+    if (!sessionId) {
+      return true; // Nothing to delete
+    }
     try {
-      await fetch(`${this.apiUrl}/proposed-bookings/session/${sessionId}`, {
+      const response = await fetch(`${this.apiUrl}/proposed-bookings/session/${sessionId}`, {
         method: 'DELETE',
       });
+
+      if (!response.ok) {
+        // SECURITY FIX: Log error details instead of silently ignoring
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error('[DataManager] Failed to delete proposed bookings:', response.status, errorText);
+        return false;
+      }
+
+      // Clear from cache if this is our session
+      if (sessionId === this.sessionId && this.proposedBookingsCache) {
+        this.proposedBookingsCache = this.proposedBookingsCache.filter(
+          (pb) => pb.sessionId !== sessionId
+        );
+        this.proposedBookingsCacheTime = Date.now();
+      }
+
+      return true;
     } catch (error) {
-      console.warn('Failed to delete proposed bookings:', error);
+      // SECURITY FIX: Log detailed error instead of generic warning
+      const errorType = error.name === 'AbortError' ? 'timeout' : 'network';
+      console.error(`[DataManager] Error deleting proposed bookings (${errorType}):`, error.message || error);
+      return false;
     }
   }
 
@@ -1356,7 +1439,10 @@ class DataManager {
         }
         // Non-OK response - log warning but return empty to allow booking flow to continue
         // This is acceptable because proposed bookings are a soft-lock mechanism
-        console.warn('[DataManager] Proposed bookings API returned non-OK status:', response.status);
+        console.warn(
+          '[DataManager] Proposed bookings API returned non-OK status:',
+          response.status
+        );
         return [];
       } catch (error) {
         // FIX: Log error properly for debugging

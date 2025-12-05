@@ -76,7 +76,7 @@ async function resetDatabase(page) {
 
   // Clear all bookings and blocked dates via API with admin token
   await page.evaluate(async () => {
-    const token = localStorage.getItem('adminSessionToken') || '';
+    const token = sessionStorage.getItem('adminSessionToken') || '';
 
     // Get current data
     const response = await fetch('/api/data');
@@ -116,18 +116,50 @@ async function resetDatabase(page) {
 
 /**
  * Create a test booking via API
+ * Uses dates far in the future (January 2026) to avoid blocked dates
  */
 async function createTestBooking(page, booking) {
+  // Determine room for guest names
+  const rooms = booking.rooms || ['12'];
+  const adults = booking.adults || 2;
+  const children = booking.children || 0;
+
+  // Use dates in January 2026 to avoid any blocked dates
+  const defaultStartDate = booking.startDate || '2026-01-15';
+  const defaultEndDate = booking.endDate || '2026-01-17';
+
+  // Generate default guest names if not provided
+  // Uses personType (database field) and guestType for ÚTIA/external
+  const defaultGuestNames = [];
+  for (let i = 0; i < adults; i++) {
+    defaultGuestNames.push({
+      firstName: `Adult${i + 1}`,
+      lastName: 'Test',
+      personType: 'adult',
+      roomId: rooms[0],
+      guestType: 'utia',
+    });
+  }
+  for (let i = 0; i < children; i++) {
+    defaultGuestNames.push({
+      firstName: `Child${i + 1}`,
+      lastName: 'Test',
+      personType: 'child',
+      roomId: rooms[0],
+      guestType: 'utia',
+    });
+  }
+
   const defaultBooking = {
     name: 'Test User',
     email: 'test@example.com',
     phone: '+420123456789',
-    startDate: '2025-11-01',
-    endDate: '2025-11-03',
-    rooms: ['12'],
+    startDate: defaultStartDate,
+    endDate: defaultEndDate,
+    rooms,
     guestType: 'utia',
-    adults: 2,
-    children: 0,
+    adults,
+    children,
     toddlers: 0,
     company: 'Test Company',
     address: 'Test Address 123',
@@ -136,8 +168,39 @@ async function createTestBooking(page, booking) {
     ico: '12345678',
     dic: 'CZ12345678',
     notes: 'Test booking',
+    guestNames: defaultGuestNames,
     ...booking,
   };
+
+  // Ensure guestNames are set after merge if custom adults/children provided
+  if (booking.adults || booking.children) {
+    if (!booking.guestNames) {
+      const customGuestNames = [];
+      const actualAdults = booking.adults || defaultBooking.adults;
+      const actualChildren = booking.children || defaultBooking.children;
+      const roomId = defaultBooking.rooms[0];
+
+      for (let i = 0; i < actualAdults; i++) {
+        customGuestNames.push({
+          firstName: `Adult${i + 1}`,
+          lastName: 'Test',
+          personType: 'adult',
+          roomId,
+          guestType: 'utia',
+        });
+      }
+      for (let i = 0; i < actualChildren; i++) {
+        customGuestNames.push({
+          firstName: `Child${i + 1}`,
+          lastName: 'Test',
+          personType: 'child',
+          roomId,
+          guestType: 'utia',
+        });
+      }
+      defaultBooking.guestNames = customGuestNames;
+    }
+  }
 
   const result = await page.evaluate(async (bookingData) => {
     const response = await fetch('/api/booking', {
@@ -321,11 +384,12 @@ async function setChristmasPeriod(page, startDate, endDate, accessCodes = ['TEST
 }
 
 /**
- * Get all bookings from localStorage
+ * Get all bookings from API
  */
-function getAllBookings(page) {
-  return page.evaluate(() => {
-    const data = JSON.parse(localStorage.getItem('chataMarianska'));
+async function getAllBookings(page) {
+  return page.evaluate(async () => {
+    const response = await fetch('/api/data');
+    const data = await response.json();
     return data?.bookings || [];
   });
 }
@@ -623,7 +687,7 @@ async function createBlockageViaAPI(page, options) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-session-token': localStorage.getItem('adminSessionToken') || ''
+        'x-session-token': sessionStorage.getItem('adminSessionToken') || ''
       },
       body: JSON.stringify({
         startDate,

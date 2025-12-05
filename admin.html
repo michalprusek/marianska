@@ -1690,6 +1690,261 @@ Tým Chata Mariánská</textarea>
     }
   </style>
 
+  <!-- Single Room Booking Modal (for admin edit) -->
+  <div id="singleRoomBookingModal" class="modal">
+    <div class="modal-content compact-booking-modal">
+      <button class="modal-close" onclick="window.app.singleRoomBooking.hideRoomBookingModal()">
+        &times;
+      </button>
+
+      <!-- Room Header -->
+      <div class="booking-modal-header">
+        <h2 id="roomBookingTitle" data-translate="roomReservation">
+          Rezervace pokoje
+        </h2>
+        <div id="roomBookingBadge"></div>
+      </div>
+
+      <div class="booking-modal-content">
+        <!-- Left Column: Calendar -->
+        <div class="booking-left-column">
+          <h3 data-translate="selectStayPeriod">Vyberte termín pobytu</h3>
+
+          <!-- Interactive Calendar -->
+          <div id="miniCalendar" class="interactive-calendar">
+            <!-- Calendar will be generated here -->
+          </div>
+        </div>
+
+        <!-- Right Column: Guest Details & Booking Form -->
+        <div class="booking-right-column">
+          <div class="booking-form-section">
+            <!-- Date Selection Summary -->
+            <div id="dateSelectionSummary" style="margin-bottom: 1rem; padding: 1rem; background: #f0f9ff; border-radius: 8px; display: none;">
+              <div style="display: flex; justify-content: space-between; align-items: center">
+                <div>
+                  <div style="font-size: 0.9rem; color: #666" data-translate="selectedPeriodLabel">Vybraný termín:</div>
+                  <div id="selectedDateRange" style="font-weight: 600; color: #333"></div>
+                </div>
+                <div style="text-align: right">
+                  <div style="font-size: 0.9rem; color: #666" data-translate="nightsCountLabel">Počet nocí:</div>
+                  <div id="nightsCount" style="font-weight: 600; color: #2563eb; font-size: 1.2rem">0</div>
+                </div>
+              </div>
+            </div>
+
+            <h3 data-translate="guestTypeAndCount">Typ hosta a počet osob</h3>
+
+            <!-- Guest Count -->
+            <div class="guest-counters" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem">
+              <div class="counter-item">
+                <label class="counter-label" style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666" data-translate="adultsLabel">Dospělí</label>
+                <div class="counter-controls" style="display: flex; align-items: center; background: white; border: 1px solid #e2e8f0; border-radius: 6px;">
+                  <button class="counter-btn" onclick="window.app.adjustGuests('adults', -1)" style="padding: 0.5rem 0.75rem; border: none; background: transparent; cursor: pointer; font-size: 1.2rem;">-</button>
+                  <span id="singleRoomAdults" class="counter-value" style="flex: 1; text-align: center; font-weight: 600">1</span>
+                  <button class="counter-btn" onclick="window.app.adjustGuests('adults', 1)" style="padding: 0.5rem 0.75rem; border: none; background: transparent; cursor: pointer; font-size: 1.2rem;">+</button>
+                </div>
+              </div>
+              <div class="counter-item">
+                <label class="counter-label" style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666" data-translate="childrenLabel">Děti (3-17)</label>
+                <div class="counter-controls" style="display: flex; align-items: center; background: white; border: 1px solid #e2e8f0; border-radius: 6px;">
+                  <button class="counter-btn" onclick="window.app.adjustGuests('children', -1)" style="padding: 0.5rem 0.75rem; border: none; background: transparent; cursor: pointer; font-size: 1.2rem;">-</button>
+                  <span id="singleRoomChildren" class="counter-value" style="flex: 1; text-align: center; font-weight: 600">0</span>
+                  <button class="counter-btn" onclick="window.app.adjustGuests('children', 1)" style="padding: 0.5rem 0.75rem; border: none; background: transparent; cursor: pointer; font-size: 1.2rem;">+</button>
+                </div>
+              </div>
+              <div class="counter-item">
+                <label class="counter-label" style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666" data-translate="toddlersCount">Batolata (0-3)</label>
+                <div class="counter-controls" style="display: flex; align-items: center; background: white; border: 1px solid #e2e8f0; border-radius: 6px;">
+                  <button class="counter-btn" onclick="window.app.adjustGuests('toddlers', -1)" style="padding: 0.5rem 0.75rem; border: none; background: transparent; cursor: pointer; font-size: 1.2rem;">-</button>
+                  <span id="singleRoomToddlers" class="counter-value" style="flex: 1; text-align: center; font-weight: 600">0</span>
+                  <button class="counter-btn" onclick="window.app.adjustGuests('toddlers', 1)" style="padding: 0.5rem 0.75rem; border: none; background: transparent; cursor: pointer; font-size: 1.2rem;">+</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Capacity Warning -->
+            <div id="capacityWarning" style="margin-top: 0.5rem; padding: 0.5rem; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; display: none;">
+              <span style="color: #856404; font-size: 0.9rem" data-translate="capacityExceededRoom">⚠️ Překročena kapacita pokoje</span>
+            </div>
+
+            <!-- Guest Names Section -->
+            <div id="singleRoomGuestNamesSection" style="display: none; margin-top: 1rem; padding: 1rem; background: #f0fdf4; border: 2px solid #10b981; border-radius: 8px;">
+              <h4 style="margin-bottom: 0.75rem; color: #065f46; font-size: 1rem" data-translate="guestNamesTitle">👥 Jména ubytovaných osob</h4>
+              <div id="singleRoomAdultsNamesContainer">
+                <h5 style="font-size: 0.9rem; margin-bottom: 0.5rem; color: #374151">Dospělí (18+ let)</h5>
+                <div id="singleRoomAdultsNamesList" style="display: grid; gap: 0.5rem"></div>
+              </div>
+              <div id="singleRoomChildrenNamesContainer" style="display: none; margin-top: 0.75rem">
+                <h5 style="font-size: 0.9rem; margin-bottom: 0.5rem; color: #374151">Děti (3-17 let)</h5>
+                <div id="singleRoomChildrenNamesList" style="display: grid; gap: 0.5rem"></div>
+              </div>
+              <div id="singleRoomToddlersNamesContainer" style="display: none; margin-top: 0.75rem">
+                <h5 style="font-size: 0.9rem; margin-bottom: 0.5rem; color: #374151">Batolata (0-2 roky)</h5>
+                <div id="singleRoomToddlersNamesList" style="display: grid; gap: 0.5rem"></div>
+              </div>
+            </div>
+
+            <!-- Price Summary -->
+            <div class="price-summary" style="border-top: 2px solid #e2e8f0; padding-top: 1rem; margin-top: 1rem">
+              <h4 style="margin-bottom: 0.75rem; color: #333" data-translate="priceSummary">Souhrn ceny</h4>
+              <div id="priceBreakdown" style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <div class="price-line" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem;">
+                  <span data-translate="basePricePerRoom">Základní cena za pokoj:</span>
+                  <span id="basePrice">0 Kč</span>
+                </div>
+                <div id="guestCountsDisplay" class="price-line" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem; color: #666;">
+                  <span data-translate="guestsCount">Počet osob:</span>
+                  <span id="guestCountsSummary">-</span>
+                </div>
+                <div id="adultsPrice" class="price-line" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem;">
+                  <span data-translate="adultsExtra">Příplatek za dospělé:</span>
+                  <span id="adultsSurcharge">0 Kč</span>
+                </div>
+                <div id="childrenPrice" class="price-line" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem;">
+                  <span data-translate="childrenExtra">Příplatek za děti:</span>
+                  <span id="childrenSurcharge">0 Kč</span>
+                </div>
+                <div id="toddlersInfo" class="price-line" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem; color: #666;">
+                  <span data-translate="toddlersFree">Batolata (do 3 let):</span>
+                  <span id="toddlersSummary" data-translate="toddlersFreeLabel">zdarma</span>
+                </div>
+                <div id="nightsPrice" class="price-line" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem;">
+                  <span data-translate="nightsCount">Počet nocí:</span>
+                  <span>× <span id="nightsMultiplier">0</span></span>
+                </div>
+                <div style="border-top: 1px solid #dee2e6; margin-top: 0.75rem; padding-top: 0.75rem; display: flex; justify-content: space-between; font-weight: bold;">
+                  <span data-translate="totalAmount">Celkem:</span>
+                  <span id="totalPrice" style="color: #2e7d32">0 Kč</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Booking Actions -->
+      <div class="booking-actions">
+        <div style="display: flex; gap: 1rem; width: 100%">
+          <button onclick="window.app.singleRoomBooking.hideRoomBookingModal()" class="btn btn-secondary" style="flex: 1" data-translate="cancelButton">Zrušit</button>
+          <button id="confirmSingleRoomBtn" onclick="window.app.singleRoomBooking.confirmRoomBooking()" class="btn btn-primary" style="flex: 2" disabled data-translate="addReservationButton">Přidat rezervaci</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bulk Booking Modal (for admin edit) -->
+  <div id="bulkBookingModal" class="modal">
+    <div class="modal-content compact-booking-modal">
+      <button class="modal-close" onclick="closeBulkModal()">&times;</button>
+
+      <div class="booking-modal-header">
+        <h2 id="bulkBookingTitle" data-translate="bulkBookingModalTitle">Hromadná rezervace celé chaty</h2>
+        <div id="bulkBookingBadge" style="background: rgba(255, 255, 255, 0.2); padding: 0.5rem 1rem; border-radius: 6px; font-size: 1.1rem;">
+          <span data-translate="bulkBookingAllRooms">Rezervace všech 9 pokojů (26 lůžek)</span>
+        </div>
+      </div>
+
+      <div class="booking-modal-content">
+        <div class="booking-left-column">
+          <h3 data-translate="bulkSelectStayPeriod">Vyberte termín pobytu</h3>
+          <div id="bulkCalendar" class="interactive-calendar"></div>
+        </div>
+
+        <div class="booking-right-column" style="overflow-y: auto; max-height: 500px; padding-right: 10px">
+          <div class="booking-form-section" style="padding-bottom: 1rem">
+            <div id="bulkDateSelectionSummary" style="margin-bottom: 1rem; padding: 1rem; background: #f0f9ff; border-radius: 8px; display: none;">
+              <div style="display: flex; justify-content: space-between; align-items: center">
+                <div>
+                  <div style="font-size: 0.9rem; color: #666" data-translate="bulkSelectedPeriod">Vybraný termín:</div>
+                  <div id="bulkSelectedDateRange" style="font-weight: 600; color: #333"></div>
+                </div>
+                <div style="text-align: right">
+                  <div style="font-size: 0.9rem; color: #666" data-translate="bulkNightsCountLabel">Počet nocí:</div>
+                  <div id="bulkNightsCount" style="font-weight: 600; color: #2563eb; font-size: 1.2rem">0</div>
+                </div>
+              </div>
+            </div>
+
+            <h3 data-translate="guestTypeAndCount">Typ hosta a počet osob</h3>
+
+            <div class="guest-counters" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem">
+              <div class="counter-item">
+                <label class="counter-label" style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666" data-translate="adultsLabel">Dospělí</label>
+                <div class="counter-controls" style="display: flex; align-items: center; background: white; border: 1px solid #e2e8f0; border-radius: 6px;">
+                  <button class="counter-btn" onclick="adjustBulkGuests('adults', -1)" style="padding: 0.5rem 0.75rem; border: none; background: transparent; cursor: pointer; font-size: 1.2rem;">-</button>
+                  <span id="bulkAdults" class="counter-value" style="flex: 1; text-align: center; font-weight: 600">10</span>
+                  <button class="counter-btn" onclick="adjustBulkGuests('adults', 1)" style="padding: 0.5rem 0.75rem; border: none; background: transparent; cursor: pointer; font-size: 1.2rem;">+</button>
+                </div>
+              </div>
+              <div class="counter-item">
+                <label class="counter-label" style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666" data-translate="childrenLabel">Děti (3-17)</label>
+                <div class="counter-controls" style="display: flex; align-items: center; background: white; border: 1px solid #e2e8f0; border-radius: 6px;">
+                  <button class="counter-btn" onclick="adjustBulkGuests('children', -1)" style="padding: 0.5rem 0.75rem; border: none; background: transparent; cursor: pointer; font-size: 1.2rem;">-</button>
+                  <span id="bulkChildren" class="counter-value" style="flex: 1; text-align: center; font-weight: 600">0</span>
+                  <button class="counter-btn" onclick="adjustBulkGuests('children', 1)" style="padding: 0.5rem 0.75rem; border: none; background: transparent; cursor: pointer; font-size: 1.2rem;">+</button>
+                </div>
+              </div>
+            </div>
+
+            <div id="bulkCapacityWarning" style="margin-top: 1rem; padding: 0.75rem; background: #fee2e2; border-left: 4px solid #dc2626; border-radius: 4px; display: none;">
+              <span style="color: #991b1b; font-size: 0.9rem" data-translate="bulkCapacityExceededCottage">⚠️ Překročena kapacita chaty (maximum 26 lůžek)</span>
+            </div>
+
+            <div id="bulkMinimumWarning" style="margin-top: 1rem; padding: 0.75rem; background: #fef3c7; border-left: 4px solid #d97706; border-radius: 4px; display: none;">
+              <span style="color: #92400e; font-size: 0.9rem" data-translate="bulkMinimumGuestsWarning">⚠️ Hromadná akce vyžaduje minimálně 10 osob (dospělí + děti)</span>
+            </div>
+
+            <div id="bulkGuestNamesSection" style="display: none; margin-top: 1rem; padding: 1rem; background: #f0fdf4; border: 2px solid #10b981; border-radius: 8px;">
+              <h4 style="margin-bottom: 0.75rem; color: #065f46; font-size: 1rem" data-translate="guestNamesSectionTitle">👥 Jména ubytovaných osob</h4>
+              <div id="bulkAdultsNamesContainer"></div>
+              <div id="bulkChildrenNamesContainer"></div>
+              <div id="bulkToddlersNamesContainer"></div>
+            </div>
+
+            <div class="price-summary" style="padding-top: 1rem; margin-top: 1rem">
+              <h4 style="margin-bottom: 0.75rem; color: #333" data-translate="priceSummary">Souhrn ceny</h4>
+              <div id="bulkPriceBreakdown" style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <div style="margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0;">
+                  <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.5rem; font-weight: 500;" data-translate="bulkPricePerNight">Cena za jednu noc:</div>
+                  <div class="price-line" style="display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.9rem; padding-left: 1rem;">
+                    <span data-translate="bulkPriceBasePriceCottage">Základní cena za chatu:</span>
+                    <span id="bulkBasePrice">0 Kč/noc</span>
+                  </div>
+                  <div id="bulkAdultsPrice" class="price-line" style="display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.9rem; padding-left: 1rem;">
+                    <span data-translate="bulkPriceAdultSurcharge">Příplatek za dospělé:</span>
+                    <span id="bulkAdultsSurcharge">0 Kč/noc</span>
+                  </div>
+                  <div id="bulkChildrenPrice" class="price-line" style="display: none; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.9rem; padding-left: 1rem;">
+                    <span data-translate="bulkPriceChildSurcharge">Příplatek za děti:</span>
+                    <span id="bulkChildrenSurcharge">0 Kč/noc</span>
+                  </div>
+                  <div id="bulkPricePerNight" style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.95rem; font-weight: 600; color: #333;">
+                    <span data-translate="pricePerNightTotal">Cena za noc celkem:</span>
+                    <span id="bulkPricePerNightAmount">0 Kč</span>
+                  </div>
+                </div>
+                <div id="bulkNightsPrice" class="price-line" style="display: flex; justify-content: space-between; margin-bottom: 0.75rem; font-size: 0.95rem; font-weight: 500;">
+                  <span data-translate="nightsCountLabel">Počet nocí:</span>
+                  <span id="bulkNightsMultiplier">× 0</span>
+                </div>
+                <div style="border-top: 2px solid #dee2e6; margin-top: 0.75rem; padding-top: 0.75rem; display: flex; justify-content: space-between; font-weight: bold; font-size: 1.1rem;">
+                  <span data-translate="totalPrice">Celková cena:</span>
+                  <span id="bulkTotalPrice" style="color: #2e7d32">0 Kč</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding: 1.5rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 1rem;">
+        <button type="button" class="btn btn-secondary" onclick="closeBulkModal()" data-translate="cancelButton">Zrušit</button>
+        <button id="confirmBulkBookingBtn" class="btn btn-primary" onclick="addBulkBooking()" disabled data-translate="createReservationButton">Vytvořit rezervaci</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Shared utilities (MUST load before data.js) -->
   <script src="js/shared/idGenerator.js"></script>
   <script src="js/shared/dateUtils.js"></script>
@@ -1712,6 +1967,131 @@ Tým Chata Mariánská</textarea>
   <!-- Core modules -->
   <script src="data.js"></script>
   <script src="translations.js"></script>
+
+  <!-- Booking modules (needed for admin edit functionality) -->
+  <script src="js/calendar.js"></script>
+  <script src="js/single-room-booking.js"></script>
+  <script src="js/bulk-booking.js"></script>
+
+  <!-- Simplified BookingApp initialization for admin page -->
+  <script>
+    // Create minimal window.app for admin edit functionality
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Create simplified app object with only needed properties
+      window.app = {
+        currentMonth: new Date(),
+        selectedDates: new Set(),
+        selectedRooms: new Set(),
+        roomGuests: new Map(),
+        roomGuestTypes: new Map(),
+        currentLanguage: localStorage.getItem('language') || 'cs',
+        sessionId: sessionStorage.getItem('bookingSessionId') || 'admin-' + Date.now(),
+        currentBookingRoom: null,
+        // Properties needed by BulkBookingModule
+        editingReservation: null,
+        tempReservations: [],
+
+        // Stub methods called by data.js
+        async renderCalendar() {
+          console.debug('[Admin] renderCalendar stub called');
+        },
+
+        // Stub for displayTempReservations (not needed in admin, but called by BulkBookingModule)
+        async displayTempReservations() {
+          console.debug('[Admin] displayTempReservations stub called');
+        },
+
+        // Methods needed by BulkBookingModule for date display
+        getDateRanges(dates) {
+          // Delegate to DateUtils SSOT
+          return DateUtils.getDateRanges(dates);
+        },
+
+        formatDateDisplay(date) {
+          // Delegate to DateUtils SSOT
+          return DateUtils.formatDateDisplay(date, this.currentLanguage);
+        },
+
+        // Methods needed by SingleRoomBookingModule
+        async updateSelectedDatesDisplay() {
+          console.debug('[Admin] updateSelectedDatesDisplay called');
+          const dateRange = document.getElementById('selectedDateRange');
+          const nightsCount = document.getElementById('nightsCount');
+          const summary = document.getElementById('dateSelectionSummary');
+          const confirmBtn = document.getElementById('confirmSingleRoomBtn');
+
+          if (this.selectedDates.size > 0) {
+            const dates = Array.from(this.selectedDates).sort();
+            const start = dates[0];
+            const end = dates[dates.length - 1];
+            const nights = dates.length - 1;
+
+            if (dateRange) dateRange.textContent = `${start} - ${end}`;
+            if (nightsCount) nightsCount.textContent = nights.toString();
+            if (summary) summary.style.display = 'block';
+
+            // Enable button when at least 1 night is selected
+            if (confirmBtn) confirmBtn.disabled = nights < 1;
+          } else {
+            // No dates selected - hide summary and disable button
+            if (summary) summary.style.display = 'none';
+            if (confirmBtn) confirmBtn.disabled = true;
+          }
+        },
+
+        async updatePriceCalculation() {
+          console.debug('[Admin] updatePriceCalculation called');
+          // Delegate to SingleRoomBookingModule for proper price calculation with guest names
+          if (this.singleRoomBooking && this.currentBookingRoom && this.selectedDates.size >= 2) {
+            try {
+              await this.singleRoomBooking.updatePriceForCurrentRoom();
+            } catch (e) {
+              console.error('[Admin] Price calculation error:', e);
+            }
+          }
+        },
+
+        adjustGuests(type, delta) {
+          console.debug('[Admin] adjustGuests:', type, delta);
+          if (!this.currentBookingRoom) return;
+          const guests = this.roomGuests.get(this.currentBookingRoom) || { adults: 1, children: 0, toddlers: 0 };
+          guests[type] = Math.max(type === 'adults' ? 1 : 0, (guests[type] || 0) + delta);
+          this.roomGuests.set(this.currentBookingRoom, guests);
+
+          // Update display
+          const el = document.getElementById(`singleRoom${type.charAt(0).toUpperCase() + type.slice(1)}`);
+          if (el) el.textContent = guests[type].toString();
+
+          // Regenerate guest name inputs and update price using module methods
+          if (this.singleRoomBooking) {
+            this.singleRoomBooking.generateGuestNamesInputs(guests.adults, guests.children, guests.toddlers || 0);
+            this.singleRoomBooking.updatePriceForCurrentRoom();
+          }
+        },
+
+        setRoomGuestType(guestType) {
+          console.debug('[Admin] setRoomGuestType:', guestType);
+          if (this.currentBookingRoom) {
+            this.roomGuestTypes.set(this.currentBookingRoom, guestType);
+            // Use module method for proper price calculation
+            if (this.singleRoomBooking) {
+              this.singleRoomBooking.updatePriceForCurrentRoom();
+            }
+          }
+        }
+      };
+
+      // Initialize SingleRoomBookingModule
+      window.app.singleRoomBooking = new SingleRoomBookingModule(window.app);
+      console.debug('[Admin] SingleRoomBookingModule initialized');
+
+      // Initialize BulkBookingModule
+      window.app.bulkBooking = new BulkBookingModule(window.app);
+      console.debug('[Admin] BulkBookingModule initialized');
+
+      console.log('Admin booking modules initialized');
+    });
+  </script>
 
   <!-- Admin module -->
   <script src="js/admin/AdminAuth.js"></script>

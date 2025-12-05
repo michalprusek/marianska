@@ -72,7 +72,12 @@ class GuestNameUtils {
 
     if (existingGuestNames && Array.isArray(existingGuestNames) && existingGuestNames.length > 0) {
       // PRE-POPULATE from existingGuestNames (edit mode)
-      savedGuestData = this._prepopulateFromExisting(existingGuestNames, adults, children, toddlers);
+      savedGuestData = this._prepopulateFromExisting(
+        existingGuestNames,
+        adults,
+        children,
+        toddlers
+      );
     } else if (showPricingToggles) {
       // Capture from DOM (re-render preservation)
       savedGuestData = this._captureExistingData(section);
@@ -647,9 +652,15 @@ class GuestNameUtils {
           // eslint-disable-next-line no-undef -- NotificationManager is defined globally in browser
           if (typeof NotificationManager !== 'undefined' && NotificationManager.show) {
             // eslint-disable-next-line no-undef
-            NotificationManager.show('Nepodařilo se aktualizovat cenu - zkuste stránku obnovit', 'warning');
+            NotificationManager.show(
+              'Nepodařilo se aktualizovat cenu - zkuste stránku obnovit',
+              'warning'
+            );
           } else if (window.app && window.app.showNotification) {
-            window.app.showNotification('Nepodařilo se aktualizovat cenu - zkuste stránku obnovit', 'warning');
+            window.app.showNotification(
+              'Nepodařilo se aktualizovat cenu - zkuste stránku obnovit',
+              'warning'
+            );
           }
         }
       }

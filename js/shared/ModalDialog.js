@@ -134,8 +134,12 @@ class ModalDialog {
     modal.className = 'modal-dialog';
 
     // Set size
-    if (options.size === 'large') modal.style.maxWidth = '800px';
-    if (options.size === 'small') modal.style.maxWidth = '400px';
+    if (options.size === 'large') {
+      modal.style.maxWidth = '800px';
+    }
+    if (options.size === 'small') {
+      modal.style.maxWidth = '400px';
+    }
 
     // Header
     if (options.title || options.showCloseButton !== false) {
@@ -147,7 +151,7 @@ class ModalDialog {
           margin: '0',
           fontSize: '18px',
           fontWeight: '600',
-          color: '#212529'
+          color: '#212529',
         });
         header.appendChild(title);
       }
@@ -179,7 +183,7 @@ class ModalDialog {
     if (options.footerButtons && options.footerButtons.length > 0) {
       const footer = document.createElement('div');
       footer.className = 'modal-footer';
-      options.footerButtons.forEach(btn => footer.appendChild(btn));
+      options.footerButtons.forEach((btn) => footer.appendChild(btn));
       modal.appendChild(footer);
     }
 
@@ -214,7 +218,7 @@ class ModalDialog {
     return new Promise((resolve) => {
       const content = document.createElement('div');
 
-      // Header content (Icon + Title logic moved to content for flexibility in generic open, 
+      // Header content (Icon + Title logic moved to content for flexibility in generic open,
       // but for confirm we want strict styling, so we'll build a specific body)
 
       const typeColors = {
@@ -235,7 +239,7 @@ class ModalDialog {
         padding: '16px',
         background: colors.bg,
         borderRadius: '6px',
-        border: `1px solid ${colors.border}`
+        border: `1px solid ${colors.border}`,
       });
 
       const iconSpan = this.createSafeElement('span', options.icon || 'ℹ️', { fontSize: '24px' });
@@ -318,10 +322,10 @@ class ModalDialog {
       };
 
       this.open({
-        content: content,
+        content,
         footerButtons: [cancelBtn, confirmBtn],
         showCloseButton: false,
-        onClose: () => resolve(false)
+        onClose: () => resolve(false),
       });
 
       setTimeout(() => confirmBtn.focus(), 100);
@@ -351,7 +355,7 @@ class ModalDialog {
         padding: '16px',
         background: colors.bg,
         borderRadius: '6px',
-        border: `1px solid ${colors.border}`
+        border: `1px solid ${colors.border}`,
       });
 
       const iconSpan = this.createSafeElement('span', options.icon || 'ℹ️', { fontSize: '24px' });
@@ -392,11 +396,11 @@ class ModalDialog {
       };
 
       this.open({
-        content: content,
+        content,
         footerButtons: [okBtn],
         showCloseButton: false,
         size: 'small',
-        onClose: () => resolve()
+        onClose: () => resolve(),
       });
 
       setTimeout(() => okBtn.focus(), 100);

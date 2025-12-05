@@ -29,7 +29,6 @@ const NOTIFICATION_TIMEOUT = {
   INFO: 3000,
 };
 
-// eslint-disable-next-line no-unused-vars
 class EditBookingComponent {
   /**
    * @param {Object} config - Configuration options
@@ -80,7 +79,7 @@ class EditBookingComponent {
       mode: this.mode,
       getSettings: () => this.settings,
       onDateSelect: (d) => this.handleDateSelect(d),
-      onDateDeselect: (d) => this.handleDateDeselect(d)
+      onDateDeselect: (d) => this.handleDateDeselect(d),
     });
     this.guests = new EditBookingGuests();
     this.rooms = new EditBookingRooms(this);
@@ -218,7 +217,9 @@ class EditBookingComponent {
     }
 
     if (this.perRoomDates.size === 0 && (booking.rooms || []).length > 0) {
-      console.warn('[EditBookingComponent] perRoomDates empty after initialization, forcing resync');
+      console.warn(
+        '[EditBookingComponent] perRoomDates empty after initialization, forcing resync'
+      );
       (booking.rooms || []).forEach((roomId) => {
         this.perRoomDates.set(roomId, {
           startDate: booking.startDate,
@@ -245,10 +246,18 @@ class EditBookingComponent {
     const selectedDatesContainer = document.getElementById('editSelectedDatesContainer');
     const saveBtn = document.getElementById('saveRoomDatesBtn');
 
-    if (calendarHeader) calendarHeader.style.display = 'none';
-    if (calendarContainer) calendarContainer.style.display = 'none';
-    if (selectedDatesContainer) selectedDatesContainer.style.display = 'none';
-    if (saveBtn) saveBtn.style.display = 'none';
+    if (calendarHeader) {
+      calendarHeader.style.display = 'none';
+    }
+    if (calendarContainer) {
+      calendarContainer.style.display = 'none';
+    }
+    if (selectedDatesContainer) {
+      selectedDatesContainer.style.display = 'none';
+    }
+    if (saveBtn) {
+      saveBtn.style.display = 'none';
+    }
 
     // Update price
     this.updateTotalPrice();
@@ -269,8 +278,12 @@ class EditBookingComponent {
       const formContainer = document.getElementById('editFormContainer');
       const deadlineMessage = document.getElementById('deadlineMessage');
 
-      if (warningEl) warningEl.style.display = 'block';
-      if (formContainer) formContainer.style.display = 'none';
+      if (warningEl) {
+        warningEl.style.display = 'block';
+      }
+      if (formContainer) {
+        formContainer.style.display = 'none';
+      }
       if (deadlineMessage) {
         deadlineMessage.innerHTML = `Úpravy a zrušení rezervace jsou možné pouze <strong>3 dny před začátkem pobytu</strong>.<br>Do začátku pobytu zbývá: <strong>${diffDays} dní</strong>.`;
       }
@@ -280,7 +293,9 @@ class EditBookingComponent {
   }
 
   populateForm() {
-    if (!this.currentBooking) return;
+    if (!this.currentBooking) {
+      return;
+    }
 
     const fields = [
       'Name',
@@ -332,7 +347,10 @@ class EditBookingComponent {
     });
 
     contents.forEach((content) => {
-      content.style.display = content.id === `edit${tabName.charAt(0).toUpperCase() + tabName.slice(1)}Tab` ? 'block' : 'none';
+      content.style.display =
+        content.id === `edit${tabName.charAt(0).toUpperCase() + tabName.slice(1)}Tab`
+          ? 'block'
+          : 'none';
     });
 
     if (tabName === 'dates') {
@@ -342,38 +360,95 @@ class EditBookingComponent {
 
   updateTotalPrice() {
     const totalPriceEl = document.getElementById('editTotalPrice');
-    if (!totalPriceEl) return;
+    if (!totalPriceEl) {
+      return;
+    }
 
-    let total = 0;
-    const nights = DateUtils.getDaysBetween(this.editStartDate, this.editEndDate);
+    // Collect guest types from DOM toggles for per-guest pricing
+    const guestNames = this._collectGuestNamesWithPriceTypes();
 
-    if (nights <= 0) {
+    // If no guests collected, fall back to 0
+    if (guestNames.length === 0) {
       totalPriceEl.textContent = '0 Kč';
       return;
     }
 
+    // Build perRoomGuests with accurate counts per room
+    const perRoomGuests = {};
     for (const [roomId, roomData] of this.editSelectedRooms.entries()) {
-      const dates = this.perRoomDates.get(roomId);
-      if (!dates) continue;
-
-      const roomNights = DateUtils.getDaysBetween(dates.startDate, dates.endDate);
-      if (roomNights <= 0) continue;
-
-      const roomPrice = PriceCalculator.calculatePrice({
-        guestType: roomData.guestType,
+      perRoomGuests[roomId] = {
         adults: roomData.adults,
         children: roomData.children,
         toddlers: roomData.toddlers || 0,
-        nights: roomNights,
-        rooms: [roomId],
-        roomsCount: 1,
-        settings: this.settings,
-      });
-
-      total += roomPrice;
+      };
     }
 
+    // Calculate price using per-guest method (handles mixed ÚTIA/External)
+    const total = PriceCalculator.calculatePerGuestPrice({
+      rooms: Array.from(this.editSelectedRooms.keys()),
+      guestNames,
+      perRoomGuests,
+      perRoomDates: Object.fromEntries(this.perRoomDates),
+      nights: null, // Will be calculated per room from perRoomDates
+      settings: this.settings,
+      fallbackGuestType: 'external',
+    });
+
     totalPriceEl.textContent = `${total.toLocaleString('cs-CZ')} Kč`;
+  }
+
+  /**
+   * Collect guest names with their price types from DOM for price calculation
+   * FIX 2025-12-05: Read per-guest price types from toggle checkboxes
+   * @returns {Array<Object>} Guest objects with roomId, personType, guestPriceType
+   */
+  _collectGuestNamesWithPriceTypes() {
+    const guestNames = [];
+
+    for (const [roomId, roomData] of this.editSelectedRooms.entries()) {
+      // Collect adults
+      for (let i = 1; i <= (roomData.adults || 0); i++) {
+        const toggleId = `room${roomId}Adult${i}GuestTypeToggle`;
+        const toggle = document.getElementById(toggleId);
+        const isExternal = toggle?.checked || false;
+
+        guestNames.push({
+          roomId,
+          personType: 'adult',
+          guestPriceType: isExternal ? 'external' : 'utia',
+          firstName: document.getElementById(`room${roomId}AdultFirstName${i}`)?.value || '',
+          lastName: document.getElementById(`room${roomId}AdultLastName${i}`)?.value || '',
+        });
+      }
+
+      // Collect children
+      for (let i = 1; i <= (roomData.children || 0); i++) {
+        const toggleId = `room${roomId}Child${i}GuestTypeToggle`;
+        const toggle = document.getElementById(toggleId);
+        const isExternal = toggle?.checked || false;
+
+        guestNames.push({
+          roomId,
+          personType: 'child',
+          guestPriceType: isExternal ? 'external' : 'utia',
+          firstName: document.getElementById(`room${roomId}ChildFirstName${i}`)?.value || '',
+          lastName: document.getElementById(`room${roomId}ChildLastName${i}`)?.value || '',
+        });
+      }
+
+      // Collect toddlers (always free, no price type toggle)
+      for (let i = 1; i <= (roomData.toddlers || 0); i++) {
+        guestNames.push({
+          roomId,
+          personType: 'toddler',
+          guestPriceType: 'utia',
+          firstName: document.getElementById(`room${roomId}ToddlerFirstName${i}`)?.value || '',
+          lastName: document.getElementById(`room${roomId}ToddlerLastName${i}`)?.value || '',
+        });
+      }
+    }
+
+    return guestNames;
   }
 
   handleRoomDateSelect(roomId, dateStr) {
@@ -405,16 +480,27 @@ class EditBookingComponent {
 
   updateRoomDateDisplay() {
     const displayEl = document.getElementById('editSelectedDates');
-    if (!displayEl) return;
+    if (!displayEl) {
+      return;
+    }
 
     if (this.tempRoomStartDate && this.tempRoomEndDate) {
-      const startFormatted = DateUtils.formatDateDisplay(DateUtils.parseDate(this.tempRoomStartDate), 'cs');
-      const endFormatted = DateUtils.formatDateDisplay(DateUtils.parseDate(this.tempRoomEndDate), 'cs');
+      const startFormatted = DateUtils.formatDateDisplay(
+        DateUtils.parseDate(this.tempRoomStartDate),
+        'cs'
+      );
+      const endFormatted = DateUtils.formatDateDisplay(
+        DateUtils.parseDate(this.tempRoomEndDate),
+        'cs'
+      );
       displayEl.innerHTML = `${startFormatted} - ${endFormatted}`;
       displayEl.style.color = '#059669';
       displayEl.style.fontWeight = '600';
     } else if (this.tempRoomStartDate) {
-      const startFormatted = DateUtils.formatDateDisplay(DateUtils.parseDate(this.tempRoomStartDate), 'cs');
+      const startFormatted = DateUtils.formatDateDisplay(
+        DateUtils.parseDate(this.tempRoomStartDate),
+        'cs'
+      );
       displayEl.innerHTML = `${startFormatted} (vyberte konec)`;
       displayEl.style.color = '#d97706';
     } else {
@@ -425,26 +511,41 @@ class EditBookingComponent {
 
   async saveRoomDates(roomId) {
     if (!this.tempRoomStartDate || !this.tempRoomEndDate) {
-      this.showNotification('Vyberte prosím kompletní termín (začátek i konec)', 'warning', NOTIFICATION_TIMEOUT.INFO);
+      this.showNotification(
+        'Vyberte prosím kompletní termín (začátek i konec)',
+        'warning',
+        NOTIFICATION_TIMEOUT.INFO
+      );
       return;
     }
 
     const bookings = await dataManager.getAllBookings();
     const conflicts = bookings.filter((b) => {
-      if (b.id === this.currentBooking.id) return false;
+      if (b.id === this.currentBooking.id) {
+        return false;
+      }
       let compareStartDate = b.startDate;
       let compareEndDate = b.endDate;
       if (b.perRoomDates && b.perRoomDates[roomId]) {
         compareStartDate = b.perRoomDates[roomId].startDate;
         compareEndDate = b.perRoomDates[roomId].endDate;
       }
-      const hasDateOverlap = BookingLogic.checkDateOverlap(this.tempRoomStartDate, this.tempRoomEndDate, compareStartDate, compareEndDate);
+      const hasDateOverlap = BookingLogic.checkDateOverlap(
+        this.tempRoomStartDate,
+        this.tempRoomEndDate,
+        compareStartDate,
+        compareEndDate
+      );
       const hasRoomOverlap = b.rooms.includes(roomId);
       return hasDateOverlap && hasRoomOverlap;
     });
 
     if (conflicts.length > 0) {
-      this.showNotification(langManager.t('roomOccupiedInPeriod').replace('{roomId}', roomId), 'error', 4000);
+      this.showNotification(
+        langManager.t('roomOccupiedInPeriod').replace('{roomId}', roomId),
+        'error',
+        4000
+      );
       return;
     }
 
@@ -453,21 +554,34 @@ class EditBookingComponent {
     while (currentDate <= endDate) {
       const availability = await dataManager.getRoomAvailability(currentDate, roomId);
       if (availability.status === 'blocked') {
-        this.showNotification(langManager.t('roomBlockedInPeriod').replace('{roomId}', roomId), 'error', 4000);
+        this.showNotification(
+          langManager.t('roomBlockedInPeriod').replace('{roomId}', roomId),
+          'error',
+          4000
+        );
         return;
       }
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
     try {
-      const roomData = this.editSelectedRooms.get(roomId) || { guestType: 'external', adults: 1, children: 0, toddlers: 0 };
+      const roomData = this.editSelectedRooms.get(roomId) || {
+        guestType: 'external',
+        adults: 1,
+        children: 0,
+        toddlers: 0,
+      };
 
       const result = await dataManager.createProposedBooking({
         sessionId: this.sessionId,
         startDate: this.tempRoomStartDate,
         endDate: this.tempRoomEndDate,
         rooms: [roomId],
-        guests: { adults: roomData.adults, children: roomData.children, toddlers: roomData.toddlers },
+        guests: {
+          adults: roomData.adults,
+          children: roomData.children,
+          toddlers: roomData.toddlers,
+        },
         guestType: roomData.guestType,
         totalPrice: 0,
       });
@@ -480,10 +594,18 @@ class EditBookingComponent {
 
       this.updateGlobalBookingDates();
       this.cancelRoomEdit();
-      this.showNotification('Termín byl dočasně rezervován', 'success', NOTIFICATION_TIMEOUT.SUCCESS);
+      this.showNotification(
+        'Termín byl dočasně rezervován',
+        'success',
+        NOTIFICATION_TIMEOUT.SUCCESS
+      );
     } catch (error) {
       console.error('Error creating proposed booking:', error);
-      this.showNotification(error.message || 'Chyba při rezervaci termínu', 'error', NOTIFICATION_TIMEOUT.ERROR);
+      this.showNotification(
+        error.message || 'Chyba při rezervaci termínu',
+        'error',
+        NOTIFICATION_TIMEOUT.ERROR
+      );
     }
   }
 
@@ -492,8 +614,12 @@ class EditBookingComponent {
     let maxEnd = null;
 
     for (const dates of this.perRoomDates.values()) {
-      if (!minStart || dates.startDate < minStart) minStart = dates.startDate;
-      if (!maxEnd || dates.endDate > maxEnd) maxEnd = dates.endDate;
+      if (!minStart || dates.startDate < minStart) {
+        minStart = dates.startDate;
+      }
+      if (!maxEnd || dates.endDate > maxEnd) {
+        maxEnd = dates.endDate;
+      }
     }
 
     if (minStart !== null) {
@@ -517,21 +643,35 @@ class EditBookingComponent {
     this.tempRoomEndDate = null;
 
     const roomNameEl = document.getElementById('editingRoomName');
-    if (roomNameEl) roomNameEl.textContent = 'Celá chata (všechny pokoje)';
+    if (roomNameEl) {
+      roomNameEl.textContent = 'Celá chata (všechny pokoje)';
+    }
 
     const headerEl = document.getElementById('editCalendarHeader');
     const containerEl = document.getElementById('editCalendarContainer');
     const selectedDatesContainer = document.getElementById('editSelectedDatesContainer');
     const saveBtn = document.getElementById('saveRoomDatesBtn');
 
-    if (headerEl) headerEl.style.display = 'block';
-    if (containerEl) containerEl.style.display = 'block';
-    if (selectedDatesContainer) selectedDatesContainer.style.display = 'block';
-    if (saveBtn) saveBtn.style.display = 'block';
+    if (headerEl) {
+      headerEl.style.display = 'block';
+    }
+    if (containerEl) {
+      containerEl.style.display = 'block';
+    }
+    if (selectedDatesContainer) {
+      selectedDatesContainer.style.display = 'block';
+    }
+    if (saveBtn) {
+      saveBtn.style.display = 'block';
+    }
 
     const cancelBtn = document.getElementById('cancelRoomEditBtn');
-    if (cancelBtn) cancelBtn.onclick = () => this.cancelBulkEdit();
-    if (saveBtn) saveBtn.onclick = () => this.saveBulkDates();
+    if (cancelBtn) {
+      cancelBtn.onclick = () => this.cancelBulkEdit();
+    }
+    if (saveBtn) {
+      saveBtn.onclick = () => this.saveBulkDates();
+    }
 
     this.rooms.renderPerRoomList();
     await this.initializeBulkCalendar();
@@ -540,7 +680,9 @@ class EditBookingComponent {
 
   async initializeBulkCalendar() {
     const containerEl = document.getElementById('editCalendarContainer');
-    if (!containerEl) return;
+    if (!containerEl) {
+      return;
+    }
     containerEl.innerHTML = '';
 
     const firstRoomDates = this.perRoomDates.values().next().value;
@@ -603,18 +745,32 @@ class EditBookingComponent {
     const selectedDatesContainer = document.getElementById('editSelectedDatesContainer');
     const saveBtn = document.getElementById('saveRoomDatesBtn');
 
-    if (headerEl) headerEl.style.display = 'none';
-    if (containerEl) containerEl.style.display = 'none';
-    if (selectedDatesContainer) selectedDatesContainer.style.display = 'none';
-    if (saveBtn) saveBtn.style.display = 'none';
+    if (headerEl) {
+      headerEl.style.display = 'none';
+    }
+    if (containerEl) {
+      containerEl.style.display = 'none';
+    }
+    if (selectedDatesContainer) {
+      selectedDatesContainer.style.display = 'none';
+    }
+    if (saveBtn) {
+      saveBtn.style.display = 'none';
+    }
 
-    if (containerEl) containerEl.innerHTML = '';
+    if (containerEl) {
+      containerEl.innerHTML = '';
+    }
     this.rooms.renderPerRoomList();
   }
 
   async saveBulkDates() {
     if (!this.tempRoomStartDate || !this.tempRoomEndDate) {
-      this.showNotification('Vyberte prosím kompletní termín (začátek i konec)', 'warning', NOTIFICATION_TIMEOUT.INFO);
+      this.showNotification(
+        'Vyberte prosím kompletní termín (začátek i konec)',
+        'warning',
+        NOTIFICATION_TIMEOUT.INFO
+      );
       return;
     }
 
@@ -623,21 +779,32 @@ class EditBookingComponent {
 
     for (const roomId of allRoomIds) {
       const conflicts = bookings.filter((b) => {
-        if (b.id === this.currentBooking.id) return false;
+        if (b.id === this.currentBooking.id) {
+          return false;
+        }
         let compareStartDate = b.startDate;
         let compareEndDate = b.endDate;
         if (b.perRoomDates && b.perRoomDates[roomId]) {
           compareStartDate = b.perRoomDates[roomId].startDate;
           compareEndDate = b.perRoomDates[roomId].endDate;
         }
-        const hasDateOverlap = BookingLogic.checkDateOverlap(this.tempRoomStartDate, this.tempRoomEndDate, compareStartDate, compareEndDate);
+        const hasDateOverlap = BookingLogic.checkDateOverlap(
+          this.tempRoomStartDate,
+          this.tempRoomEndDate,
+          compareStartDate,
+          compareEndDate
+        );
         const hasRoomOverlap = b.rooms.includes(roomId);
         return hasDateOverlap && hasRoomOverlap;
       });
 
       if (conflicts.length > 0) {
         const room = this.settings.rooms.find((r) => r.id === roomId);
-        this.showNotification(`⚠️ ${room?.name || roomId} je v tomto termínu již obsazený. Zvolte jiný termín.`, 'error', 4000);
+        this.showNotification(
+          `⚠️ ${room?.name || roomId} je v tomto termínu již obsazený. Zvolte jiný termín.`,
+          'error',
+          4000
+        );
         return;
       }
     }
@@ -649,7 +816,11 @@ class EditBookingComponent {
         const availability = await dataManager.getRoomAvailability(currentDate, roomId);
         if (availability.status === 'blocked') {
           const room = this.settings.rooms.find((r) => r.id === roomId);
-          this.showNotification(`⚠️ ${room?.name || roomId} je v tomto termínu blokován. Zvolte jiný termín.`, 'error', 4000);
+          this.showNotification(
+            `⚠️ ${room?.name || roomId} je v tomto termínu blokován. Zvolte jiný termín.`,
+            'error',
+            4000
+          );
           return;
         }
       }
@@ -696,10 +867,18 @@ class EditBookingComponent {
 
       this.updateGlobalBookingDates();
       this.cancelBulkEdit();
-      this.showNotification('Termín byl dočasně rezervován pro všechny pokoje', 'success', NOTIFICATION_TIMEOUT.SUCCESS);
+      this.showNotification(
+        'Termín byl dočasně rezervován pro všechny pokoje',
+        'success',
+        NOTIFICATION_TIMEOUT.SUCCESS
+      );
     } catch (error) {
       console.error('Error creating bulk proposed booking:', error);
-      this.showNotification(error.message || 'Chyba při rezervaci termínu', 'error', NOTIFICATION_TIMEOUT.ERROR);
+      this.showNotification(
+        error.message || 'Chyba při rezervaci termínu',
+        'error',
+        NOTIFICATION_TIMEOUT.ERROR
+      );
     }
   }
 
@@ -754,12 +933,22 @@ class EditBookingComponent {
     const selectedDatesContainer = document.getElementById('editSelectedDatesContainer');
     const saveBtn = document.getElementById('saveRoomDatesBtn');
 
-    if (headerEl) headerEl.style.display = 'none';
-    if (containerEl) containerEl.style.display = 'none';
-    if (selectedDatesContainer) selectedDatesContainer.style.display = 'none';
-    if (saveBtn) saveBtn.style.display = 'none';
+    if (headerEl) {
+      headerEl.style.display = 'none';
+    }
+    if (containerEl) {
+      containerEl.style.display = 'none';
+    }
+    if (selectedDatesContainer) {
+      selectedDatesContainer.style.display = 'none';
+    }
+    if (saveBtn) {
+      saveBtn.style.display = 'none';
+    }
 
-    if (containerEl) containerEl.innerHTML = '';
+    if (containerEl) {
+      containerEl.innerHTML = '';
+    }
     this.rooms.renderPerRoomList();
   }
 
@@ -770,7 +959,9 @@ class EditBookingComponent {
     }
 
     const container = document.getElementById('notificationContainer');
-    if (!container) return;
+    if (!container) {
+      return;
+    }
 
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
@@ -797,7 +988,9 @@ class EditBookingComponent {
 
   showNotificationWithUndo(message, roomId, type = 'success', duration = 30000) {
     const container = document.getElementById('notificationContainer');
-    if (!container) return;
+    if (!container) {
+      return;
+    }
 
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
@@ -835,7 +1028,9 @@ class EditBookingComponent {
 
   undoRemoveRoom(roomId) {
     const undoIndex = this.undoStack.findIndex((state) => state.roomId === roomId);
-    if (undoIndex === -1) return;
+    if (undoIndex === -1) {
+      return;
+    }
 
     const undoState = this.undoStack[undoIndex];
     this.undoStack.splice(undoIndex, 1);
@@ -859,7 +1054,9 @@ class EditBookingComponent {
     this.rooms.renderPerRoomList();
 
     const notification = document.getElementById(`undo-notification-${roomId}`);
-    if (notification) notification.remove();
+    if (notification) {
+      notification.remove();
+    }
 
     this.showNotification(`✅ Pokoj byl obnoven`, 'success');
   }
@@ -871,12 +1068,16 @@ class EditBookingComponent {
     }
     this.undoTimeouts.delete(roomId);
     const notification = document.getElementById(`undo-notification-${roomId}`);
-    if (notification) notification.remove();
+    if (notification) {
+      notification.remove();
+    }
   }
 
   revertInputValue(roomId, field, oldValue) {
     requestAnimationFrame(() => {
-      const inputs = document.querySelectorAll(`input[onchange*="updateRoomGuests('${roomId}', '${field}'"]`);
+      const inputs = document.querySelectorAll(
+        `input[onchange*="updateRoomGuests('${roomId}', '${field}'"]`
+      );
       inputs.forEach((input) => {
         input.value = oldValue;
       });
@@ -885,7 +1086,9 @@ class EditBookingComponent {
 
   async onSubmit(e) {
     e.preventDefault();
-    if (this.isEditLocked) return;
+    if (this.isEditLocked) {
+      return;
+    }
 
     const validation = this.guests.validateGuestNames(
       Array.from(this.editSelectedRooms.values()).reduce((sum, r) => sum + (r.adults || 0), 0),

@@ -277,81 +277,78 @@ test.describe('Admin Booking Advanced Management', () => {
   });
 
   test.describe('Edit Booking Modal', () => {
-    test('should open edit modal with full booking details', async ({ page }) => {
+    // NOTE: The test booking has 1 room, so it opens the single room modal for editing
+    // For bulk bookings, it would open the bulk booking modal
+    // For composite bookings (multiple rooms with different dates), it shows a selector first
+
+    test('should open single room edit modal for single-room booking', async ({ page }) => {
       await page.click('.tab-button[data-tab="bookings"]');
       await page.waitForTimeout(500);
 
-      // Click edit button on first row
+      // Click edit button on first row (this is a single-room booking)
       const editBtn = page.locator('#bookingsTableBody tr').first().locator('.btn-edit, button:has-text("Upravit")');
       await editBtn.click();
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(1000);
 
-      // Edit modal should open
-      const modal = page.locator('#editBookingModal');
-      await expect(modal).toHaveClass(/active/);
+      // Single room edit modal should open (new behavior)
+      const modal = page.locator('#singleRoomBookingModal');
+      await expect(modal).toHaveClass(/active/, { timeout: 5000 });
 
-      // Modal should contain booking info
-      const modalContent = await modal.textContent();
-      expect(modalContent.toLowerCase()).toContain('upravit');
+      // Modal should contain edit title
+      const modalTitle = page.locator('#roomBookingTitle');
+      const titleText = await modalTitle.textContent();
+      expect(titleText.toLowerCase()).toContain('upravit');
     });
 
-    test('should display two tabs in edit modal - Dates and Billing', async ({ page }) => {
+    test('should show calendar with pre-selected dates in edit modal', async ({ page }) => {
       await page.click('.tab-button[data-tab="bookings"]');
       await page.waitForTimeout(500);
 
       const editBtn = page.locator('#bookingsTableBody tr').first().locator('.btn-edit, button:has-text("Upravit")');
       await editBtn.click();
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(1000);
 
-      // Check for tabs
-      const datesTab = page.locator('.edit-tab-btn[data-tab="dates"]');
-      const billingTab = page.locator('.edit-tab-btn[data-tab="billing"]');
+      // Calendar should be visible
+      const calendar = page.locator('#miniCalendar');
+      await expect(calendar).toBeVisible({ timeout: 5000 });
 
-      await expect(datesTab).toBeVisible();
-      await expect(billingTab).toBeVisible();
+      // Should have selected dates
+      const selectedDates = page.locator('#miniCalendar .selected');
+      const count = await selectedDates.count();
+      expect(count).toBeGreaterThan(0);
     });
 
-    test('should switch between tabs in edit modal', async ({ page }) => {
+    test('should show guest name inputs in edit modal', async ({ page }) => {
       await page.click('.tab-button[data-tab="bookings"]');
       await page.waitForTimeout(500);
 
       const editBtn = page.locator('#bookingsTableBody tr').first().locator('.btn-edit, button:has-text("Upravit")');
       await editBtn.click();
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(1000);
 
-      // Click billing tab
-      const billingTab = page.locator('.edit-tab-btn[data-tab="billing"]');
-      await billingTab.click();
-      await page.waitForTimeout(300);
+      // Guest names section should be visible
+      const guestSection = page.locator('#singleRoomGuestNamesSection');
+      await expect(guestSection).toBeVisible({ timeout: 5000 });
 
-      // Billing content should be visible
-      const billingContent = page.locator('#editBillingTab');
-      await expect(billingContent).toBeVisible();
-
-      // Dates content should be hidden
-      const datesContent = page.locator('#editDatesTab');
-      await expect(datesContent).toHaveCSS('display', 'none');
+      // Should have at least one guest name input
+      const guestInputs = guestSection.locator('input[type="text"]');
+      const count = await guestInputs.count();
+      expect(count).toBeGreaterThan(0);
     });
 
-    test('should show billing fields in edit modal', async ({ page }) => {
+    test('should show save button with correct text in edit mode', async ({ page }) => {
       await page.click('.tab-button[data-tab="bookings"]');
       await page.waitForTimeout(500);
 
       const editBtn = page.locator('#bookingsTableBody tr').first().locator('.btn-edit, button:has-text("Upravit")');
       await editBtn.click();
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(1000);
 
-      // Switch to billing tab
-      await page.click('.edit-tab-btn[data-tab="billing"]');
-      await page.waitForTimeout(300);
-
-      // Check billing fields
-      await expect(page.locator('#editName')).toBeVisible();
-      await expect(page.locator('#editEmail')).toBeVisible();
-      await expect(page.locator('#editPhone')).toBeVisible();
-      await expect(page.locator('#editAddress')).toBeVisible();
-      await expect(page.locator('#editCity')).toBeVisible();
-      await expect(page.locator('#editZip')).toBeVisible();
+      // Confirm button should say "Uložit změny" in edit mode
+      const confirmBtn = page.locator('#confirmSingleRoomBtn');
+      await expect(confirmBtn).toBeVisible({ timeout: 5000 });
+      const btnText = await confirmBtn.textContent();
+      expect(btnText).toContain('Uložit změny');
     });
 
     test('should close edit modal on cancel', async ({ page }) => {
@@ -360,15 +357,15 @@ test.describe('Admin Booking Advanced Management', () => {
 
       const editBtn = page.locator('#bookingsTableBody tr').first().locator('.btn-edit, button:has-text("Upravit")');
       await editBtn.click();
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(1000);
 
-      // Click cancel button
-      const cancelBtn = page.locator('#editBookingModal button.btn-secondary:has-text("Zrušit")');
-      await cancelBtn.click();
+      // Click close button
+      const closeBtn = page.locator('#singleRoomBookingModal .modal-close');
+      await closeBtn.click();
       await page.waitForTimeout(300);
 
       // Modal should be closed
-      const modal = page.locator('#editBookingModal');
+      const modal = page.locator('#singleRoomBookingModal');
       await expect(modal).not.toHaveClass(/active/);
     });
   });

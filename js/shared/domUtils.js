@@ -17,7 +17,7 @@
     // Browser global
     root.DOMUtils = factory();
   }
-})(typeof self !== 'undefined' ? self : this, function () {
+})(typeof self !== 'undefined' ? self : this, () => {
   /**
    * Escapes HTML special characters to prevent XSS
    * @param {string} str - String to escape
@@ -61,7 +61,7 @@
       element.textContent = text;
     }
 
-    Object.keys(attributes).forEach(function (key) {
+    Object.keys(attributes).forEach((key) => {
       const value = attributes[key];
       if (key === 'className') {
         element.className = value;
@@ -87,8 +87,8 @@
       return;
     }
 
-    var args = Array.prototype.slice.call(arguments, 1);
-    args.forEach(function (child) {
+    const args = Array.prototype.slice.call(arguments, 1);
+    args.forEach((child) => {
       if (child instanceof HTMLElement || child instanceof Text) {
         parent.appendChild(child);
       }
@@ -120,7 +120,7 @@
     }
 
     clearElement(element);
-    var args = Array.prototype.slice.call(arguments, 1);
+    const args = Array.prototype.slice.call(arguments, 1);
     appendChildren.apply(null, [element].concat(args));
   }
 
@@ -136,7 +136,7 @@
     rowAttributes = rowAttributes || {};
     const row = createElement('tr', '', rowAttributes);
 
-    cells.forEach(function (cellContent) {
+    cells.forEach((cellContent) => {
       const cell = document.createElement(cellTag);
 
       if (typeof cellContent === 'string') {
@@ -163,7 +163,7 @@
     listAttributes = listAttributes || {};
     const list = createElement(listType, '', listAttributes);
 
-    items.forEach(function (itemContent) {
+    items.forEach((itemContent) => {
       const li = document.createElement('li');
 
       if (typeof itemContent === 'string') {
@@ -205,7 +205,7 @@
    */
   function createLink(text, href, attributes) {
     attributes = attributes || {};
-    const link = createElement('a', text, Object.assign({ href: href || '#' }, attributes));
+    const link = createElement('a', text, { href: href || '#', ...attributes });
     return link;
   }
 
@@ -216,7 +216,7 @@
    * @returns {HTMLDivElement} Created div
    */
   function createDiv(className, content) {
-    const div = createElement('div', '', { className: className });
+    const div = createElement('div', '', { className });
 
     if (typeof content === 'string') {
       div.textContent = content;
@@ -236,7 +236,7 @@
    * @returns {HTMLSpanElement} Created span
    */
   function createSpan(className, text) {
-    return createElement('span', text, { className: className });
+    return createElement('span', text, { className });
   }
 
   /**
@@ -278,8 +278,8 @@
     duration = duration || 5000;
 
     const notification = document.createElement('div');
-    notification.className = 'notification notification-' + type;
-    notification.style.setProperty('--duration', (duration / 1000) + 's');
+    notification.className = `notification notification-${type}`;
+    notification.style.setProperty('--duration', `${duration / 1000}s`);
 
     const iconMap = {
       success: '✓',
@@ -289,13 +289,13 @@
     };
 
     // XSS Protection: escape user message before inserting into HTML
-    var safeMessage = escapeHtml(message);
+    const safeMessage = escapeHtml(message);
     notification.innerHTML =
-      '<span class="notification-icon">' + (iconMap[type] || iconMap.info) + '</span>' +
-      '<span class="notification-content">' + safeMessage + '</span>' +
-      '<span class="notification-close">×</span>';
+      `<span class="notification-icon">${iconMap[type] || iconMap.info}</span>` +
+      `<span class="notification-content">${safeMessage}</span>` +
+      `<span class="notification-close">×</span>`;
 
-    var container = document.getElementById('notification-container');
+    let container = document.getElementById('notification-container');
     if (!container) {
       container = document.createElement('div');
       container.id = 'notification-container';
@@ -309,14 +309,14 @@
     notification.style.pointerEvents = 'auto';
 
     // Trigger slide-in animation after brief delay (for CSS transition to work)
-    requestAnimationFrame(function() {
+    requestAnimationFrame(() => {
       notification.classList.add('show');
     });
 
     // Auto-remove after duration
-    var timeoutId = setTimeout(function () {
+    const timeoutId = setTimeout(() => {
       notification.classList.add('notification-hide');
-      setTimeout(function () {
+      setTimeout(() => {
         if (notification.parentNode) {
           notification.parentNode.removeChild(notification);
         }
@@ -324,12 +324,12 @@
     }, duration);
 
     // Manual close button
-    var closeBtn = notification.querySelector('.notification-close');
+    const closeBtn = notification.querySelector('.notification-close');
     if (closeBtn) {
-      closeBtn.addEventListener('click', function () {
+      closeBtn.addEventListener('click', () => {
         clearTimeout(timeoutId);
         notification.classList.add('notification-hide');
-        setTimeout(function () {
+        setTimeout(() => {
           if (notification.parentNode) {
             notification.parentNode.removeChild(notification);
           }
@@ -372,7 +372,7 @@
   };
 
   ElementBuilder.prototype.child = function () {
-    var args = Array.prototype.slice.call(arguments);
+    const args = Array.prototype.slice.call(arguments);
     appendChildren.apply(null, [this.element].concat(args));
     return this;
   };
@@ -397,22 +397,22 @@
 
   // Return the public API
   return {
-    escapeHtml: escapeHtml,
-    setText: setText,
-    createElement: createElement,
-    appendChildren: appendChildren,
-    clearElement: clearElement,
-    replaceChildren: replaceChildren,
-    createTableRow: createTableRow,
-    createList: createList,
-    createButton: createButton,
-    createLink: createLink,
-    createDiv: createDiv,
-    createSpan: createSpan,
-    setInnerHTML: setInnerHTML,
-    createTextNode: createTextNode,
-    showNotification: showNotification,
-    buildElement: buildElement,
-    ElementBuilder: ElementBuilder,
+    escapeHtml,
+    setText,
+    createElement,
+    appendChildren,
+    clearElement,
+    replaceChildren,
+    createTableRow,
+    createList,
+    createButton,
+    createLink,
+    createDiv,
+    createSpan,
+    setInnerHTML,
+    createTextNode,
+    showNotification,
+    buildElement,
+    ElementBuilder,
   };
 });

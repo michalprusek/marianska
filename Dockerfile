@@ -11,6 +11,9 @@ RUN apk add --no-cache python3 make g++
 # Copy only package files first for better layer caching
 COPY package*.json ./
 
+# Limit Node.js memory for low-RAM servers
+ENV NODE_OPTIONS="--max-old-space-size=512"
+
 # Install ALL dependencies (including devDependencies for build)
 RUN npm ci --prefer-offline
 
@@ -23,6 +26,9 @@ WORKDIR /app
 
 # Install only runtime dependencies for native modules
 RUN apk add --no-cache libstdc++
+
+# Limit Node.js memory for low-RAM servers
+ENV NODE_OPTIONS="--max-old-space-size=512"
 
 # Copy node_modules from builder
 COPY --from=builder /app/node_modules ./node_modules
