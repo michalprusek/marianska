@@ -255,7 +255,15 @@ describe('POST /api/booking', () => {
 ```javascript
 describe('Price Calculation', () => {
   it('should calculate ÚTIA price correctly', () => {
-    const price = dataManager.calculatePrice('utia', 2, 1, 0, 2, 1);
+    const price = PriceCalculator.calculatePrice({
+      guestType: 'utia',
+      adults: 2,
+      children: 1,
+      toddlers: 0,
+      nights: 2,
+      rooms: ['12'], // Room ID required for size-based pricing
+      settings: mockSettings
+    });
     // (300 + 50 + 25) * 2 = 750
     expect(price).toBe(750);
   });
@@ -408,7 +416,15 @@ it('should create booking asynchronously', async () => {
 ```javascript
 it('should throw error for invalid input', () => {
   expect(() => {
-    calculatePrice('invalid-type', -1, 0, 0, 1, 1);
+    PriceCalculator.calculatePrice({
+      guestType: 'invalid-type',
+      adults: -1,
+      children: 0,
+      toddlers: 0,
+      nights: 1,
+      rooms: ['12'],
+      settings: mockSettings
+    });
   }).toThrow();
 });
 ```

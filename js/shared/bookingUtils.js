@@ -11,17 +11,17 @@ class BookingUtils {
   /**
    * Determine if a booking is for the entire chalet (bulk booking)
    *
-   * Uses hybrid detection approach:
-   * 1. Primary: Check explicit isBulkBooking flag
-   * 2. Fallback: Check if booking contains all room IDs
+   * FIX 2025-12-04: Only use explicit isBulkBooking flag
+   * A booking with all 9 rooms is NOT necessarily a bulk booking - it could be
+   * a regular multi-room booking. Only bookings created via the bulk booking
+   * flow should be considered bulk bookings.
    *
    * @param {Object} booking - Booking object
    * @param {string} booking.id - Booking ID
    * @param {Array<string>} booking.rooms - Array of room IDs
    * @param {boolean} [booking.isBulkBooking] - Explicit bulk booking flag
-   * @param {Array<Object>} allRooms - Array of all room configurations
-   * @param {string} allRooms[].id - Room ID
-   * @returns {boolean} True if booking is for entire chalet
+   * @param {Array<Object>} allRooms - Array of all room configurations (unused, kept for API compatibility)
+   * @returns {boolean} True if booking is explicitly marked as bulk booking
    *
    * @example
    * const booking = { rooms: ['12', '13', '14', ...], isBulkBooking: true };
@@ -35,23 +35,8 @@ class BookingUtils {
       return false;
     }
 
-    // Primary: Check explicit flag
-    if (booking.isBulkBooking === true) {
-      return true;
-    }
-
-    // Fallback: Check if booking contains all room IDs
-    if (allRooms && allRooms.length > 0) {
-      const allRoomIds = allRooms.map((r) => r.id).sort();
-      const bookingRoomIds = [...booking.rooms].sort();
-
-      if (bookingRoomIds.length === allRoomIds.length) {
-        // Check if arrays contain same elements
-        return bookingRoomIds.every((id, index) => id === allRoomIds[index]);
-      }
-    }
-
-    return false;
+    // FIX 2025-12-04: Only use explicit isBulkBooking flag, NOT room count
+    return booking.isBulkBooking === true;
   }
 
   /**

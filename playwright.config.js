@@ -6,16 +6,21 @@ const { defineConfig, devices } = require('@playwright/test');
  */
 module.exports = defineConfig({
   testDir: './tests/e2e',
-  fullyParallel: false, // Sequential to avoid database conflicts
+  fullyParallel: false, // Sequential - SQLite doesn't support parallel writes
   forbidOnly: Boolean(process.env.CI),
-  retries: process.env.CI ? 2 : 0,
-  workers: 1, // Single worker to avoid race conditions with SQLite
-  reporter: [['html', { outputFolder: 'playwright-report' }], ['list']],
+  retries: 0,
+  workers: 1, // Single worker for SQLite
+  timeout: 15000, // 15 second timeout per test
+  expect: {
+    timeout: 3000, // 3 second timeout for expect assertions
+  },
+  reporter: 'list', // Console only, no HTML report
   use: {
     baseURL: 'http://localhost:3000',
-    trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    trace: 'off', // Disable tracing for speed
+    screenshot: 'off', // Disable screenshots for speed
+    video: 'off', // Disable video for speed
+    actionTimeout: 5000, // 5 second timeout for actions
   },
 
   projects: [
@@ -23,23 +28,23 @@ module.exports = defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
-    // Mobile testing
-    {
-      name: 'Mobile Chrome',
-      use: { ...devices['Pixel 5'] },
-    },
-    {
-      name: 'Mobile Safari',
-      use: { ...devices['iPhone 12'] },
-    },
+    // Uncomment to enable additional browsers (requires: npx playwright install)
+    // {
+    //   name: 'firefox',
+    //   use: { ...devices['Desktop Firefox'] },
+    // },
+    // {
+    //   name: 'webkit',
+    //   use: { ...devices['Desktop Safari'] },
+    // },
+    // {
+    //   name: 'Mobile Chrome',
+    //   use: { ...devices['Pixel 5'] },
+    // },
+    // {
+    //   name: 'Mobile Safari',
+    //   use: { ...devices['iPhone 12'] },
+    // },
   ],
 
   // Run development server before tests

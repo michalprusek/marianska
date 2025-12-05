@@ -310,8 +310,7 @@ class DataManager {
   async saveData(data) {
     this.cachedData = data;
 
-    // Save to localStorage immediately
-    localStorage.setItem(this.storageKey, JSON.stringify(data));
+    // NEW UNIFIED (2025-12-04): Removed localStorage - server is SSOT
 
     // Try to save to server
     try {
@@ -394,8 +393,8 @@ class DataManager {
         if (response.status === 429) {
           throw new Error(
             errorData.error ||
-              errorData.message ||
-              'Překročili jste limit. Zkuste to prosím později.'
+            errorData.message ||
+            'Překročili jste limit. Zkuste to prosím později.'
           );
         }
 
@@ -431,7 +430,7 @@ class DataManager {
         const data = await this.getData();
         data.bookings.push(booking);
         this.cachedData = data;
-        localStorage.setItem(this.storageKey, JSON.stringify(data));
+        // NEW UNIFIED (2025-12-04): Removed localStorage - server is SSOT
 
         return booking;
       }
@@ -512,7 +511,7 @@ class DataManager {
 
         if (data.bookings.length < initialLength) {
           this.cachedData = data;
-          localStorage.setItem(this.storageKey, JSON.stringify(data));
+          // NEW UNIFIED (2025-12-04): Removed localStorage - server is SSOT
           return true;
         }
 
@@ -861,7 +860,7 @@ class DataManager {
       }
       data.blockageInstances.push(blockageData);
       this.cachedData = data;
-      localStorage.setItem(this.storageKey, JSON.stringify(data));
+      // NEW UNIFIED (2025-12-04): Removed localStorage - server is SSOT
 
       return blockageId;
     } catch (error) {
@@ -906,7 +905,7 @@ class DataManager {
         data.blockageInstances = data.blockageInstances.filter((b) => b.blockageId !== blockageId);
       }
       this.cachedData = data;
-      localStorage.setItem(this.storageKey, JSON.stringify(data));
+      // NEW UNIFIED (2025-12-04): Removed localStorage - server is SSOT
 
       return true;
     } catch (error) {
@@ -1102,47 +1101,7 @@ class DataManager {
   }
 
   // Proposed booking methods
-
-  // Get proposed bookings with caching to avoid rate limits
-  getProposedBookings() {
-    const now = Date.now();
-
-    // Return cached data if still valid
-    if (
-      this.proposedBookingsCache &&
-      this.proposedBookingsCacheTime &&
-      now - this.proposedBookingsCacheTime < this.proposedBookingsCacheDuration
-    ) {
-      return this.proposedBookingsCache;
-    }
-
-    // If a fetch is already in progress, wait for it instead of starting a new one
-    if (this.proposedBookingsFetchPromise) {
-      return this.proposedBookingsFetchPromise;
-    }
-
-    // Fetch fresh data
-    this.proposedBookingsFetchPromise = (async () => {
-      try {
-        const response = await fetch(`${this.apiUrl}/proposed-bookings`);
-        if (response.ok) {
-          this.proposedBookingsCache = await response.json();
-          this.proposedBookingsCacheTime = Date.now();
-          return this.proposedBookingsCache;
-        }
-      } catch (error) {
-        console.error('Error fetching proposed bookings:', error);
-      } finally {
-        // Clear the in-flight promise
-        this.proposedBookingsFetchPromise = null;
-      }
-
-      // Return empty array on error, or use stale cache if available
-      return this.proposedBookingsCache || [];
-    })();
-
-    return this.proposedBookingsFetchPromise;
-  }
+  // NOTE: getProposedBookings() is defined later in this class with fetchWithTimeout support
 
   // Invalidate proposed bookings cache
   invalidateProposedBookingsCache() {
@@ -1150,29 +1109,53 @@ class DataManager {
     this.proposedBookingsCacheTime = null;
   }
 
+  /**
+   * Create a proposed booking (temporary reservation)
+   * Supports two calling patterns:
+   * 1. Object: createProposedBooking({ startDate, endDate, rooms, guests, guestType, totalPrice, sessionId })
+   * 2. Explicit params: createProposedBooking(startDate, endDate, rooms, guests, guestType, totalPrice)
+   */
   async createProposedBooking(
-    startDate,
+    startDateOrConfig,
     endDate,
     rooms,
     guests = {},
     guestType = 'external',
     totalPrice = 0
   ) {
+    // Support object-based call pattern (used by EditBookingComponent)
+    let requestData;
+    if (typeof startDateOrConfig === 'object' && startDateOrConfig !== null) {
+      // Object pattern: first arg is config object
+      requestData = {
+        sessionId: startDateOrConfig.sessionId || this.sessionId,
+        startDate: startDateOrConfig.startDate,
+        endDate: startDateOrConfig.endDate,
+        rooms: startDateOrConfig.rooms,
+        guests: startDateOrConfig.guests || {},
+        guestType: startDateOrConfig.guestType || 'external',
+        totalPrice: startDateOrConfig.totalPrice || 0,
+      };
+    } else {
+      // Explicit params pattern (used by single-room-booking, bulk-booking)
+      requestData = {
+        sessionId: this.sessionId,
+        startDate: startDateOrConfig,
+        endDate,
+        rooms,
+        guests,
+        guestType,
+        totalPrice,
+      };
+    }
+
     try {
       const response = await fetch(`${this.apiUrl}/proposed-bookings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          sessionId: this.sessionId,
-          startDate,
-          endDate,
-          rooms,
-          guests,
-          guestType,
-          totalPrice,
-        }),
+        body: JSON.stringify(requestData),
       });
 
       if (response.ok) {
@@ -1184,10 +1167,10 @@ class DataManager {
           // Add new proposal to cache
           this.proposedBookingsCache.push({
             proposal_id: data.proposalId,
-            session_id: this.sessionId,
-            start_date: startDate,
-            end_date: endDate,
-            rooms,
+            session_id: requestData.sessionId,
+            start_date: requestData.startDate,
+            end_date: requestData.endDate,
+            rooms: requestData.rooms,
             created_at: new Date().toISOString(),
           });
           // Refresh cache timestamp to keep it valid
@@ -1259,36 +1242,7 @@ class DataManager {
     return false;
   }
 
-  // Price calculation
-  // Delegate to PriceCalculator for SSOT compliance
-  // eslint-disable-next-line max-params -- Legacy method signature maintained for backward compatibility
-  calculatePrice(guestType, adults, children, toddlers, nights, roomsCountOrRooms = 1) {
-    // FIX 2025-10-17: Support both old API (roomsCount) and new API (rooms array)
-    let rooms = [];
-    if (Array.isArray(roomsCountOrRooms)) {
-      // New API: rooms array passed directly
-      rooms = roomsCountOrRooms;
-    } else {
-      // Old API: roomsCount number - cannot determine room sizes, use default
-      // This means price calculation will use legacy flat pricing model
-      rooms = [];
-    }
 
-    return this.calculatePriceFromOptions({ guestType, adults, children, toddlers, nights, rooms });
-  }
-
-  async calculatePriceFromOptions({ guestType, adults, children, toddlers, nights, rooms = [] }) {
-    const settings = await this.getSettings();
-    return PriceCalculator.calculatePrice({
-      guestType,
-      adults,
-      children,
-      toddlers,
-      nights,
-      rooms, // Pass rooms array for room-size-based pricing
-      settings,
-    });
-  }
 
   // Get room configuration
   async getRooms() {
@@ -1328,7 +1282,7 @@ class DataManager {
         // Return error message instead of false so UI can display it
         throw new Error(
           errorData.error ||
-            `Nepodařilo se odeslat zprávu (${response.status}): ${response.statusText}`
+          `Nepodařilo se odeslat zprávu (${response.status}): ${response.statusText}`
         );
       }
 
@@ -1362,6 +1316,72 @@ class DataManager {
 
     // Use the regular delete method
     return this.deleteBooking(bookingId);
+  }
+
+  // Proposed Bookings Management
+  // NOTE: createProposedBooking() is defined earlier in this class (supports both object and explicit params)
+
+  async deleteProposedBookingsForSession(sessionId) {
+    if (!sessionId) return;
+    try {
+      await fetch(`${this.apiUrl}/proposed-bookings/session/${sessionId}`, {
+        method: 'DELETE',
+      });
+    } catch (error) {
+      console.warn('Failed to delete proposed bookings:', error);
+    }
+  }
+
+  async getProposedBookings() {
+    // Check cache first
+    const now = Date.now();
+    if (
+      this.proposedBookingsCache &&
+      this.proposedBookingsCacheTime &&
+      now - this.proposedBookingsCacheTime < this.proposedBookingsCacheDuration
+    ) {
+      return this.proposedBookingsCache;
+    }
+
+    // Return existing promise if fetch in progress
+    if (this.proposedBookingsFetchPromise) {
+      return this.proposedBookingsFetchPromise;
+    }
+
+    this.proposedBookingsFetchPromise = (async () => {
+      try {
+        const response = await this.fetchWithTimeout(`${this.apiUrl}/proposed-bookings`);
+        if (response.ok) {
+          const data = await response.json();
+          this.proposedBookingsCache = data;
+          this.proposedBookingsCacheTime = Date.now();
+          return data;
+        }
+        return [];
+      } catch (error) {
+        console.warn('Failed to fetch proposed bookings:', error);
+        return [];
+      } finally {
+        this.proposedBookingsFetchPromise = null;
+      }
+    })();
+
+    return this.proposedBookingsFetchPromise;
+  }
+
+  // Audit Logging
+  async createAuditLog(logData) {
+    try {
+      await fetch(`${this.apiUrl}/audit-log`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(logData),
+      });
+    } catch (error) {
+      console.warn('Failed to create audit log:', error);
+    }
   }
 
   // Cleanup

@@ -197,10 +197,14 @@ const rateLimitConfig = {
   validate: { trustProxy: false }, // Disable validation - we trust our nginx proxy
 };
 
+// Skip rate limiting in test/development mode (high limits)
+const isTestMode = process.env.NODE_ENV === 'test' || process.env.SKIP_RATE_LIMIT === 'true';
+const testModeMax = 100000; // Effectively unlimited for tests
+
 // Read-only endpoints (GET) - more lenient limit
 const readLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300, // Increased from 100 to accommodate calendar rendering
+  max: isTestMode ? testModeMax : 300, // Increased from 100 to accommodate calendar rendering
   message: 'Příliš mnoho požadavků z této IP adresy, zkuste to prosím později.',
   ...rateLimitConfig,
 });
@@ -208,7 +212,7 @@ const readLimiter = rateLimit({
 // Write endpoints (POST/PUT/DELETE) - stricter limit
 const writeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500,
+  max: isTestMode ? testModeMax : 500,
   message: 'Příliš mnoho požadavků z této IP adresy, zkuste to prosím později.',
   ...rateLimitConfig,
 });
@@ -693,6 +697,27 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
       }
     });
 
+    // NEW UNIFIED SCHEMA (2025-12-04): Ensure all guests have roomId
+    // For single room bookings, assign all guests to that room
+    // For multi-room bookings, guests must have roomId from frontend
+    if (bookingData.rooms && bookingData.rooms.length === 1) {
+      const singleRoomId = bookingData.rooms[0];
+      bookingData.guestNames.forEach((guest) => {
+        if (!guest.roomId) {
+          // eslint-disable-next-line no-param-reassign
+          guest.roomId = singleRoomId;
+        }
+      });
+    } else {
+      // Multi-room booking - validate all guests have roomId
+      const missingRoomId = bookingData.guestNames.find((g) => !g.roomId);
+      if (missingRoomId) {
+        return res.status(400).json({
+          error: `Host ${missingRoomId.firstName} ${missingRoomId.lastName} nemá přiřazený pokoj`,
+        });
+      }
+    }
+
     // CRITICAL FIX 2025-10-07: Server-side capacity validation
     // Prevent users from bypassing client-side checks via direct API calls
     if (bookingData.isBulkBooking) {
@@ -795,15 +820,17 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
           if (breakdownValues.some(v => typeof v !== 'number' || v < 0 || !Number.isInteger(v))) {
             return res.status(400).json({ error: 'Neplatné hodnoty v guestTypeBreakdown - musí být nezáporná celá čísla' });
           }
-          const { bulkPrices } = settings;
-          // Calculate mixed pricing: base + (ÚTIA adults × ÚTIA rate) + (external adults × external rate) + children
-          const adultSurcharge = utiaAdults * bulkPrices.utiaAdult + externalAdults * bulkPrices.externalAdult;
-          const childSurcharge = utiaChildren * bulkPrices.utiaChild + externalChildren * bulkPrices.externalChild;
-          const pricePerNight = bulkPrices.basePrice + adultSurcharge + childSurcharge;
-          bookingData.totalPrice = Math.round(pricePerNight * nights);
+          // SSOT: Use PriceCalculator for mixed guest type pricing
+          bookingData.totalPrice = PriceCalculator.calculateMixedBulkPrice({
+            utiaAdults,
+            externalAdults,
+            utiaChildren,
+            externalChildren,
+            nights,
+            settings,
+          });
           logger.info('Bulk booking price calculated with mixed guest types', {
             guestTypeBreakdown: bookingData.guestTypeBreakdown,
-            pricePerNight,
             nights,
             totalPrice: bookingData.totalPrice,
           });
@@ -951,11 +978,30 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
 
     // Verify edit token or session
     const sessionToken = req.headers['x-session-token'];
-    const isAdmin = sessionToken && db.getAdminSession(sessionToken) !== undefined;
+    let isAdmin = false;
 
-    if (!editToken || editToken !== existingBooking.editToken) {
-      // Check if user is admin
-      if (!isAdmin) {
+    // FIX 2025-12-04: Properly validate session if token provided
+    if (sessionToken) {
+      const session = db.getAdminSession(sessionToken);
+
+      // Check if session exists
+      if (!session) {
+        return res.status(401).json({ error: 'Neplatný session token - přihlaste se znovu' });
+      }
+
+      // Check if session expired
+      const expiresAt = new Date(session.expires_at).getTime();
+      if (expiresAt < Date.now()) {
+        db.deleteAdminSession(sessionToken);
+        return res.status(401).json({ error: 'Session vypršela - přihlaste se znovu' });
+      }
+
+      // Session valid
+      isAdmin = true;
+    }
+
+    if (!isAdmin) {
+      if (!editToken || editToken !== existingBooking.editToken) {
         return res.status(403).json({ error: 'Neplatný editační token' });
       }
     }
@@ -1164,6 +1210,26 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
         guest.firstName = sanitizeInput(guest.firstName.trim(), MAX_NAME_LENGTH);
         guest.lastName = sanitizeInput(guest.lastName.trim(), MAX_NAME_LENGTH);
       }
+
+      // NEW UNIFIED SCHEMA (2025-12-04): Ensure all guests have roomId
+      const rooms = bookingData.rooms || existingBooking.rooms;
+      if (rooms && rooms.length === 1) {
+        const singleRoomId = rooms[0];
+        bookingData.guestNames.forEach((guest) => {
+          if (!guest.roomId) {
+            // eslint-disable-next-line no-param-reassign
+            guest.roomId = singleRoomId;
+          }
+        });
+      } else {
+        // Multi-room booking - validate all guests have roomId
+        const missingRoomId = bookingData.guestNames.find((g) => !g.roomId);
+        if (missingRoomId) {
+          return res.status(400).json({
+            error: `Host ${missingRoomId.firstName} ${missingRoomId.lastName} nemá přiřazený pokoj`,
+          });
+        }
+      }
     }
 
     // Validate dates
@@ -1269,9 +1335,6 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       });
     }
 
-    // NEW 2025-11-04: Check if price is locked (prevent recalculation for old bookings)
-    const isPriceLocked = existingBooking.price_locked === 1;
-
     // Detect if only payment-related fields are changing
     const priceAffectingFieldsChanged =
       bookingData.startDate !== existingBooking.startDate ||
@@ -1282,8 +1345,9 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       bookingData.guestType !== existingBooking.guestType ||
       JSON.stringify(bookingData.rooms?.sort()) !== JSON.stringify(existingBooking.rooms?.sort());
 
-    // Only recalculate price if price-affecting fields changed AND price is not locked
-    if (priceAffectingFieldsChanged && !isPriceLocked) {
+    // Recalculate price if price-affecting fields changed
+    // NEW UNIFIED SCHEMA (2025-12-04): Always recalculate, no price_locked
+    if (priceAffectingFieldsChanged) {
       // Recalculate price using shared PriceCalculator
       const nights = DateUtils.getDaysBetween(bookingData.startDate, bookingData.endDate);
       // settings already declared above for Christmas check
@@ -1300,15 +1364,17 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
           if (breakdownValues.some(v => typeof v !== 'number' || v < 0 || !Number.isInteger(v))) {
             return res.status(400).json({ error: 'Neplatné hodnoty v guestTypeBreakdown - musí být nezáporná celá čísla' });
           }
-          const { bulkPrices } = settings;
-          // Calculate mixed pricing: base + (ÚTIA adults × ÚTIA rate) + (external adults × external rate) + children
-          const adultSurcharge = utiaAdults * bulkPrices.utiaAdult + externalAdults * bulkPrices.externalAdult;
-          const childSurcharge = utiaChildren * bulkPrices.utiaChild + externalChildren * bulkPrices.externalChild;
-          const pricePerNight = bulkPrices.basePrice + adultSurcharge + childSurcharge;
-          bookingData.totalPrice = Math.round(pricePerNight * nights);
+          // SSOT: Use PriceCalculator for mixed guest type pricing
+          bookingData.totalPrice = PriceCalculator.calculateMixedBulkPrice({
+            utiaAdults,
+            externalAdults,
+            utiaChildren,
+            externalChildren,
+            nights,
+            settings,
+          });
           logger.info('Bulk booking update price calculated with mixed guest types', {
             guestTypeBreakdown: breakdown,
-            pricePerNight,
             nights,
             totalPrice: bookingData.totalPrice,
           });
@@ -1370,18 +1436,8 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
         });
       }
     } else {
-      // Preserve original price in two scenarios:
-      // 1. Only non-price-affecting fields changed (payment, notes, etc.)
-      // 2. Price is locked (old bookings with frozen prices)
+      // Preserve original price when only non-price-affecting fields changed
       bookingData.totalPrice = existingBooking.totalPrice;
-
-      if (isPriceLocked && priceAffectingFieldsChanged) {
-        logger.info('Price recalculation skipped for locked booking', {
-          bookingId,
-          originalPrice: existingBooking.totalPrice,
-          reason: 'price_locked',
-        });
-      }
     }
 
     // Detect what changed for email notification
@@ -1543,13 +1599,35 @@ app.delete('/api/booking/:id', writeLimiter, async (req, res) => {
 
     // FIXED: Check for admin session first (admins can delete any booking)
     const sessionToken = req.headers['x-session-token'];
-    const isAdmin = sessionToken && db.getAdminSession(sessionToken) !== undefined;
+    let isAdmin = false;
+
+    // FIX 2025-12-04: Properly validate session if token provided
+    if (sessionToken) {
+      const session = db.getAdminSession(sessionToken);
+
+      // Check if session exists
+      if (!session) {
+        return res.status(401).json({ error: 'Neplatný session token - přihlaste se znovu' });
+      }
+
+      // Check if session expired
+      const expiresAt = new Date(session.expires_at).getTime();
+      if (expiresAt < Date.now()) {
+        db.deleteAdminSession(sessionToken);
+        return res.status(401).json({ error: 'Session vypršela - přihlaste se znovu' });
+      }
+
+      // Session valid
+      isAdmin = true;
+    }
 
     // Verify edit token or admin session
-    if (!isAdmin && (!editToken || editToken !== existingBooking.editToken)) {
-      // Fallback: Check if API key is provided for admin access
+    if (!isAdmin) {
+      // Fallback: Check if API key is provided for admin access (legacy/script access)
       const apiKey = req.headers['x-api-key'];
-      if (!apiKey || apiKey !== process.env.API_KEY) {
+      if (apiKey && apiKey === process.env.API_KEY) {
+        isAdmin = true;
+      } else if (!editToken || editToken !== existingBooking.editToken) {
         return res.status(403).json({ error: 'Neplatný editační token' });
       }
     }
@@ -2263,7 +2341,7 @@ app.delete('/api/admin/christmas-periods/:periodId', requireApiKeyOrSession, (re
 // Proposed bookings endpoints
 app.post('/api/proposed-booking', (req, res) => {
   try {
-    const { sessionId, startDate, endDate, rooms } = req.body;
+    const { sessionId, startDate, endDate, rooms, perRoomDates } = req.body;
 
     if (!sessionId || !startDate || !endDate || !rooms || rooms.length === 0) {
       return res.status(400).json({ error: 'Chybí povinné údaje' });
@@ -2272,8 +2350,17 @@ app.post('/api/proposed-booking', (req, res) => {
     // Delete any existing proposals for this session
     db.deleteProposedBookingsBySession(sessionId);
 
-    // Create new proposed booking
-    const proposalId = db.createProposedBooking(sessionId, startDate, endDate, rooms);
+    // Build per-room dates - use provided perRoomDates or default to booking-level dates
+    const finalPerRoomDates = {};
+    for (const roomId of rooms) {
+      finalPerRoomDates[roomId] =
+        perRoomDates && perRoomDates[roomId]
+          ? perRoomDates[roomId]
+          : { startDate, endDate };
+    }
+
+    // Create new proposed booking with per-room dates
+    const proposalId = db.createProposedBooking(sessionId, rooms, finalPerRoomDates);
 
     return res.json({ success: true, proposalId });
   } catch (error) {
@@ -2305,21 +2392,55 @@ app.get('/api/proposed-bookings/session/:sessionId', readLimiter, (req, res) => 
 
 app.post('/api/proposed-bookings', writeLimiter, (req, res) => {
   try {
-    const { sessionId, startDate, endDate, rooms, guests, guestType, totalPrice } = req.body;
+    const { sessionId, startDate, endDate, rooms, perRoomDates } = req.body;
 
     if (!sessionId || !startDate || !endDate || !rooms) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const proposalId = db.createProposedBooking(
-      sessionId,
-      startDate,
-      endDate,
-      rooms,
-      guests || {},
-      guestType || 'external',
-      totalPrice || 0
-    );
+    // Build per-room dates - use provided perRoomDates or default to booking-level dates
+    const finalPerRoomDates = {};
+    for (const roomId of rooms) {
+      finalPerRoomDates[roomId] =
+        perRoomDates && perRoomDates[roomId]
+          ? perRoomDates[roomId]
+          : { startDate, endDate };
+    }
+
+    // Check for conflicts with existing proposed bookings
+    const activeProposals = db.getActiveProposedBookings();
+    for (const proposal of activeProposals) {
+      // Check each room for date conflicts
+      for (const roomId of rooms) {
+        if (proposal.rooms.includes(roomId)) {
+          const newDates = finalPerRoomDates[roomId];
+          const existingDates = proposal.perRoomDates[roomId];
+
+          if (existingDates) {
+            const datesOverlap = !(
+              newDates.endDate < existingDates.startDate ||
+              newDates.startDate > existingDates.endDate
+            );
+
+            if (datesOverlap) {
+              if (proposal.sessionId === sessionId) {
+                // Same session - delete old proposal
+                db.deleteProposedBooking(proposal.proposalId);
+              } else {
+                // Different session - conflict error
+                return res.status(409).json({
+                  error: `Pokoj ${roomId} je již navrhován jiným uživatelem pro termín ${existingDates.startDate} - ${existingDates.endDate}`,
+                  conflictingRoom: roomId,
+                  conflictDates: existingDates,
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    const proposalId = db.createProposedBooking(sessionId, rooms, finalPerRoomDates);
     return res.json({ success: true, proposalId });
   } catch (error) {
     logger.error('creating proposed booking:', error);

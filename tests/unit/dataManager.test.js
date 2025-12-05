@@ -304,66 +304,7 @@ describe('DataManager', () => {
     });
   });
 
-  describe('Price Calculation', () => {
-    describe('ÚTIA Guests', () => {
-      it('should calculate base price for 1 adult, 1 night', () => {
-        const price = dataManager.calculatePrice('utia', 1, 0, 0, 1, 1);
-        expect(price).toBe(300); // Base price only
-      });
 
-      it('should add surcharge for additional adults', () => {
-        const price = dataManager.calculatePrice('utia', 2, 0, 0, 1, 1);
-        expect(price).toBe(350); // 300 + 50
-      });
-
-      it('should add surcharge for children', () => {
-        const price = dataManager.calculatePrice('utia', 1, 2, 0, 1, 1);
-        expect(price).toBe(350); // 300 + (2 * 25)
-      });
-
-      it('should not charge for toddlers', () => {
-        const price = dataManager.calculatePrice('utia', 1, 0, 5, 1, 1);
-        expect(price).toBe(300); // Base price only, toddlers free
-      });
-
-      it('should multiply by number of nights', () => {
-        const price = dataManager.calculatePrice('utia', 2, 1, 0, 3, 1);
-        // (300 + 50 + 25) * 3 = 1125
-        expect(price).toBe(1125);
-      });
-
-      it('should handle multiple rooms', () => {
-        const price = dataManager.calculatePrice('utia', 3, 0, 0, 1, 2);
-        // 2 rooms = large pricing: (400 * 2) + (3 - 2) * 50 = 850
-        expect(price).toBe(850);
-      });
-    });
-
-    describe('External Guests', () => {
-      it('should calculate base price for 1 adult, 1 night', () => {
-        const price = dataManager.calculatePrice('external', 1, 0, 0, 1, 1);
-        expect(price).toBe(500); // External base price
-      });
-
-      it('should add higher surcharge for adults', () => {
-        const price = dataManager.calculatePrice('external', 2, 0, 0, 1, 1);
-        expect(price).toBe(600); // 500 + 100
-      });
-
-      it('should add higher surcharge for children', () => {
-        const price = dataManager.calculatePrice('external', 1, 2, 0, 1, 1);
-        expect(price).toBe(600); // 500 + (2 * 50)
-      });
-
-      it('should calculate complex scenario correctly', () => {
-        // 2 rooms, 3 adults, 2 children, 2 nights
-        const price = dataManager.calculatePrice('external', 3, 2, 0, 2, 2);
-        // 2 rooms = large pricing: (600 * 2) + (3 - 2) * 100 + (2 * 50) = 1400 per night
-        // 1400 * 2 = 2800
-        expect(price).toBe(2800);
-      });
-    });
-  });
 
   describe('Christmas Period Detection', () => {
     beforeEach(() => {

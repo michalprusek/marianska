@@ -1,562 +1,507 @@
 <!doctype html>
 <html lang="cs">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0"
-    />
-    <title>Admin Panel - Chata Mariánská</title>
-    <link
-      rel="icon"
-      type="image/x-icon"
-      href="/favicon.ico"
-    />
-    <link
-      rel="stylesheet"
-      href="css/styles-unified.css"
-    />
-    <link
-      rel="stylesheet"
-      href="css/mobile-improvements.css"
-    />
-    <link
-      rel="preconnect"
-      href="https://fonts.googleapis.com"
-    />
-    <link
-      rel="preconnect"
-      href="https://fonts.gstatic.com"
-      crossorigin
-    />
-    <style>
-      .admin-container {
-        max-width: 1600px;
-        margin: 0 auto;
-        padding: 2rem;
-      }
 
-      .login-container {
-        max-width: 400px;
-        margin: 10vh auto;
-        padding: 2rem;
-        background: white;
-        border-radius: var(--radius-xl);
-        box-shadow: var(--shadow-lg);
-      }
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Panel - Chata Mariánská</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="stylesheet" href="css/styles-unified.css" />
+  <link rel="stylesheet" href="css/mobile-improvements.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <style>
+    .admin-container {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
 
-      .admin-tabs {
-        display: flex;
-        gap: 0.5rem;
-        margin-bottom: 2rem;
-        border-bottom: 2px solid var(--gray-200);
-      }
+    .login-container {
+      max-width: 400px;
+      margin: 10vh auto;
+      padding: 2rem;
+      background: white;
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-lg);
+    }
 
-      .tab-button {
-        padding: 1rem 2rem;
-        background: none;
-        border: none;
-        font-size: 1rem;
-        font-weight: 600;
-        color: var(--gray-600);
-        cursor: pointer;
-        transition: all 0.2s;
-        border-bottom: 3px solid transparent;
-        margin-bottom: -2px;
-      }
+    .admin-tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+      border-bottom: 2px solid var(--gray-200);
+    }
 
-      .tab-button.active {
-        color: var(--primary-color);
-        border-bottom-color: var(--primary-color);
-      }
+    .tab-button {
+      padding: 1rem 2rem;
+      background: none;
+      border: none;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--gray-600);
+      cursor: pointer;
+      transition: all 0.2s;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+    }
 
-      .tab-content {
-        display: none;
-        background: white;
-        border-radius: var(--radius-xl);
-        padding: 2rem;
-        box-shadow: var(--shadow-md);
-      }
+    .tab-button.active {
+      color: var(--primary-color);
+      border-bottom-color: var(--primary-color);
+    }
 
-      .tab-content.active {
-        display: block;
-      }
+    .tab-content {
+      display: none;
+      background: white;
+      border-radius: var(--radius-xl);
+      padding: 2rem;
+      box-shadow: var(--shadow-md);
+    }
 
-      .bookings-table {
-        width: 100%;
-        border-collapse: collapse;
-      }
+    .tab-content.active {
+      display: block;
+    }
 
-      .bookings-table th,
-      .bookings-table td {
-        padding: 0.75rem;
-        text-align: left;
-        border-bottom: 1px solid var(--gray-200);
-      }
+    .bookings-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
 
-      .bookings-table th {
-        background: var(--gray-50);
-        font-weight: 600;
-      }
+    .bookings-table th,
+    .bookings-table td {
+      padding: 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid var(--gray-200);
+    }
 
-      .bookings-table tr:hover {
-        background: var(--gray-50);
-      }
+    .bookings-table th {
+      background: var(--gray-50);
+      font-weight: 600;
+    }
 
-      .action-buttons {
-        display: flex;
-        gap: 0.5rem;
-      }
+    .bookings-table tr:hover {
+      background: var(--gray-50);
+    }
 
-      .btn-small {
-        padding: 0.25rem 0.75rem;
-        font-size: 0.9rem;
-      }
+    .action-buttons {
+      display: flex;
+      gap: 0.5rem;
+    }
 
-      .btn-danger {
-        background: #dc2626;
-        color: white;
-      }
+    .btn-small {
+      padding: 0.25rem 0.75rem;
+      font-size: 0.9rem;
+    }
 
-      .btn-danger:hover {
-        background: #b91c1c;
-      }
+    .btn-danger {
+      background: #dc2626;
+      color: white;
+    }
 
-      .blocked-dates-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        gap: 1rem;
-        margin-top: 1rem;
-      }
+    .btn-danger:hover {
+      background: #b91c1c;
+    }
 
-      .blocked-date-card {
-        padding: 1rem;
-        background: var(--gray-50);
-        border-radius: var(--radius-md);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
+    .blocked-dates-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
 
-      .christmas-codes-list {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        margin-top: 1rem;
-      }
+    .blocked-date-card {
+      padding: 1rem;
+      background: var(--gray-50);
+      border-radius: var(--radius-md);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
 
-      .code-chip {
-        padding: 0.5rem 1rem;
-        background: #3b82f6;
-        color: white;
-        border-radius: 6px;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        border: 2px solid #2563eb;
-      }
+    .christmas-codes-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
 
-      .code-chip button {
-        background: none;
-        border: none;
-        color: white !important;
-        cursor: pointer;
-        font-size: 1.2rem;
-        line-height: 1;
-        padding: 0.2rem;
-        border-radius: 3px;
-        transition: background 0.2s;
-      }
+    .code-chip {
+      padding: 0.5rem 1rem;
+      background: #3b82f6;
+      color: white;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border: 2px solid #2563eb;
+    }
 
-      .code-chip button:hover {
-        background: rgba(255, 255, 255, 0.2);
-      }
+    .code-chip button {
+      background: none;
+      border: none;
+      color: white !important;
+      cursor: pointer;
+      font-size: 1.2rem;
+      line-height: 1;
+      padding: 0.2rem;
+      border-radius: 3px;
+      transition: background 0.2s;
+    }
 
-      .christmas-period-card {
-        padding: 1rem;
-        background: white;
-        border: 1px solid var(--gray-200);
-        border-radius: 8px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-      }
+    .code-chip button:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
 
-      .christmas-period-info {
-        flex: 1;
-      }
+    .christmas-period-card {
+      padding: 1rem;
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
 
-      .christmas-period-dates {
-        font-weight: 600;
-        color: var(--gray-900);
-        margin-bottom: 0.25rem;
-      }
+    .christmas-period-info {
+      flex: 1;
+    }
 
-      .christmas-period-year {
-        font-size: 0.85rem;
-        color: var(--gray-600);
-      }
+    .christmas-period-dates {
+      font-weight: 600;
+      color: var(--gray-900);
+      margin-bottom: 0.25rem;
+    }
 
-      /* Toast Notifications */
+    .christmas-period-year {
+      font-size: 0.85rem;
+      color: var(--gray-600);
+    }
+
+    /* Toast Notifications */
+    .toast-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .toast {
+      display: flex;
+      align-items: center;
+      min-width: 300px;
+      max-width: 500px;
+      padding: 16px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+      pointer-events: auto;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border-left: 4px solid;
+    }
+
+    .toast-success {
+      border-left-color: #34c759;
+    }
+
+    .toast-error {
+      border-left-color: #ff3b30;
+    }
+
+    .toast-warning {
+      border-left-color: #ff9500;
+    }
+
+    .toast-info {
+      border-left-color: #007aff;
+    }
+
+    .toast-icon {
+      width: 24px;
+      height: 24px;
+      margin-right: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      font-weight: bold;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .toast-success .toast-icon {
+      background: rgba(52, 199, 89, 0.1);
+      color: #34c759;
+    }
+
+    .toast-error .toast-icon {
+      background: rgba(255, 59, 48, 0.1);
+      color: #ff3b30;
+    }
+
+    .toast-warning .toast-icon {
+      background: rgba(255, 149, 0, 0.1);
+      color: #ff9500;
+    }
+
+    .toast-info .toast-icon {
+      background: rgba(0, 122, 255, 0.1);
+      color: #007aff;
+    }
+
+    .toast-message {
+      flex: 1;
+      color: #1f2937;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1.4;
+    }
+
+    .toast-close {
+      background: none;
+      border: none;
+      color: #9ca3af;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0;
+      margin-left: 12px;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: color 0.2s;
+    }
+
+    .toast-close:hover {
+      color: #6b7280;
+    }
+
+    /* Toast animations */
+    .toast-enter {
+      opacity: 0;
+      transform: translateX(100%);
+    }
+
+    .toast-show {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .toast-exit {
+      opacity: 0;
+      transform: translateX(100%);
+    }
+
+    /* Input fields styling */
+    input[type='text'],
+    input[type='password'],
+    input[type='email'],
+    input[type='tel'],
+    input[type='number'],
+    input[type='date'],
+    textarea,
+    select {
+      padding: 0.75rem;
+      border: 2px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 1rem;
+      background: white;
+      color: #111827;
+      width: 100%;
+      box-sizing: border-box;
+      outline: none;
+      transition:
+        border-color 0.2s,
+        box-shadow 0.2s;
+    }
+
+    input[type='text']:focus,
+    input[type='password']:focus,
+    input[type='email']:focus,
+    input[type='tel']:focus,
+    input[type='number']:focus,
+    input[type='date']:focus,
+    textarea:focus,
+    select:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    /* Responsive toast */
+    @media (max-width: 640px) {
       .toast-container {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        z-index: 10000;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        pointer-events: none;
+        left: 10px;
+        right: 10px;
+        bottom: 10px;
       }
 
       .toast {
-        display: flex;
-        align-items: center;
-        min-width: 300px;
-        max-width: 500px;
-        padding: 16px;
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-        pointer-events: auto;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        border-left: 4px solid;
+        min-width: auto;
+        max-width: none;
       }
+    }
 
-      .toast-success {
-        border-left-color: #34c759;
-      }
+    /* Modern button styles */
+    .btn-modern {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.5rem 0.9rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      position: relative;
+      overflow: hidden;
+    }
 
-      .toast-error {
-        border-left-color: #ff3b30;
-      }
+    .btn-modern::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
+      transform: translate(-50%, -50%);
+      transition:
+        width 0.5s,
+        height 0.5s;
+    }
 
-      .toast-warning {
-        border-left-color: #ff9500;
-      }
+    .btn-modern:hover::before {
+      width: 300px;
+      height: 300px;
+    }
 
-      .toast-info {
-        border-left-color: #007aff;
-      }
+    .btn-modern svg {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
 
-      .toast-icon {
-        width: 24px;
-        height: 24px;
-        margin-right: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        font-weight: bold;
-        font-size: 14px;
-        flex-shrink: 0;
-      }
+    .btn-view {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: white;
+    }
 
-      .toast-success .toast-icon {
-        background: rgba(52, 199, 89, 0.1);
-        color: #34c759;
-      }
+    .btn-view:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    }
 
-      .toast-error .toast-icon {
-        background: rgba(255, 59, 48, 0.1);
-        color: #ff3b30;
-      }
+    .btn-view:active {
+      transform: translateY(0);
+    }
 
-      .toast-warning .toast-icon {
-        background: rgba(255, 149, 0, 0.1);
-        color: #ff9500;
-      }
+    .btn-edit {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+    }
 
-      .toast-info .toast-icon {
-        background: rgba(0, 122, 255, 0.1);
-        color: #007aff;
-      }
+    .btn-edit:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+      background: linear-gradient(135deg, #059669, #047857);
+    }
 
-      .toast-message {
-        flex: 1;
-        color: #1f2937;
-        font-size: 14px;
-        font-weight: 500;
-        line-height: 1.4;
-      }
+    .btn-edit:active {
+      transform: translateY(0);
+    }
 
-      .toast-close {
-        background: none;
-        border: none;
-        color: #9ca3af;
-        font-size: 20px;
-        cursor: pointer;
-        padding: 0;
-        margin-left: 12px;
-        width: 24px;
-        height: 24px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 4px;
-        transition: color 0.2s;
-      }
+    .btn-delete {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color: white;
+    }
 
-      .toast-close:hover {
-        color: #6b7280;
-      }
+    .btn-delete:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+      background: linear-gradient(135deg, #dc2626, #b91c1c);
+    }
 
-      /* Toast animations */
-      .toast-enter {
-        opacity: 0;
-        transform: translateX(100%);
-      }
+    .btn-delete:active {
+      transform: translateY(0);
+    }
 
-      .toast-show {
-        opacity: 1;
-        transform: translateX(0);
-      }
+    .action-buttons {
+      display: flex;
+      gap: 0.4rem;
+      justify-content: flex-start;
+      align-items: center;
+    }
 
-      .toast-exit {
-        opacity: 0;
-        transform: translateX(100%);
-      }
-
-      /* Input fields styling */
-      input[type='text'],
-      input[type='password'],
-      input[type='email'],
-      input[type='tel'],
-      input[type='number'],
-      input[type='date'],
-      textarea,
-      select {
-        padding: 0.75rem;
-        border: 2px solid #d1d5db;
-        border-radius: 8px;
-        font-size: 1rem;
-        background: white;
-        color: #111827;
-        width: 100%;
-        box-sizing: border-box;
-        outline: none;
-        transition:
-          border-color 0.2s,
-          box-shadow 0.2s;
-      }
-
-      input[type='text']:focus,
-      input[type='password']:focus,
-      input[type='email']:focus,
-      input[type='tel']:focus,
-      input[type='number']:focus,
-      input[type='date']:focus,
-      textarea:focus,
-      select:focus {
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-      }
-
-      /* Responsive toast */
-      @media (max-width: 640px) {
-        .toast-container {
-          left: 10px;
-          right: 10px;
-          bottom: 10px;
-        }
-
-        .toast {
-          min-width: auto;
-          max-width: none;
-        }
-      }
-
-      /* Modern button styles */
+    /* Responsive button adjustments */
+    @media (max-width: 768px) {
       .btn-modern {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        padding: 0.5rem 0.9rem;
-        font-size: 0.875rem;
-        font-weight: 500;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        position: relative;
-        overflow: hidden;
-      }
-
-      .btn-modern::before {
-        content: '';
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 0;
-        height: 0;
-        border-radius: 50%;
-        background: rgba(255, 255, 255, 0.2);
-        transform: translate(-50%, -50%);
-        transition:
-          width 0.5s,
-          height 0.5s;
-      }
-
-      .btn-modern:hover::before {
-        width: 300px;
-        height: 300px;
+        padding: 0.4rem 0.7rem;
+        font-size: 0.8rem;
       }
 
       .btn-modern svg {
-        width: 16px;
-        height: 16px;
-        flex-shrink: 0;
+        width: 14px;
+        height: 14px;
       }
+    }
+  </style>
+</head>
 
-      .btn-view {
-        background: linear-gradient(135deg, #3b82f6, #2563eb);
-        color: white;
-      }
-
-      .btn-view:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-        background: linear-gradient(135deg, #2563eb, #1d4ed8);
-      }
-
-      .btn-view:active {
-        transform: translateY(0);
-      }
-
-      .btn-edit {
-        background: linear-gradient(135deg, #10b981, #059669);
-        color: white;
-      }
-
-      .btn-edit:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-        background: linear-gradient(135deg, #059669, #047857);
-      }
-
-      .btn-edit:active {
-        transform: translateY(0);
-      }
-
-      .btn-delete {
-        background: linear-gradient(135deg, #ef4444, #dc2626);
-        color: white;
-      }
-
-      .btn-delete:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
-        background: linear-gradient(135deg, #dc2626, #b91c1c);
-      }
-
-      .btn-delete:active {
-        transform: translateY(0);
-      }
-
-      .action-buttons {
-        display: flex;
-        gap: 0.4rem;
-        justify-content: flex-start;
-        align-items: center;
-      }
-
-      /* Responsive button adjustments */
-      @media (max-width: 768px) {
-        .btn-modern {
-          padding: 0.4rem 0.7rem;
-          font-size: 0.8rem;
-        }
-
-        .btn-modern svg {
-          width: 14px;
-          height: 14px;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="app-container">
-      <!-- Header -->
-      <header class="header">
-        <div class="header-content">
-          <h1
-            class="logo"
-            data-translate="adminPanelTitle"
-          >
-            Admin Panel - Chata Mariánská
-          </h1>
-          <nav class="nav">
-            <button
-              id="backBtn"
-              class="btn btn-secondary"
-              style="
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <h1 class="logo" data-translate="adminPanelTitle">
+          Admin Panel - Chata Mariánská
+        </h1>
+        <nav class="nav">
+          <button id="backBtn" class="btn btn-secondary" style="
                 display: none;
                 align-items: center;
                 gap: 0.5rem;
                 padding: 0.75rem 1.5rem;
                 font-size: 0.95rem;
-              "
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-              >
-                <path d="M19 12H5M5 12l7 7m-7-7l7-7" />
-              </svg>
-              Zpět na kalendář
-            </button>
-            <button
-              id="logoutBtn"
-              class="btn btn-secondary"
-              style="
+              ">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M19 12H5M5 12l7 7m-7-7l7-7" />
+            </svg>
+            Zpět na kalendář
+          </button>
+          <button id="logoutBtn" class="btn btn-secondary" style="
                 display: none;
                 align-items: center;
                 gap: 0.5rem;
                 padding: 0.75rem 1.5rem;
                 font-size: 0.95rem;
-              "
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-              >
-                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
-              </svg>
-              Odhlásit
-            </button>
-          </nav>
-        </div>
-      </header>
+              ">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
+            </svg>
+            Odhlásit
+          </button>
+        </nav>
+      </div>
+    </header>
 
-      <!-- Login Form -->
-      <div
-        id="loginContainer"
-        class="login-container"
-      >
-        <h2>Přihlášení administrátora</h2>
-        <form
-          id="loginForm"
-          style="margin-top: 2rem"
-        >
-          <div class="input-group">
-            <label
-              for="password"
-              style="font-weight: 600; color: var(--gray-800); margin-bottom: 0.5rem"
-              >Heslo</label
-            >
-            <input
-              type="password"
-              id="password"
-              required
-              style="
+    <!-- Login Form -->
+    <div id="loginContainer" class="login-container">
+      <h2>Přihlášení administrátora</h2>
+      <form id="loginForm" style="margin-top: 2rem">
+        <div class="input-group">
+          <label for="password" style="font-weight: 600; color: var(--gray-800); margin-bottom: 0.5rem">Heslo</label>
+          <input type="password" id="password" required style="
                 padding: 0.75rem 1rem;
                 border: 2px solid #d1d5db;
                 border-radius: 8px;
@@ -566,15 +511,10 @@
                 width: 100%;
                 box-sizing: border-box;
                 outline: none;
-              "
-              onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)'"
-              onblur="this.style.borderColor='#d1d5db'; this.style.boxShadow='none'"
-            />
-          </div>
-          <button
-            type="submit"
-            class="btn btn-primary"
-            style="
+              " onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)'"
+            onblur="this.style.borderColor='#d1d5db'; this.style.boxShadow='none'" />
+        </div>
+        <button type="submit" class="btn btn-primary" style="
               width: 100%;
               margin-top: 1rem;
               padding: 0.875rem;
@@ -583,100 +523,60 @@
               align-items: center;
               justify-content: center;
               gap: 0.5rem;
-            "
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-            >
-              <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3" />
-            </svg>
-            Přihlásit
-          </button>
-        </form>
+            ">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3" />
+          </svg>
+          Přihlásit
+        </button>
+      </form>
+    </div>
+
+    <!-- Admin Content -->
+    <div id="adminContent" class="admin-container" style="display: none">
+      <!-- Tabs -->
+      <div class="admin-tabs">
+        <button class="tab-button active" data-tab="bookings">
+          Rezervace
+        </button>
+        <button class="tab-button" data-tab="blocked">
+          Blokované termíny
+        </button>
+        <button class="tab-button" data-tab="christmas">
+          Vánoční přístup
+        </button>
+        <button class="tab-button" data-tab="config">
+          Nastavení pokojů a cen
+        </button>
+        <button class="tab-button" data-tab="statistics">
+          Statistiky
+        </button>
+        <button class="tab-button" data-tab="settings">
+          Nastavení systému
+        </button>
       </div>
 
-      <!-- Admin Content -->
-      <div
-        id="adminContent"
-        class="admin-container"
-        style="display: none"
-      >
-        <!-- Tabs -->
-        <div class="admin-tabs">
-          <button
-            class="tab-button active"
-            data-tab="bookings"
-          >
-            Rezervace
-          </button>
-          <button
-            class="tab-button"
-            data-tab="blocked"
-          >
-            Blokované termíny
-          </button>
-          <button
-            class="tab-button"
-            data-tab="christmas"
-          >
-            Vánoční přístup
-          </button>
-          <button
-            class="tab-button"
-            data-tab="config"
-          >
-            Nastavení pokojů a cen
-          </button>
-          <button
-            class="tab-button"
-            data-tab="statistics"
-          >
-            Statistiky
-          </button>
-          <button
-            class="tab-button"
-            data-tab="settings"
-          >
-            Nastavení systému
-          </button>
-        </div>
-
-        <!-- Bookings Tab -->
-        <div
-          id="bookingsTab"
-          class="tab-content active"
-        >
-          <h2>Správa rezervací</h2>
-          <div style="margin-bottom: 1rem">
-            <div
-              style="
+      <!-- Bookings Tab -->
+      <div id="bookingsTab" class="tab-content active">
+        <h2>Správa rezervací</h2>
+        <div style="margin-bottom: 1rem">
+          <div style="
                 display: flex;
                 gap: 1rem;
                 align-items: center;
                 flex-wrap: wrap;
                 margin-bottom: 1rem;
-              "
-            >
-              <input
-                type="text"
-                id="searchBookings"
-                placeholder="Hledat podle jména, emailu nebo čísla rezervace..."
-                style="
+              ">
+            <input type="text" id="searchBookings" placeholder="Hledat podle jména, emailu nebo čísla rezervace..."
+              style="
                   padding: 0.75rem;
                   border-radius: var(--radius-md);
                   border: 1px solid var(--gray-300);
                   flex: 1;
                   min-width: 300px;
-                "
-              />
-            </div>
-            <div
-              id="bulkActionsContainer"
-              style="
+                " />
+          </div>
+          <div id="bulkActionsContainer" style="
                 display: none;
                 flex-direction: row;
                 gap: 0.75rem;
@@ -685,17 +585,10 @@
                 background: #f0f9ff;
                 border-radius: 8px;
                 border-left: 4px solid var(--primary-color);
-              "
-            >
-              <span
-                id="selectedCount"
-                style="font-weight: 700; color: var(--primary-color); font-size: 1rem"
-                >0 vybraných</span
-              >
-              <button
-                id="bulkDeleteBtn"
-                class="btn btn-danger"
-                style="
+              ">
+            <span id="selectedCount" style="font-weight: 700; color: var(--primary-color); font-size: 1rem">0
+              vybraných</span>
+            <button id="bulkDeleteBtn" class="btn btn-danger" style="
                   padding: 0.75rem 1.5rem;
                   display: flex;
                   align-items: center;
@@ -707,41 +600,17 @@
                   border-radius: 8px;
                   cursor: pointer;
                   transition: all 0.2s;
-                "
-                onclick="adminPanel.bulkDeleteBookings()"
-                onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(239, 68, 68, 0.3)';"
-                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';"
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"
-                  />
-                  <line
-                    x1="10"
-                    y1="11"
-                    x2="10"
-                    y2="17"
-                  />
-                  <line
-                    x1="14"
-                    y1="11"
-                    x2="14"
-                    y2="17"
-                  />
-                </svg>
-                Smazat vybrané
-              </button>
-              <button
-                id="bulkPrintBtn"
-                class="btn btn-primary"
-                style="
+                " onclick="adminPanel.bulkDeleteBookings()"
+              onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(239, 68, 68, 0.3)';"
+              onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6" />
+                <line x1="10" y1="11" x2="10" y2="17" />
+                <line x1="14" y1="11" x2="14" y2="17" />
+              </svg>
+              Smazat vybrané
+            </button>
+            <button id="bulkPrintBtn" class="btn btn-primary" style="
                   padding: 0.75rem 1.5rem;
                   display: flex;
                   align-items: center;
@@ -753,1231 +622,751 @@
                   border-radius: 8px;
                   cursor: pointer;
                   transition: all 0.2s;
-                "
-                onclick="adminPanel.bulkPrintBookings()"
-                onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(59, 130, 246, 0.3)';"
-                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';"
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <polyline points="6 9 6 2 18 2 18 9" />
-                  <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" />
-                  <rect
-                    x="6"
-                    y="14"
-                    width="12"
-                    height="8"
-                  />
-                </svg>
-                Tisknout vybrané
-              </button>
-            </div>
+                " onclick="adminPanel.bulkPrintBookings()"
+              onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(59, 130, 246, 0.3)';"
+              onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 6 2 18 2 18 9" />
+                <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" />
+                <rect x="6" y="14" width="12" height="8" />
+              </svg>
+              Tisknout vybrané
+            </button>
           </div>
-          <table class="bookings-table">
-            <thead>
-              <tr>
-                <th style="width: 40px">
-                  <input
-                    type="checkbox"
-                    id="selectAllCheckbox"
-                    style="
+        </div>
+        <table class="bookings-table">
+          <thead>
+            <tr>
+              <th style="width: 40px">
+                <input type="checkbox" id="selectAllCheckbox" style="
                       width: 18px;
                       height: 18px;
                       cursor: pointer;
                       accent-color: var(--primary-color);
-                    "
-                    onchange="adminPanel.toggleSelectAll(this.checked)"
-                    title="Vybrat všechny"
-                  />
-                </th>
-                <th>Číslo</th>
-                <th>Jméno</th>
-                <th>Email</th>
-                <th>Platba benefitem</th>
-                <th>Termín</th>
-                <th>Pokoje</th>
-                <th>Cena</th>
-                <th>Zaplaceno</th>
-                <th>Akce</th>
-              </tr>
-            </thead>
-            <tbody id="bookingsTableBody">
-              <!-- Bookings will be populated here -->
-            </tbody>
-          </table>
-        </div>
+                    " onchange="adminPanel.toggleSelectAll(this.checked)" title="Vybrat všechny" />
+              </th>
+              <th>Číslo</th>
+              <th>Jméno</th>
+              <th>Email</th>
+              <th>Platba benefitem</th>
+              <th>Termín</th>
+              <th>Pokoje</th>
+              <th>Cena</th>
+              <th>Zaplaceno</th>
+              <th>Akce</th>
+            </tr>
+          </thead>
+          <tbody id="bookingsTableBody">
+            <!-- Bookings will be populated here -->
+          </tbody>
+        </table>
+      </div>
 
-        <!-- Blocked Dates Tab -->
-        <div
-          id="blockedTab"
-          class="tab-content"
-        >
-          <h2>Blokované termíny</h2>
-          <div style="margin-bottom: 2rem">
-            <h3>Přidat blokaci</h3>
-            <form id="blockDateForm">
-              <div
-                style="
+      <!-- Blocked Dates Tab -->
+      <div id="blockedTab" class="tab-content">
+        <h2>Blokované termíny</h2>
+        <div style="margin-bottom: 2rem">
+          <h3>Přidat blokaci</h3>
+          <form id="blockDateForm">
+            <div style="
                   display: grid;
                   grid-template-columns: 1fr 1fr auto;
                   gap: 1rem;
                   align-items: flex-start;
-                "
-              >
-                <div class="input-group">
-                  <label for="blockDateStart">Od data</label>
-                  <input
-                    type="date"
-                    id="blockDateStart"
-                    required
-                  />
-                </div>
-                <div class="input-group">
-                  <label for="blockDateEnd">Do data</label>
-                  <input
-                    type="date"
-                    id="blockDateEnd"
-                    required
-                  />
-                </div>
-                <div class="input-group">
-                  <label for="blockReason">Důvod</label>
-                  <input
-                    type="text"
-                    id="blockReason"
-                    placeholder="Údržba, soukromá akce..."
-                    style="width: 200px"
-                  />
-                </div>
+                ">
+              <div class="input-group">
+                <label for="blockDateStart">Od data</label>
+                <input type="date" id="blockDateStart" required />
               </div>
+              <div class="input-group">
+                <label for="blockDateEnd">Do data</label>
+                <input type="date" id="blockDateEnd" required />
+              </div>
+              <div class="input-group">
+                <label for="blockReason">Důvod</label>
+                <input type="text" id="blockReason" placeholder="Údržba, soukromá akce..." style="width: 200px" />
+              </div>
+            </div>
 
-              <div style="margin-top: 1rem">
-                <label style="font-weight: 600; margin-bottom: 0.5rem; display: block"
-                  >Vyberte pokoje k blokování:</label
-                >
-                <div
-                  style="
+            <div style="margin-top: 1rem">
+              <label style="font-weight: 600; margin-bottom: 0.5rem; display: block">Vyberte pokoje k blokování:</label>
+              <div style="
                     display: grid;
                     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
                     gap: 0.5rem;
                     padding: 1rem;
                     background: var(--gray-50);
                     border-radius: var(--radius-md);
-                  "
-                >
-                  <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
-                    <input
-                      type="checkbox"
-                      id="blockAll"
-                      onchange="adminPanel.toggleAllRooms(this)"
-                    />
-                    <span style="font-weight: 600">Všechny</span>
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
-                    <input
-                      type="checkbox"
-                      class="room-checkbox"
-                      value="12"
-                    />
-                    <span>P12</span>
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
-                    <input
-                      type="checkbox"
-                      class="room-checkbox"
-                      value="13"
-                    />
-                    <span>P13</span>
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
-                    <input
-                      type="checkbox"
-                      class="room-checkbox"
-                      value="14"
-                    />
-                    <span>P14</span>
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
-                    <input
-                      type="checkbox"
-                      class="room-checkbox"
-                      value="22"
-                    />
-                    <span>P22</span>
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
-                    <input
-                      type="checkbox"
-                      class="room-checkbox"
-                      value="23"
-                    />
-                    <span>P23</span>
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
-                    <input
-                      type="checkbox"
-                      class="room-checkbox"
-                      value="24"
-                    />
-                    <span>P24</span>
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
-                    <input
-                      type="checkbox"
-                      class="room-checkbox"
-                      value="42"
-                    />
-                    <span>P42</span>
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
-                    <input
-                      type="checkbox"
-                      class="room-checkbox"
-                      value="43"
-                    />
-                    <span>P43</span>
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
-                    <input
-                      type="checkbox"
-                      class="room-checkbox"
-                      value="44"
-                    />
-                    <span>P44</span>
-                  </label>
-                </div>
+                  ">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
+                  <input type="checkbox" id="blockAll" onchange="adminPanel.toggleAllRooms(this)" />
+                  <span style="font-weight: 600">Všechny</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
+                  <input type="checkbox" class="room-checkbox" value="12" />
+                  <span>P12</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
+                  <input type="checkbox" class="room-checkbox" value="13" />
+                  <span>P13</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
+                  <input type="checkbox" class="room-checkbox" value="14" />
+                  <span>P14</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
+                  <input type="checkbox" class="room-checkbox" value="22" />
+                  <span>P22</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
+                  <input type="checkbox" class="room-checkbox" value="23" />
+                  <span>P23</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
+                  <input type="checkbox" class="room-checkbox" value="24" />
+                  <span>P24</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
+                  <input type="checkbox" class="room-checkbox" value="42" />
+                  <span>P42</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
+                  <input type="checkbox" class="room-checkbox" value="43" />
+                  <span>P43</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
+                  <input type="checkbox" class="room-checkbox" value="44" />
+                  <span>P44</span>
+                </label>
               </div>
+            </div>
 
-              <button
-                type="submit"
-                class="btn btn-primary"
-                style="
+            <button type="submit" class="btn btn-primary" style="
                   margin-top: 1rem;
                   padding: 0.75rem 1.5rem;
                   display: flex;
                   align-items: center;
                   justify-content: center;
                   gap: 0.5rem;
-                "
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                >
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-                Přidat blokaci
-              </button>
-            </form>
-          </div>
-
-          <h3>Aktuální blokace</h3>
-          <div
-            id="blockedDatesList"
-            class="blocked-dates-grid"
-          >
-            <!-- Blocked dates will be populated here -->
-          </div>
+                ">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              Přidat blokaci
+            </button>
+          </form>
         </div>
 
-        <!-- Christmas Access Tab -->
-        <div
-          id="christmasTab"
-          class="tab-content"
-        >
-          <h2>Vánoční období a přístupové kódy</h2>
+        <h3>Aktuální blokace</h3>
+        <div id="blockedDatesList" class="blocked-dates-grid">
+          <!-- Blocked dates will be populated here -->
+        </div>
+      </div>
 
-          <!-- Christmas Period Settings -->
-          <div
-            style="
+      <!-- Christmas Access Tab -->
+      <div id="christmasTab" class="tab-content">
+        <h2>Vánoční období a přístupové kódy</h2>
+
+        <!-- Christmas Period Settings -->
+        <div style="
               background: var(--gray-50);
               padding: 1.5rem;
               border-radius: var(--radius-md);
               margin-bottom: 2rem;
-            "
-          >
-            <h3 style="margin-bottom: 1rem">Správa vánočních období</h3>
-            <p style="color: var(--gray-600); margin-bottom: 1rem; font-size: 0.9rem">
-              Definujte období školních vánočních prázdnin. Tato období budou v kalendáři vizuálně
-              označena.
-            </p>
+            ">
+          <h3 style="margin-bottom: 1rem">Správa vánočních období</h3>
+          <p style="color: var(--gray-600); margin-bottom: 1rem; font-size: 0.9rem">
+            Definujte období školních vánočních prázdnin. Tato období budou v kalendáři vizuálně
+            označena.
+          </p>
 
-            <form id="christmasPeriodForm">
-              <div
-                class="form-grid"
-                style="grid-template-columns: 1fr 1fr auto"
-              >
-                <div class="input-group">
-                  <label for="christmasStart">Začátek období</label>
-                  <input
-                    type="date"
-                    id="christmasStart"
-                    required
-                  />
-                </div>
-                <div class="input-group">
-                  <label for="christmasEnd">Konec období</label>
-                  <input
-                    type="date"
-                    id="christmasEnd"
-                    required
-                  />
-                </div>
-                <button
-                  type="submit"
-                  class="btn btn-primary"
-                  style="align-self: end; padding: 0.75rem 1.5rem"
-                >
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    style="display: inline; margin-right: 0.5rem"
-                  >
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                  Přidat období
-                </button>
+          <form id="christmasPeriodForm">
+            <div class="form-grid" style="grid-template-columns: 1fr 1fr auto">
+              <div class="input-group">
+                <label for="christmasStart">Začátek období</label>
+                <input type="date" id="christmasStart" required />
               </div>
-            </form>
-
-            <h4 style="margin-top: 2rem; margin-bottom: 1rem">Aktivní vánoční období</h4>
-            <div
-              id="christmasPeriodsContainer"
-              style="display: flex; flex-direction: column; gap: 0.5rem"
-            >
-              <!-- Christmas periods will be populated here -->
+              <div class="input-group">
+                <label for="christmasEnd">Konec období</label>
+                <input type="date" id="christmasEnd" required />
+              </div>
+              <button type="submit" class="btn btn-primary" style="align-self: end; padding: 0.75rem 1.5rem">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  style="display: inline; margin-right: 0.5rem">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                Přidat období
+              </button>
             </div>
-          </div>
+          </form>
 
-          <!-- Christmas Rules Info -->
-          <div
-            style="
+          <h4 style="margin-top: 2rem; margin-bottom: 1rem">Aktivní vánoční období</h4>
+          <div id="christmasPeriodsContainer" style="display: flex; flex-direction: column; gap: 0.5rem">
+            <!-- Christmas periods will be populated here -->
+          </div>
+        </div>
+
+        <!-- Christmas Rules Info -->
+        <div style="
               background: rgba(255, 149, 0, 0.1);
               padding: 1.5rem;
               border-radius: var(--radius-md);
               margin-bottom: 2rem;
               border: 2px solid var(--warning-color);
-            "
-          >
-            <h4 style="color: var(--gray-900); margin-bottom: 0.75rem">
-              ⚠️ Pravidla pro vánoční období
-            </h4>
-            <ol
-              style="
+            ">
+          <h4 style="color: var(--gray-900); margin-bottom: 0.75rem">
+            ⚠️ Pravidla pro vánoční období
+          </h4>
+          <ol style="
                 color: var(--gray-700);
                 font-size: 0.9rem;
                 line-height: 1.6;
                 padding-left: 1.5rem;
-              "
-            >
-              <li>
-                <strong>Období:</strong> Školní vánoční prázdniny a bezprostředně přilehlé víkendy
-              </li>
-              <li>
-                <strong>Do 30.9.:</strong> Zaměstnanci mohou rezervovat 1 pokoj (2 pokoje při plném
-                obsazení rodinou)
-              </li>
-              <li><strong>Od 1.10.:</strong> Volná kapacita bez omezení dle pořadí</li>
-              <li>
-                <strong>Při převisu poptávky:</strong> Rozhoduje los (zajistí provozní oddělení)
-              </li>
-            </ol>
-          </div>
+              ">
+            <li>
+              <strong>Období:</strong> Školní vánoční prázdniny a bezprostředně přilehlé víkendy
+            </li>
+            <li>
+              <strong>Do 30.9.:</strong> Zaměstnanci mohou rezervovat 1 pokoj (2 pokoje při plném
+              obsazení rodinou)
+            </li>
+            <li><strong>Od 1.10.:</strong> Volná kapacita bez omezení dle pořadí</li>
+            <li>
+              <strong>Při převisu poptávky:</strong> Rozhoduje los (zajistí provozní oddělení)
+            </li>
+          </ol>
+        </div>
 
-          <!-- Access Codes Section -->
-          <h3>Přístupové kódy pro zaměstnance</h3>
-          <p style="color: var(--gray-600); margin-bottom: 1rem">
-            Zaměstnanci s těmito kódy mohou rezervovat během vánočního období do 30.9. daného roku.
-          </p>
+        <!-- Access Codes Section -->
+        <h3>Přístupové kódy pro zaměstnance</h3>
+        <p style="color: var(--gray-600); margin-bottom: 1rem">
+          Zaměstnanci s těmito kódy mohou rezervovat během vánočního období do 30.9. daného roku.
+        </p>
 
-          <div style="margin-bottom: 2rem">
-            <form
-              id="addCodeForm"
-              style="display: flex; gap: 1rem"
-            >
-              <input
-                type="text"
-                id="newCode"
-                placeholder="Zadejte přístupový kód"
-                required
-                style="
+        <div style="margin-bottom: 2rem">
+          <form id="addCodeForm" style="display: flex; gap: 1rem">
+            <input type="text" id="newCode" placeholder="Zadejte přístupový kód" required style="
                   padding: 0.75rem;
                   border-radius: var(--radius-md);
                   border: 1px solid var(--gray-300);
                   flex: 1;
-                "
-              />
-              <button
-                type="submit"
-                class="btn btn-primary"
-                style="padding: 0.75rem 1.5rem"
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  style="display: inline; margin-right: 0.5rem"
-                >
-                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
-                Přidat kód
-              </button>
-            </form>
-          </div>
-
-          <h4 style="margin-top: 1.5rem">Aktivní kódy</h4>
-          <div
-            id="christmasCodesList"
-            class="christmas-codes-list"
-          >
-            <!-- Codes will be populated here -->
-          </div>
+                " />
+            <button type="submit" class="btn btn-primary" style="padding: 0.75rem 1.5rem">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                style="display: inline; margin-right: 0.5rem">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+              Přidat kód
+            </button>
+          </form>
         </div>
 
-        <!-- Room and Price Configuration Tab -->
-        <div
-          id="configTab"
-          class="tab-content"
-        >
-          <h2>Nastavení pokojů a cen</h2>
+        <h4 style="margin-top: 1.5rem">Aktivní kódy</h4>
+        <div id="christmasCodesList" class="christmas-codes-list">
+          <!-- Codes will be populated here -->
+        </div>
+      </div>
 
-          <!-- Room Configuration - moved from settings -->
-          <div
-            style="
+      <!-- Room and Price Configuration Tab -->
+      <div id="configTab" class="tab-content">
+        <h2>Nastavení pokojů a cen</h2>
+
+        <!-- Room Configuration - moved from settings -->
+        <div style="
               margin-bottom: 2rem;
               padding: 1.5rem;
               background: var(--gray-50);
               border-radius: var(--radius-md);
-            "
-          >
-            <h3>Konfigurace pokojů</h3>
-            <p style="color: var(--gray-600); font-size: 0.9rem; margin-bottom: 1rem">
-              Nastavte kapacitu a typ každého pokoje
-            </p>
-            <form id="roomConfigForm">
-              <div
-                style="
+            ">
+          <h3>Konfigurace pokojů</h3>
+          <p style="color: var(--gray-600); font-size: 0.9rem; margin-bottom: 1rem">
+            Nastavte kapacitu a typ každého pokoje
+          </p>
+          <form id="roomConfigForm">
+            <div style="
                   display: grid;
                   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
                   gap: 1rem;
-                "
-              >
-                <div class="input-group">
-                  <label data-translate="room12">Pokoj 12</label>
-                  <input
-                    type="number"
-                    id="room12_beds"
-                    value="2"
-                    min="1"
-                    max="10"
-                    style="width: 100px"
-                  />
-                </div>
-                <div class="input-group">
-                  <label data-translate="room13">Pokoj 13</label>
-                  <input
-                    type="number"
-                    id="room13_beds"
-                    value="3"
-                    min="1"
-                    max="10"
-                    style="width: 100px"
-                  />
-                </div>
-                <div class="input-group">
-                  <label data-translate="room14">Pokoj 14</label>
-                  <input
-                    type="number"
-                    id="room14_beds"
-                    value="4"
-                    min="1"
-                    max="10"
-                    style="width: 100px"
-                  />
-                </div>
-                <div class="input-group">
-                  <label data-translate="room22">Pokoj 22</label>
-                  <input
-                    type="number"
-                    id="room22_beds"
-                    value="2"
-                    min="1"
-                    max="10"
-                    style="width: 100px"
-                  />
-                </div>
-                <div class="input-group">
-                  <label data-translate="room23">Pokoj 23</label>
-                  <input
-                    type="number"
-                    id="room23_beds"
-                    value="3"
-                    min="1"
-                    max="10"
-                    style="width: 100px"
-                  />
-                </div>
-                <div class="input-group">
-                  <label data-translate="room24">Pokoj 24</label>
-                  <input
-                    type="number"
-                    id="room24_beds"
-                    value="4"
-                    min="1"
-                    max="10"
-                    style="width: 100px"
-                  />
-                </div>
-                <div class="input-group">
-                  <label data-translate="room42">Pokoj 42</label>
-                  <input
-                    type="number"
-                    id="room42_beds"
-                    value="2"
-                    min="1"
-                    max="10"
-                    style="width: 100px"
-                  />
-                </div>
-                <div class="input-group">
-                  <label data-translate="room43">Pokoj 43</label>
-                  <input
-                    type="number"
-                    id="room43_beds"
-                    value="2"
-                    min="1"
-                    max="10"
-                    style="width: 100px"
-                  />
-                </div>
-                <div class="input-group">
-                  <label data-translate="room44">Pokoj 44</label>
-                  <input
-                    type="number"
-                    id="room44_beds"
-                    value="4"
-                    min="1"
-                    max="10"
-                    style="width: 100px"
-                  />
-                </div>
+                ">
+              <div class="input-group">
+                <label data-translate="room12">Pokoj 12</label>
+                <input type="number" id="room12_beds" value="2" min="1" max="10" style="width: 100px" />
               </div>
-              <button
-                type="submit"
-                class="btn btn-primary"
-                style="margin-top: 1rem; padding: 0.875rem 1.75rem; width: 100%"
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  style="display: inline; margin-right: 0.5rem"
-                >
-                  <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
-                  <polyline points="17 21 17 13 7 13 7 21" />
-                </svg>
-                Uložit konfiguraci pokojů
-              </button>
-            </form>
-          </div>
+              <div class="input-group">
+                <label data-translate="room13">Pokoj 13</label>
+                <input type="number" id="room13_beds" value="3" min="1" max="10" style="width: 100px" />
+              </div>
+              <div class="input-group">
+                <label data-translate="room14">Pokoj 14</label>
+                <input type="number" id="room14_beds" value="4" min="1" max="10" style="width: 100px" />
+              </div>
+              <div class="input-group">
+                <label data-translate="room22">Pokoj 22</label>
+                <input type="number" id="room22_beds" value="2" min="1" max="10" style="width: 100px" />
+              </div>
+              <div class="input-group">
+                <label data-translate="room23">Pokoj 23</label>
+                <input type="number" id="room23_beds" value="3" min="1" max="10" style="width: 100px" />
+              </div>
+              <div class="input-group">
+                <label data-translate="room24">Pokoj 24</label>
+                <input type="number" id="room24_beds" value="4" min="1" max="10" style="width: 100px" />
+              </div>
+              <div class="input-group">
+                <label data-translate="room42">Pokoj 42</label>
+                <input type="number" id="room42_beds" value="2" min="1" max="10" style="width: 100px" />
+              </div>
+              <div class="input-group">
+                <label data-translate="room43">Pokoj 43</label>
+                <input type="number" id="room43_beds" value="2" min="1" max="10" style="width: 100px" />
+              </div>
+              <div class="input-group">
+                <label data-translate="room44">Pokoj 44</label>
+                <input type="number" id="room44_beds" value="4" min="1" max="10" style="width: 100px" />
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary"
+              style="margin-top: 1rem; padding: 0.875rem 1.75rem; width: 100%">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                style="display: inline; margin-right: 0.5rem">
+                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+              </svg>
+              Uložit konfiguraci pokojů
+            </button>
+          </form>
+        </div>
 
-          <!-- Price Configuration - NEW Room-size-based (2025-10-17) -->
-          <div
-            style="
+        <!-- Price Configuration - NEW Room-size-based (2025-10-17) -->
+        <div style="
               margin-bottom: 2rem;
               padding: 1.5rem;
               background: var(--gray-50);
               border-radius: var(--radius-md);
-            "
-          >
-            <h3>Konfigurace ceníku podle velikosti pokojů</h3>
-            <p style="color: var(--gray-600); font-size: 0.9rem; margin-bottom: 1.5rem">
-              Ceny se liší podle velikosti pokoje. <strong>Malé pokoje:</strong> P12, P13, P22, P23,
-              P42, P43 | <strong>Velké pokoje:</strong> P14, P24, P44
-            </p>
-            <form id="priceConfigForm">
-              <div style="display: grid; gap: 2rem">
-                <!-- UTIA Employees -->
-                <div>
-                  <h4 style="color: var(--primary-color); margin-bottom: 1rem">
-                    Zlevněné ceny (Zaměstnanci ÚTIA)
-                  </h4>
-                  <p style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 1rem">
-                    Zlevněná cena se uplatní, pokud alespoň jedna osoba v pokoji na ni má nárok.
-                  </p>
+            ">
+          <h3>Konfigurace ceníku podle velikosti pokojů</h3>
+          <p style="color: var(--gray-600); font-size: 0.9rem; margin-bottom: 1.5rem">
+            Ceny se liší podle velikosti pokoje. <strong>Malé pokoje:</strong> P12, P13, P22, P23,
+            P42, P43 | <strong>Velké pokoje:</strong> P14, P24, P44
+          </p>
+          <form id="priceConfigForm">
+            <div style="display: grid; gap: 2rem">
+              <!-- UTIA Employees -->
+              <div>
+                <h4 style="color: var(--primary-color); margin-bottom: 1rem">
+                  Zlevněné ceny (Zaměstnanci ÚTIA)
+                </h4>
+                <p style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 1rem">
+                  Zlevněná cena se uplatní, pokud alespoň jedna osoba v pokoji na ni má nárok.
+                </p>
 
-                  <!-- Small Rooms -->
-                  <div
-                    style="
+                <!-- Small Rooms -->
+                <div style="
                       background: white;
                       padding: 1rem;
                       border-radius: 8px;
                       margin-bottom: 1rem;
-                    "
-                  >
-                    <h5 style="margin-bottom: 0.75rem">
-                      Malý pokoj (P12, P13, P22, P23, P42, P43)
-                    </h5>
-                    <div style="display: grid; gap: 0.5rem">
-                      <div style="display: flex; align-items: center; gap: 0.5rem">
-                        <label style="min-width: 180px">Prázdný pokoj:</label>
-                        <input
-                          type="number"
-                          id="utia_small_base"
-                          value="300"
-                          min="0"
-                          style="width: 80px"
-                        />
-                        <span>Kč/noc</span>
-                      </div>
-                      <div style="display: flex; align-items: center; gap: 0.5rem">
-                        <label style="min-width: 180px">Další dospělý:</label>
-                        <input
-                          type="number"
-                          id="utia_small_adult"
-                          value="50"
-                          min="0"
-                          style="width: 80px"
-                        />
-                        <span>Kč/osoba/noc</span>
-                      </div>
-                      <div style="display: flex; align-items: center; gap: 0.5rem">
-                        <label style="min-width: 180px">Dítě (3-17 let):</label>
-                        <input
-                          type="number"
-                          id="utia_small_child"
-                          value="25"
-                          min="0"
-                          style="width: 80px"
-                        />
-                        <span>Kč/osoba/noc</span>
-                      </div>
+                    ">
+                  <h5 style="margin-bottom: 0.75rem">
+                    Malý pokoj (P12, P13, P22, P23, P42, P43)
+                  </h5>
+                  <div style="display: grid; gap: 0.5rem">
+                    <div style="display: flex; align-items: center; gap: 0.5rem">
+                      <label style="min-width: 180px">Prázdný pokoj:</label>
+                      <input type="number" id="utia_small_base" value="300" min="0" style="width: 80px" />
+                      <span>Kč/noc</span>
                     </div>
-                  </div>
-
-                  <!-- Large Rooms -->
-                  <div style="background: white; padding: 1rem; border-radius: 8px">
-                    <h5 style="margin-bottom: 0.75rem">Velký pokoj (P14, P24, P44)</h5>
-                    <div style="display: grid; gap: 0.5rem">
-                      <div style="display: flex; align-items: center; gap: 0.5rem">
-                        <label style="min-width: 180px">Prázdný pokoj:</label>
-                        <input
-                          type="number"
-                          id="utia_large_base"
-                          value="400"
-                          min="0"
-                          style="width: 80px"
-                        />
-                        <span>Kč/noc</span>
-                      </div>
-                      <div style="display: flex; align-items: center; gap: 0.5rem">
-                        <label style="min-width: 180px">Další dospělý:</label>
-                        <input
-                          type="number"
-                          id="utia_large_adult"
-                          value="50"
-                          min="0"
-                          style="width: 80px"
-                        />
-                        <span>Kč/osoba/noc</span>
-                      </div>
-                      <div style="display: flex; align-items: center; gap: 0.5rem">
-                        <label style="min-width: 180px">Dítě (3-17 let):</label>
-                        <input
-                          type="number"
-                          id="utia_large_child"
-                          value="25"
-                          min="0"
-                          style="width: 80px"
-                        />
-                        <span>Kč/osoba/noc</span>
-                      </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem">
+                      <label style="min-width: 180px">Další dospělý:</label>
+                      <input type="number" id="utia_small_adult" value="50" min="0" style="width: 80px" />
+                      <span>Kč/osoba/noc</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem">
+                      <label style="min-width: 180px">Dítě (3-17 let):</label>
+                      <input type="number" id="utia_small_child" value="25" min="0" style="width: 80px" />
+                      <span>Kč/osoba/noc</span>
                     </div>
                   </div>
                 </div>
 
-                <!-- External Guests -->
-                <div>
-                  <h4 style="color: var(--primary-color); margin-bottom: 1rem">
-                    Plná cena (Externí hosté)
-                  </h4>
+                <!-- Large Rooms -->
+                <div style="background: white; padding: 1rem; border-radius: 8px">
+                  <h5 style="margin-bottom: 0.75rem">Velký pokoj (P14, P24, P44)</h5>
+                  <div style="display: grid; gap: 0.5rem">
+                    <div style="display: flex; align-items: center; gap: 0.5rem">
+                      <label style="min-width: 180px">Prázdný pokoj:</label>
+                      <input type="number" id="utia_large_base" value="400" min="0" style="width: 80px" />
+                      <span>Kč/noc</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem">
+                      <label style="min-width: 180px">Další dospělý:</label>
+                      <input type="number" id="utia_large_adult" value="50" min="0" style="width: 80px" />
+                      <span>Kč/osoba/noc</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem">
+                      <label style="min-width: 180px">Dítě (3-17 let):</label>
+                      <input type="number" id="utia_large_child" value="25" min="0" style="width: 80px" />
+                      <span>Kč/osoba/noc</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-                  <!-- Small Rooms -->
-                  <div
-                    style="
+              <!-- External Guests -->
+              <div>
+                <h4 style="color: var(--primary-color); margin-bottom: 1rem">
+                  Plná cena (Externí hosté)
+                </h4>
+
+                <!-- Small Rooms -->
+                <div style="
                       background: white;
                       padding: 1rem;
                       border-radius: 8px;
                       margin-bottom: 1rem;
-                    "
-                  >
-                    <h5 style="margin-bottom: 0.75rem">
-                      Malý pokoj (P12, P13, P22, P23, P42, P43)
-                    </h5>
-                    <div style="display: grid; gap: 0.5rem">
-                      <div style="display: flex; align-items: center; gap: 0.5rem">
-                        <label style="min-width: 180px">Prázdný pokoj:</label>
-                        <input
-                          type="number"
-                          id="external_small_base"
-                          value="500"
-                          min="0"
-                          style="width: 80px"
-                        />
-                        <span>Kč/noc</span>
-                      </div>
-                      <div style="display: flex; align-items: center; gap: 0.5rem">
-                        <label style="min-width: 180px">Další dospělý:</label>
-                        <input
-                          type="number"
-                          id="external_small_adult"
-                          value="100"
-                          min="0"
-                          style="width: 80px"
-                        />
-                        <span>Kč/osoba/noc</span>
-                      </div>
-                      <div style="display: flex; align-items: center; gap: 0.5rem">
-                        <label style="min-width: 180px">Dítě (3-17 let):</label>
-                        <input
-                          type="number"
-                          id="external_small_child"
-                          value="50"
-                          min="0"
-                          style="width: 80px"
-                        />
-                        <span>Kč/osoba/noc</span>
-                      </div>
+                    ">
+                  <h5 style="margin-bottom: 0.75rem">
+                    Malý pokoj (P12, P13, P22, P23, P42, P43)
+                  </h5>
+                  <div style="display: grid; gap: 0.5rem">
+                    <div style="display: flex; align-items: center; gap: 0.5rem">
+                      <label style="min-width: 180px">Prázdný pokoj:</label>
+                      <input type="number" id="external_small_base" value="500" min="0" style="width: 80px" />
+                      <span>Kč/noc</span>
                     </div>
-                  </div>
-
-                  <!-- Large Rooms -->
-                  <div style="background: white; padding: 1rem; border-radius: 8px">
-                    <h5 style="margin-bottom: 0.75rem">Velký pokoj (P14, P24, P44)</h5>
-                    <div style="display: grid; gap: 0.5rem">
-                      <div style="display: flex; align-items: center; gap: 0.5rem">
-                        <label style="min-width: 180px">Prázdný pokoj:</label>
-                        <input
-                          type="number"
-                          id="external_large_base"
-                          value="600"
-                          min="0"
-                          style="width: 80px"
-                        />
-                        <span>Kč/noc</span>
-                      </div>
-                      <div style="display: flex; align-items: center; gap: 0.5rem">
-                        <label style="min-width: 180px">Další dospělý:</label>
-                        <input
-                          type="number"
-                          id="external_large_adult"
-                          value="100"
-                          min="0"
-                          style="width: 80px"
-                        />
-                        <span>Kč/osoba/noc</span>
-                      </div>
-                      <div style="display: flex; align-items: center; gap: 0.5rem">
-                        <label style="min-width: 180px">Dítě (3-17 let):</label>
-                        <input
-                          type="number"
-                          id="external_large_child"
-                          value="50"
-                          min="0"
-                          style="width: 80px"
-                        />
-                        <span>Kč/osoba/noc</span>
-                      </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem">
+                      <label style="min-width: 180px">Další dospělý:</label>
+                      <input type="number" id="external_small_adult" value="100" min="0" style="width: 80px" />
+                      <span>Kč/osoba/noc</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem">
+                      <label style="min-width: 180px">Dítě (3-17 let):</label>
+                      <input type="number" id="external_small_child" value="50" min="0" style="width: 80px" />
+                      <span>Kč/osoba/noc</span>
                     </div>
                   </div>
                 </div>
 
-                <!-- Info Box -->
-                <div
-                  style="
+                <!-- Large Rooms -->
+                <div style="background: white; padding: 1rem; border-radius: 8px">
+                  <h5 style="margin-bottom: 0.75rem">Velký pokoj (P14, P24, P44)</h5>
+                  <div style="display: grid; gap: 0.5rem">
+                    <div style="display: flex; align-items: center; gap: 0.5rem">
+                      <label style="min-width: 180px">Prázdný pokoj:</label>
+                      <input type="number" id="external_large_base" value="600" min="0" style="width: 80px" />
+                      <span>Kč/noc</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem">
+                      <label style="min-width: 180px">Další dospělý:</label>
+                      <input type="number" id="external_large_adult" value="100" min="0" style="width: 80px" />
+                      <span>Kč/osoba/noc</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem">
+                      <label style="min-width: 180px">Dítě (3-17 let):</label>
+                      <input type="number" id="external_large_child" value="50" min="0" style="width: 80px" />
+                      <span>Kč/osoba/noc</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Info Box -->
+              <div style="
                     padding: 1rem;
                     background: rgba(34, 197, 94, 0.1);
                     border-radius: 8px;
                     border-left: 4px solid #22c55e;
-                  "
-                >
-                  <p style="font-size: 0.9rem; color: #15803d; margin: 0">
-                    ℹ️ <strong>Děti do 3 let jsou vždy zdarma.</strong> Ceny jsou uvedeny za jednu
-                    noc.
-                  </p>
-                </div>
+                  ">
+                <p style="font-size: 0.9rem; color: #15803d; margin: 0">
+                  ℹ️ <strong>Děti do 3 let jsou vždy zdarma.</strong> Ceny jsou uvedeny za jednu
+                  noc.
+                </p>
               </div>
+            </div>
 
-              <button
-                type="submit"
-                class="btn btn-primary"
-                style="margin-top: 1.5rem; padding: 0.875rem 1.75rem; width: 100%"
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  style="display: inline; margin-right: 0.5rem"
-                >
-                  <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
-                  <polyline points="17 21 17 13 7 13 7 21" />
-                </svg>
-                Uložit ceník
-              </button>
-            </form>
-          </div>
+            <button type="submit" class="btn btn-primary"
+              style="margin-top: 1.5rem; padding: 0.875rem 1.75rem; width: 100%">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                style="display: inline; margin-right: 0.5rem">
+                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+              </svg>
+              Uložit ceník
+            </button>
+          </form>
+        </div>
 
-          <!-- Bulk Booking Price Configuration -->
-          <div
-            style="
+        <!-- Bulk Booking Price Configuration -->
+        <div style="
               margin-bottom: 2rem;
               padding: 1.5rem;
               background: linear-gradient(135deg, #fdf2f8 0%, #f3e8ff 100%);
               border-radius: var(--radius-md);
               border: 2px solid #d8b4fe;
-            "
-          >
-            <h3 style="color: #6b21a8; margin-bottom: 0.5rem">Ceník hromadné rezervace</h3>
-            <p style="color: var(--gray-600); font-size: 0.9rem; margin-bottom: 1rem">
-              Nastavte ceny pro rezervaci celé chaty v jediném termínu
-            </p>
-            <form id="bulkPriceConfigForm">
-              <div style="display: grid; gap: 1.5rem">
-                <!-- Base Price -->
-                <div>
-                  <h4 style="color: var(--primary-color); margin-bottom: 1rem">Základní cena</h4>
-                  <div style="display: flex; align-items: center; gap: 0.5rem">
-                    <label style="min-width: 150px; font-weight: 600">Fixní cena za noc:</label>
-                    <input
-                      type="number"
-                      id="bulk_base_price"
-                      value="2000"
-                      min="0"
-                      style="width: 100px"
-                    />
-                    Kč/noc
-                    <span style="color: var(--gray-600); font-size: 0.9rem; margin-left: 1rem"
-                      >Základní poplatek za rezervaci celé chaty</span
-                    >
+            ">
+          <h3 style="color: #6b21a8; margin-bottom: 0.5rem">Ceník hromadné rezervace</h3>
+          <p style="color: var(--gray-600); font-size: 0.9rem; margin-bottom: 1rem">
+            Nastavte ceny pro rezervaci celé chaty v jediném termínu
+          </p>
+          <form id="bulkPriceConfigForm">
+            <div style="display: grid; gap: 1.5rem">
+              <!-- Base Price -->
+              <div>
+                <h4 style="color: var(--primary-color); margin-bottom: 1rem">Základní cena</h4>
+                <div style="display: flex; align-items: center; gap: 0.5rem">
+                  <label style="min-width: 150px; font-weight: 600">Fixní cena za noc:</label>
+                  <input type="number" id="bulk_base_price" value="2000" min="0" style="width: 100px" />
+                  Kč/noc
+                  <span style="color: var(--gray-600); font-size: 0.9rem; margin-left: 1rem">Základní poplatek za
+                    rezervaci celé chaty</span>
+                </div>
+              </div>
+
+              <!-- Person Prices -->
+              <div>
+                <h4 style="color: var(--primary-color); margin-bottom: 1rem">
+                  Poplatky za osoby
+                </h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem">
+                  <div>
+                    <h5 style="margin-bottom: 0.5rem; color: #059669">Zaměstnanci ÚTIA</h5>
+                    <div style="display: grid; gap: 0.5rem">
+                      <div style="display: flex; align-items: center; gap: 0.5rem">
+                        <label style="min-width: 120px">Dospělý:</label>
+                        <input type="number" id="bulk_utia_adult" value="100" min="0" style="width: 80px" />
+                        Kč/osoba
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 0.5rem">
+                        <label style="min-width: 120px">Dítě (3-17 let):</label>
+                        <input type="number" id="bulk_utia_child" value="0" min="0" style="width: 80px" />
+                        Kč/osoba
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <h5 style="margin-bottom: 0.5rem; color: #dc2626">Externí hosté</h5>
+                    <div style="display: grid; gap: 0.5rem">
+                      <div style="display: flex; align-items: center; gap: 0.5rem">
+                        <label style="min-width: 120px">Dospělý:</label>
+                        <input type="number" id="bulk_external_adult" value="250" min="0" style="width: 80px" />
+                        Kč/osoba
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 0.5rem">
+                        <label style="min-width: 120px">Dítě (3-17 let):</label>
+                        <input type="number" id="bulk_external_child" value="50" min="0" style="width: 80px" />
+                        Kč/osoba
+                      </div>
+                    </div>
                   </div>
                 </div>
-
-                <!-- Person Prices -->
-                <div>
-                  <h4 style="color: var(--primary-color); margin-bottom: 1rem">
-                    Poplatky za osoby
-                  </h4>
-                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem">
-                    <div>
-                      <h5 style="margin-bottom: 0.5rem; color: #059669">Zaměstnanci ÚTIA</h5>
-                      <div style="display: grid; gap: 0.5rem">
-                        <div style="display: flex; align-items: center; gap: 0.5rem">
-                          <label style="min-width: 120px">Dospělý:</label>
-                          <input
-                            type="number"
-                            id="bulk_utia_adult"
-                            value="100"
-                            min="0"
-                            style="width: 80px"
-                          />
-                          Kč/osoba
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 0.5rem">
-                          <label style="min-width: 120px">Dítě (3-17 let):</label>
-                          <input
-                            type="number"
-                            id="bulk_utia_child"
-                            value="0"
-                            min="0"
-                            style="width: 80px"
-                          />
-                          Kč/osoba
-                        </div>
-                      </div>
-                    </div>
-                    <div>
-                      <h5 style="margin-bottom: 0.5rem; color: #dc2626">Externí hosté</h5>
-                      <div style="display: grid; gap: 0.5rem">
-                        <div style="display: flex; align-items: center; gap: 0.5rem">
-                          <label style="min-width: 120px">Dospělý:</label>
-                          <input
-                            type="number"
-                            id="bulk_external_adult"
-                            value="250"
-                            min="0"
-                            style="width: 80px"
-                          />
-                          Kč/osoba
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 0.5rem">
-                          <label style="min-width: 120px">Dítě (3-17 let):</label>
-                          <input
-                            type="number"
-                            id="bulk_external_child"
-                            value="50"
-                            min="0"
-                            style="width: 80px"
-                          />
-                          Kč/osoba
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div
-                    style="
+                <div style="
                       margin-top: 0.5rem;
                       padding: 0.75rem;
                       background: rgba(34, 197, 94, 0.1);
                       border-radius: 6px;
                       border-left: 4px solid #22c55e;
-                    "
-                  >
-                    <p
-                      style="font-size: 0.9rem; color: #15803d; margin: 0"
-                      data-translate="childrenUnder3Free"
-                    ></p>
-                  </div>
+                    ">
+                  <p style="font-size: 0.9rem; color: #15803d; margin: 0" data-translate="childrenUnder3Free"></p>
                 </div>
               </div>
-              <button
-                type="submit"
-                class="btn btn-primary"
-                style="
+            </div>
+            <button type="submit" class="btn btn-primary" style="
                   margin-top: 1.5rem;
                   padding: 0.875rem 1.75rem;
                   width: 100%;
                   background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
                   border: none;
                   box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
-                "
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  style="display: inline; margin-right: 0.5rem"
-                >
-                  <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
-                  <polyline points="17 21 17 13 7 13 7 21" />
-                </svg>
-                Uložit ceník hromadné rezervace
-              </button>
-            </form>
+                ">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                style="display: inline; margin-right: 0.5rem">
+                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+              </svg>
+              Uložit ceník hromadné rezervace
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Statistics Tab -->
+      <div id="statisticsTab" class="tab-content">
+        <h2>Statistiky</h2>
+
+        <!-- Date Range Filter -->
+        <div
+          style="margin-bottom: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: end; padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md); border: 1px solid var(--gray-200);">
+          <div>
+            <label
+              style="display: block; font-size: 0.875rem; color: var(--gray-600); margin-bottom: 0.25rem; font-weight: 500;">Od:</label>
+            <input type="month" id="statsFromDate"
+              style="padding: 0.5rem 0.75rem; border: 1px solid var(--gray-300); border-radius: var(--radius-sm); font-size: 0.875rem;" />
           </div>
+          <div>
+            <label
+              style="display: block; font-size: 0.875rem; color: var(--gray-600); margin-bottom: 0.25rem; font-weight: 500;">Do:</label>
+            <input type="month" id="statsToDate"
+              style="padding: 0.5rem 0.75rem; border: 1px solid var(--gray-300); border-radius: var(--radius-sm); font-size: 0.875rem;" />
+          </div>
+          <button onclick="adminPanel.loadStatistics()" class="button-primary"
+            style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+            📊 Filtrovat
+          </button>
+          <button onclick="adminPanel.resetStatisticsFilter()" class="button-secondary"
+            style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+            ↺ Reset
+          </button>
         </div>
 
-        <!-- Statistics Tab -->
-        <div
-          id="statisticsTab"
-          class="tab-content"
-        >
-          <h2>Statistiky</h2>
-
-          <!-- Date Range Filter -->
-          <div style="margin-bottom: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: end; padding: 1rem; background: var(--gray-50); border-radius: var(--radius-md); border: 1px solid var(--gray-200);">
-            <div>
-              <label style="display: block; font-size: 0.875rem; color: var(--gray-600); margin-bottom: 0.25rem; font-weight: 500;">Od:</label>
-              <input type="month" id="statsFromDate" style="padding: 0.5rem 0.75rem; border: 1px solid var(--gray-300); border-radius: var(--radius-sm); font-size: 0.875rem;" />
-            </div>
-            <div>
-              <label style="display: block; font-size: 0.875rem; color: var(--gray-600); margin-bottom: 0.25rem; font-weight: 500;">Do:</label>
-              <input type="month" id="statsToDate" style="padding: 0.5rem 0.75rem; border: 1px solid var(--gray-300); border-radius: var(--radius-sm); font-size: 0.875rem;" />
-            </div>
-            <button onclick="adminPanel.loadStatistics()" class="button-primary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
-              📊 Filtrovat
-            </button>
-            <button onclick="adminPanel.resetStatisticsFilter()" class="button-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
-              ↺ Reset
-            </button>
-          </div>
-
-          <div
-            id="statistics"
-            style="
+        <div id="statistics" style="
               display: grid;
               grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
               gap: 1rem;
-            "
-          >
-            <!-- Statistics will be populated here -->
-          </div>
+            ">
+          <!-- Statistics will be populated here -->
+        </div>
+      </div>
+
+      <!-- Settings Tab -->
+      <div id="settingsTab" class="tab-content">
+        <h2>Nastavení systému</h2>
+
+        <div style="margin-bottom: 2rem">
+          <h3>Změna admin hesla</h3>
+          <form id="changePasswordForm" style="max-width: 400px">
+            <div class="input-group">
+              <label for="currentPassword">Současné heslo</label>
+              <input type="password" id="currentPassword" required />
+            </div>
+            <div class="input-group">
+              <label for="newPassword">Nové heslo</label>
+              <input type="password" id="newPassword" required />
+            </div>
+            <div class="input-group">
+              <label for="confirmPassword">Potvrzení nového hesla</label>
+              <input type="password" id="confirmPassword" required />
+            </div>
+            <button type="submit" class="btn btn-primary" style="padding: 0.75rem 1.5rem">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                style="display: inline; margin-right: 0.5rem">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0110 0v4" />
+              </svg>
+              Změnit heslo
+            </button>
+          </form>
         </div>
 
-        <!-- Settings Tab -->
-        <div
-          id="settingsTab"
-          class="tab-content"
-        >
-          <h2>Nastavení systému</h2>
-
-          <div style="margin-bottom: 2rem">
-            <h3>Změna admin hesla</h3>
-            <form
-              id="changePasswordForm"
-              style="max-width: 400px"
-            >
-              <div class="input-group">
-                <label for="currentPassword">Současné heslo</label>
-                <input
-                  type="password"
-                  id="currentPassword"
-                  required
-                />
-              </div>
-              <div class="input-group">
-                <label for="newPassword">Nové heslo</label>
-                <input
-                  type="password"
-                  id="newPassword"
-                  required
-                />
-              </div>
-              <div class="input-group">
-                <label for="confirmPassword">Potvrzení nového hesla</label>
-                <input
-                  type="password"
-                  id="confirmPassword"
-                  required
-                />
-              </div>
-              <button
-                type="submit"
-                class="btn btn-primary"
-                style="padding: 0.75rem 1.5rem"
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  style="display: inline; margin-right: 0.5rem"
-                >
-                  <rect
-                    x="3"
-                    y="11"
-                    width="18"
-                    height="11"
-                    rx="2"
-                    ry="2"
-                  />
-                  <path d="M7 11V7a5 5 0 0110 0v4" />
-                </svg>
-                Změnit heslo
-              </button>
-            </form>
-          </div>
-
-          <div style="margin-bottom: 2rem">
-            <h3>Kontaktní email</h3>
-            <p style="color: var(--gray-600); margin-bottom: 1rem">
-              Nastavte kontaktní emailovou adresu, která se bude zobrazovat hostům v potvrzovacích
-              emailech a na webu.
-            </p>
-            <form
-              id="contactEmailForm"
-              style="max-width: 500px"
-            >
-              <div class="input-group">
-                <label for="contactEmail">Kontaktní email *</label>
-                <input
-                  type="email"
-                  id="contactEmail"
-                  required
-                  placeholder="chata@utia.cas.cz"
-                />
-              </div>
-              <button
-                type="submit"
-                class="btn btn-primary"
-                style="padding: 0.75rem 1.5rem; margin-top: 0.5rem"
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  style="display: inline; margin-right: 0.5rem"
-                >
-                  <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
-                  <polyline points="17 21 17 13 7 13 7 21" />
-                </svg>
-                Uložit kontaktní email
-              </button>
-            </form>
-          </div>
-
-          <div style="margin-bottom: 2rem">
-            <h3>Správci systému</h3>
-            <p style="color: var(--gray-600); margin-bottom: 1rem">
-              Nastavte emailové adresy správců, kteří budou dostávat kopie všech emailových
-              notifikací při vytvoření, změně nebo zrušení rezervace. Správci obdrží stejný email
-              jako majitel rezervace.
-            </p>
-            <div
-              id="adminEmailsList"
-              style="margin-bottom: 1rem"
-            >
-              <!-- Admin emails will be listed here -->
+        <div style="margin-bottom: 2rem">
+          <h3>Kontaktní email</h3>
+          <p style="color: var(--gray-600); margin-bottom: 1rem">
+            Nastavte kontaktní emailovou adresu, která se bude zobrazovat hostům v potvrzovacích
+            emailech a na webu.
+          </p>
+          <form id="contactEmailForm" style="max-width: 500px">
+            <div class="input-group">
+              <label for="contactEmail">Kontaktní email *</label>
+              <input type="email" id="contactEmail" required placeholder="chata@utia.cas.cz" />
             </div>
-            <form
-              id="addAdminEmailForm"
-              style="max-width: 500px"
-            >
-              <div style="display: flex; gap: 0.5rem; align-items: flex-end">
-                <div
-                  class="input-group"
-                  style="flex: 1; margin: 0"
-                >
-                  <label for="newAdminEmail">Přidat správce</label>
-                  <input
-                    type="email"
-                    id="newAdminEmail"
-                    placeholder="admin@utia.cas.cz"
-                    required
-                  />
-                </div>
-                <button
-                  type="submit"
-                  class="btn btn-primary"
-                  style="padding: 0.75rem 1.5rem"
-                >
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    style="display: inline; margin-right: 0.5rem"
-                  >
-                    <path
-                      d="M12 5v14M5 12h14"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                    />
-                  </svg>
-                  Přidat
-                </button>
-              </div>
-            </form>
-          </div>
+            <button type="submit" class="btn btn-primary" style="padding: 0.75rem 1.5rem; margin-top: 0.5rem">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                style="display: inline; margin-right: 0.5rem">
+                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+              </svg>
+              Uložit kontaktní email
+            </button>
+          </form>
+        </div>
 
-          <div style="margin-bottom: 2rem">
-            <h3>
-              Správci chaty
-              <span
-                class="tooltip-icon"
-                title="Správci chaty dostanou notifikace pouze pro změny platebního stavu nebo úpravy již zaplacených rezervací"
-                style="font-size: 14px; color: var(--gray-500); cursor: help; margin-left: 8px;"
-              >
-                ℹ️
-              </span>
-            </h3>
-            <p style="color: var(--gray-600); margin-bottom: 1rem">
-              Nastavte emailové adresy správců chaty, kteří budou dostávat notifikace pouze při:
-            </p>
-            <ul style="color: var(--gray-600); margin: 0 0 1rem 1.5rem; padding: 0;">
-              <li>Změně platebního stavu rezervace (zaplaceno ↔ nezaplaceno)</li>
-              <li>Jakékoliv úpravě již zaplacené rezervace</li>
-            </ul>
-            <p
-              style="
+        <div style="margin-bottom: 2rem">
+          <h3>Správci systému</h3>
+          <p style="color: var(--gray-600); margin-bottom: 1rem">
+            Nastavte emailové adresy správců, kteří budou dostávat kopie všech emailových
+            notifikací při vytvoření, změně nebo zrušení rezervace. Správci obdrží stejný email
+            jako majitel rezervace.
+          </p>
+          <div id="adminEmailsList" style="margin-bottom: 1rem">
+            <!-- Admin emails will be listed here -->
+          </div>
+          <form id="addAdminEmailForm" style="max-width: 500px">
+            <div style="display: flex; gap: 0.5rem; align-items: flex-end">
+              <div class="input-group" style="flex: 1; margin: 0">
+                <label for="newAdminEmail">Přidat správce</label>
+                <input type="email" id="newAdminEmail" placeholder="admin@utia.cas.cz" required />
+              </div>
+              <button type="submit" class="btn btn-primary" style="padding: 0.75rem 1.5rem">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  style="display: inline; margin-right: 0.5rem">
+                  <path d="M12 5v14M5 12h14" stroke-width="2" stroke-linecap="round" />
+                </svg>
+                Přidat
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div style="margin-bottom: 2rem">
+          <h3>
+            Správci chaty
+            <span class="tooltip-icon"
+              title="Správci chaty dostanou notifikace pouze pro změny platebního stavu nebo úpravy již zaplacených rezervací"
+              style="font-size: 14px; color: var(--gray-500); cursor: help; margin-left: 8px;">
+              ℹ️
+            </span>
+          </h3>
+          <p style="color: var(--gray-600); margin-bottom: 1rem">
+            Nastavte emailové adresy správců chaty, kteří budou dostávat notifikace pouze při:
+          </p>
+          <ul style="color: var(--gray-600); margin: 0 0 1rem 1.5rem; padding: 0;">
+            <li>Změně platebního stavu rezervace (zaplaceno ↔ nezaplaceno)</li>
+            <li>Jakékoliv úpravě již zaplacené rezervace</li>
+          </ul>
+          <p style="
                 color: var(--gray-500);
                 font-size: 14px;
                 padding: 0.75rem;
                 background: var(--gray-50);
                 border-left: 3px solid var(--primary-color);
                 margin-bottom: 1rem;
-              "
-            >
-              <strong>Poznámka:</strong> Administrátoři (výše) dostanou email při každé změně
-              rezervace. Správci chaty pouze při platbách.
-            </p>
-            <div
-              id="cabinManagerEmailsList"
-              style="margin-bottom: 1rem"
-            >
-              <!-- Cabin manager emails will be listed here -->
-            </div>
-            <form
-              id="addCabinManagerEmailForm"
-              style="max-width: 500px"
-            >
-              <div style="display: flex; gap: 0.5rem; align-items: flex-end">
-                <div
-                  class="input-group"
-                  style="flex: 1; margin: 0"
-                >
-                  <label for="newCabinManagerEmail">Přidat správce chaty</label>
-                  <input
-                    type="email"
-                    id="newCabinManagerEmail"
-                    placeholder="spravce@utia.cas.cz"
-                    required
-                  />
-                </div>
-                <button
-                  type="submit"
-                  class="btn btn-primary"
-                  style="padding: 0.75rem 1.5rem"
-                >
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    style="display: inline; margin-right: 0.5rem"
-                  >
-                    <path
-                      d="M12 5v14M5 12h14"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                    />
-                  </svg>
-                  Přidat
-                </button>
-              </div>
-            </form>
+              ">
+            <strong>Poznámka:</strong> Administrátoři (výše) dostanou email při každé změně
+            rezervace. Správci chaty pouze při platbách.
+          </p>
+          <div id="cabinManagerEmailsList" style="margin-bottom: 1rem">
+            <!-- Cabin manager emails will be listed here -->
           </div>
+          <form id="addCabinManagerEmailForm" style="max-width: 500px">
+            <div style="display: flex; gap: 0.5rem; align-items: flex-end">
+              <div class="input-group" style="flex: 1; margin: 0">
+                <label for="newCabinManagerEmail">Přidat správce chaty</label>
+                <input type="email" id="newCabinManagerEmail" placeholder="spravce@utia.cas.cz" required />
+              </div>
+              <button type="submit" class="btn btn-primary" style="padding: 0.75rem 1.5rem">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  style="display: inline; margin-right: 0.5rem">
+                  <path d="M12 5v14M5 12h14" stroke-width="2" stroke-linecap="round" />
+                </svg>
+                Přidat
+              </button>
+            </div>
+          </form>
+        </div>
 
-          <div style="margin-bottom: 2rem">
-            <h3>Šablona potvrzovacího emailu</h3>
-            <p style="color: var(--gray-600); margin-bottom: 1rem">
-              Nastavte text emailu, který obdrží hosté po úspěšné rezervaci. Můžete použít
-              následující proměnné:
-            </p>
-            <div
-              style="
+        <div style="margin-bottom: 2rem">
+          <h3>Šablona potvrzovacího emailu</h3>
+          <p style="color: var(--gray-600); margin-bottom: 1rem">
+            Nastavte text emailu, který obdrží hosté po úspěšné rezervaci. Můžete použít
+            následující proměnné:
+          </p>
+          <div style="
                 background: var(--gray-50);
                 padding: 1rem;
                 border-radius: var(--radius-sm);
                 margin-bottom: 1rem;
-              "
-            >
-              <code style="font-size: 0.9rem">
+              ">
+            <code style="font-size: 0.9rem">
                 {booking_id} - číslo rezervace<br />
                 {name} - jméno hosta<br />
                 {start_date} - datum příjezdu<br />
@@ -1991,33 +1380,23 @@
                 {toddlers} - počet batolat<br />
                 {edit_url} - odkaz pro úpravu rezervace
               </code>
+          </div>
+
+          <form id="emailTemplateForm">
+            <div class="input-group">
+              <label for="emailSubject">Předmět emailu *</label>
+              <input type="text" id="emailSubject" value="Potvrzení rezervace - Chata Mariánská" required />
             </div>
 
-            <form id="emailTemplateForm">
-              <div class="input-group">
-                <label for="emailSubject">Předmět emailu *</label>
-                <input
-                  type="text"
-                  id="emailSubject"
-                  value="Potvrzení rezervace - Chata Mariánská"
-                  required
-                />
-              </div>
-
-              <div class="input-group">
-                <label for="emailTemplate">
-                  Text emailu *
-                  <span style="font-weight: normal; color: var(--gray-600)">
-                    (max 600 znaků, edit link se přidá automaticky)
-                  </span>
-                </label>
-                <textarea
-                  id="emailTemplate"
-                  rows="15"
-                  required
-                  maxlength="600"
-                  style="font-family: monospace; font-size: 0.9rem"
-                >
+            <div class="input-group">
+              <label for="emailTemplate">
+                Text emailu *
+                <span style="font-weight: normal; color: var(--gray-600)">
+                  (max 600 znaků, edit link se přidá automaticky)
+                </span>
+              </label>
+              <textarea id="emailTemplate" rows="15" required maxlength="600"
+                style="font-family: monospace; font-size: 0.9rem">
 Dobrý den {name},
 
 děkujeme za rezervaci v Chatě Mariánská.
@@ -2045,32 +1424,23 @@ Tel: +420 123 456 789
 {edit_url}
 
 Těšíme se na Vás!
-Tým Chata Mariánská</textarea
-                >
-                <div
-                  style="
+Tým Chata Mariánská</textarea>
+              <div style="
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
                     margin-top: 0.5rem;
                     font-size: 0.875rem;
                     color: var(--gray-600);
-                  "
-                >
-                  <span> <span id="emailTemplateCharCount">0</span> / 600 znaků </span>
-                  <span
-                    id="emailTemplateWarning"
-                    style="color: var(--error-color); display: none"
-                  >
-                    ⚠️ Překročen limit
-                  </span>
-                </div>
+                  ">
+                <span> <span id="emailTemplateCharCount">0</span> / 600 znaků </span>
+                <span id="emailTemplateWarning" style="color: var(--error-color); display: none">
+                  ⚠️ Překročen limit
+                </span>
               </div>
+            </div>
 
-              <button
-                type="submit"
-                class="btn btn-primary"
-                style="
+            <button type="submit" class="btn btn-primary" style="
                   width: 100%;
                   padding: 0.875rem 1.75rem;
                   font-size: 1rem;
@@ -2080,59 +1450,36 @@ Tým Chata Mariánská</textarea
                   gap: 0.5rem;
                   margin-top: 1rem;
                   font-weight: 600;
-                "
-              >
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  style="flex-shrink: 0"
-                >
-                  <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
-                  <polyline points="17 21 17 13 7 13 7 21" />
-                  <polyline points="7 3 7 8 15 8" />
-                </svg>
-                Uložit šablonu emailu
-              </button>
-            </form>
-          </div>
+                ">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="flex-shrink: 0">
+                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+              Uložit šablonu emailu
+            </button>
+          </form>
         </div>
       </div>
+    </div>
 
-      <!-- Edit Booking Modal -->
-      <div
-        id="editBookingModal"
-        class="modal"
-      >
-        <div
-          class="modal-content"
-          style="max-width: 1800px; width: 95%; max-height: 90vh; overflow-y: auto"
-        >
-          <button
-            class="modal-close"
-            onclick="adminPanel.closeEditModal()"
-          >
-            &times;
-          </button>
-          <h2 id="editModalTitle">Upravit rezervaci</h2>
+    <!-- Edit Booking Modal -->
+    <div id="editBookingModal" class="modal">
+      <div class="modal-content" style="max-width: 1800px; width: 95%; max-height: 90vh; overflow-y: auto">
+        <button class="modal-close" onclick="adminPanel.closeEditModal()">
+          &times;
+        </button>
+        <h2 id="editModalTitle">Upravit rezervaci</h2>
 
-          <!-- Tab navigation -->
-          <div
-            class="edit-tabs"
-            style="
+        <!-- Tab navigation -->
+        <div class="edit-tabs" style="
               display: flex;
               gap: 1rem;
               margin-bottom: 1.5rem;
               border-bottom: 2px solid #e5e7eb;
-            "
-          >
-            <button
-              class="edit-tab-btn active"
-              data-tab="dates"
-              onclick="adminPanel.editComponent.switchTab('dates')"
-              style="
+            ">
+          <button class="edit-tab-btn active" data-tab="dates" onclick="adminPanel.editComponent.switchTab('dates')"
+            style="
                 padding: 0.75rem 1.5rem;
                 background: none;
                 border: none;
@@ -2140,15 +1487,10 @@ Tým Chata Mariánská</textarea
                 color: #0d9488;
                 font-weight: 600;
                 cursor: pointer;
-              "
-            >
-              📅 Termín a pokoje
-            </button>
-            <button
-              class="edit-tab-btn"
-              data-tab="billing"
-              onclick="adminPanel.editComponent.switchTab('billing')"
-              style="
+              ">
+            📅 Termín a pokoje
+          </button>
+          <button class="edit-tab-btn" data-tab="billing" onclick="adminPanel.editComponent.switchTab('billing')" style="
                 padding: 0.75rem 1.5rem;
                 background: none;
                 border: none;
@@ -2156,321 +1498,228 @@ Tým Chata Mariánská</textarea
                 color: #6b7280;
                 font-weight: 600;
                 cursor: pointer;
-              "
-            >
-              📋 Fakturační údaje
-            </button>
-          </div>
+              ">
+            📋 Fakturační údaje
+          </button>
+        </div>
 
-          <form id="editBookingForm">
-            <input
-              type="hidden"
-              id="editBookingId"
-            />
+        <form id="editBookingForm">
+          <input type="hidden" id="editBookingId" />
 
-            <!-- Dates and Rooms Tab -->
-            <div
-              id="editDatesTab"
-              class="edit-tab-content"
-            >
-              <div
-                style="
+          <!-- Dates and Rooms Tab -->
+          <div id="editDatesTab" class="edit-tab-content">
+            <div style="
                   margin-bottom: 1rem;
                   padding: 1rem;
                   background: #e0f2fe;
                   border-radius: 8px;
                   border-left: 4px solid #0284c7;
-                "
-              >
-                <p style="margin: 0; font-size: 0.9rem; color: #075985">
-                  ℹ️ <strong>Klikněte na "Změnit termín"</strong> u pokoje, který chcete upravit.
-                  Kalendář zobrazí původní termín <strong style="color: #3b82f6">modře</strong>.
-                </p>
-              </div>
+                ">
+              <p style="margin: 0; font-size: 0.9rem; color: #075985">
+                ℹ️ <strong>Klikněte na "Změnit termín"</strong> u pokoje, který chcete upravit.
+                Kalendář zobrazí původní termín <strong style="color: #3b82f6">modře</strong>.
+              </p>
+            </div>
 
-              <!-- Two column layout: Calendar left, Rooms right -->
-              <div style="display: grid; grid-template-columns: 1fr 450px; gap: 2rem">
-                <div>
-                  <div
-                    id="editCalendarHeader"
-                    style="display: none; margin-bottom: 1rem"
-                  >
-                    <h3 style="margin: 0 0 0.5rem 0">
-                      Kalendář - <span id="editingRoomName"></span>
-                    </h3>
-                    <button
-                      type="button"
-                      id="cancelRoomEditBtn"
-                      class="btn btn-secondary"
-                      style="padding: 0.5rem 1rem"
-                    >
-                      ✕ Zavřít kalendář
-                    </button>
-                  </div>
-                  <div
-                    id="editCalendarContainer"
-                    style="display: none"
-                  ></div>
-                  <div
-                    id="editSelectedDatesContainer"
-                    style="
+            <!-- Two column layout: Calendar left, Rooms right -->
+            <div style="display: grid; grid-template-columns: 1fr 450px; gap: 2rem">
+              <div>
+                <div id="editCalendarHeader" style="display: none; margin-bottom: 1rem">
+                  <h3 style="margin: 0 0 0.5rem 0">
+                    Kalendář - <span id="editingRoomName"></span>
+                  </h3>
+                  <button type="button" id="cancelRoomEditBtn" class="btn btn-secondary" style="padding: 0.5rem 1rem">
+                    ✕ Zavřít kalendář
+                  </button>
+                </div>
+                <div id="editCalendarContainer" style="display: none"></div>
+                <div id="editSelectedDatesContainer" style="
                       display: none;
                       margin-top: 1rem;
                       padding: 1rem;
                       background: #fef3c7;
                       border-radius: 8px;
-                    "
-                  >
-                    <strong>Nově vybraný termín:</strong>
-                    <div
-                      id="editSelectedDates"
-                      style="margin-top: 0.5rem; color: #d97706; font-weight: 600"
-                    >
-                      Zatím nevybráno
-                    </div>
+                    ">
+                  <strong>Nově vybraný termín:</strong>
+                  <div id="editSelectedDates" style="margin-top: 0.5rem; color: #d97706; font-weight: 600">
+                    Zatím nevybráno
                   </div>
-                  <button
-                    type="button"
-                    id="saveRoomDatesBtn"
-                    class="btn btn-primary"
-                    style="
+                </div>
+                <button type="button" id="saveRoomDatesBtn" class="btn btn-primary" style="
                       display: none;
                       margin-top: 1rem;
                       padding: 0.75rem 1.5rem;
                       width: 100%;
                       font-size: 1.1rem;
-                    "
-                  >
-                    ✓ Uložit termín
-                  </button>
+                    ">
+                  ✓ Uložit termín
+                </button>
+              </div>
+
+              <div>
+                <h3>Všechny pokoje</h3>
+                <div id="editRoomsList" style="display: flex; flex-direction: column; gap: 0.5rem">
+                  <!-- Rooms will be populated here -->
                 </div>
 
-                <div>
-                  <h3>Všechny pokoje</h3>
-                  <div
-                    id="editRoomsList"
-                    style="display: flex; flex-direction: column; gap: 0.5rem"
-                  >
-                    <!-- Rooms will be populated here -->
-                  </div>
-
-                  <div
-                    style="
+                <div style="
                       margin-top: 1.5rem;
                       padding: 1rem;
                       background: #fef3c7;
                       border-radius: 8px;
-                    "
-                  >
-                    <strong data-translate="totalPrice">Celková cena:</strong>
-                    <div
-                      id="editTotalPrice"
-                      style="font-size: 1.5rem; color: #d97706"
-                    >
-                      0 Kč
-                    </div>
+                    ">
+                  <strong data-translate="totalPrice">Celková cena:</strong>
+                  <div id="editTotalPrice" style="font-size: 1.5rem; color: #d97706">
+                    0 Kč
                   </div>
                 </div>
               </div>
             </div>
+          </div>
 
-            <!-- Billing Information Tab -->
-            <div
-              id="editBillingTab"
-              class="edit-tab-content"
-              style="display: none"
-            >
-              <div class="form-grid">
-                <div class="input-group">
-                  <label for="editName"
-                    >Jméno a příjmení <span class="required-asterisk">*</span></label
-                  >
-                  <input
-                    type="text"
-                    id="editName"
-                  />
-                </div>
-                <div class="input-group">
-                  <label for="editEmail">Email <span class="required-asterisk">*</span></label>
-                  <input
-                    type="email"
-                    id="editEmail"
-                  />
-                </div>
-                <div class="input-group">
-                  <label for="editPhone">Telefon <span class="required-asterisk">*</span></label>
-                  <input
-                    type="tel"
-                    id="editPhone"
-                  />
-                </div>
-                <div class="input-group">
-                  <label for="editCompany">Firma</label>
-                  <input
-                    type="text"
-                    id="editCompany"
-                  />
-                </div>
-                <div class="input-group full-width">
-                  <label for="editAddress">Adresa <span class="required-asterisk">*</span></label>
-                  <input
-                    type="text"
-                    id="editAddress"
-                  />
-                </div>
-                <div class="input-group">
-                  <label for="editCity">Město <span class="required-asterisk">*</span></label>
-                  <input
-                    type="text"
-                    id="editCity"
-                  />
-                </div>
-                <div class="input-group">
-                  <label for="editZip">PSČ <span class="required-asterisk">*</span></label>
-                  <input
-                    type="text"
-                    id="editZip"
-                    pattern="[0-9]{5}"
-                  />
-                </div>
-                <div class="input-group">
-                  <label for="editIco">IČO</label>
-                  <input
-                    type="text"
-                    id="editIco"
-                  />
-                </div>
-                <div class="input-group">
-                  <label for="editDic">DIČ</label>
-                  <input
-                    type="text"
-                    id="editDic"
-                  />
-                </div>
-                <div class="input-group full-width">
-                  <label
-                    for="editNotes"
-                    data-translate="notes"
-                  >
-                    Poznámky
-                  </label>
-                  <textarea
-                    id="editNotes"
-                    rows="3"
-                  ></textarea>
-                </div>
-                <div class="input-group full-width">
-                  <label style="display: flex; align-items: center; gap: 0.5rem">
-                    <input
-                      type="checkbox"
-                      id="editPayFromBenefit"
-                      style="width: auto; margin: 0"
-                    />
-                    <span>Platba z benefitů</span>
-                  </label>
-                </div>
+          <!-- Billing Information Tab -->
+          <div id="editBillingTab" class="edit-tab-content" style="display: none">
+            <div class="form-grid">
+              <div class="input-group">
+                <label for="editName">Jméno a příjmení <span class="required-asterisk">*</span></label>
+                <input type="text" id="editName" />
+              </div>
+              <div class="input-group">
+                <label for="editEmail">Email <span class="required-asterisk">*</span></label>
+                <input type="email" id="editEmail" />
+              </div>
+              <div class="input-group">
+                <label for="editPhone">Telefon <span class="required-asterisk">*</span></label>
+                <input type="tel" id="editPhone" />
+              </div>
+              <div class="input-group">
+                <label for="editCompany">Firma</label>
+                <input type="text" id="editCompany" />
+              </div>
+              <div class="input-group full-width">
+                <label for="editAddress">Adresa <span class="required-asterisk">*</span></label>
+                <input type="text" id="editAddress" />
+              </div>
+              <div class="input-group">
+                <label for="editCity">Město <span class="required-asterisk">*</span></label>
+                <input type="text" id="editCity" />
+              </div>
+              <div class="input-group">
+                <label for="editZip">PSČ <span class="required-asterisk">*</span></label>
+                <input type="text" id="editZip" pattern="[0-9]{5}" />
+              </div>
+              <div class="input-group">
+                <label for="editIco">IČO</label>
+                <input type="text" id="editIco" />
+              </div>
+              <div class="input-group">
+                <label for="editDic">DIČ</label>
+                <input type="text" id="editDic" />
+              </div>
+              <div class="input-group full-width">
+                <label for="editNotes" data-translate="notes">
+                  Poznámky
+                </label>
+                <textarea id="editNotes" rows="3"></textarea>
+              </div>
+              <div class="input-group full-width">
+                <label style="display: flex; align-items: center; gap: 0.5rem">
+                  <input type="checkbox" id="editPayFromBenefit" style="width: auto; margin: 0" />
+                  <span>Platba z benefitů</span>
+                </label>
+              </div>
 
-                <!-- Guest Names Section -->
-                <div
-                  id="editGuestNamesSection"
-                  class="input-group full-width"
-                  style="
+              <!-- Guest Names Section -->
+              <div id="editGuestNamesSection" class="input-group full-width" style="
                     display: none;
                     margin-top: 1.5rem;
                     padding: 1.5rem;
                     background: #f0fdf4;
                     border: 2px solid #10b981;
                     border-radius: 8px;
-                  "
-                >
-                  <h3 style="margin: 0 0 1rem 0; color: #047857">👥 Jména ubytovaných osob</h3>
+                  ">
+                <h3 style="margin: 0 0 1rem 0; color: #047857">👥 Jména ubytovaných osob</h3>
 
-                  <!-- Adults Names -->
-                  <div
-                    id="editAdultsNamesContainer"
-                    style="margin-bottom: 1.5rem"
-                  >
-                    <h4 style="margin: 0 0 0.75rem 0; color: #059669">Dospělí (18+ let)</h4>
-                    <div id="editAdultsNamesList"></div>
-                  </div>
+                <!-- Adults Names -->
+                <div id="editAdultsNamesContainer" style="margin-bottom: 1.5rem">
+                  <h4 style="margin: 0 0 0.75rem 0; color: #059669">Dospělí (18+ let)</h4>
+                  <div id="editAdultsNamesList"></div>
+                </div>
 
-                  <!-- Children Names -->
-                  <div
-                    id="editChildrenNamesContainer"
-                    style="display: none"
-                  >
-                    <h4 style="margin: 0 0 0.75rem 0; color: #059669">Děti (3-17 let)</h4>
-                    <div id="editChildrenNamesList"></div>
-                  </div>
+                <!-- Children Names -->
+                <div id="editChildrenNamesContainer" style="display: none">
+                  <h4 style="margin: 0 0 0.75rem 0; color: #059669">Děti (3-17 let)</h4>
+                  <div id="editChildrenNamesList"></div>
                 </div>
               </div>
             </div>
+          </div>
 
-            <div class="modal-actions">
-              <button
-                type="button"
-                class="btn btn-secondary"
-                onclick="document.getElementById('editBookingModal').classList.remove('active')"
-              >
-                Zrušit
-              </button>
-              <button
-                type="submit"
-                class="btn btn-primary"
-                id="editSubmitButton"
-              >
-                Uložit změny
-              </button>
-            </div>
-          </form>
-        </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary"
+              onclick="document.getElementById('editBookingModal').classList.remove('active')">
+              Zrušit
+            </button>
+            <button type="submit" class="btn btn-primary" id="editSubmitButton">
+              Uložit změny
+            </button>
+          </div>
+        </form>
       </div>
-
-      <!-- Success Message -->
-      <div
-        id="successMessage"
-        class="success-message"
-      ></div>
     </div>
 
-    <style>
-      /* Ensure notification container is visible */
-      #notificationContainer {
-        position: fixed;
-        bottom: 20px;
-        left: 20px;
-        z-index: 10000;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        pointer-events: none;
-      }
+    <!-- Success Message -->
+    <div id="successMessage" class="success-message"></div>
+  </div>
 
-      #notificationContainer .notification {
-        pointer-events: all;
-      }
-    </style>
+  <style>
+    /* Ensure notification container is visible */
+    #notificationContainer {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      pointer-events: none;
+    }
 
-    <!-- Shared utilities (MUST load before data.js) -->
-    <script src="js/shared/idGenerator.js"></script>
-    <script src="js/shared/dateUtils.js"></script>
-    <script src="js/shared/validationUtils.js"></script>
-    <script src="js/shared/priceCalculator.js"></script>
-    <script src="js/shared/christmasUtils.js"></script>
-    <script src="js/shared/bookingLogic.js"></script>
-    <script src="js/shared/bookingUtils.js"></script>
-    <script src="js/shared/bookingDisplayUtils.js"></script>
-    <script src="js/shared/GuestNameUtils.js"></script>
-    <script src="js/shared/ModalDialog.js"></script>
-    <script src="js/shared/BaseCalendar.js"></script>
-    <script src="js/shared/EditBookingComponent.js"></script>
-    <script src="js/calendar-utils.js"></script>
+    #notificationContainer .notification {
+      pointer-events: all;
+    }
+  </style>
 
-    <!-- Core modules -->
-    <script src="data.js"></script>
-    <script src="translations.js"></script>
+  <!-- Shared utilities (MUST load before data.js) -->
+  <script src="js/shared/idGenerator.js"></script>
+  <script src="js/shared/dateUtils.js"></script>
+  <script src="js/shared/validationUtils.js"></script>
+  <script src="js/shared/priceCalculator.js"></script>
+  <script src="js/shared/christmasUtils.js"></script>
+  <script src="js/shared/bookingLogic.js"></script>
+  <script src="js/shared/bookingUtils.js"></script>
+  <script src="js/shared/bookingDisplayUtils.js"></script>
+  <script src="js/shared/GuestNameUtils.js"></script>
+  <script src="js/shared/ModalDialog.js"></script>
+  <script src="js/shared/NotificationManager.js"></script>
+  <script src="js/shared/BaseCalendar.js"></script>
+  <script src="js/shared/edit-booking/EditBookingCalendar.js"></script>
+  <script src="js/shared/edit-booking/EditBookingGuests.js"></script>
+  <script src="js/shared/edit-booking/EditBookingRooms.js"></script>
+  <script src="js/shared/EditBookingComponent.js"></script>
+  <script src="js/calendar-utils.js"></script>
 
-    <!-- Admin module -->
-    <script src="admin.js"></script>
-  </body>
+  <!-- Core modules -->
+  <script src="data.js"></script>
+  <script src="translations.js"></script>
+
+  <!-- Admin module -->
+  <script src="js/admin/AdminAuth.js"></script>
+  <script src="js/admin/AdminBookings.js"></script>
+  <script src="js/admin/AdminStats.js"></script>
+  <script src="js/admin/AdminSettings.js"></script>
+  <script src="js/admin/AdminBlockedDates.js"></script>
+  <script src="admin.js"></script>
+</body>
+
 </html>

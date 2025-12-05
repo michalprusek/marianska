@@ -1,17 +1,21 @@
 // Comprehensive server.js integration tests
 const request = require('supertest');
 
-// Mock DatabaseManager before requiring server
+// NEW UNIFIED (2025-12-04): Mock must be defined completely inside jest.mock for hoisting
+let mockDb;
+
 jest.mock('../../database', () => {
-  const mockDb = {
+  // Define mock inside factory to avoid hoisting issues
+  mockDb = {
     getAllBookings: jest.fn(() => []),
     getBooking: jest.fn(),
     createBooking: jest.fn(),
     updateBooking: jest.fn(),
     deleteBooking: jest.fn(),
     getAllBlockedDates: jest.fn(() => []),
-    blockDate: jest.fn(),
-    unblockDate: jest.fn(),
+    getAllBlockageInstances: jest.fn(() => []),
+    createBlockageInstance: jest.fn(),
+    deleteBlockageInstance: jest.fn(),
     getRoomAvailability: jest.fn(() => ({ available: true })),
     getSettings: jest.fn(() => ({
       adminPassword: '$2b$10$rKqH1p3NxZ.F9eQH9fZ0d.YXq0v7Z5KQ5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z',
@@ -28,21 +32,55 @@ jest.mock('../../database', () => {
       rooms: [
         { id: '12', name: 'Pokoj 12', beds: 2, type: 'small' },
         { id: '13', name: 'Pokoj 13', beds: 3, type: 'small' },
+        { id: '14', name: 'Pokoj 14', beds: 4, type: 'large' },
       ],
+      // NEW MODEL (2025-12-04): Room-size based pricing with 'empty' field
       prices: {
-        utia: { base: 300, adult: 50, child: 25 },
-        external: { base: 500, adult: 100, child: 50 },
+        utia: {
+          small: { empty: 250, adult: 50, child: 25 },
+          large: { empty: 350, adult: 50, child: 25 },
+        },
+        external: {
+          small: { empty: 400, adult: 100, child: 50 },
+          large: { empty: 500, adult: 100, child: 50 },
+        },
+      },
+      bulkPrices: {
+        basePrice: 2000,
+        utiaAdult: 100,
+        utiaChild: 0,
+        externalAdult: 250,
+        externalChild: 50,
       },
     })),
     updateSettings: jest.fn(),
+    getAllData: jest.fn(function () {
+      return {
+        bookings: [],
+        blockedDates: [],
+        blockageInstances: [],
+        proposedBookings: [],
+        settings: this.getSettings(),
+      };
+    }),
+    // Proposed bookings methods
+    createProposedBooking: jest.fn(),
+    deleteProposedBooking: jest.fn(),
+    deleteExpiredProposedBookings: jest.fn(),
+    deleteProposedBookingsBySession: jest.fn(),
+    getProposedBookingsBySession: jest.fn(() => []),
+    getActiveProposedBookings: jest.fn(() => []),
+    // Christmas methods
+    getAllChristmasPeriods: jest.fn(() => []),
+    getChristmasPeriod: jest.fn(),
+    createChristmasPeriod: jest.fn(),
+    updateChristmasPeriod: jest.fn(),
+    deleteChristmasPeriod: jest.fn(),
     // Mock the db.db.transaction method for SQLite transactions
     db: {
-      transaction: jest.fn(
-        (callback) =>
-          // Execute the callback immediately (synchronous)
-          callback
-      ),
+      transaction: jest.fn((callback) => callback),
     },
+    close: jest.fn(),
   };
   return jest.fn(() => mockDb);
 });
@@ -59,9 +97,8 @@ describe('Server Integration Tests', () => {
     // Import server (this will use mocked DatabaseManager)
     app = require('../../server');
 
-    // Get database instance from mock
-    const DatabaseManager = require('../../database');
-    db = new DatabaseManager();
+    // Use the shared mockDb directly
+    db = mockDb;
   });
 
   afterEach(() => {
@@ -106,7 +143,11 @@ describe('Server Integration Tests', () => {
     it('should return health status', async () => {
       const response = await request(app).get('/health');
       expect(response.status).toBe(200);
-      expect(response.body).toEqual({ status: 'ok' });
+      // NEW (2025-12-04): Server returns detailed health info
+      expect(response.body.status).toBe('healthy');
+      expect(response.body).toHaveProperty('environment');
+      expect(response.body).toHaveProperty('timestamp');
+      expect(response.body).toHaveProperty('uptime');
     });
   });
 
