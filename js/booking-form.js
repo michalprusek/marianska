@@ -34,12 +34,15 @@ class BookingFormModule {
    */
   setSubmitButtonLoading(loading) {
     const button = this.getSubmitButton();
-    if (!button) return;
+    if (!button) {
+      return;
+    }
 
     if (loading) {
       button.disabled = true;
       button.dataset.originalText = button.textContent;
-      button.textContent = this.app.currentLanguage === 'cs' ? '⏳ Zpracování...' : '⏳ Processing...';
+      button.textContent =
+        this.app.currentLanguage === 'cs' ? '⏳ Zpracování...' : '⏳ Processing...';
       button.style.opacity = '0.7';
       button.style.cursor = 'not-allowed';
     } else {
@@ -202,7 +205,9 @@ class BookingFormModule {
     // First pass: Collect data for all rooms
     for (const roomId of this.app.selectedRooms) {
       const room = rooms.find((r) => r.id === roomId);
-      if (!room) continue;
+      if (!room) {
+        continue;
+      }
 
       const guests = this.app.roomGuests.get(roomId) || {
         adults: 1,
@@ -220,7 +225,7 @@ class BookingFormModule {
         children: guests.children,
         toddlers: guests.toddlers,
         guestType: roomGuestType,
-        roomName: room.name // Store for display
+        roomName: room.name, // Store for display
       });
     }
 
@@ -235,7 +240,7 @@ class BookingFormModule {
           nights: sortedDates.length,
           settings,
           perRoomGuests,
-          rooms: Array.from(this.app.selectedRooms)
+          rooms: Array.from(this.app.selectedRooms),
         });
 
         totalPrice = priceResult.grandTotal;
@@ -245,7 +250,7 @@ class BookingFormModule {
         html += `<div class="summary-rooms">`;
 
         for (const roomData of perRoomGuests) {
-          const details = roomDetails.find(r => r.roomId === roomData.roomId);
+          const details = roomDetails.find((r) => r.roomId === roomData.roomId);
           const price = details ? details.price : 0; // Price per night
           const totalRoomPrice = price * sortedDates.length; // Total for stay
 
@@ -273,7 +278,6 @@ class BookingFormModule {
           this.app.currentLanguage
         );
         html += perRoomHTML;
-
       } catch (error) {
         console.warn('Error calculating prices:', error);
         html += `<div style="color: red;">Error calculating price</div>`;
@@ -313,7 +317,7 @@ class BookingFormModule {
     this.contactForm = new BookingContactForm({
       containerId: 'bookingContactFormContainer',
       prefix: 'booking',
-      showChristmasCode: true // We'll handle visibility dynamically
+      showChristmasCode: true, // We'll handle visibility dynamically
     });
 
     this.contactForm.render();
@@ -324,7 +328,9 @@ class BookingFormModule {
     if (cancelBtn) {
       cancelBtn.onclick = () => {
         const modal = document.getElementById('bookingFormModal');
-        if (modal) modal.classList.remove('active');
+        if (modal) {
+          modal.classList.remove('active');
+        }
         this.app.isFinalizingReservations = false;
       };
     }
@@ -359,18 +365,18 @@ class BookingFormModule {
       const formData = this.contactForm.getData();
 
       // Map shared component data to local variables for backward compatibility
-      const name = formData.name;
-      const email = formData.email;
-      const phone = formData.phone; // Already includes prefix
-      const company = formData.company;
-      const address = formData.address;
-      const city = formData.city;
-      const zip = formData.zip;
-      const ico = formData.ico;
-      const dic = formData.dic;
-      const notes = formData.notes;
-      const christmasCode = formData.christmasCode;
-      const payFromBenefit = formData.payFromBenefit;
+      const { name } = formData;
+      const { email } = formData;
+      const { phone } = formData; // Already includes prefix
+      const { company } = formData;
+      const { address } = formData;
+      const { city } = formData;
+      const { zip } = formData;
+      const { ico } = formData;
+      const { dic } = formData;
+      const { notes } = formData;
+      const { christmasCode } = formData;
+      const { payFromBenefit } = formData;
 
       // Validate Christmas access code if required
       if (this.app.tempReservations && this.app.tempReservations.length > 0) {
@@ -807,19 +813,21 @@ class BookingFormModule {
                 ${this.app.currentLanguage === 'cs' ? 'Rezervace úspěšně vytvořena!' : 'Booking Successfully Created!'}
               </h2>
               <p style="font-size: 1.1rem; color: #4b5563; margin: 1rem 0;">
-                ${this.app.currentLanguage === 'cs'
-              ? `Číslo vaší rezervace: <strong>${result.id}</strong>`
-              : `Your booking ID: <strong>${result.id}</strong>`
-            }
+                ${
+                  this.app.currentLanguage === 'cs'
+                    ? `Číslo vaší rezervace: <strong>${result.id}</strong>`
+                    : `Your booking ID: <strong>${result.id}</strong>`
+                }
               </p>
             </div>
 
             <div style="background: #f0fdf4; border: 2px solid #10b981; border-radius: 8px; padding: 1.5rem; margin: 1.5rem 0;">
               <p style="font-weight: 600; margin-bottom: 1rem; color: #047857;">
-                ${this.app.currentLanguage === 'cs'
-              ? '📧 Uložte si tento odkaz pro budoucí úpravy:'
-              : '📧 Save this link to edit your booking later:'
-            }
+                ${
+                  this.app.currentLanguage === 'cs'
+                    ? '📧 Uložte si tento odkaz pro budoucí úpravy:'
+                    : '📧 Save this link to edit your booking later:'
+                }
               </p>
               <div style="background: white; padding: 1rem; border-radius: 4px; word-break: break-all; margin: 0.5rem 0;">
                 <a href="${editUrl}" target="_blank" style="color: #0d9488; text-decoration: none; font-weight: 500;">
@@ -837,10 +845,11 @@ class BookingFormModule {
             <div style="background: #fef3c7; border-radius: 8px; padding: 1rem; margin: 1.5rem 0;">
               <p style="color: #92400e; font-size: 0.9rem;">
                 <strong>${this.app.currentLanguage === 'cs' ? 'Důležité:' : 'Important:'}</strong>
-                ${this.app.currentLanguage === 'cs'
-              ? 'Odkaz pro úpravu rezervace vám bude zaslán e-mailem, jakmile bude e-mailová služba dostupná.'
-              : 'The edit link will be sent to your email once the email service is available.'
-            }
+                ${
+                  this.app.currentLanguage === 'cs'
+                    ? 'Odkaz pro úpravu rezervace vám bude zaslán e-mailem, jakmile bude e-mailová služba dostupná.'
+                    : 'The edit link will be sent to your email once the email service is available.'
+                }
               </p>
             </div>
 

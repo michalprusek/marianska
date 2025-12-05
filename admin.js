@@ -101,7 +101,7 @@ class AdminPanel {
     document.querySelectorAll('.tab-content').forEach((content) => {
       content.classList.remove('active');
     });
-    document.getElementById(tabName + 'Tab')?.classList.add('active');
+    document.getElementById(`${tabName}Tab`)?.classList.add('active');
 
     // Load data for the selected tab
     switch (tabName) {
@@ -111,13 +111,17 @@ class AdminPanel {
       case 'statistics':
         await this.stats.loadStatistics();
         break;
+      case 'christmas':
+        await this.settings.loadChristmasCodes();
+        await this.settings.loadChristmasPeriods();
+        break;
       case 'settings':
         await this.settings.loadEmailTemplate();
         await this.settings.loadRoomConfig();
         await this.settings.loadPriceConfig();
         await this.settings.loadBulkPriceConfig();
-        await this.settings.loadChristmasCodes();
-        await this.settings.loadChristmasPeriods();
+        await this.settings.loadBulkPriceConfig();
+        // Christmas settings moved to separate tab
         break;
       case 'blocked':
         await this.blockedDates.loadBlockedDates();
@@ -160,22 +164,30 @@ class AdminPanel {
   // Confirm dialog replacement for no-alert ESLint rule
   showConfirm(message, onConfirm, onCancel = null) {
     if (window.modalDialog) {
-      window.modalDialog.confirm({
-        title: 'Potvrzení',
-        message: message,
-        type: 'warning',
-        confirmText: 'Potvrdit',
-        cancelText: 'Zrušit'
-      }).then(confirmed => {
-        if (confirmed && onConfirm) onConfirm();
-        if (!confirmed && onCancel) onCancel();
-      });
+      window.modalDialog
+        .confirm({
+          title: 'Potvrzení',
+          message,
+          type: 'warning',
+          confirmText: 'Potvrdit',
+          cancelText: 'Zrušit',
+        })
+        .then((confirmed) => {
+          if (confirmed && onConfirm) {
+            onConfirm();
+          }
+          if (!confirmed && onCancel) {
+            onCancel();
+          }
+        });
     } else {
       // Fallback
       if (confirm(message)) {
-        if (onConfirm) onConfirm();
-      } else {
-        if (onCancel) onCancel();
+        if (onConfirm) {
+          onConfirm();
+        }
+      } else if (onCancel) {
+        onCancel();
       }
     }
   }

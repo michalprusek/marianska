@@ -47,16 +47,17 @@ class UtilsModule {
                         </div>
 
 
-                        ${booking.notes
-        ? `
+                        ${
+                          booking.notes
+                            ? `
                         <div class="detail-section">
                             <h3 style="color: var(--primary-600); margin-bottom: 1rem;">
                                 ${this.app.currentLanguage === 'cs' ? 'Poznámky' : 'Notes'}
                             </h3>
                             <p style="color: var(--gray-600);">${booking.notes}</p>
                         </div>`
-        : ''
-      }
+                            : ''
+                        }
 
 
                         <!-- Public Contact Form Section (for everyone) -->
@@ -66,10 +67,11 @@ class UtilsModule {
                                 ${this.app.currentLanguage === 'cs' ? 'Kontaktovat vlastníka rezervace' : 'Contact Booking Owner'}
                             </h3>
                             <p style="color: var(--gray-600); margin-bottom: 1rem; font-size: 0.9rem;">
-                                ${this.app.currentLanguage === 'cs'
-        ? 'Odešlete zprávu vlastníkovi této rezervace. Vaše zpráva bude předána na jejich email.'
-        : 'Send a message to the owner of this booking. Your message will be forwarded to their email.'
-      }
+                                ${
+                                  this.app.currentLanguage === 'cs'
+                                    ? 'Odešlete zprávu vlastníkovi této rezervace. Vaše zpráva bude předána na jejich email.'
+                                    : 'Send a message to the owner of this booking. Your message will be forwarded to their email.'
+                                }
                             </p>
 
                             <form id="publicContactForm" onsubmit="return false;">
@@ -100,10 +102,11 @@ class UtilsModule {
                                         maxlength="500"
                                         oninput="document.getElementById('publicCharCounter').textContent = this.value.length + '/500'; document.getElementById('publicCharCounter').style.color = this.value.length >= 500 ? 'var(--danger-600)' : 'var(--gray-500)';"
                                         style="width: 100%; padding: 0.75rem; border: 1px solid var(--gray-300); border-radius: var(--radius-md); font-size: 0.95rem; resize: vertical; min-height: 100px;"
-                                        placeholder="${this.app.currentLanguage === 'cs'
-        ? 'Napište svou zprávu ohledně této rezervace...'
-        : 'Write your message regarding this booking...'
-      }"
+                                        placeholder="${
+                                          this.app.currentLanguage === 'cs'
+                                            ? 'Napište svou zprávu ohledně této rezervace...'
+                                            : 'Write your message regarding this booking...'
+                                        }"
                                     ></textarea>
                                 </div>
 
@@ -228,8 +231,9 @@ class UtilsModule {
                     <h3 style="color: var(--danger-600); margin-bottom: 1rem;">
                         ${this.app.currentLanguage === 'cs' ? 'Tento termín je blokovaný' : 'This date is blocked'}
                     </h3>
-                    ${availability.reason
-        ? `
+                    ${
+                      availability.reason
+                        ? `
                         <p style="color: var(--gray-600); margin-bottom: 0.5rem;">
                             <strong>${this.app.currentLanguage === 'cs' ? 'Důvod:' : 'Reason:'}</strong>
                         </p>
@@ -237,8 +241,8 @@ class UtilsModule {
                             ${availability.reason}
                         </p>
                     `
-        : ''
-      }
+                        : ''
+                    }
                 </div>
             </div>
         `;
@@ -468,11 +472,19 @@ class UtilsModule {
 
         // If we are in single room modal for this room, use the detailed guest names
         if (this.app.currentBookingRoom === roomId && guestNames.length > 0) {
-          guestNames.forEach(g => {
+          guestNames.forEach((g) => {
             if (g.personType === 'adult') {
-              if (g.guestPriceType === 'utia') utiaAdults++; else externalAdults++;
+              if (g.guestPriceType === 'utia') {
+                utiaAdults++;
+              } else {
+                externalAdults++;
+              }
             } else if (g.personType === 'child') {
-              if (g.guestPriceType === 'utia') utiaChildren++; else externalChildren++;
+              if (g.guestPriceType === 'utia') {
+                utiaChildren++;
+              } else {
+                externalChildren++;
+              }
             }
           });
         } else {
@@ -495,7 +507,7 @@ class UtilsModule {
           utiaAdults,
           externalAdults,
           utiaChildren,
-          externalChildren
+          externalChildren,
         });
       }
 
@@ -504,7 +516,7 @@ class UtilsModule {
         rooms: Array.from(roomsToCalculate),
         nights,
         settings,
-        perRoomGuests
+        perRoomGuests,
       });
 
       const { grandTotal, rooms: roomDetails } = priceResult;
@@ -541,11 +553,21 @@ class UtilsModule {
           // Update guest counts summary
           const guestCountsSummary = document.getElementById('guestCountsSummary');
           if (guestCountsSummary) {
-            const guests = this.app.roomGuests.get(mainRoom.roomId) || { adults: 1, children: 0, toddlers: 0 };
+            const guests = this.app.roomGuests.get(mainRoom.roomId) || {
+              adults: 1,
+              children: 0,
+              toddlers: 0,
+            };
             const parts = [];
-            if (guests.adults > 0) parts.push(`${guests.adults} ${langManager.t('adultsShort')}`);
-            if (guests.children > 0) parts.push(`${guests.children} ${langManager.t('childrenShort')}`);
-            if (guests.toddlers > 0) parts.push(`${guests.toddlers} ${langManager.t('toddlersShort')}`);
+            if (guests.adults > 0) {
+              parts.push(`${guests.adults} ${langManager.t('adultsShort')}`);
+            }
+            if (guests.children > 0) {
+              parts.push(`${guests.children} ${langManager.t('childrenShort')}`);
+            }
+            if (guests.toddlers > 0) {
+              parts.push(`${guests.toddlers} ${langManager.t('toddlersShort')}`);
+            }
             guestCountsSummary.textContent = parts.join(', ') || '0';
           }
 
@@ -600,7 +622,6 @@ class UtilsModule {
           }
         }
       }
-
     } catch (error) {
       console.error('Price calculation failed:', error);
       if (priceEl) {
@@ -608,11 +629,7 @@ class UtilsModule {
         priceEl.style.color = 'red';
       }
       if (this.showNotification) {
-        this.showNotification(
-          'Nepodařilo se spočítat cenu.',
-          'error',
-          5000
-        );
+        this.showNotification('Nepodařilo se spočítat cenu.', 'error', 5000);
       }
       if (priceBreakdownEl) {
         priceBreakdownEl.style.display = 'none';

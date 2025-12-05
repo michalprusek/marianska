@@ -32,14 +32,12 @@ class TestFixtures {
       ],
       prices: {
         utia: {
-          base: 298,
-          adult: 49,
-          child: 24,
+          small: { empty: 250, adult: 50, child: 25 },
+          large: { empty: 350, adult: 50, child: 25 },
         },
         external: {
-          base: 499,
-          adult: 99,
-          child: 49,
+          small: { empty: 400, adult: 100, child: 50 },
+          large: { empty: 500, adult: 100, child: 50 },
         },
       },
       bulkPrices: {
@@ -303,45 +301,48 @@ class TestFixtures {
   static getPriceTestScenarios() {
     const settings = this.getMockSettings();
 
+    // New pricing model (2025-11): empty + adults*adult + children*child
+    // UTIA small: empty=250, adult=50, child=25
+    // External small: empty=400, adult=100, child=50
     return [
       {
-        description: 'UTIA - 1 room, 1 adult, 1 night',
+        description: 'UTIA - 1 small room, 1 adult, 1 night',
         input: {
           guestType: 'utia',
           adults: 1,
           children: 0,
           toddlers: 0,
           nights: 1,
-          roomsCount: 1,
+          rooms: ['12'], // small room
           settings,
         },
-        expected: 298,
+        expected: 300, // empty(250) + 1*adult(50) = 300
       },
       {
-        description: 'UTIA - 1 room, 2 adults, 1 child, 3 nights',
+        description: 'UTIA - 1 small room, 2 adults, 1 child, 3 nights',
         input: {
           guestType: 'utia',
           adults: 2,
           children: 1,
           toddlers: 0,
           nights: 3,
-          roomsCount: 1,
+          rooms: ['12'], // small room
           settings,
         },
-        expected: 1113, // (298 + 49 + 24) * 3 = 1113
+        expected: 1125, // (250 + 2*50 + 1*25) * 3 = 375 * 3 = 1125
       },
       {
-        description: 'External - 1 room, 2 adults, 1 child, 2 nights',
+        description: 'External - 1 small room, 2 adults, 1 child, 2 nights',
         input: {
           guestType: 'external',
           adults: 2,
           children: 1,
           toddlers: 0,
           nights: 2,
-          roomsCount: 1,
+          rooms: ['12'], // small room
           settings,
         },
-        expected: 1294, // (499 + 99 + 49) * 2 = 1294
+        expected: 1400, // (400 + 2*100 + 1*50) * 2 = 650 * 2 = 1300
       },
       {
         description: 'UTIA bulk - 5 adults, 3 children, 2 nights',

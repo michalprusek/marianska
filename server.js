@@ -345,6 +345,17 @@ function generateSecureToken() {
 // - ChristmasUtils (js/shared/christmasUtils.js)
 // - PriceCalculator (js/shared/priceCalculator.js)
 
+// Helper to check if booking price is locked
+function isPriceLocked(booking) {
+  if (!booking) {
+    return false;
+  }
+  // Check for explicit flag (sqlite uses 1/0 for booleans)
+  return (
+    booking.price_locked === 1 || booking.price_locked === true || booking.price_locked === 'true'
+  );
+}
+
 // Session validation middleware
 function requireSession(req, res, next) {
   const sessionToken = req.headers['x-session-token'];
@@ -525,7 +536,9 @@ app.post('/api/data', writeLimiter, requireApiKeyOrSession, (req, res) => {
         }
         const entry = blockageMap.get(id);
         entry.dates.push(blocked.date);
-        if (blocked.roomId) entry.rooms.add(blocked.roomId);
+        if (blocked.roomId) {
+          entry.rooms.add(blocked.roomId);
+        }
       }
 
       for (const entry of blockageMap.values()) {
@@ -733,6 +746,7 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
 
     // NEW UNIFIED SCHEMA (2025-12-04): Ensure all guests have roomId
     // For single room bookings, assign all guests to that room
+    // For bulk bookings, assign all guests to first room (entire chalet is reserved)
     // For multi-room bookings, guests must have roomId from frontend
     if (bookingData.rooms && bookingData.rooms.length === 1) {
       const singleRoomId = bookingData.rooms[0];
@@ -740,6 +754,16 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
         if (!guest.roomId) {
           // eslint-disable-next-line no-param-reassign
           guest.roomId = singleRoomId;
+        }
+      });
+    } else if (bookingData.isBulkBooking) {
+      // FIX 2025-12-05: Bulk booking - entire chalet is reserved, assign guests to first room
+      // (roomId is required by schema but doesn't matter for bulk bookings)
+      const firstRoomId = bookingData.rooms[0];
+      bookingData.guestNames.forEach((guest) => {
+        if (!guest.roomId) {
+          // eslint-disable-next-line no-param-reassign
+          guest.roomId = firstRoomId;
         }
       });
     } else {
@@ -848,11 +872,18 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
         // Bulk booking: Use bulk pricing structure (flat base + per-person charges)
         // FIX 2025-12-02: Use guestTypeBreakdown for mixed ÚTIA/external pricing
         if (bookingData.guestTypeBreakdown) {
-          const { utiaAdults = 0, externalAdults = 0, utiaChildren = 0, externalChildren = 0 } = bookingData.guestTypeBreakdown;
+          const {
+            utiaAdults = 0,
+            externalAdults = 0,
+            utiaChildren = 0,
+            externalChildren = 0,
+          } = bookingData.guestTypeBreakdown;
           // Validate guestTypeBreakdown values are non-negative integers
           const breakdownValues = [utiaAdults, externalAdults, utiaChildren, externalChildren];
-          if (breakdownValues.some(v => typeof v !== 'number' || v < 0 || !Number.isInteger(v))) {
-            return res.status(400).json({ error: 'Neplatné hodnoty v guestTypeBreakdown - musí být nezáporná celá čísla' });
+          if (breakdownValues.some((v) => typeof v !== 'number' || v < 0 || !Number.isInteger(v))) {
+            return res.status(400).json({
+              error: 'Neplatné hodnoty v guestTypeBreakdown - musí být nezáporná celá čísla',
+            });
           }
           // SSOT: Use PriceCalculator for mixed guest type pricing
           bookingData.totalPrice = PriceCalculator.calculateMixedBulkPrice({
@@ -1000,7 +1031,6 @@ app.get('/api/booking-by-token', readLimiter, (req, res) => {
 app.put('/api/booking/:id', writeLimiter, async (req, res) => {
   try {
     const bookingId = req.params.id;
-    const bookingData = req.body;
     const editToken = req.headers['x-edit-token'] || req.body.editToken;
 
     // Get existing booking to verify edit token
@@ -1009,6 +1039,10 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
     if (!existingBooking) {
       return res.status(404).json({ error: 'Rezervace nenalezena' });
     }
+
+    // Merge existing booking with incoming changes (partial update support)
+    // This allows updating only specific fields like name, email, phone etc.
+    const bookingData = { ...existingBooking, ...req.body };
 
     // DRY: Use shared helper for admin session validation
     const { isAdmin, error: sessionError } = validateAdminSession(req);
@@ -1133,8 +1167,23 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
         return res.status(400).json({ error: 'Jména hostů musí být pole' });
       }
 
-      const expectedCount =
-        (bookingData.adults || 0) + (bookingData.children || 0) + (bookingData.toddlers || 0);
+      // For composite bookings with perRoomGuests, sum up guests from all rooms
+      let expectedAdults = bookingData.adults || 0;
+      let expectedChildren = bookingData.children || 0;
+      let expectedToddlers = bookingData.toddlers || 0;
+
+      if (bookingData.perRoomGuests && typeof bookingData.perRoomGuests === 'object') {
+        expectedAdults = 0;
+        expectedChildren = 0;
+        expectedToddlers = 0;
+        for (const roomData of Object.values(bookingData.perRoomGuests)) {
+          expectedAdults += roomData.adults || 0;
+          expectedChildren += roomData.children || 0;
+          expectedToddlers += roomData.toddlers || 0;
+        }
+      }
+
+      const expectedCount = expectedAdults + expectedChildren + expectedToddlers;
       if (bookingData.guestNames.length !== expectedCount) {
         return res.status(400).json({
           error: `Počet jmen (${bookingData.guestNames.length}) neodpovídá počtu hostů (${expectedCount})`,
@@ -1146,21 +1195,21 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       const childCount = bookingData.guestNames.filter((g) => g.personType === 'child').length;
       const toddlerCount = bookingData.guestNames.filter((g) => g.personType === 'toddler').length;
 
-      if (adultCount !== (bookingData.adults || 0)) {
+      if (adultCount !== expectedAdults) {
         return res.status(400).json({
-          error: `Počet dospělých jmen (${adultCount}) neodpovídá počtu dospělých (${bookingData.adults || 0})`,
+          error: `Počet dospělých jmen (${adultCount}) neodpovídá počtu dospělých (${expectedAdults})`,
         });
       }
 
-      if (childCount !== (bookingData.children || 0)) {
+      if (childCount !== expectedChildren) {
         return res.status(400).json({
-          error: `Počet dětských jmen (${childCount}) neodpovídá počtu dětí (${bookingData.children || 0})`,
+          error: `Počet dětských jmen (${childCount}) neodpovídá počtu dětí (${expectedChildren})`,
         });
       }
 
-      if (toddlerCount !== (bookingData.toddlers || 0)) {
+      if (toddlerCount !== expectedToddlers) {
         return res.status(400).json({
-          error: `Počet jmen batolat (${toddlerCount}) neodpovídá počtu batolat (${bookingData.toddlers || 0})`,
+          error: `Počet jmen batolat (${toddlerCount}) neodpovídá počtu batolat (${expectedToddlers})`,
         });
       }
 
@@ -1229,13 +1278,27 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       }
 
       // NEW UNIFIED SCHEMA (2025-12-04): Ensure all guests have roomId
+      // FIX 2025-12-05: Add isBulkBooking check (was missing - caused "nemá přiřazený pokoj" error)
       const rooms = bookingData.rooms || existingBooking.rooms;
+      const isBulkBookingForRoomId = bookingData.isBulkBooking || existingBooking.isBulkBooking;
+
       if (rooms && rooms.length === 1) {
+        // Single room booking - assign all guests to that room
         const singleRoomId = rooms[0];
         bookingData.guestNames.forEach((guest) => {
           if (!guest.roomId) {
             // eslint-disable-next-line no-param-reassign
             guest.roomId = singleRoomId;
+          }
+        });
+      } else if (isBulkBookingForRoomId) {
+        // FIX 2025-12-05: Bulk booking - entire chalet is reserved
+        // Assign all guests to first room (roomId is schema requirement but doesn't matter for bulk)
+        const firstRoomId = rooms[0];
+        bookingData.guestNames.forEach((guest) => {
+          if (!guest.roomId) {
+            // eslint-disable-next-line no-param-reassign
+            guest.roomId = firstRoomId;
           }
         });
       } else {
@@ -1359,15 +1422,20 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       bookingData.adults !== existingBooking.adults ||
       bookingData.children !== existingBooking.children ||
       bookingData.toddlers !== existingBooking.toddlers ||
-      bookingData.guestType !== existingBooking.guestType ||
-      JSON.stringify(bookingData.rooms?.sort()) !== JSON.stringify(existingBooking.rooms?.sort());
+      JSON.stringify(bookingData.rooms?.sort()) !== JSON.stringify(existingBooking.rooms?.sort()) ||
+      bookingData.isBulkBooking !== existingBooking.isBulkBooking ||
+      JSON.stringify(bookingData.guestNames) !== JSON.stringify(existingBooking.guestNames);
 
-    // Recalculate price if price-affecting fields changed
-    // NEW UNIFIED SCHEMA (2025-12-04): Always recalculate, no price_locked
-    if (priceAffectingFieldsChanged) {
-      // Recalculate price using shared PriceCalculator
+    const isLocked = isPriceLocked(existingBooking);
+
+    if (isLocked) {
+      logger.info('Price recalculation skipped for locked booking', { bookingId });
+    }
+
+    // Recalculate price if price-affecting fields changed OR explicitly requested
+    // AND price is NOT locked
+    if (!isLocked && (req.query.recalculate === 'true' || priceAffectingFieldsChanged)) {
       const nights = DateUtils.getDaysBetween(bookingData.startDate, bookingData.endDate);
-      // settings already declared above for Christmas check
 
       // CRITICAL FIX: Use correct price calculation based on booking type
       if (bookingData.isBulkBooking) {
@@ -1375,11 +1443,18 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
         // FIX 2025-12-02: Use guestTypeBreakdown for mixed ÚTIA/external pricing
         const breakdown = bookingData.guestTypeBreakdown || existingBooking.guestTypeBreakdown;
         if (breakdown) {
-          const { utiaAdults = 0, externalAdults = 0, utiaChildren = 0, externalChildren = 0 } = breakdown;
+          const {
+            utiaAdults = 0,
+            externalAdults = 0,
+            utiaChildren = 0,
+            externalChildren = 0,
+          } = breakdown;
           // Validate guestTypeBreakdown values are non-negative integers
           const breakdownValues = [utiaAdults, externalAdults, utiaChildren, externalChildren];
-          if (breakdownValues.some(v => typeof v !== 'number' || v < 0 || !Number.isInteger(v))) {
-            return res.status(400).json({ error: 'Neplatné hodnoty v guestTypeBreakdown - musí být nezáporná celá čísla' });
+          if (breakdownValues.some((v) => typeof v !== 'number' || v < 0 || !Number.isInteger(v))) {
+            return res.status(400).json({
+              error: 'Neplatné hodnoty v guestTypeBreakdown - musí být nezáporná celá čísla',
+            });
           }
           // SSOT: Use PriceCalculator for mixed guest type pricing
           bookingData.totalPrice = PriceCalculator.calculateMixedBulkPrice({
@@ -1425,7 +1500,9 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
               adults: bookingData.adults || existingBooking.adults || 0,
               children: bookingData.children || existingBooking.children || 0,
               toddlers: bookingData.toddlers || existingBooking.toddlers || 0,
-              guestType: bookingData.guestType,
+              // FIX: Do not force guestType here. Let PriceCalculator derive it
+              // from guestNames (primary) or fallbackGuestType (secondary).
+              // guestType: bookingData.guestType,
             };
           }
         }
@@ -1596,8 +1673,14 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       });
     }
   } catch (error) {
-    logger.error('updating booking:', error);
-    return res.status(500).json({ error: 'Nepodařilo se aktualizovat rezervaci' });
+    logger.error('updating booking:', {
+      message: error.message,
+      stack: error.stack,
+      bookingId: req.params.id,
+    });
+    return res
+      .status(500)
+      .json({ error: 'Nepodařilo se aktualizovat rezervaci', details: error.message });
   }
 });
 
@@ -1691,6 +1774,95 @@ app.delete('/api/booking/:id', writeLimiter, async (req, res) => {
   } catch (error) {
     logger.error('deleting booking:', error);
     return res.status(500).json({ error: 'Nepodařilo se smazat rezervaci' });
+  }
+});
+
+// Bulk delete bookings endpoint - admin only
+// Deletes multiple bookings in single transaction, sends emails in parallel background
+app.post('/api/bookings/bulk-delete', writeLimiter, async (req, res) => {
+  try {
+    const { bookingIds } = req.body;
+
+    // Validate input
+    if (!Array.isArray(bookingIds) || bookingIds.length === 0) {
+      return res.status(400).json({ error: 'bookingIds must be a non-empty array' });
+    }
+
+    // Limit batch size to prevent abuse
+    if (bookingIds.length > 100) {
+      return res.status(400).json({ error: 'Maximum 100 bookings per batch delete' });
+    }
+
+    // Validate admin session (required for bulk delete)
+    const { isAdmin, error: sessionError } = validateAdminSession(req);
+    if (sessionError) {
+      return res.status(sessionError.status).json({ error: sessionError.message });
+    }
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Bulk delete requires admin access' });
+    }
+
+    // Fetch all bookings before deletion (for email notifications)
+    const bookingsToDelete = [];
+    const notFoundIds = [];
+    for (const bookingId of bookingIds) {
+      const booking = db.getBooking(bookingId);
+      if (booking) {
+        bookingsToDelete.push(booking);
+      } else {
+        notFoundIds.push(bookingId);
+      }
+    }
+
+    if (bookingsToDelete.length === 0) {
+      return res.status(404).json({ error: 'No valid bookings found to delete' });
+    }
+
+    // Delete all bookings in a single transaction
+    const deleteStmt = db.db.prepare('DELETE FROM bookings WHERE id = ?');
+    const deleteRoomsStmt = db.db.prepare('DELETE FROM booking_rooms WHERE booking_id = ?');
+
+    const deleteTransaction = db.db.transaction(() => {
+      for (const booking of bookingsToDelete) {
+        deleteRoomsStmt.run(booking.id);
+        deleteStmt.run(booking.id);
+      }
+    });
+
+    deleteTransaction();
+
+    logger.info('Bulk delete completed', {
+      deletedCount: bookingsToDelete.length,
+      notFoundCount: notFoundIds.length,
+    });
+
+    // Send email notifications in parallel (fire and forget - don't block response)
+    const settings = db.getSettings();
+    setImmediate(() => {
+      const emailPromises = bookingsToDelete.map((booking) =>
+        emailService
+          .sendBookingDeletion(booking, { settings, deletedByAdmin: true })
+          .catch((err) => {
+            logger.error('Bulk delete email failed', {
+              bookingId: booking.id,
+              error: err.message,
+            });
+          })
+      );
+      Promise.all(emailPromises).then(() => {
+        logger.info('Bulk delete emails sent', { count: bookingsToDelete.length });
+      });
+    });
+
+    return res.json({
+      success: true,
+      deletedCount: bookingsToDelete.length,
+      deletedIds: bookingsToDelete.map((b) => b.id),
+      notFoundIds,
+    });
+  } catch (error) {
+    logger.error('Bulk delete error:', error);
+    return res.status(500).json({ error: 'Nepodařilo se smazat rezervace' });
   }
 });
 
@@ -2345,19 +2517,17 @@ app.post('/api/proposed-booking', (req, res) => {
       return res.status(400).json({ error: 'Chybí povinné údaje' });
     }
 
-    // Delete any existing proposals for this session
-    db.deleteProposedBookingsBySession(sessionId);
+    // FIX 2025-12-05: Do NOT delete existing proposals - allow multiple proposals per session
+    // Users may intentionally create separate reservations (different contacts, payments, etc.)
 
-    // Build per-room dates - use provided perRoomDates or default to booking-level dates
+    // Build per-room dates for this proposal only
     const finalPerRoomDates = {};
     for (const roomId of rooms) {
       finalPerRoomDates[roomId] =
-        perRoomDates && perRoomDates[roomId]
-          ? perRoomDates[roomId]
-          : { startDate, endDate };
+        perRoomDates && perRoomDates[roomId] ? perRoomDates[roomId] : { startDate, endDate };
     }
 
-    // Create new proposed booking with per-room dates
+    // Create new proposed booking (keeping existing proposals intact)
     const proposalId = db.createProposedBooking(sessionId, rooms, finalPerRoomDates);
 
     return res.json({ success: true, proposalId });
@@ -2400,9 +2570,7 @@ app.post('/api/proposed-bookings', writeLimiter, (req, res) => {
     const finalPerRoomDates = {};
     for (const roomId of rooms) {
       finalPerRoomDates[roomId] =
-        perRoomDates && perRoomDates[roomId]
-          ? perRoomDates[roomId]
-          : { startDate, endDate };
+        perRoomDates && perRoomDates[roomId] ? perRoomDates[roomId] : { startDate, endDate };
     }
 
     // Check for conflicts with existing proposed bookings

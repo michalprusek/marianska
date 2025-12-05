@@ -165,8 +165,8 @@ class EditPage {
       mode: 'user',
       enforceDeadline: true,
       validateSession: null,
-      onSubmit: () => { }, // No-op for locked mode
-      onDelete: () => { }, // No-op for locked mode
+      onSubmit: () => {}, // No-op for locked mode
+      onDelete: () => {}, // No-op for locked mode
       settings,
     });
 
@@ -384,22 +384,30 @@ class EditPage {
 
   showConfirm(message, onConfirm, onCancel = null) {
     if (window.modalDialog) {
-      window.modalDialog.confirm({
-        title: 'Potvrzení',
-        message: message,
-        type: 'warning',
-        confirmText: 'Potvrdit',
-        cancelText: 'Zrušit'
-      }).then(confirmed => {
-        if (confirmed && onConfirm) onConfirm();
-        if (!confirmed && onCancel) onCancel();
-      });
+      window.modalDialog
+        .confirm({
+          title: 'Potvrzení',
+          message,
+          type: 'warning',
+          confirmText: 'Potvrdit',
+          cancelText: 'Zrušit',
+        })
+        .then((confirmed) => {
+          if (confirmed && onConfirm) {
+            onConfirm();
+          }
+          if (!confirmed && onCancel) {
+            onCancel();
+          }
+        });
     } else {
       // Fallback
       if (confirm(message)) {
-        if (onConfirm) onConfirm();
-      } else {
-        if (onCancel) onCancel();
+        if (onConfirm) {
+          onConfirm();
+        }
+      } else if (onCancel) {
+        onCancel();
       }
     }
   }

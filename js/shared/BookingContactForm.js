@@ -4,38 +4,38 @@
  * Used by both CreateBookingComponent and EditBookingComponent.
  */
 class BookingContactForm {
-    /**
-     * @param {Object} config
-     * @param {string} config.containerId - ID of the container to render the form into
-     * @param {string} config.prefix - Prefix for input IDs to avoid collisions (e.g., 'edit', 'create')
-     * @param {Object} config.initialData - Initial data to populate the form
-     * @param {boolean} config.isReadOnly - Whether the form is read-only
-     * @param {boolean} config.showChristmasCode - Whether to show Christmas code field
-     */
-    constructor(config = {}) {
-        this.containerId = config.containerId;
-        this.prefix = config.prefix || 'booking';
-        this.initialData = config.initialData || {};
-        this.isReadOnly = config.isReadOnly || false;
-        this.showChristmasCode = config.showChristmasCode || false;
+  /**
+   * @param {Object} config
+   * @param {string} config.containerId - ID of the container to render the form into
+   * @param {string} config.prefix - Prefix for input IDs to avoid collisions (e.g., 'edit', 'create')
+   * @param {Object} config.initialData - Initial data to populate the form
+   * @param {boolean} config.isReadOnly - Whether the form is read-only
+   * @param {boolean} config.showChristmasCode - Whether to show Christmas code field
+   */
+  constructor(config = {}) {
+    this.containerId = config.containerId;
+    this.prefix = config.prefix || 'booking';
+    this.initialData = config.initialData || {};
+    this.isReadOnly = config.isReadOnly || false;
+    this.showChristmasCode = config.showChristmasCode || false;
 
-        this.container = document.getElementById(this.containerId);
+    this.container = document.getElementById(this.containerId);
+  }
+
+  /**
+   * Render the form into the container
+   */
+  render() {
+    if (!this.container) {
+      console.error(`BookingContactForm: Container #${this.containerId} not found`);
+      return;
     }
 
-    /**
-     * Render the form into the container
-     */
-    render() {
-        if (!this.container) {
-            console.error(`BookingContactForm: Container #${this.containerId} not found`);
-            return;
-        }
+    const p = this.prefix;
+    const d = this.initialData;
+    const ro = this.isReadOnly ? 'disabled' : '';
 
-        const p = this.prefix;
-        const d = this.initialData;
-        const ro = this.isReadOnly ? 'disabled' : '';
-
-        this.container.innerHTML = `
+    this.container.innerHTML = `
       <div class="booking-contact-form">
         <h3 data-translate="contactDetails">Kontaktní údaje</h3>
         
@@ -120,12 +120,12 @@ class BookingContactForm {
       </div>
     `;
 
-        this.attachEventListeners();
-    }
+    this.attachEventListeners();
+  }
 
-    renderChristmasCodeField(p, d, ro) {
-        const displayStyle = this.showChristmasCode ? 'block' : 'none';
-        return `
+  renderChristmasCodeField(p, d, ro) {
+    const displayStyle = this.showChristmasCode ? 'block' : 'none';
+    return `
       <div class="input-group" id="${p}ChristmasCodeGroup" style="display: ${displayStyle};">
         <label for="${p}ChristmasCode" data-translate="christmasCodeLabel">Vánoční přístupový kód</label>
         <input type="text" id="${p}ChristmasCode" value="${this.escapeHtml(d.christmasCode || '')}" 
@@ -135,178 +135,188 @@ class BookingContactForm {
         </small>
       </div>
     `;
+  }
+
+  attachEventListeners() {
+    if (this.isReadOnly) {
+      return;
     }
 
-    attachEventListeners() {
-        if (this.isReadOnly) return;
+    const p = this.prefix;
 
-        const p = this.prefix;
-
-        // Phone validation
-        const phoneInput = document.getElementById(`${p}Phone`);
-        if (phoneInput) {
-            phoneInput.addEventListener('input', (e) => {
-                // Allow spaces for formatting
-                const val = e.target.value.replace(/[^0-9\s]/g, '');
-                e.target.value = val;
-            });
-        }
-
-        // ZIP validation
-        const zipInput = document.getElementById(`${p}Zip`);
-        if (zipInput) {
-            zipInput.addEventListener('input', (e) => {
-                e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 5);
-            });
-        }
-
-        // ICO validation
-        const icoInput = document.getElementById(`${p}Ico`);
-        if (icoInput) {
-            icoInput.addEventListener('input', (e) => {
-                e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 8);
-            });
-        }
+    // Phone validation
+    const phoneInput = document.getElementById(`${p}Phone`);
+    if (phoneInput) {
+      phoneInput.addEventListener('input', (e) => {
+        // Allow spaces for formatting
+        const val = e.target.value.replace(/[^0-9\s]/g, '');
+        e.target.value = val;
+      });
     }
 
-    /**
-     * Collect data from the form
-     * @returns {Object} Form data
-     */
-    getData() {
-        const p = this.prefix;
-        const getVal = (id) => document.getElementById(`${p}${id}`)?.value.trim() || '';
-        const getChecked = (id) => document.getElementById(`${p}${id}`)?.checked || false;
-
-        // Combine phone prefix and number
-        const phonePrefix = document.getElementById(`${p}PhonePrefix`)?.value || '+420';
-        const phoneNumber = getVal('Phone').replace(/\s/g, '');
-
-        return {
-            name: getVal('Name'),
-            email: getVal('Email'),
-            phone: phoneNumber ? `${phonePrefix}${phoneNumber}` : '',
-            company: getVal('Company'),
-            address: getVal('Address'),
-            city: getVal('City'),
-            zip: getVal('Zip'),
-            ico: getVal('Ico'),
-            dic: getVal('Dic'),
-            notes: getVal('Notes'),
-            christmasCode: getVal('ChristmasCode'),
-            payFromBenefit: getChecked('PayFromBenefit')
-        };
+    // ZIP validation
+    const zipInput = document.getElementById(`${p}Zip`);
+    if (zipInput) {
+      zipInput.addEventListener('input', (e) => {
+        e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 5);
+      });
     }
 
-    /**
-     * Validate the form data
-     * @returns {Object} { valid: boolean, error: string }
-     */
-    validate() {
-        const data = this.getData();
-        const lang = (typeof langManager !== 'undefined') ? langManager.currentLang : 'cs';
+    // ICO validation
+    const icoInput = document.getElementById(`${p}Ico`);
+    if (icoInput) {
+      icoInput.addEventListener('input', (e) => {
+        e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 8);
+      });
+    }
+  }
 
-        // Required fields
-        if (!data.name || !data.email || !data.phone || !data.address || !data.city || !data.zip) {
-            return {
-                valid: false,
-                error: lang === 'cs'
-                    ? 'Vyplňte prosím všechna povinná pole označená hvězdičkou (*)'
-                    : 'Please fill in all required fields marked with asterisk (*)'
-            };
-        }
+  /**
+   * Collect data from the form
+   * @returns {Object} Form data
+   */
+  getData() {
+    const p = this.prefix;
+    const getVal = (id) => document.getElementById(`${p}${id}`)?.value.trim() || '';
+    const getChecked = (id) => document.getElementById(`${p}${id}`)?.checked || false;
 
-        // Email validation
-        if (!ValidationUtils.validateEmail(data.email)) {
-            return {
-                valid: false,
-                error: ValidationUtils.getValidationError('email', data.email, lang)
-            };
-        }
+    // Combine phone prefix and number
+    const phonePrefix = document.getElementById(`${p}PhonePrefix`)?.value || '+420';
+    const phoneNumber = getVal('Phone').replace(/\s/g, '');
 
-        // Phone validation
-        if (!ValidationUtils.validatePhone(data.phone)) {
-            return {
-                valid: false,
-                error: ValidationUtils.getValidationError('phone', data.phone, lang)
-            };
-        }
+    return {
+      name: getVal('Name'),
+      email: getVal('Email'),
+      phone: phoneNumber ? `${phonePrefix}${phoneNumber}` : '',
+      company: getVal('Company'),
+      address: getVal('Address'),
+      city: getVal('City'),
+      zip: getVal('Zip'),
+      ico: getVal('Ico'),
+      dic: getVal('Dic'),
+      notes: getVal('Notes'),
+      christmasCode: getVal('ChristmasCode'),
+      payFromBenefit: getChecked('PayFromBenefit'),
+    };
+  }
 
-        // ZIP validation
-        if (!ValidationUtils.validateZIP(data.zip)) {
-            return {
-                valid: false,
-                error: ValidationUtils.getValidationError('zip', data.zip, lang)
-            };
-        }
+  /**
+   * Validate the form data
+   * @returns {Object} { valid: boolean, error: string }
+   */
+  validate() {
+    const data = this.getData();
+    const lang = typeof langManager !== 'undefined' ? langManager.currentLang : 'cs';
 
-        // ICO validation (optional)
-        if (data.ico && !ValidationUtils.validateICO(data.ico)) {
-            return {
-                valid: false,
-                error: ValidationUtils.getValidationError('ico', data.ico, lang)
-            };
-        }
-
-        // DIC validation (optional)
-        if (data.dic && !ValidationUtils.validateDIC(data.dic)) {
-            return {
-                valid: false,
-                error: ValidationUtils.getValidationError('dic', data.dic, lang)
-            };
-        }
-
-        // Christmas code validation
-        if (this.showChristmasCode && !data.christmasCode) {
-            return {
-                valid: false,
-                error: lang === 'cs'
-                    ? 'Vánoční přístupový kód je vyžadován'
-                    : 'Christmas access code is required'
-            };
-        }
-
-        return { valid: true };
+    // Required fields
+    if (!data.name || !data.email || !data.phone || !data.address || !data.city || !data.zip) {
+      return {
+        valid: false,
+        error:
+          lang === 'cs'
+            ? 'Vyplňte prosím všechna povinná pole označená hvězdičkou (*)'
+            : 'Please fill in all required fields marked with asterisk (*)',
+      };
     }
 
-    // Helpers
-    escapeHtml(unsafe) {
-        if (!unsafe) return '';
-        return String(unsafe)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
+    // Email validation
+    if (!ValidationUtils.validateEmail(data.email)) {
+      return {
+        valid: false,
+        error: ValidationUtils.getValidationError('email', data.email, lang),
+      };
     }
 
-    isSelectedPrefix(fullPhone, prefix) {
-        if (!fullPhone) return prefix === '+420' ? 'selected' : '';
-        return fullPhone.startsWith(prefix) ? 'selected' : '';
+    // Phone validation
+    if (!ValidationUtils.validatePhone(data.phone)) {
+      return {
+        valid: false,
+        error: ValidationUtils.getValidationError('phone', data.phone, lang),
+      };
     }
 
-    formatPhoneNumber(fullPhone) {
-        if (!fullPhone) return '';
-        // Remove prefix if present to show just the number part
-        if (fullPhone.startsWith('+')) {
-            // Simple heuristic: remove first 4 chars for +420/+421, else try to guess
-            if (fullPhone.startsWith('+420') || fullPhone.startsWith('+421')) {
-                return fullPhone.slice(4);
-            }
-            // For others, we might need more complex logic or just return as is if it doesn't match selected prefix
-            // But since we select the prefix in the dropdown, we should strip it here
-            const prefix = document.getElementById(`${this.prefix}PhonePrefix`)?.value;
-            if (prefix && fullPhone.startsWith(prefix)) {
-                return fullPhone.slice(prefix.length);
-            }
-        }
-        return fullPhone;
+    // ZIP validation
+    if (!ValidationUtils.validateZIP(data.zip)) {
+      return {
+        valid: false,
+        error: ValidationUtils.getValidationError('zip', data.zip, lang),
+      };
     }
+
+    // ICO validation (optional)
+    if (data.ico && !ValidationUtils.validateICO(data.ico)) {
+      return {
+        valid: false,
+        error: ValidationUtils.getValidationError('ico', data.ico, lang),
+      };
+    }
+
+    // DIC validation (optional)
+    if (data.dic && !ValidationUtils.validateDIC(data.dic)) {
+      return {
+        valid: false,
+        error: ValidationUtils.getValidationError('dic', data.dic, lang),
+      };
+    }
+
+    // Christmas code validation
+    if (this.showChristmasCode && !data.christmasCode) {
+      return {
+        valid: false,
+        error:
+          lang === 'cs'
+            ? 'Vánoční přístupový kód je vyžadován'
+            : 'Christmas access code is required',
+      };
+    }
+
+    return { valid: true };
+  }
+
+  // Helpers
+  escapeHtml(unsafe) {
+    if (!unsafe) {
+      return '';
+    }
+    return String(unsafe)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  isSelectedPrefix(fullPhone, prefix) {
+    if (!fullPhone) {
+      return prefix === '+420' ? 'selected' : '';
+    }
+    return fullPhone.startsWith(prefix) ? 'selected' : '';
+  }
+
+  formatPhoneNumber(fullPhone) {
+    if (!fullPhone) {
+      return '';
+    }
+    // Remove prefix if present to show just the number part
+    if (fullPhone.startsWith('+')) {
+      // Simple heuristic: remove first 4 chars for +420/+421, else try to guess
+      if (fullPhone.startsWith('+420') || fullPhone.startsWith('+421')) {
+        return fullPhone.slice(4);
+      }
+      // For others, we might need more complex logic or just return as is if it doesn't match selected prefix
+      // But since we select the prefix in the dropdown, we should strip it here
+      const prefix = document.getElementById(`${this.prefix}PhonePrefix`)?.value;
+      if (prefix && fullPhone.startsWith(prefix)) {
+        return fullPhone.slice(prefix.length);
+      }
+    }
+    return fullPhone;
+  }
 }
 
 // Export
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = BookingContactForm;
+  module.exports = BookingContactForm;
 } else if (typeof window !== 'undefined') {
-    window.BookingContactForm = BookingContactForm;
+  window.BookingContactForm = BookingContactForm;
 }

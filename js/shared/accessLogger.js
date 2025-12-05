@@ -115,7 +115,9 @@ class AccessLogger {
       return lines[lines.length - 1];
     } catch (error) {
       // Log the error for debugging before returning null
-      console.error('[AccessLogger] Failed to read last log entry:', error.message, { logFilePath });
+      console.error('[AccessLogger] Failed to read last log entry:', error.message, {
+        logFilePath,
+      });
       return null;
     }
   }

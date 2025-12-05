@@ -16,10 +16,11 @@ class BookingApp {
     this.editingReservation = null; // Tracks reservation being edited (null = new reservation)
 
     // Generate or retrieve session ID for proposed bookings
-    this.sessionId = sessionStorage.getItem('bookingSessionId');
+    // FIX 2025-12-05: Changed from sessionStorage to localStorage for persistence across page refreshes
+    this.sessionId = localStorage.getItem('bookingSessionId');
     if (!this.sessionId) {
       this.sessionId = this.generateSessionId();
-      sessionStorage.setItem('bookingSessionId', this.sessionId);
+      localStorage.setItem('bookingSessionId', this.sessionId);
     }
 
     // Calendar boundaries
@@ -158,7 +159,10 @@ class BookingApp {
         return; // Failed to fetch - skip cleanup
       }
 
-      const activeProposalIds = (await response.json()).map((pb) => pb.proposal_id);
+      // FIX 2025-12-05: Support both naming conventions (proposalId and proposal_id)
+      const activeProposalIds = (await response.json()).map(
+        (pb) => pb.proposalId || pb.proposal_id
+      );
 
       // Find expired proposals (those that exist in UI but not in server response)
       const expiredProposals = this.tempReservations.filter(
@@ -207,52 +211,71 @@ class BookingApp {
         for (const proposed of proposedBookings) {
           // Rooms is already an array from database.js
           const rooms = Array.isArray(proposed.rooms) ? proposed.rooms : [];
+          if (rooms.length === 0) {
+            continue;
+          }
+
+          // FIX 2025-12-05: Database returns perRoomDates, NOT start_date/end_date
+          // Extract dates from perRoomDates - use first room's dates as overall dates
+          const firstRoomId = rooms[0];
+          const firstRoomDates = proposed.perRoomDates?.[firstRoomId] || {};
+          const { startDate } = firstRoomDates;
+          const { endDate } = firstRoomDates;
+
+          // Skip if no valid dates
+          if (!startDate || !endDate) {
+            console.warn('Proposed booking missing dates:', proposed.proposalId);
+            continue;
+          }
 
           // FIX 2025-12-04: Check explicit isBulkBooking flag from database, NOT room count
           // A booking with all 9 rooms is NOT necessarily a bulk booking
-          const isBulkBooking = proposed.is_bulk_booking === true || proposed.isBulkBooking === true;
+          const isBulkBooking =
+            proposed.is_bulk_booking === true || proposed.isBulkBooking === true;
 
           if (isBulkBooking) {
             // Bulk booking format - only for explicitly marked bulk bookings
             this.tempReservations.push({
-              id: proposed.proposal_id,
+              id: proposed.proposalId,
               isBulkBooking: true,
               roomIds: rooms,
               roomNames: allRooms.map((r) => r.name).join(', '),
-              startDate: proposed.start_date,
-              endDate: proposed.end_date,
-              nights: this.calculateNights(proposed.start_date, proposed.end_date),
-              proposalId: proposed.proposal_id,
+              startDate,
+              endDate,
+              nights: this.calculateNights(startDate, endDate),
+              proposalId: proposed.proposalId,
               guests: {
-                adults: proposed.adults || 0,
+                adults: proposed.adults || 1,
                 children: proposed.children || 0,
                 toddlers: proposed.toddlers || 0,
               },
-              guestType: proposed.guest_type || 'external',
-              totalPrice: proposed.total_price || 0,
+              guestType: proposed.guest_type || proposed.guestType || 'external',
+              totalPrice: proposed.total_price || proposed.totalPrice || 0,
             });
           } else {
             // Single room booking format
             // eslint-disable-next-line max-depth -- Deep nesting required for nested booking data structure
             for (const roomId of rooms) {
               const room = allRooms.find((r) => r.id === roomId);
+              // FIX 2025-12-05: Get per-room dates from perRoomDates
+              const roomDates = proposed.perRoomDates?.[roomId] || { startDate, endDate };
               // eslint-disable-next-line max-depth -- Deep nesting required for nested booking data structure
-              if (room) {
+              if (room && roomDates.startDate && roomDates.endDate) {
                 this.tempReservations.push({
-                  id: `${proposed.proposal_id}-${roomId}`,
+                  id: `${proposed.proposalId}-${roomId}`,
                   roomId,
                   roomName: room.name,
-                  startDate: proposed.start_date,
-                  endDate: proposed.end_date,
-                  nights: this.calculateNights(proposed.start_date, proposed.end_date),
-                  proposalId: proposed.proposal_id,
+                  startDate: roomDates.startDate,
+                  endDate: roomDates.endDate,
+                  nights: this.calculateNights(roomDates.startDate, roomDates.endDate),
+                  proposalId: proposed.proposalId,
                   guests: {
-                    adults: proposed.adults || 0,
+                    adults: proposed.adults || 1,
                     children: proposed.children || 0,
                     toddlers: proposed.toddlers || 0,
                   },
-                  guestType: proposed.guest_type || 'external',
-                  totalPrice: proposed.total_price || 0,
+                  guestType: proposed.guest_type || proposed.guestType || 'external',
+                  totalPrice: proposed.total_price || proposed.totalPrice || 0,
                 });
               }
             }
@@ -425,7 +448,9 @@ class BookingApp {
         // Hide single room modal first if needed, or just show finalize
         // Usually we want to close the current modal and open the next
         const singleRoomModal = document.getElementById('singleRoomBookingModal');
-        if (singleRoomModal) singleRoomModal.classList.remove('active');
+        if (singleRoomModal) {
+          singleRoomModal.classList.remove('active');
+        }
 
         this.createBookingComponent.showFinalizeModal();
       });
@@ -433,7 +458,7 @@ class BookingApp {
 
     const submitBtn = document.getElementById('submitRoomBooking');
     if (submitBtn) {
-      // This button might be in the single room modal? 
+      // This button might be in the single room modal?
       // If so, it might be "Add to booking" rather than "Submit".
       // But if it's "Submit", it's likely handled by CreateBookingComponent's form now.
       // We'll leave it for now or redirect if it's the final submit.
@@ -484,7 +509,9 @@ class BookingApp {
       confirmBtn.addEventListener('click', () => {
         // Hide bulk modal first
         const bulkModal = document.getElementById('bulkBookingModal');
-        if (bulkModal) bulkModal.classList.remove('active');
+        if (bulkModal) {
+          bulkModal.classList.remove('active');
+        }
 
         this.createBookingComponent.showFinalizeModal();
       });
@@ -963,14 +990,15 @@ class BookingApp {
                   <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
                     👥 ${guestText.join(', ')}
                   </div>
-                  ${booking.guestNames && booking.guestNames.length > 0
-            ? `
+                  ${
+                    booking.guestNames && booking.guestNames.length > 0
+                      ? `
                   <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
                     👤 ${booking.guestNames[0].firstName} ${booking.guestNames[0].lastName}${booking.guestNames.length > 1 ? ` +${booking.guestNames.length - 1} ${this.currentLanguage === 'cs' ? 'další' : 'other'}` : ''}
                   </div>
                   `
-            : ''
-          }
+                      : ''
+                  }
                   <div style="font-size: 0.9rem; color: var(--gray-600);">
                     🏷️ ${this.currentLanguage === 'cs' ? 'Typ' : 'Type'}: <span style="font-weight: 600;">${guestTypeText}</span>
                   </div>
@@ -1013,10 +1041,11 @@ class BookingApp {
               <div style="flex: 1;">
                 <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
                   <span style="background: #ff4444; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">${this.currentLanguage === 'cs' ? 'NAVRHOVANÁ' : 'PROPOSED'}</span>
-                  <strong style="color: var(--primary-color); font-size: 1.1rem;">${this.currentLanguage === 'cs'
-            ? booking.roomName
-            : booking.roomName.replace('Pokoj', 'Room')
-          }</strong>
+                  <strong style="color: var(--primary-color); font-size: 1.1rem;">${
+                    this.currentLanguage === 'cs'
+                      ? booking.roomName
+                      : booking.roomName.replace('Pokoj', 'Room')
+                  }</strong>
                 </div>
                 <div style="background: white; padding: 0.75rem; border-radius: 6px; border: 1px solid #e0e0e0;">
                   <div style="color: var(--gray-700); font-size: 0.95rem; margin-bottom: 0.5rem;">
@@ -1026,14 +1055,15 @@ class BookingApp {
                   <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
                     👥 ${guestText.join(', ')}
                   </div>
-                  ${booking.guestNames && booking.guestNames.length > 0
-            ? `
+                  ${
+                    booking.guestNames && booking.guestNames.length > 0
+                      ? `
                   <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
                     👤 ${booking.guestNames[0].firstName} ${booking.guestNames[0].lastName}${booking.guestNames.length > 1 ? ` +${booking.guestNames.length - 1} ${this.currentLanguage === 'cs' ? 'další' : 'other'}` : ''}
                   </div>
                   `
-            : ''
-          }
+                      : ''
+                  }
                   <div style="font-size: 0.9rem; color: var(--gray-600);">
                     🏷️ ${this.currentLanguage === 'cs' ? 'Typ' : 'Type'}: <span style="font-weight: 600;">${guestTypeText}</span>
                   </div>
@@ -1425,28 +1455,34 @@ class BookingApp {
             <div style="padding: 0.75rem; background: linear-gradient(135deg, #f3e8ff, #fef3ff); border: 1px solid #8b5cf6; border-radius: var(--radius-sm); margin-bottom: 0.5rem;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                  <strong style="color: #8b5cf6;">🏠 ${this.currentLanguage === 'cs'
-              ? 'Hromadná rezervace celé chaty'
-              : 'Bulk Booking - Entire Cottage'
-            }</strong><br>
+                  <strong style="color: #8b5cf6;">🏠 ${
+                    this.currentLanguage === 'cs'
+                      ? 'Hromadná rezervace celé chaty'
+                      : 'Bulk Booking - Entire Cottage'
+                  }</strong><br>
                   <span style="font-size: 0.9rem; color: var(--gray-600);">
-                    ${reservation.startDate} → ${reservation.endDate} (${reservation.nights} ${this.currentLanguage === 'cs' ? 'nocí' : 'nights'
-            })
+                    ${reservation.startDate} → ${reservation.endDate} (${reservation.nights} ${
+                      this.currentLanguage === 'cs' ? 'nocí' : 'nights'
+                    })
                   </span><br>
                   <span style="font-size: 0.9rem; color: var(--gray-600);">
-                    ${reservation.roomIds.length} ${this.currentLanguage === 'cs' ? 'pokojů' : 'rooms'
-            }, ${reservation.guests.adults} ${this.currentLanguage === 'cs' ? 'dospělí' : 'adults'
-            }${reservation.guests.children > 0
-              ? `, ${reservation.guests.children} ${this.currentLanguage === 'cs' ? 'děti' : 'children'
-              }`
-              : ''
-            }
+                    ${reservation.roomIds.length} ${
+                      this.currentLanguage === 'cs' ? 'pokojů' : 'rooms'
+                    }, ${reservation.guests.adults} ${
+                      this.currentLanguage === 'cs' ? 'dospělí' : 'adults'
+                    }${
+                      reservation.guests.children > 0
+                        ? `, ${reservation.guests.children} ${
+                            this.currentLanguage === 'cs' ? 'děti' : 'children'
+                          }`
+                        : ''
+                    }
                   </span>
                 </div>
                 <div style="text-align: right;">
                   <strong style="color: #8b5cf6; font-size: 1.1rem;">${reservation.totalPrice.toLocaleString(
-              'cs-CZ'
-            )} Kč</strong>
+                    'cs-CZ'
+                  )} Kč</strong>
                 </div>
               </div>
             </div>
@@ -1457,31 +1493,38 @@ class BookingApp {
             <div style="padding: 0.75rem; background: var(--gray-50); border-radius: var(--radius-sm); margin-bottom: 0.5rem;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                  <strong>${this.currentLanguage === 'cs'
-              ? reservation.roomName
-              : reservation.roomName.replace('Pokoj', 'Room')
-            }</strong><br>
+                  <strong>${
+                    this.currentLanguage === 'cs'
+                      ? reservation.roomName
+                      : reservation.roomName.replace('Pokoj', 'Room')
+                  }</strong><br>
                   <span style="font-size: 0.9rem; color: var(--gray-600);">
-                    ${reservation.startDate} → ${reservation.endDate} (${reservation.nights} ${this.currentLanguage === 'cs' ? 'nocí' : 'nights'
-            })
+                    ${reservation.startDate} → ${reservation.endDate} (${reservation.nights} ${
+                      this.currentLanguage === 'cs' ? 'nocí' : 'nights'
+                    })
                   </span><br>
                   <span style="font-size: 0.9rem; color: var(--gray-600);">
-                    ${reservation.guests.adults} ${this.currentLanguage === 'cs' ? 'dospělí' : 'adults'
-            }${reservation.guests.children > 0
-              ? `, ${reservation.guests.children} ${this.currentLanguage === 'cs' ? 'děti' : 'children'
-              }`
-              : ''
-            }${reservation.guests.toddlers > 0
-              ? `, ${reservation.guests.toddlers} ${this.currentLanguage === 'cs' ? 'batolata' : 'toddlers'
-              }`
-              : ''
-            }
+                    ${reservation.guests.adults} ${
+                      this.currentLanguage === 'cs' ? 'dospělí' : 'adults'
+                    }${
+                      reservation.guests.children > 0
+                        ? `, ${reservation.guests.children} ${
+                            this.currentLanguage === 'cs' ? 'děti' : 'children'
+                          }`
+                        : ''
+                    }${
+                      reservation.guests.toddlers > 0
+                        ? `, ${reservation.guests.toddlers} ${
+                            this.currentLanguage === 'cs' ? 'batolata' : 'toddlers'
+                          }`
+                        : ''
+                    }
                   </span>
                 </div>
                 <div style="text-align: right;">
                   <strong style="color: var(--primary-color);">${reservation.totalPrice.toLocaleString(
-              'cs-CZ'
-            )} Kč</strong>
+                    'cs-CZ'
+                  )} Kč</strong>
                 </div>
               </div>
             </div>
@@ -1493,11 +1536,12 @@ class BookingApp {
       summaryHTML += `
         <div style="margin-top: 1rem; padding-top: 1rem; border-top: 2px solid var(--gray-200);">
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <strong style="font-size: 1.1rem;">${this.currentLanguage === 'cs' ? 'Celkem' : 'Total'
-        }:</strong>
+            <strong style="font-size: 1.1rem;">${
+              this.currentLanguage === 'cs' ? 'Celkem' : 'Total'
+            }:</strong>
             <strong style="font-size: 1.2rem; color: var(--primary-color);">${totalPrice.toLocaleString(
-          'cs-CZ'
-        )} Kč</strong>
+              'cs-CZ'
+            )} Kč</strong>
           </div>
         </div>
       `;
@@ -1777,9 +1821,7 @@ class BookingApp {
       }
 
       // Translated room name
-      const roomName = isCs
-        ? reservation.roomName
-        : reservation.roomName.replace('Pokoj', 'Room');
+      const roomName = isCs ? reservation.roomName : reservation.roomName.replace('Pokoj', 'Room');
 
       // Guest labels
       const adultLabel = isCs

@@ -71,7 +71,7 @@ const adminAuthCode = fs.readFileSync(
     path.join(__dirname, '../../js/admin/AdminAuth.js'),
     'utf8'
 );
-eval(adminAuthCode);
+eval(adminAuthCode + '; global.AdminAuth = AdminAuth;');
 
 describe('AdminAuth', () => {
     let auth;
@@ -85,6 +85,12 @@ describe('AdminAuth', () => {
 
         // Reset fetch mock
         global.fetch.mockClear();
+        global.fetch.mockImplementation(() =>
+            Promise.resolve({
+                ok: true,
+                json: () => Promise.resolve({ success: true }),
+            })
+        );
 
         // Create mock callbacks
         mockCallbacks = {

@@ -496,7 +496,12 @@ class BaseCalendar {
     const availabilityPromises = rooms.map((room) =>
       // Pass sessionId to exclude edit session's proposed bookings (if editing)
       // Pass currentEditingBookingId to exclude the booking being edited from conflicts
-      dataManager.getRoomAvailability(date, room.id, this.config.sessionId, this.config.currentEditingBookingId)
+      dataManager.getRoomAvailability(
+        date,
+        room.id,
+        this.config.sessionId,
+        this.config.currentEditingBookingId
+      )
     );
     const availabilities = await Promise.all(availabilityPromises);
 

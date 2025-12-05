@@ -326,6 +326,14 @@ class SingleRoomBookingModule {
     // When CREATING new reservation: show ALL proposed bookings including user's own (warning about overlaps)
     this.miniCalendar.config.sessionId = this.app.editingReservation ? this.app.sessionId : '';
 
+    // FIX 2025-12-05: For admin edit of CONFIRMED bookings, exclude the booking's dates from occupied check
+    // This allows admin to modify dates of existing confirmed booking (shown as available, not red)
+    if (this.app.editingReservation?.id) {
+      this.miniCalendar.config.currentEditingBookingId = this.app.editingReservation.id;
+    } else {
+      this.miniCalendar.config.currentEditingBookingId = null;
+    }
+
     // Render calendar
     await this.miniCalendar.render();
   }
@@ -359,9 +367,15 @@ class SingleRoomBookingModule {
     const adultsContainer = document.getElementById('singleRoomAdultsNamesContainer');
     const childrenContainer = document.getElementById('singleRoomChildrenNamesContainer');
     const toddlersContainer = document.getElementById('singleRoomToddlersNamesContainer');
-    if (adultsContainer) adultsContainer.innerHTML = '';
-    if (childrenContainer) childrenContainer.innerHTML = '';
-    if (toddlersContainer) toddlersContainer.innerHTML = '';
+    if (adultsContainer) {
+      adultsContainer.innerHTML = '';
+    }
+    if (childrenContainer) {
+      childrenContainer.innerHTML = '';
+    }
+    if (toddlersContainer) {
+      toddlersContainer.innerHTML = '';
+    }
 
     // Clean up
     this.app.currentBookingRoom = null;
@@ -582,9 +596,7 @@ class SingleRoomBookingModule {
 
       // Show success notification
       const translatedRoomName =
-        this.app.currentLanguage === 'cs'
-          ? room.name
-          : room.name.replace('Pokoj', 'Room');
+        this.app.currentLanguage === 'cs' ? room.name : room.name.replace('Pokoj', 'Room');
       window.notificationManager?.show(
         this.app.currentLanguage === 'cs'
           ? `${translatedRoomName} přidán do rezervace`
@@ -921,5 +933,252 @@ class SingleRoomBookingModule {
     if (nightsElement) {
       nightsElement.textContent = `× ${nights}`;
     }
+  }
+
+  /**
+   * Open single room booking modal in admin edit mode
+   * Pre-fills with existing booking data and uses admin callbacks
+   * @param {Object} booking - Full booking object from database
+   * @param {string} roomId - ID of room to edit
+   * @param {Object} callbacks - Admin callbacks {onSubmit, onCancel, onDelete}
+   */
+  async openForAdminEdit(booking, roomId, callbacks) {
+    // Store admin edit context
+    this.adminEditContext = {
+      booking,
+      roomId,
+      callbacks,
+      isAdminEdit: true,
+    };
+
+    const modal = document.getElementById('singleRoomBookingModal');
+    const modalTitle = document.getElementById('roomBookingTitle');
+
+    // Get room data
+    const rooms = await dataManager.getRooms();
+    const room = rooms.find((r) => r.id === roomId);
+
+    if (!room) {
+      console.error('Room not found:', roomId);
+      callbacks.onCancel?.();
+      return;
+    }
+
+    // Set title for edit mode
+    const roomName = room.name;
+    modalTitle.textContent = `Upravit ${roomName}`;
+
+    this.app.currentBookingRoom = roomId;
+    this.app.selectedDates.clear();
+    this.app.selectedRooms.clear();
+    this.app.roomGuests.clear();
+    this.app.roomGuestTypes.clear();
+
+    // Pre-fill dates from booking
+    const roomDates = booking.perRoomDates?.[roomId] || {
+      startDate: booking.startDate,
+      endDate: booking.endDate,
+    };
+
+    const start = new Date(`${roomDates.startDate}T12:00:00`);
+    const end = new Date(`${roomDates.endDate}T12:00:00`);
+    const current = new Date(start);
+
+    // Add all dates in range to selectedDates
+    while (current <= end) {
+      const dateStr = DateUtils.formatDate(current);
+      this.app.selectedDates.add(dateStr);
+      current.setDate(current.getDate() + 1);
+    }
+
+    // Pre-fill guest configuration
+    const roomGuests = booking.perRoomGuests?.[roomId] || {
+      adults: booking.adults || 1,
+      children: booking.children || 0,
+      toddlers: booking.toddlers || 0,
+      guestType: booking.guestType || 'external',
+    };
+
+    this.app.roomGuests.set(roomId, roomGuests);
+    this.app.roomGuestTypes.set(roomId, roomGuests.guestType || 'external');
+
+    // Update display of guest counts
+    const adultsEl = document.getElementById('singleRoomAdults');
+    const childrenEl = document.getElementById('singleRoomChildren');
+    const toddlersEl = document.getElementById('singleRoomToddlers');
+
+    if (adultsEl) {
+      adultsEl.textContent = roomGuests.adults.toString();
+    }
+    if (childrenEl) {
+      childrenEl.textContent = roomGuests.children.toString();
+    }
+    if (toddlersEl) {
+      toddlersEl.textContent = (roomGuests.toddlers || 0).toString();
+    }
+
+    // Set guest type radio button
+    const guestTypeRadio = document.querySelector(
+      `input[name="singleRoomGuestType"][value="${roomGuests.guestType || 'external'}"]`
+    );
+    if (guestTypeRadio) {
+      guestTypeRadio.checked = true;
+    }
+
+    // Add active class to show modal
+    modal.classList.add('active');
+
+    // Ensure room is selected for price calculation
+    this.app.selectedRooms.add(roomId);
+
+    // FIX 2025-12-05: Set editingReservation flag so calendar excludes this booking's dates
+    // This allows user to modify the original reservation dates (shown as available, not red)
+    this.app.editingReservation = booking;
+
+    // Use BaseCalendar for rendering
+    await this.renderMiniCalendar(roomId);
+    await this.app.updateSelectedDatesDisplay();
+
+    // Get room-specific guest names
+    const roomGuestNames =
+      booking.guestNames?.filter((g) => String(g.roomId) === String(roomId)) || [];
+
+    // Generate guest name inputs with existing data
+    this.generateGuestNamesInputs(
+      roomGuests.adults,
+      roomGuests.children,
+      roomGuests.toddlers || 0,
+      roomGuestNames
+    );
+
+    // Update price
+    await this.updatePriceForCurrentRoom();
+
+    // Update confirm button for edit mode
+    const confirmBtn = document.getElementById('confirmSingleRoomBtn');
+    if (confirmBtn) {
+      confirmBtn.textContent = 'Uložit změny';
+      // Store original onclick handler
+      this._originalConfirmHandler = confirmBtn.onclick;
+      // Replace with admin edit handler
+      confirmBtn.onclick = () => this.confirmAdminEdit();
+    }
+
+    // Update cancel button to use admin callback
+    const cancelBtn = modal.querySelector('.modal-close');
+    if (cancelBtn) {
+      this._originalCancelHandler = cancelBtn.onclick;
+      cancelBtn.onclick = () => this.cancelAdminEdit();
+    }
+  }
+
+  /**
+   * Confirm admin edit - collect data and call admin callback
+   */
+  async confirmAdminEdit() {
+    if (!this.adminEditContext) {
+      console.error('No admin edit context');
+      return;
+    }
+
+    // Validate dates
+    if (this.app.selectedDates.size < 2) {
+      window.notificationManager?.show('Vyberte prosím termín (min. 1 noc)', 'warning');
+      return;
+    }
+
+    // Get dates
+    const sortedDates = Array.from(this.app.selectedDates).sort();
+    const startDate = sortedDates[0];
+    const endDate = sortedDates[sortedDates.length - 1];
+
+    // Get guests
+    const { roomId } = this.adminEditContext;
+    const guests = this.app.roomGuests.get(roomId) || { adults: 1, children: 0, toddlers: 0 };
+
+    // Validate guest names
+    const guestNames = this.collectGuestNames();
+    if (guestNames === null) {
+      return; // Validation failed
+    }
+
+    // Get guest type from toggle switches
+    const hasUtiaGuest = guestNames.some(
+      (guest) => guest.guestPriceType === 'utia' && guest.personType !== 'toddler'
+    );
+    const guestType = hasUtiaGuest ? 'utia' : 'external';
+
+    // Calculate price
+    const nights = sortedDates.length - 1;
+    const settings = await dataManager.getSettings();
+    const price = PriceCalculator.calculatePerGuestPrice({
+      rooms: [roomId],
+      guestNames,
+      nights,
+      settings,
+      fallbackGuestType: guestType,
+    });
+
+    // Build form data
+    const formData = {
+      startDate,
+      endDate,
+      adults: guests.adults,
+      children: guests.children,
+      toddlers: guests.toddlers || 0,
+      guestType,
+      guestNames: guestNames.map((g) => ({ ...g, roomId })),
+      totalPrice: price,
+      rooms: [roomId],
+    };
+
+    // Call admin callback
+    this.adminEditContext.callbacks.onSubmit?.(formData);
+
+    // Clean up
+    this.cleanupAdminEdit();
+  }
+
+  /**
+   * Cancel admin edit - close modal and call cancel callback
+   */
+  cancelAdminEdit() {
+    if (this.adminEditContext?.callbacks?.onCancel) {
+      this.adminEditContext.callbacks.onCancel();
+    }
+    this.cleanupAdminEdit();
+  }
+
+  /**
+   * Clean up after admin edit (success or cancel)
+   */
+  cleanupAdminEdit() {
+    // Restore original handlers
+    const confirmBtn = document.getElementById('confirmSingleRoomBtn');
+    if (confirmBtn && this._originalConfirmHandler) {
+      confirmBtn.onclick = this._originalConfirmHandler;
+      confirmBtn.textContent =
+        this.app.currentLanguage === 'cs' ? 'Přidat rezervaci' : 'Add Reservation';
+    }
+
+    const modal = document.getElementById('singleRoomBookingModal');
+    const cancelBtn = modal?.querySelector('.modal-close');
+    if (cancelBtn && this._originalCancelHandler) {
+      cancelBtn.onclick = this._originalCancelHandler;
+    }
+
+    // Close modal
+    modal?.classList.remove('active');
+
+    // Clear context
+    this.adminEditContext = null;
+    this._originalConfirmHandler = null;
+    this._originalCancelHandler = null;
+
+    // Clean up app state
+    this.app.currentBookingRoom = null;
+    this.app.selectedDates.clear();
+    // FIX 2025-12-05: Clear editingReservation flag on cleanup
+    this.app.editingReservation = null;
   }
 }

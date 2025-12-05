@@ -134,18 +134,19 @@ describe('API Endpoints', () => {
     });
 
     it('should calculate price correctly for ÚTIA guest', () => {
-      // Price calculation: base 300 + (2-1) * 50 + 1 * 25 = 375 per night
+      // NEW MODEL (2025-11): empty + ALL adults pay + ALL children pay
+      // ÚTIA small: empty(250) + 2*adult(50) + 1*child(25) = 375 per night
       // 2 nights = 750
       const settings = db.getSettings();
-      const prices = settings.prices.utia; // Prices are flat, not nested
+      const prices = settings.prices.utia.small; // Room-size-based pricing
 
       const adults = 2;
       const children = 1;
       const nights = 2;
-      const roomsCount = 1;
 
-      let pricePerNight = prices.base * roomsCount;
-      pricePerNight += Math.max(0, adults - roomsCount) * prices.adult;
+      // NEW MODEL: empty room + ALL guests pay surcharge
+      let pricePerNight = prices.empty;
+      pricePerNight += adults * prices.adult;
       pricePerNight += children * prices.child;
       const totalPrice = pricePerNight * nights;
 
@@ -153,18 +154,19 @@ describe('API Endpoints', () => {
     });
 
     it('should calculate price correctly for external guest', () => {
-      // Price calculation: base 500 + (2-1) * 100 + 1 * 50 = 650 per night
+      // NEW MODEL (2025-11): empty + ALL adults pay + ALL children pay
+      // External small: empty(400) + 2*adult(100) + 1*child(50) = 650 per night
       // 2 nights = 1300
       const settings = db.getSettings();
-      const prices = settings.prices.external; // Prices are flat, not nested
+      const prices = settings.prices.external.small; // Room-size-based pricing
 
       const adults = 2;
       const children = 1;
       const nights = 2;
-      const roomsCount = 1;
 
-      let pricePerNight = prices.base * roomsCount;
-      pricePerNight += Math.max(0, adults - roomsCount) * prices.adult;
+      // NEW MODEL: empty room + ALL guests pay surcharge
+      let pricePerNight = prices.empty;
+      pricePerNight += adults * prices.adult;
       pricePerNight += children * prices.child;
       const totalPrice = pricePerNight * nights;
 
@@ -173,17 +175,17 @@ describe('API Endpoints', () => {
 
     it('should not charge for toddlers', () => {
       const settings = db.getSettings();
-      const prices = settings.prices.utia; // Prices are flat, not nested
+      const prices = settings.prices.utia.small; // Room-size-based pricing
 
       const adults = 2;
       const children = 1;
       const nights = 1;
-      const roomsCount = 1;
 
-      let pricePerNight = prices.base * roomsCount;
-      pricePerNight += Math.max(0, adults - roomsCount) * prices.adult;
+      // NEW MODEL: empty room + ALL guests pay surcharge
+      let pricePerNight = prices.empty;
+      pricePerNight += adults * prices.adult;
       pricePerNight += children * prices.child;
-      // Toddlers not added
+      // Toddlers not added (free!)
       const totalPrice = pricePerNight * nights;
 
       expect(totalPrice).toBe(375); // Same as without toddlers

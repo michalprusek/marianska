@@ -858,12 +858,13 @@ class PriceCalculator {
         // Use per-room guest type if available (NEW logic)
         roomGuestType = normalizedPerRoomGuests[roomId].guestType;
       } else {
-        // NEW UNIFIED (2025-12-04): Check guestNames for ÚTIA guests
-        // If ANY paying guest (adult/child) is ÚTIA, use ÚTIA empty room rate
-        const hasUtiaGuest = guestNames.some(
+        // FIX 2025-12-05: Check guestNames for THIS ROOM ONLY, not all guests
+        // Filter guests by roomId first, then check for ÚTIA
+        const roomGuestNames = guestNames.filter((g) => String(g.roomId) === String(roomId));
+        const hasUtiaGuest = roomGuestNames.some(
           (g) => g.guestPriceType === 'utia' && g.personType !== 'toddler'
         );
-        roomGuestType = hasUtiaGuest ? 'utia' : (fallbackGuestType || 'external');
+        roomGuestType = hasUtiaGuest ? 'utia' : fallbackGuestType || 'external';
       }
 
       // CRITICAL: Validate price configuration exists for this guest type and room type

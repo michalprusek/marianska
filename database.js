@@ -756,8 +756,9 @@ class DatabaseManager {
 
       // Derive guest type breakdown from guest_names
       const guestTypeBreakdown = {
-        utiaAdults: guestNames.filter((g) => g.personType === 'adult' && g.guestPriceType === 'utia')
-          .length,
+        utiaAdults: guestNames.filter(
+          (g) => g.personType === 'adult' && g.guestPriceType === 'utia'
+        ).length,
         externalAdults: guestNames.filter(
           (g) => g.personType === 'adult' && g.guestPriceType === 'external'
         ).length,
@@ -887,8 +888,9 @@ class DatabaseManager {
 
       // Derive guest type breakdown from guest_names
       const guestTypeBreakdown = {
-        utiaAdults: guestNames.filter((g) => g.personType === 'adult' && g.guestPriceType === 'utia')
-          .length,
+        utiaAdults: guestNames.filter(
+          (g) => g.personType === 'adult' && g.guestPriceType === 'utia'
+        ).length,
         externalAdults: guestNames.filter(
           (g) => g.personType === 'adult' && g.guestPriceType === 'external'
         ).length,
@@ -1655,7 +1657,8 @@ class DatabaseManager {
   createProposedBooking(sessionId, rooms, perRoomDates = {}) {
     const proposalId = this.generateProposalId();
     const now = new Date().toISOString();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // Expires in 15 minutes
+    // FIX 2025-12-05: Increased from 15 to 60 minutes to give users more time to complete booking
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // Expires in 60 minutes
 
     const transaction = this.db.transaction(() => {
       // Insert proposed booking header
