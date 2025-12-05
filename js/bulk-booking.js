@@ -79,6 +79,10 @@ class BulkBookingModule {
   async showBulkBookingModal() {
     const modal = document.getElementById('bulkBookingModal');
 
+    // FIX 2025-12-04: Invalidate proposed bookings cache to ensure fresh data
+    // This prevents stale cache from hiding user's own proposed bookings
+    dataManager.invalidateProposedBookingsCache();
+
     // Reset state
     this.bulkSelectedDates.clear();
     this.bulkDragStart = null;
@@ -213,10 +217,10 @@ class BulkBookingModule {
     // Sync module's bulkSelectedDates with calendar's selectedDates (for subsequent opens)
     this.bulkCalendar.selectedDates = this.bulkSelectedDates;
 
-    // CRITICAL FIX: Always update sessionId before rendering to exclude user's own proposed bookings
-    // This is essential when editing a proposed reservation - without this, user's own reservation
-    // would show as yellow (blocked) and they couldn't modify the dates
-    this.bulkCalendar.config.sessionId = this.app.sessionId;
+    // FIX 2025-12-04: Conditionally exclude session based on whether we're editing or creating
+    // When EDITING existing reservation: exclude user's own proposed booking (so they can modify dates)
+    // When CREATING new reservation: show ALL proposed bookings including user's own (warning about overlaps)
+    this.bulkCalendar.config.sessionId = this.app.editingReservation ? this.app.sessionId : '';
 
     // Render calendar
     await this.bulkCalendar.render();
@@ -407,19 +411,19 @@ class BulkBookingModule {
     // Get bulk price configuration
     const bulkPrices = settings.bulkPrices || defaultBulkPrices;
 
-    // For bulk booking - use flat base price for entire chalet
+    // SSOT: Use PriceCalculator for total price calculation
+    const totalPrice = PriceCalculator.calculateMixedBulkPrice({
+      utiaAdults,
+      externalAdults,
+      utiaChildren,
+      externalChildren,
+      nights,
+      settings: { bulkPrices },
+    });
+
+    // For display purposes only
     const totalBasePricePerNight = bulkPrices.basePrice;
-
-    // Calculate guest surcharges PER GUEST TYPE
-    const adultSurcharge =
-      utiaAdults * bulkPrices.utiaAdult + externalAdults * bulkPrices.externalAdult;
-
-    const childrenSurcharge =
-      utiaChildren * bulkPrices.utiaChild + externalChildren * bulkPrices.externalChild;
-
-    // Calculate total
-    const pricePerNight = totalBasePricePerNight + adultSurcharge + childrenSurcharge;
-    const totalPrice = pricePerNight * nights;
+    const pricePerNight = nights > 0 ? Math.round(totalPrice / nights) : totalBasePricePerNight;
 
     // Get translation for "per night" with safe access
     const perNightText = langManager ? langManager.t('perNight') : '/noc';
@@ -647,12 +651,21 @@ class BulkBookingModule {
 
     // Block if total would be < 10
     if (newTotal < 10) {
-      this.app.showNotification(
-        this.app.currentLanguage === 'cs'
-          ? 'Hromadná akce vyžaduje minimálně 10 osob (dospělí + děti)'
-          : 'Bulk events require a minimum of 10 people (adults + children)',
-        'warning'
-      );
+      if (window.notificationManager) {
+        window.notificationManager.show(
+          this.app.currentLanguage === 'cs'
+            ? 'Hromadná akce vyžaduje minimálně 10 osob (dospělí + děti)'
+            : 'Bulk events require a minimum of 10 people (adults + children)',
+          'warning'
+        );
+      } else {
+        window.notificationManager?.show(
+          this.app.currentLanguage === 'cs'
+            ? 'Hromadná akce vyžaduje minimálně 10 osob (dospělí + děti)'
+            : 'Bulk events require a minimum of 10 people (adults + children)',
+          'warning'
+        );
+      }
       return;
     }
 
@@ -730,6 +743,16 @@ class BulkBookingModule {
       this.app.editingReservation = null;
     }
 
+    // FIX 2025-12-04: Clear guest names section DOM to prevent stale data
+    // This fixes bug where cancelled edit changes persist when re-editing
+    // The generateGuestNamesInputs() captures existing DOM values, so we must clear them
+    const adultsContainer = document.getElementById('bulkAdultsNamesContainer');
+    const childrenContainer = document.getElementById('bulkChildrenNamesContainer');
+    const toddlersContainer = document.getElementById('bulkToddlersNamesContainer');
+    if (adultsContainer) adultsContainer.innerHTML = '';
+    if (childrenContainer) childrenContainer.innerHTML = '';
+    if (toddlersContainer) toddlersContainer.innerHTML = '';
+
     // FIX 2025-12-03: Reset button text to "Vytvořit rezervaci" when modal is closed
     const confirmBtn = document.getElementById('confirmBulkBookingBtn');
     if (confirmBtn) {
@@ -741,7 +764,7 @@ class BulkBookingModule {
   async confirmBulkDates() {
     // Validate minimum selection
     if (this.bulkSelectedDates.size === 0) {
-      this.app.showNotification(
+      window.notificationManager?.show(
         this.app.currentLanguage === 'cs' ? 'Vyberte prosím termín pobytu' : 'Please select dates',
         'warning'
       );
@@ -750,7 +773,7 @@ class BulkBookingModule {
 
     // Validate minimum 2 days (1 night)
     if (this.bulkSelectedDates.size < 2) {
-      this.app.showNotification(
+      window.notificationManager?.show(
         this.app.currentLanguage === 'cs'
           ? 'Minimální rezervace je na 1 noc (2 dny)'
           : 'Minimum booking is for 1 night (2 days)',
@@ -781,7 +804,7 @@ class BulkBookingModule {
       );
 
       if (bulkBlocked) {
-        this.app.showNotification(
+        window.notificationManager?.show(
           this.app.currentLanguage === 'cs'
             ? 'Hromadné rezervace celé chaty nejsou po 1. říjnu povoleny pro vánoční období. Rezervujte jednotlivé pokoje.'
             : 'Bulk bookings are not allowed after October 1st for Christmas period. Please book individual rooms.',
@@ -802,7 +825,7 @@ class BulkBookingModule {
         const availability = await dataManager.getRoomAvailability(date, room.id);
 
         if (availability.status === 'blocked') {
-          this.app.showNotification(
+          window.notificationManager?.show(
             langManager
               .t('roomBlockedOnDate')
               .replace('{roomName}', room.name)
@@ -821,7 +844,7 @@ class BulkBookingModule {
     // NEW 2025-10-17: Validate that there is at least 1 person (adult OR child)
     const totalGuests = (adults || 0) + (children || 0);
     if (totalGuests === 0) {
-      this.app.showNotification(
+      window.notificationManager?.show(
         this.app.currentLanguage === 'cs'
           ? 'Musíte zadat alespoň 1 osobu (dospělého nebo dítě) pro hromadnou rezervaci'
           : 'You must specify at least 1 person (adult or child) for bulk booking',
@@ -840,7 +863,7 @@ class BulkBookingModule {
     // Validate guest names count matches total guests
     const expectedGuestCount = (adults || 0) + (children || 0);
     if (guestNames.length !== expectedGuestCount) {
-      this.app.showNotification(
+      window.notificationManager?.show(
         this.app.currentLanguage === 'cs'
           ? `Počet vyplněných jmen (${guestNames.length}) neodpovídá počtu hostů (${expectedGuestCount})`
           : `Number of filled names (${guestNames.length}) doesn't match guest count (${expectedGuestCount})`,
@@ -900,24 +923,16 @@ class BulkBookingModule {
     const allRooms = await dataManager.getRooms();
     const roomIds = allRooms.map((r) => r.id);
 
-    // Calculate price using bulk pricing with mixed guest types
+    // Calculate price using SSOT PriceCalculator with mixed guest types
     const settings = await dataManager.getSettings();
-    const defaultBulkPrices = {
-      basePrice: 2000,
-      utiaAdult: 100,
-      utiaChild: 0,
-      externalAdult: 250,
-      externalChild: 50,
-    };
-    const bulkPrices = settings.bulkPrices || defaultBulkPrices;
-
-    // Calculate price with mixed guest types (matching updateBulkPriceCalculation logic)
-    const adultSurcharge =
-      utiaAdults * bulkPrices.utiaAdult + externalAdults * bulkPrices.externalAdult;
-    const childSurcharge =
-      utiaChildren * bulkPrices.utiaChild + externalChildren * bulkPrices.externalChild;
-    const pricePerNight = bulkPrices.basePrice + adultSurcharge + childSurcharge;
-    const totalPrice = pricePerNight * nights;
+    const totalPrice = PriceCalculator.calculateMixedBulkPrice({
+      utiaAdults,
+      externalAdults,
+      utiaChildren,
+      externalChildren,
+      nights,
+      settings,
+    });
 
     // FIX 2025-10-16: Create smart per-room guest allocation
     // This ensures guests are distributed intelligently across rooms by capacity
@@ -984,7 +999,7 @@ class BulkBookingModule {
           // Expected: 404 if reservation already expired
           if (error?.status !== 404 && !error?.message?.includes('not found')) {
             console.error('Failed to delete old proposed booking:', error);
-            this.app.showNotification(
+            window.notificationManager?.show(
               this.app.currentLanguage === 'cs'
                 ? 'Varování: Nepodařilo se vyčistit předchozí dočasnou rezervaci'
                 : 'Warning: Could not clean up previous temporary reservation',
@@ -1060,7 +1075,7 @@ class BulkBookingModule {
       this.hideBulkBookingModal();
 
       // Show success notification
-      this.app.showNotification(
+      window.notificationManager?.show(
         this.app.currentLanguage === 'cs'
           ? `Hromadná rezervace přidána do seznamu rezervací`
           : `Bulk booking added to reservation list`,
@@ -1077,7 +1092,7 @@ class BulkBookingModule {
       }
     } catch (error) {
       console.error('Failed to create proposed booking:', error);
-      this.app.showNotification(
+      window.notificationManager?.show(
         this.app.currentLanguage === 'cs'
           ? 'Chyba při vytváření dočasné rezervace'
           : 'Error creating temporary reservation',
@@ -1102,7 +1117,7 @@ class BulkBookingModule {
 
     // Validate
     if (!name || !email || !phone) {
-      this.app.showNotification(
+      window.notificationManager?.show(
         this.app.currentLanguage === 'cs'
           ? 'Vyplňte prosím všechna povinná pole'
           : 'Please fill in all required fields',
@@ -1212,7 +1227,7 @@ class BulkBookingModule {
       this.hideBulkBookingModal();
 
       // Show success toast notification
-      this.app.showNotification(
+      window.notificationManager?.show(
         this.app.currentLanguage === 'cs'
           ? '✅ Hromadná rezervace byla úspěšně vytvořena!'
           : '✅ Bulk booking created successfully!',
@@ -1223,7 +1238,7 @@ class BulkBookingModule {
       await this.app.renderCalendar();
     } catch (error) {
       console.error('Bulk booking error:', error);
-      this.app.showNotification(
+      window.notificationManager?.show(
         this.app.currentLanguage === 'cs'
           ? 'Chyba při vytváření rezervace'
           : 'Error creating booking',
@@ -1234,668 +1249,40 @@ class BulkBookingModule {
 
   /**
    * Generate guest names input fields for bulk booking
+   * Delegates to GuestNameUtils SSOT component
    * @param {number} adults - Number of adults
    * @param {number} children - Number of children (3-17 years)
    * @param {number} toddlers - Number of toddlers (0-3 years)
    * @param {Array} existingGuestNames - Existing guest names from reservation being edited (optional)
    */
   generateGuestNamesInputs(adults, children, toddlers = 0, existingGuestNames = null) {
-    const section = document.getElementById('bulkGuestNamesSection');
-    const totalGuests = (adults || 0) + (children || 0) + (toddlers || 0);
-
-    // Show section only if there are guests
-    if (totalGuests > 0) {
-      section.style.display = 'block';
-    } else {
-      section.style.display = 'none';
-      return;
-    }
-
-    // CAPTURE PHASE: Save existing guest data before clearing DOM
-    const savedGuestData = new Map();
-
-    // FIX 2025-12-02: Pre-populate savedGuestData from existingGuestNames (for edit mode)
-    // This ensures existing names are preserved when editing a bulk reservation
-    if (existingGuestNames && Array.isArray(existingGuestNames) && existingGuestNames.length > 0) {
-      let adultIndex = 0;
-      let childIndex = 0;
-      let toddlerIndex = 0;
-
-      existingGuestNames.forEach((guest) => {
-        const guestCategory = guest.guestCategory || guest.personType || 'adult';
-
-        if (guestCategory === 'adult') {
-          const key = `adult-${adultIndex}`;
-          savedGuestData.set(key, {
-            firstName: guest.firstName || '',
-            lastName: guest.lastName || '',
-            guestType: guest.guestPriceType || guest.guestType || 'utia',
-          });
-          adultIndex += 1;
-        } else if (guestCategory === 'child') {
-          const key = `child-${childIndex}`;
-          savedGuestData.set(key, {
-            firstName: guest.firstName || '',
-            lastName: guest.lastName || '',
-            guestType: guest.guestPriceType || guest.guestType || 'utia',
-          });
-          childIndex += 1;
-        } else if (guestCategory === 'toddler') {
-          const key = `toddler-${toddlerIndex}`;
-          savedGuestData.set(key, {
-            firstName: guest.firstName || '',
-            lastName: guest.lastName || '',
-          });
-          toddlerIndex += 1;
-        }
-      });
-    }
-
-    // Capture adults
-    const existingAdultInputs = section.querySelectorAll('input[data-guest-type="adult"]');
-    existingAdultInputs.forEach((input) => {
-      const index = input.dataset.guestIndex;
-      const key = `adult-${index}`;
-      if (!savedGuestData.has(key)) {
-        savedGuestData.set(key, {});
-      }
-      const data = savedGuestData.get(key);
-      if (input.id.includes('FirstName')) {
-        data.firstName = input.value;
-      } else if (input.id.includes('LastName')) {
-        data.lastName = input.value;
-      }
+    // Delegate to GuestNameUtils SSOT component
+    GuestNameUtils.generateInputsHTML({
+      adults,
+      children,
+      toddlers,
+      sectionId: 'bulkGuestNamesSection',
+      showPricingToggles: true,
+      defaultGuestType: 'utia',
+      language: this.app.currentLanguage || 'cs',
+      onToggleChange: () => this.updateBulkPriceCalculation(),
+      existingGuestNames,
     });
-
-    // Capture adult toggle states
-    const existingAdultToggles = section.querySelectorAll(
-      'input[data-guest-type="adult"][data-guest-price-type]'
-    );
-    existingAdultToggles.forEach((toggle) => {
-      const index = toggle.dataset.guestIndex;
-      const key = `adult-${index}`;
-      if (savedGuestData.has(key)) {
-        savedGuestData.get(key).guestType = toggle.checked ? 'external' : 'utia';
-      }
-    });
-
-    // Capture children
-    const existingChildInputs = section.querySelectorAll('input[data-guest-type="child"]');
-    existingChildInputs.forEach((input) => {
-      const index = input.dataset.guestIndex;
-      const key = `child-${index}`;
-      if (!savedGuestData.has(key)) {
-        savedGuestData.set(key, {});
-      }
-      const data = savedGuestData.get(key);
-      if (input.id.includes('FirstName')) {
-        data.firstName = input.value;
-      } else if (input.id.includes('LastName')) {
-        data.lastName = input.value;
-      }
-    });
-
-    // Capture children toggle states
-    const existingChildToggles = section.querySelectorAll(
-      'input[data-guest-type="child"][data-guest-price-type]'
-    );
-    existingChildToggles.forEach((toggle) => {
-      const index = toggle.dataset.guestIndex;
-      const key = `child-${index}`;
-      if (savedGuestData.has(key)) {
-        savedGuestData.get(key).guestType = toggle.checked ? 'external' : 'utia';
-      }
-    });
-
-    // Capture toddlers
-    const existingToddlerInputs = section.querySelectorAll('input[data-guest-type="toddler"]');
-    existingToddlerInputs.forEach((input) => {
-      const index = input.dataset.guestIndex;
-      const key = `toddler-${index}`;
-      if (!savedGuestData.has(key)) {
-        savedGuestData.set(key, {});
-      }
-      const data = savedGuestData.get(key);
-      if (input.id.includes('FirstName')) {
-        data.firstName = input.value;
-      } else if (input.id.includes('LastName')) {
-        data.lastName = input.value;
-      }
-    });
-
-    // Capture toddler toggle states
-    const existingToddlerToggles = section.querySelectorAll(
-      'input[data-guest-type="toddler"][data-guest-price-type]'
-    );
-    existingToddlerToggles.forEach((toggle) => {
-      const index = toggle.dataset.guestIndex;
-      const key = `toddler-${index}`;
-      if (savedGuestData.has(key)) {
-        savedGuestData.get(key).guestType = toggle.checked ? 'external' : 'utia';
-      }
-    });
-
-    const makeId = (prefix) => prefix;
-
-    // Adults section
-    const adultsContainer = document.getElementById('bulkAdultsNamesContainer');
-    if (adultsContainer) {
-      adultsContainer.innerHTML = '';
-      if (adults > 0) {
-        adultsContainer.style.display = 'block';
-        const adultsHeader = document.createElement('h5');
-        adultsHeader.style.cssText = 'margin-bottom: 0.5rem; color: #374151; font-size: 0.95rem;';
-        adultsHeader.textContent = `${langManager.t('adultsLabel')} (${adults})`;
-        adultsContainer.appendChild(adultsHeader);
-
-        for (let i = 1; i <= adults; i++) {
-          const row = document.createElement('div');
-          row.style.cssText =
-            'display: flex; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center;';
-
-          // First name input
-          const firstNameInput = document.createElement('input');
-          firstNameInput.type = 'text';
-          firstNameInput.id = `${makeId('bulkAdultFirstName')}${i}`;
-          firstNameInput.placeholder = langManager.t('firstNamePlaceholder');
-          firstNameInput.setAttribute('data-guest-type', 'adult');
-          firstNameInput.setAttribute('data-guest-index', i);
-          firstNameInput.required = true;
-          firstNameInput.minLength = 2;
-          firstNameInput.maxLength = 50;
-          firstNameInput.style.cssText =
-            'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
-
-          // Last name input
-          const lastNameInput = document.createElement('input');
-          lastNameInput.type = 'text';
-          lastNameInput.id = `${makeId('bulkAdultLastName')}${i}`;
-          lastNameInput.placeholder = langManager.t('lastNamePlaceholder');
-          lastNameInput.setAttribute('data-guest-type', 'adult');
-          lastNameInput.setAttribute('data-guest-index', i);
-          lastNameInput.required = true;
-          lastNameInput.minLength = 2;
-          lastNameInput.maxLength = 50;
-          lastNameInput.style.cssText =
-            'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
-
-          // Add input event listeners to clear red border when user types
-          firstNameInput.addEventListener('input', function () {
-            if (
-              this.style.borderColor === 'rgb(239, 68, 68)' ||
-              this.style.borderColor === '#ef4444'
-            ) {
-              this.style.borderColor = '#d1d5db';
-            }
-          });
-
-          lastNameInput.addEventListener('input', function () {
-            if (
-              this.style.borderColor === 'rgb(239, 68, 68)' ||
-              this.style.borderColor === '#ef4444'
-            ) {
-              this.style.borderColor = '#d1d5db';
-            }
-          });
-
-          // RESTORE PHASE: Restore saved data for this adult guest
-          const savedAdultKey = `adult-${i}`;
-          if (savedGuestData.has(savedAdultKey)) {
-            const saved = savedGuestData.get(savedAdultKey);
-            if (saved.firstName) {
-              firstNameInput.value = saved.firstName;
-            }
-            if (saved.lastName) {
-              lastNameInput.value = saved.lastName;
-            }
-          }
-
-          // Toggle switch container
-          const toggleContainer = document.createElement('div');
-          toggleContainer.style.cssText =
-            'display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; flex-shrink: 0;';
-
-          const toggleLabel = document.createElement('label');
-          toggleLabel.style.cssText =
-            'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer;';
-
-          const toggleInput = document.createElement('input');
-          toggleInput.type = 'checkbox';
-          toggleInput.id = `bulkAdult${i}GuestTypeToggle`;
-          toggleInput.setAttribute('data-guest-type', 'adult');
-          toggleInput.setAttribute('data-guest-index', i);
-          toggleInput.setAttribute('data-guest-price-type', 'true');
-          toggleInput.checked = false; // Unchecked = ÚTIA, Checked = External
-          toggleInput.style.cssText = 'opacity: 0; width: 0; height: 0;';
-
-          const toggleSlider = document.createElement('span');
-          toggleSlider.style.cssText =
-            'position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #059669; transition: 0.3s; border-radius: 24px;';
-
-          const toggleThumb = document.createElement('span');
-          toggleThumb.style.cssText =
-            'position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%;';
-          toggleSlider.appendChild(toggleThumb);
-
-          toggleLabel.appendChild(toggleInput);
-          toggleLabel.appendChild(toggleSlider);
-
-          const toggleText = document.createElement('span');
-          toggleText.textContent = 'ÚTIA';
-          toggleText.style.cssText =
-            'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px;';
-
-          // RESTORE PHASE: Restore toggle state for this adult guest
-          if (savedGuestData.has(savedAdultKey)) {
-            const saved = savedGuestData.get(savedAdultKey);
-            if (saved.guestType) {
-              const isExternal = saved.guestType === 'external';
-              toggleInput.checked = isExternal;
-              // Trigger visual update
-              if (isExternal) {
-                toggleSlider.style.backgroundColor = '#dc2626';
-                toggleThumb.style.transform = 'translateX(20px)';
-                toggleText.textContent = 'EXT';
-                toggleText.style.color = '#dc2626';
-              } else {
-                toggleSlider.style.backgroundColor = '#059669';
-                toggleThumb.style.transform = 'translateX(0)';
-                toggleText.textContent = 'ÚTIA';
-                toggleText.style.color = '#059669';
-              }
-            }
-          }
-
-          toggleContainer.appendChild(toggleLabel);
-          toggleContainer.appendChild(toggleText);
-
-          // Add event listener to toggle
-          toggleInput.addEventListener('change', () => {
-            if (toggleInput.checked) {
-              // External (checked)
-              toggleSlider.style.backgroundColor = '#dc2626';
-              toggleThumb.style.transform = 'translateX(20px)';
-              toggleText.textContent = 'EXT';
-              toggleText.style.color = '#dc2626';
-            } else {
-              // ÚTIA (unchecked)
-              toggleSlider.style.backgroundColor = '#059669';
-              toggleThumb.style.transform = 'translateX(0)';
-              toggleText.textContent = 'ÚTIA';
-              toggleText.style.color = '#059669';
-            }
-            // Trigger price recalculation
-            this.updateBulkPriceCalculation();
-          });
-
-          row.appendChild(firstNameInput);
-          row.appendChild(lastNameInput);
-          row.appendChild(toggleContainer);
-          adultsContainer.appendChild(row);
-        }
-      } else {
-        adultsContainer.style.display = 'none';
-      }
-    }
-
-    // Children section
-    const childrenContainer = document.getElementById('bulkChildrenNamesContainer');
-    if (childrenContainer) {
-      childrenContainer.innerHTML = '';
-      if (children > 0) {
-        childrenContainer.style.display = 'block';
-        childrenContainer.style.marginTop = '1rem';
-        const childrenHeader = document.createElement('h5');
-        childrenHeader.style.cssText = 'margin-bottom: 0.5rem; color: #374151; font-size: 0.95rem;';
-        childrenHeader.textContent = `${langManager.t('childrenLabel')} (${children})`;
-        childrenContainer.appendChild(childrenHeader);
-
-        for (let i = 1; i <= children; i++) {
-          const row = document.createElement('div');
-          row.style.cssText =
-            'display: flex; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center;';
-
-          // First name input
-          const firstNameInput = document.createElement('input');
-          firstNameInput.type = 'text';
-          firstNameInput.id = `${makeId('bulkChildFirstName')}${i}`;
-          firstNameInput.placeholder = langManager.t('firstNamePlaceholder');
-          firstNameInput.setAttribute('data-guest-type', 'child');
-          firstNameInput.setAttribute('data-guest-index', i);
-          firstNameInput.required = true;
-          firstNameInput.minLength = 2;
-          firstNameInput.maxLength = 50;
-          firstNameInput.style.cssText =
-            'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
-
-          // Last name input
-          const lastNameInput = document.createElement('input');
-          lastNameInput.type = 'text';
-          lastNameInput.id = `${makeId('bulkChildLastName')}${i}`;
-          lastNameInput.placeholder = langManager.t('lastNamePlaceholder');
-          lastNameInput.setAttribute('data-guest-type', 'child');
-          lastNameInput.setAttribute('data-guest-index', i);
-          lastNameInput.required = true;
-          lastNameInput.minLength = 2;
-          lastNameInput.maxLength = 50;
-          lastNameInput.style.cssText =
-            'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;';
-
-          // Add input event listeners to clear red border when user types
-          firstNameInput.addEventListener('input', function () {
-            if (
-              this.style.borderColor === 'rgb(239, 68, 68)' ||
-              this.style.borderColor === '#ef4444'
-            ) {
-              this.style.borderColor = '#d1d5db';
-            }
-          });
-
-          lastNameInput.addEventListener('input', function () {
-            if (
-              this.style.borderColor === 'rgb(239, 68, 68)' ||
-              this.style.borderColor === '#ef4444'
-            ) {
-              this.style.borderColor = '#d1d5db';
-            }
-          });
-
-          // RESTORE PHASE: Restore saved data for this child guest
-          const savedChildKey = `child-${i}`;
-          if (savedGuestData.has(savedChildKey)) {
-            const saved = savedGuestData.get(savedChildKey);
-            if (saved.firstName) {
-              firstNameInput.value = saved.firstName;
-            }
-            if (saved.lastName) {
-              lastNameInput.value = saved.lastName;
-            }
-          }
-
-          // Toggle switch container
-          const toggleContainer = document.createElement('div');
-          toggleContainer.style.cssText =
-            'display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; flex-shrink: 0;';
-
-          const toggleLabel = document.createElement('label');
-          toggleLabel.style.cssText =
-            'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer;';
-
-          const toggleInput = document.createElement('input');
-          toggleInput.type = 'checkbox';
-          toggleInput.id = `bulkChild${i}GuestTypeToggle`;
-          toggleInput.setAttribute('data-guest-type', 'child');
-          toggleInput.setAttribute('data-guest-index', i);
-          toggleInput.setAttribute('data-guest-price-type', 'true');
-          toggleInput.checked = false; // Unchecked = ÚTIA, Checked = External
-          toggleInput.style.cssText = 'opacity: 0; width: 0; height: 0;';
-
-          const toggleSlider = document.createElement('span');
-          toggleSlider.style.cssText =
-            'position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #059669; transition: 0.3s; border-radius: 24px;';
-
-          const toggleThumb = document.createElement('span');
-          toggleThumb.style.cssText =
-            'position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%;';
-          toggleSlider.appendChild(toggleThumb);
-
-          toggleLabel.appendChild(toggleInput);
-          toggleLabel.appendChild(toggleSlider);
-
-          const toggleText = document.createElement('span');
-          toggleText.textContent = 'ÚTIA';
-          toggleText.style.cssText =
-            'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px;';
-
-          // RESTORE PHASE: Restore toggle state for this child guest
-          if (savedGuestData.has(savedChildKey)) {
-            const saved = savedGuestData.get(savedChildKey);
-            if (saved.guestType) {
-              const isExternal = saved.guestType === 'external';
-              toggleInput.checked = isExternal;
-              // Trigger visual update
-              if (isExternal) {
-                toggleSlider.style.backgroundColor = '#dc2626';
-                toggleThumb.style.transform = 'translateX(20px)';
-                toggleText.textContent = 'EXT';
-                toggleText.style.color = '#dc2626';
-              } else {
-                toggleSlider.style.backgroundColor = '#059669';
-                toggleThumb.style.transform = 'translateX(0)';
-                toggleText.textContent = 'ÚTIA';
-                toggleText.style.color = '#059669';
-              }
-            }
-          }
-
-          toggleContainer.appendChild(toggleLabel);
-          toggleContainer.appendChild(toggleText);
-
-          // Add event listener to toggle
-          toggleInput.addEventListener('change', () => {
-            if (toggleInput.checked) {
-              // External (checked)
-              toggleSlider.style.backgroundColor = '#dc2626';
-              toggleThumb.style.transform = 'translateX(20px)';
-              toggleText.textContent = 'EXT';
-              toggleText.style.color = '#dc2626';
-            } else {
-              // ÚTIA (unchecked)
-              toggleSlider.style.backgroundColor = '#059669';
-              toggleThumb.style.transform = 'translateX(0)';
-              toggleText.textContent = 'ÚTIA';
-              toggleText.style.color = '#059669';
-            }
-            // Trigger price recalculation
-            this.updateBulkPriceCalculation();
-          });
-
-          row.appendChild(firstNameInput);
-          row.appendChild(lastNameInput);
-          row.appendChild(toggleContainer);
-          childrenContainer.appendChild(row);
-        }
-      } else {
-        childrenContainer.style.display = 'none';
-      }
-    }
-
-    // Toddlers section
-    const toddlersContainer = document.getElementById('bulkToddlersNamesContainer');
-    if (toddlersContainer) {
-      toddlersContainer.innerHTML = '';
-      if (toddlers > 0) {
-        toddlersContainer.style.display = 'block';
-        toddlersContainer.style.marginTop = '1rem';
-        const toddlersHeader = document.createElement('h5');
-        toddlersHeader.style.cssText = 'margin-bottom: 0.5rem; color: #374151; font-size: 0.95rem;';
-        toddlersHeader.textContent = `${langManager.t('toddlersLabel')} (${toddlers})`;
-        toddlersContainer.appendChild(toddlersHeader);
-
-        for (let i = 1; i <= toddlers; i++) {
-          const row = document.createElement('div');
-          row.style.cssText = 'display: flex; gap: 0.5rem; margin-bottom: 0.5rem;';
-          row.innerHTML = `
-            <input
-              type="text"
-              id="${makeId('bulkToddlerFirstName')}${i}"
-              placeholder="${langManager.t('firstNamePlaceholder')}"
-              data-guest-type="toddler"
-              data-guest-index="${i}"
-              required
-              minlength="2"
-              maxlength="50"
-              style="flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;"
-            />
-            <input
-              type="text"
-              id="${makeId('bulkToddlerLastName')}${i}"
-              placeholder="${langManager.t('lastNamePlaceholder')}"
-              data-guest-type="toddler"
-              data-guest-index="${i}"
-              required
-              minlength="2"
-              maxlength="50"
-              style="flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;"
-            />
-          `;
-          toddlersContainer.appendChild(row);
-
-          // Add input event listeners to clear red border when user types
-          const toddlerFirstName = row.querySelector(`input[id*="FirstName"]`);
-          const toddlerLastName = row.querySelector(`input[id*="LastName"]`);
-
-          // RESTORE PHASE: Restore saved data for this toddler guest
-          const savedToddlerKey = `toddler-${i}`;
-          if (savedGuestData.has(savedToddlerKey)) {
-            const saved = savedGuestData.get(savedToddlerKey);
-            if (saved.firstName && toddlerFirstName) {
-              toddlerFirstName.value = saved.firstName;
-            }
-            if (saved.lastName && toddlerLastName) {
-              toddlerLastName.value = saved.lastName;
-            }
-          }
-
-          if (toddlerFirstName) {
-            toddlerFirstName.addEventListener('input', function () {
-              if (
-                this.style.borderColor === 'rgb(239, 68, 68)' ||
-                this.style.borderColor === '#ef4444'
-              ) {
-                this.style.borderColor = '#d1d5db';
-              }
-            });
-          }
-
-          if (toddlerLastName) {
-            toddlerLastName.addEventListener('input', function () {
-              if (
-                this.style.borderColor === 'rgb(239, 68, 68)' ||
-                this.style.borderColor === '#ef4444'
-              ) {
-                this.style.borderColor = '#d1d5db';
-              }
-            });
-          }
-        }
-      } else {
-        toddlersContainer.style.display = 'none';
-      }
-    }
   }
 
   /**
    * Collect and validate guest names from bulk booking form
+   * Delegates to GuestNameUtils SSOT component
    * @param {boolean} showValidationErrors - If true, shows error notifications (default: true)
    * @returns {Array|null} Array of guest objects or null if validation fails
    */
   collectGuestNames(showValidationErrors = true) {
-    const guestNames = [];
-    const section = document.getElementById('bulkGuestNamesSection');
-
-    if (!section || section.style.display === 'none') {
-      return []; // No names section visible
-    }
-
-    const inputs = section.querySelectorAll('input[data-guest-type]');
-    const guestMap = new Map();
-
-    inputs.forEach((input) => {
-      const { guestType } = input.dataset;
-      const { guestIndex } = input.dataset;
-      const key = `${guestType}-${guestIndex}`;
-
-      if (!guestMap.has(key)) {
-        guestMap.set(key, { personType: guestType });
-      }
-
-      const guest = guestMap.get(key);
-      const value = input.value.trim();
-
-      // Validate: all fields must be filled
-      if (!value || value.length < 2) {
-        // Highlight invalid field (only if showing errors)
-        if (showValidationErrors) {
-          input.style.borderColor = '#ef4444';
-        }
-        return null; // Validation failed
-      }
-
-      input.style.borderColor = '#d1d5db';
-
-      if (input.id.includes('FirstName')) {
-        guest.firstName = value;
-      } else if (input.id.includes('LastName')) {
-        guest.lastName = value;
-      }
-    });
-
-    // Collect guest type from toggle switches (checkboxes)
-    const toggles = section.querySelectorAll('input[data-guest-price-type]');
-    toggles.forEach((toggle) => {
-      const { guestType } = toggle.dataset;
-      const { guestIndex } = toggle.dataset;
-      const key = `${guestType}-${guestIndex}`;
-
-      if (guestMap.has(key)) {
-        const guest = guestMap.get(key);
-        // Determine guest price type: unchecked = utia, checked = external
-        // FIX 2025-12-02: Use guestPriceType (server expects this) instead of guestCategory
-        const priceType = toggle.checked ? 'external' : 'utia';
-        guest.guestPriceType = priceType;
-        guest.guestCategory = priceType; // Keep for backward compatibility
-      }
-    });
-
-    // Check if any validation failed
-    let validationFailed = false;
-    inputs.forEach((input) => {
-      const value = input.value.trim();
-      if (!value || value.length < 2) {
-        validationFailed = true;
-      }
-    });
-
-    if (validationFailed) {
-      // Only show notification if requested
-      if (showValidationErrors) {
-        this.app.showNotification(
-          this.app.currentLanguage === 'cs'
-            ? 'Vyplňte všechna jména hostů (křestní i příjmení)'
-            : 'Fill in all guest names (first and last name)',
-          'error'
-        );
-      }
-      return null;
-    }
-
-    // Convert map to array and validate completeness
-    for (const [key, guest] of guestMap) {
-      if (!guest.firstName || !guest.lastName) {
-        // Only show notification if requested
-        if (showValidationErrors) {
-          this.app.showNotification(
-            this.app.currentLanguage === 'cs'
-              ? 'Vyplňte všechna jména hostů (křestní i příjmení)'
-              : 'Fill in all guest names (first and last name)',
-            'error'
-          );
-        }
-        return null;
-      }
-      // Default to 'external' if not set (for toddlers or backward compatibility)
-      // FIX 2025-12-02: Set both guestPriceType and guestCategory for consistency
-      if (!guest.guestPriceType) {
-        guest.guestPriceType = 'external';
-      }
-      if (!guest.guestCategory) {
-        guest.guestCategory = guest.guestPriceType;
-      }
-      guestNames.push(guest);
-    }
-
-    return guestNames;
+    return GuestNameUtils.collectGuestNames(
+      'bulkGuestNamesSection',
+      showValidationErrors,
+      { showNotification: (msg, type) => window.notificationManager?.show(msg, type) },
+      this.app.currentLanguage || 'cs'
+    );
   }
 }
 

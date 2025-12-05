@@ -170,25 +170,7 @@ class MockDataManager {
     return { status: 'available', email: null };
   }
 
-  // eslint-disable-next-line max-params -- Legacy method signature maintained for backward compatibility
-  calculatePrice(guestType, adults, children, _toddlers, nights, roomsCount = 1) {
-    // Legacy parameter support - convert to options object internally
-    const options = { guestType, adults, children, nights, roomsCount };
-    return this.calculatePriceFromOptions(options);
-  }
 
-  calculatePriceFromOptions({ guestType, adults, children, nights, roomsCount = 1 }) {
-    // Simplified calculation for testing
-    const prices = this.data.settings.prices[guestType];
-    const roomType = roomsCount > 1 ? 'large' : 'small';
-    const config = prices[roomType];
-
-    let pricePerNight = config.base * roomsCount;
-    pricePerNight += Math.max(0, adults - roomsCount) * config.adult;
-    pricePerNight += children * config.child;
-
-    return pricePerNight * nights;
-  }
 
   isChristmasPeriod(date) {
     const dateStr = typeof date === 'string' ? date : date.toISOString().split('T')[0];

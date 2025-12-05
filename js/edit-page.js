@@ -35,13 +35,11 @@ class EditPage {
 
   async loadBookingData() {
     try {
-      const response = await fetch(`/api/booking-by-token?token=${this.editToken}`);
+      this.currentBooking = await dataManager.getBookingByEditToken(this.editToken);
 
-      if (!response.ok) {
+      if (!this.currentBooking) {
         throw new Error('Rezervace nenalezena nebo neplatný token');
       }
-
-      this.currentBooking = await response.json();
 
       // Load settings to get contact email
       const settings = await dataManager.getSettings();
@@ -167,8 +165,8 @@ class EditPage {
       mode: 'user',
       enforceDeadline: true,
       validateSession: null,
-      onSubmit: () => {}, // No-op for locked mode
-      onDelete: () => {}, // No-op for locked mode
+      onSubmit: () => { }, // No-op for locked mode
+      onDelete: () => { }, // No-op for locked mode
       settings,
     });
 
@@ -315,55 +313,10 @@ class EditPage {
       // Delete all proposed bookings for this edit session before saving final booking
       const sessionId = this.editComponent.getSessionId();
       if (sessionId) {
-        try {
-          await fetch(`/api/proposed-bookings/session/${sessionId}`, {
-            method: 'DELETE',
-          });
-          // Proposed bookings deleted for session
-        } catch (error) {
-          console.warn('Failed to delete proposed bookings:', error);
-          // Continue with saving - this is not critical
-        }
+        await dataManager.deleteProposedBookingsForSession(sessionId);
       }
 
-      const response = await fetch(`/api/booking/${this.currentBooking.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Edit-Token': this.editToken,
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Nepodařilo se aktualizovat rezervaci');
-      }
-
-      // Verify that changes were saved to database
-      const verifyResponse = await fetch(`/api/booking-by-token?token=${this.editToken}`, {
-        method: 'GET',
-      });
-
-      if (!verifyResponse.ok) {
-        throw new Error('Nepodařilo se ověřit uložení změn');
-      }
-
-      const savedBooking = await verifyResponse.json();
-
-      // Verify key fields were updated correctly
-      const fieldsToVerify = ['startDate', 'endDate', 'name', 'email', 'phone'];
-      const allFieldsMatch = fieldsToVerify.every((field) => {
-        const expected = formData[field];
-        const actual = savedBooking[field];
-        return expected === actual;
-      });
-
-      if (!allFieldsMatch) {
-        console.error('Data verification failed:', { formData, savedBooking });
-        throw new Error('Změny nebyly správně uloženy do databáze');
-      }
+      await dataManager.updateBookingWithToken(this.currentBooking.id, formData, this.editToken);
 
       this.showSuccess('Rezervace byla úspěšně aktualizována! Přesměrování na hlavní stránku...');
 
@@ -382,23 +335,11 @@ class EditPage {
    */
   async handleEditBookingDelete(bookingId) {
     try {
-      const response = await fetch(`/api/booking/${bookingId}`, {
-        method: 'DELETE',
-        headers: {
-          'X-Edit-Token': this.editToken,
-        },
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Nepodařilo se zrušit rezervaci');
-      }
+      await dataManager.deleteBookingWithToken(bookingId, this.editToken);
 
       this.showSuccess('Rezervace byla úspěšně zrušena!');
 
       // Sync with server to update data (force refresh)
-      // If this fails, homepage will sync when it loads anyway
       try {
         await dataManager.syncWithServer(true);
       } catch (error) {
@@ -433,112 +374,33 @@ class EditPage {
   }
 
   // Confirm dialog replacement for no-alert ESLint rule
-  showConfirm(message, onConfirm, onCancel = null) {
-    const confirmDialog = document.createElement('div');
-    confirmDialog.className = 'confirm-overlay';
-    confirmDialog.innerHTML = `
-      <div class="confirm-dialog">
-        <div class="confirm-message">${message}</div>
-        <div class="confirm-buttons">
-          <button class="confirm-cancel">Zrušit</button>
-          <button class="confirm-ok">Potvrdit</button>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(confirmDialog);
-    setTimeout(() => confirmDialog.classList.add('active'), 10);
-
-    const removeDialog = () => {
-      confirmDialog.classList.remove('active');
-      setTimeout(() => confirmDialog.remove(), 300);
-    };
-
-    confirmDialog.querySelector('.confirm-ok').addEventListener('click', () => {
-      removeDialog();
-      if (onConfirm) {
-        onConfirm();
-      }
-    });
-
-    confirmDialog.querySelector('.confirm-cancel').addEventListener('click', () => {
-      removeDialog();
-      if (onCancel) {
-        onCancel();
-      }
-    });
-
-    confirmDialog.addEventListener('click', (e) => {
-      if (e.target === confirmDialog) {
-        removeDialog();
-        if (onCancel) {
-          onCancel();
-        }
-      }
-    });
-  }
-
-  showError(message) {
-    const loadingState = document.getElementById('loadingState');
-    if (loadingState) {
-      loadingState.style.display = 'none';
-    }
-    const editFormContainer = document.getElementById('editFormContainer');
-    if (editFormContainer) {
-      editFormContainer.style.display = 'none';
-    }
-    const errorMessage = document.getElementById('errorMessage');
-    if (errorMessage) {
-      errorMessage.textContent = message;
-    }
-    const errorState = document.getElementById('errorState');
-    if (errorState) {
-      errorState.style.display = 'block';
-    }
-  }
-
-  showSuccess(message) {
-    const successMessage = document.getElementById('successMessage');
-    if (successMessage) {
-      successMessage.textContent = message;
-      successMessage.style.display = 'block';
-
-      setTimeout(() => {
-        successMessage.style.display = 'none';
-      }, 5000);
-    }
-  }
-
-  /**
-   * Highlight guest names section to draw user's attention
-   */
-  highlightGuestNamesSection() {
-    const guestNamesSection = document.getElementById('editGuestNamesSection');
-    if (!guestNamesSection) {
-      return;
-    }
-
-    // Scroll to the section
-    guestNamesSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-    // Add highlight animation
-    guestNamesSection.style.animation = 'highlightPulse 2s ease-in-out 3';
-    guestNamesSection.style.border = '3px solid #ef4444';
-
-    // Remove highlight after animation
-    setTimeout(() => {
-      guestNamesSection.style.animation = '';
-      guestNamesSection.style.border = '2px solid #10b981';
-    }, 6000);
-  }
-
   showNotification(message, type = 'info', duration = 5000) {
-    // Delegate to shared SSOT implementation in domUtils.js
-    if (window.DOMUtils && window.DOMUtils.showNotification) {
-      window.DOMUtils.showNotification(message, type, duration);
+    if (window.notificationManager) {
+      window.notificationManager.show(message, type, duration);
     } else {
-      // Fallback if DOMUtils not loaded (shouldn't happen)
-      console.warn('DOMUtils.showNotification not available:', message);
+      console.warn('NotificationManager not found:', message);
+    }
+  }
+
+  showConfirm(message, onConfirm, onCancel = null) {
+    if (window.modalDialog) {
+      window.modalDialog.confirm({
+        title: 'Potvrzení',
+        message: message,
+        type: 'warning',
+        confirmText: 'Potvrdit',
+        cancelText: 'Zrušit'
+      }).then(confirmed => {
+        if (confirmed && onConfirm) onConfirm();
+        if (!confirmed && onCancel) onCancel();
+      });
+    } else {
+      // Fallback
+      if (confirm(message)) {
+        if (onConfirm) onConfirm();
+      } else {
+        if (onCancel) onCancel();
+      }
     }
   }
 }

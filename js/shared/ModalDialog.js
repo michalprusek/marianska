@@ -39,6 +39,65 @@ class ModalDialog {
       .modal-ok-btn:hover {
         opacity: 0.9;
       }
+      .modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10000;
+        animation: fadeIn 0.2s ease-out;
+      }
+      .modal-dialog {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+        max-width: 500px;
+        width: 90%;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        animation: slideIn 0.3s ease-out;
+      }
+      .modal-header {
+        padding: 20px;
+        border-bottom: 1px solid #e9ecef;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .modal-body {
+        padding: 20px;
+        overflow-y: auto;
+      }
+      .modal-footer {
+        padding: 16px 20px;
+        border-top: 1px solid #e9ecef;
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        background: #f8f9fa;
+        border-bottom-left-radius: 8px;
+        border-bottom-right-radius: 8px;
+      }
+      .modal-close-btn {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #6c757d;
+        padding: 0;
+        line-height: 1;
+      }
+      .modal-close-btn:hover {
+        color: #343a40;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -56,52 +115,108 @@ class ModalDialog {
   }
 
   /**
+   * Open a generic modal with custom content
+   * @param {Object} options
+   * @param {string} options.title - Modal title
+   * @param {HTMLElement|string} options.content - Modal content (element or text)
+   * @param {Array<HTMLElement>} options.footerButtons - Array of button elements for footer
+   * @param {string} options.size - 'small', 'medium', 'large' (default: 'medium')
+   * @param {boolean} options.showCloseButton - Show X button in header (default: true)
+   * @param {Function} options.onClose - Callback when modal is closed
+   */
+  open(options) {
+    this.close();
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-dialog';
+
+    // Set size
+    if (options.size === 'large') modal.style.maxWidth = '800px';
+    if (options.size === 'small') modal.style.maxWidth = '400px';
+
+    // Header
+    if (options.title || options.showCloseButton !== false) {
+      const header = document.createElement('div');
+      header.className = 'modal-header';
+
+      if (options.title) {
+        const title = this.createSafeElement('h3', options.title, {
+          margin: '0',
+          fontSize: '18px',
+          fontWeight: '600',
+          color: '#212529'
+        });
+        header.appendChild(title);
+      }
+
+      if (options.showCloseButton !== false) {
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'modal-close-btn';
+        closeBtn.innerHTML = '&times;';
+        closeBtn.onclick = () => this.close();
+        header.appendChild(closeBtn);
+      }
+
+      modal.appendChild(header);
+    }
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'modal-body';
+
+    if (typeof options.content === 'string') {
+      body.textContent = options.content;
+    } else if (options.content instanceof HTMLElement) {
+      body.appendChild(options.content);
+    }
+
+    modal.appendChild(body);
+
+    // Footer
+    if (options.footerButtons && options.footerButtons.length > 0) {
+      const footer = document.createElement('div');
+      footer.className = 'modal-footer';
+      options.footerButtons.forEach(btn => footer.appendChild(btn));
+      modal.appendChild(footer);
+    }
+
+    backdrop.appendChild(modal);
+    document.body.appendChild(backdrop);
+    this.currentModal = backdrop;
+    this.onCloseCallback = options.onClose;
+
+    // Close on backdrop click
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) {
+        this.close();
+      }
+    });
+
+    // Close on Escape
+    const handleKeydown = (e) => {
+      if (e.key === 'Escape') {
+        this.close();
+        document.removeEventListener('keydown', handleKeydown);
+      }
+    };
+    document.addEventListener('keydown', handleKeydown);
+  }
+
+  /**
    * Show a confirmation dialog with custom styling
    * @param {Object} options - Dialog options
-   * @param {string} options.title - Dialog title (plain text)
-   * @param {string} options.message - Main message (plain text)
-   * @param {string} options.icon - Icon emoji (e.g., '🗑️', '⚠️')
-   * @param {string} options.confirmText - Confirm button text
-   * @param {string} options.cancelText - Cancel button text
-   * @param {string} options.type - Dialog type: 'warning', 'danger', 'info'
-   * @param {Array<Object>} options.details - Additional details to display [{label, value}]
    * @returns {Promise<boolean>} - true if confirmed, false if cancelled
    */
   async confirm(options) {
     return new Promise((resolve) => {
-      // Remove any existing modal
-      this.close();
+      const content = document.createElement('div');
 
-      // Create modal backdrop
-      const backdrop = this.createSafeElement('div', null, {
-        position: 'fixed',
-        top: '0',
-        left: '0',
-        width: '100%',
-        height: '100%',
-        background: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: '10000',
-        animation: 'fadeIn 0.2s ease-out',
-      });
-      backdrop.className = 'modal-backdrop';
+      // Header content (Icon + Title logic moved to content for flexibility in generic open, 
+      // but for confirm we want strict styling, so we'll build a specific body)
 
-      // Create modal container
-      const modal = this.createSafeElement('div', null, {
-        background: 'white',
-        borderRadius: '8px',
-        boxShadow: '0 4px 24px rgba(0, 0, 0, 0.2)',
-        maxWidth: '500px',
-        width: '90%',
-        maxHeight: '80vh',
-        overflowY: 'auto',
-        animation: 'slideIn 0.3s ease-out',
-      });
-      modal.className = 'modal-dialog';
-
-      // Color schemes
       const typeColors = {
         warning: { bg: '#fff3cd', border: '#ffc107', text: '#856404' },
         danger: { bg: '#f8d7da', border: '#dc3545', text: '#721c24' },
@@ -109,25 +224,21 @@ class ModalDialog {
       };
       const colors = typeColors[options.type] || typeColors.info;
 
-      // Header
-      const header = this.createSafeElement('div', null, {
-        padding: '20px',
-        borderBottom: '1px solid #e9ecef',
-        background: colors.bg,
-        borderTopLeftRadius: '8px',
-        borderTopRightRadius: '8px',
-      });
+      // We'll use a custom header for confirm to match previous styling exactly
+      // So we won't use the generic title in open(), but render it in content
 
-      const headerContent = this.createSafeElement('div', null, {
+      const headerDiv = this.createSafeElement('div', null, {
         display: 'flex',
         alignItems: 'center',
         gap: '12px',
+        marginBottom: '16px',
+        padding: '16px',
+        background: colors.bg,
+        borderRadius: '6px',
+        border: `1px solid ${colors.border}`
       });
 
-      const iconSpan = this.createSafeElement('span', options.icon || 'ℹ️', {
-        fontSize: '32px',
-      });
-
+      const iconSpan = this.createSafeElement('span', options.icon || 'ℹ️', { fontSize: '24px' });
       const title = this.createSafeElement('h3', options.title, {
         margin: '0',
         color: colors.text,
@@ -135,12 +246,9 @@ class ModalDialog {
         fontWeight: '600',
       });
 
-      headerContent.appendChild(iconSpan);
-      headerContent.appendChild(title);
-      header.appendChild(headerContent);
-
-      // Body
-      const body = this.createSafeElement('div', null, { padding: '20px' });
+      headerDiv.appendChild(iconSpan);
+      headerDiv.appendChild(title);
+      content.appendChild(headerDiv);
 
       const message = this.createSafeElement('p', options.message, {
         margin: '0 0 12px 0',
@@ -148,9 +256,8 @@ class ModalDialog {
         lineHeight: '1.6',
         whiteSpace: 'pre-line',
       });
-      body.appendChild(message);
+      content.appendChild(message);
 
-      // Details section
       if (options.details && options.details.length > 0) {
         const detailsContainer = this.createSafeElement('div', null, {
           marginTop: '16px',
@@ -166,34 +273,14 @@ class ModalDialog {
             padding: '4px 0',
             fontSize: '14px',
           });
-
-          const label = this.createSafeElement('span', `${detail.label}:`, {
-            color: '#6c757d',
-          });
-
-          const value = this.createSafeElement('strong', detail.value, {
-            color: '#212529',
-          });
-
+          const label = this.createSafeElement('span', `${detail.label}:`, { color: '#6c757d' });
+          const value = this.createSafeElement('strong', detail.value, { color: '#212529' });
           row.appendChild(label);
           row.appendChild(value);
           detailsContainer.appendChild(row);
         });
-
-        body.appendChild(detailsContainer);
+        content.appendChild(detailsContainer);
       }
-
-      // Footer
-      const footer = this.createSafeElement('div', null, {
-        padding: '16px 20px',
-        borderTop: '1px solid #e9ecef',
-        display: 'flex',
-        justifyContent: 'flex-end',
-        gap: '12px',
-        background: '#f8f9fa',
-        borderBottomLeftRadius: '8px',
-        borderBottomRightRadius: '8px',
-      });
 
       const cancelBtn = this.createSafeElement('button', options.cancelText || 'Zrušit', {
         padding: '8px 16px',
@@ -207,6 +294,10 @@ class ModalDialog {
         transition: 'all 0.2s',
       });
       cancelBtn.className = 'modal-cancel-btn';
+      cancelBtn.onclick = () => {
+        this.close();
+        resolve(false);
+      };
 
       const confirmBtn = this.createSafeElement('button', options.confirmText || 'Potvrdit', {
         padding: '8px 16px',
@@ -220,88 +311,29 @@ class ModalDialog {
         transition: 'all 0.2s',
       });
       confirmBtn.className = 'modal-confirm-btn';
-
-      footer.appendChild(cancelBtn);
-      footer.appendChild(confirmBtn);
-
-      // Assemble modal
-      modal.appendChild(header);
-      modal.appendChild(body);
-      modal.appendChild(footer);
-      backdrop.appendChild(modal);
-      document.body.appendChild(backdrop);
-      this.currentModal = backdrop;
-
-      // Event handlers
-      const handleConfirm = () => {
+      confirmBtn.onclick = () => {
+        this.onCloseCallback = null; // Prevent default close handler
         this.close();
         resolve(true);
       };
 
-      const handleCancel = () => {
-        this.close();
-        resolve(false);
-      };
-
-      confirmBtn.addEventListener('click', handleConfirm);
-      cancelBtn.addEventListener('click', handleCancel);
-
-      backdrop.addEventListener('click', (e) => {
-        if (e.target === backdrop) {
-          handleCancel();
-        }
+      this.open({
+        content: content,
+        footerButtons: [cancelBtn, confirmBtn],
+        showCloseButton: false,
+        onClose: () => resolve(false)
       });
-
-      const handleKeydown = (e) => {
-        if (e.key === 'Escape') {
-          handleCancel();
-          document.removeEventListener('keydown', handleKeydown);
-        }
-      };
-      document.addEventListener('keydown', handleKeydown);
 
       setTimeout(() => confirmBtn.focus(), 100);
     });
   }
 
   /**
-   * Show an alert dialog (info only, no confirmation)
-   * @param {Object} options - Dialog options
-   * @param {string} options.title - Dialog title (plain text)
-   * @param {string} options.message - Main message (plain text)
-   * @param {string} options.icon - Icon emoji
-   * @param {string} options.type - 'success', 'error', 'warning', 'info'
-   * @param {string} options.okText - OK button text
-   * @returns {Promise<void>}
+   * Show an alert dialog
    */
   async alert(options) {
     return new Promise((resolve) => {
-      this.close();
-
-      const backdrop = this.createSafeElement('div', null, {
-        position: 'fixed',
-        top: '0',
-        left: '0',
-        width: '100%',
-        height: '100%',
-        background: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: '10000',
-        animation: 'fadeIn 0.2s ease-out',
-      });
-      backdrop.className = 'modal-backdrop';
-
-      const modal = this.createSafeElement('div', null, {
-        background: 'white',
-        borderRadius: '8px',
-        boxShadow: '0 4px 24px rgba(0, 0, 0, 0.2)',
-        maxWidth: '400px',
-        width: '90%',
-        animation: 'slideIn 0.3s ease-out',
-      });
-      modal.className = 'modal-dialog';
+      const content = document.createElement('div');
 
       const typeColors = {
         success: { bg: '#d4edda', text: '#155724', border: '#28a745' },
@@ -311,22 +343,18 @@ class ModalDialog {
       };
       const colors = typeColors[options.type] || typeColors.info;
 
-      // Header
-      const header = this.createSafeElement('div', null, {
-        padding: '20px',
-        borderBottom: '1px solid #e9ecef',
-        background: colors.bg,
-        borderTopLeftRadius: '8px',
-        borderTopRightRadius: '8px',
-      });
-
-      const headerContent = this.createSafeElement('div', null, {
+      const headerDiv = this.createSafeElement('div', null, {
         display: 'flex',
         alignItems: 'center',
         gap: '12px',
+        marginBottom: '16px',
+        padding: '16px',
+        background: colors.bg,
+        borderRadius: '6px',
+        border: `1px solid ${colors.border}`
       });
 
-      const iconSpan = this.createSafeElement('span', options.icon || 'ℹ️', { fontSize: '32px' });
+      const iconSpan = this.createSafeElement('span', options.icon || 'ℹ️', { fontSize: '24px' });
       const title = this.createSafeElement('h3', options.title, {
         margin: '0',
         color: colors.text,
@@ -334,30 +362,17 @@ class ModalDialog {
         fontWeight: '600',
       });
 
-      headerContent.appendChild(iconSpan);
-      headerContent.appendChild(title);
-      header.appendChild(headerContent);
+      headerDiv.appendChild(iconSpan);
+      headerDiv.appendChild(title);
+      content.appendChild(headerDiv);
 
-      // Body
-      const body = this.createSafeElement('div', null, { padding: '20px' });
       const message = this.createSafeElement('p', options.message, {
         margin: '0',
         color: '#212529',
         lineHeight: '1.6',
         whiteSpace: 'pre-line',
       });
-      body.appendChild(message);
-
-      // Footer
-      const footer = this.createSafeElement('div', null, {
-        padding: '16px 20px',
-        borderTop: '1px solid #e9ecef',
-        display: 'flex',
-        justifyContent: 'flex-end',
-        background: '#f8f9fa',
-        borderBottomLeftRadius: '8px',
-        borderBottomRightRadius: '8px',
-      });
+      content.appendChild(message);
 
       const okBtn = this.createSafeElement('button', options.okText || 'OK', {
         padding: '8px 16px',
@@ -371,35 +386,18 @@ class ModalDialog {
         transition: 'all 0.2s',
       });
       okBtn.className = 'modal-ok-btn';
-
-      footer.appendChild(okBtn);
-
-      modal.appendChild(header);
-      modal.appendChild(body);
-      modal.appendChild(footer);
-      backdrop.appendChild(modal);
-      document.body.appendChild(backdrop);
-      this.currentModal = backdrop;
-
-      const handleOk = () => {
+      okBtn.onclick = () => {
         this.close();
         resolve();
       };
 
-      okBtn.addEventListener('click', handleOk);
-      backdrop.addEventListener('click', (e) => {
-        if (e.target === backdrop) {
-          handleOk();
-        }
+      this.open({
+        content: content,
+        footerButtons: [okBtn],
+        showCloseButton: false,
+        size: 'small',
+        onClose: () => resolve()
       });
-
-      const handleKeydown = (e) => {
-        if (e.key === 'Escape' || e.key === 'Enter') {
-          handleOk();
-          document.removeEventListener('keydown', handleKeydown);
-        }
-      };
-      document.addEventListener('keydown', handleKeydown);
 
       setTimeout(() => okBtn.focus(), 100);
     });
@@ -412,6 +410,10 @@ class ModalDialog {
     if (this.currentModal) {
       this.currentModal.remove();
       this.currentModal = null;
+      if (this.onCloseCallback) {
+        this.onCloseCallback();
+        this.onCloseCallback = null;
+      }
     }
   }
 }

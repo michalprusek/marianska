@@ -113,8 +113,9 @@ class AccessLogger {
       }
 
       return lines[lines.length - 1];
-    } catch {
-      // If parsing fails, return null (allow new entry)
+    } catch (error) {
+      // Log the error for debugging before returning null
+      console.error('[AccessLogger] Failed to read last log entry:', error.message, { logFilePath });
       return null;
     }
   }
@@ -187,8 +188,9 @@ class AccessLogger {
 
       // Update cache (store as plain text string)
       this.lastLogEntry = logEntry;
-    } catch {
-      // Fallback to stderr if file write fails (silent - logged via main logger)
+    } catch (error) {
+      // Log the error to stderr so it's not completely silent
+      console.error('[AccessLogger] Failed to write log entry:', error.message, { logFilePath });
     } finally {
       this.isWriting = false;
       // Process next item in queue

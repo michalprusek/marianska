@@ -1,251 +1,123 @@
 <!doctype html>
 <html lang="cs">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
-    />
-    <title>Rezervační systém - Chata Mariánská</title>
-    <link
-      rel="icon"
-      type="image/x-icon"
-      href="/favicon.ico"
-    />
-    <link
-      rel="stylesheet"
-      href="css/styles-unified.css"
-    />
-    <link
-      rel="stylesheet"
-      href="css/mobile-improvements.css"
-    />
-    <link
-      rel="preconnect"
-      href="https://fonts.googleapis.com"
-    />
-    <link
-      rel="preconnect"
-      href="https://fonts.gstatic.com"
-      crossorigin
-    />
-  </head>
-  <body>
-    <div class="app-container">
-      <!-- Header -->
-      <header class="header">
-        <div class="header-content">
-          <h1
-            class="logo"
-            data-translate="cottageName"
-          >
-            Chata Mariánská
-          </h1>
-          <nav class="nav">
-            <!-- Language Switch -->
-            <div class="language-switch">
-              <span class="lang-label">CZ</span>
-              <label
-                class="switch"
-                for="languageSwitch"
-                aria-label="Switch language"
-              >
-                <input
-                  type="checkbox"
-                  id="languageSwitch"
-                  role="switch"
-                  aria-checked="false"
-                />
-                <span class="slider"></span>
-              </label>
-              <span class="lang-label">EN</span>
-            </div>
 
-            <button
-              id="roomInfoBtn"
-              class="btn btn-secondary"
-            >
-              <span style="font-size: 1.2em; margin-right: 0.5rem">ℹ️</span>
-              <span
-                class="btn-text"
-                data-translate="roomInfo"
-                >Informace o pokojích</span
-              >
-            </button>
-            <button
-              id="bulkActionBtn"
-              class="btn btn-primary"
-            >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-              >
-                <rect
-                  x="3"
-                  y="4"
-                  width="18"
-                  height="18"
-                  rx="2"
-                  ry="2"
-                />
-                <line
-                  x1="16"
-                  y1="2"
-                  x2="16"
-                  y2="6"
-                />
-                <line
-                  x1="8"
-                  y1="2"
-                  x2="8"
-                  y2="6"
-                />
-                <line
-                  x1="3"
-                  y1="10"
-                  x2="21"
-                  y2="10"
-                />
-                <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01" />
-              </svg>
-              <span
-                class="btn-text"
-                data-translate="bulkBooking"
-                >Hromadná akce</span
-              >
-            </button>
-            <button
-              id="adminBtn"
-              class="btn btn-secondary"
-              data-translate="admin"
-            >
-              Admin
-            </button>
-          </nav>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Rezervační systém - Chata Mariánská</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="stylesheet" href="css/styles-unified.css" />
+  <link rel="stylesheet" href="css/mobile-improvements.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+</head>
+
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <h1 class="logo" data-translate="cottageName">
+          Chata Mariánská
+        </h1>
+        <nav class="nav">
+          <!-- Language Switch -->
+          <div class="language-switch">
+            <span class="lang-label">CZ</span>
+            <label class="switch" for="languageSwitch" aria-label="Switch language">
+              <input type="checkbox" id="languageSwitch" role="switch" aria-checked="false" />
+              <span class="slider"></span>
+            </label>
+            <span class="lang-label">EN</span>
+          </div>
+
+          <button id="roomInfoBtn" class="btn btn-secondary">
+            <span style="font-size: 1.2em; margin-right: 0.5rem">ℹ️</span>
+            <span class="btn-text" data-translate="roomInfo">Informace o pokojích</span>
+          </button>
+          <button id="bulkActionBtn" class="btn btn-primary">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+              <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01" />
+            </svg>
+            <span class="btn-text" data-translate="bulkBooking">Hromadná akce</span>
+          </button>
+          <button id="adminBtn" class="btn btn-secondary" data-translate="admin">
+            Admin
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Calendar Section -->
+      <section class="calendar-section">
+        <div class="calendar-header">
+          <button id="prevMonth" class="nav-btn" aria-label="Předchozí měsíc">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+          <h2 id="currentMonth" class="month-title"></h2>
+          <button id="nextMonth" class="nav-btn" aria-label="Další měsíc">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
         </div>
-      </header>
+        <div id="calendar" class="calendar-grid"></div>
 
-      <!-- Main Content -->
-      <main class="main-content">
-        <!-- Calendar Section -->
-        <section class="calendar-section">
-          <div class="calendar-header">
-            <button
-              id="prevMonth"
-              class="nav-btn"
-              aria-label="Předchozí měsíc"
-            >
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="3"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M15 18l-6-6 6-6" />
-              </svg>
-            </button>
-            <h2
-              id="currentMonth"
-              class="month-title"
-            ></h2>
-            <button
-              id="nextMonth"
-              class="nav-btn"
-              aria-label="Další měsíc"
-            >
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="3"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-            </button>
-          </div>
-          <div
-            id="calendar"
-            class="calendar-grid"
-          ></div>
+        <!-- Legend Toggle Button -->
+        <div class="legend-toggle-container">
+          <button id="legendToggle" class="legend-toggle-btn" aria-expanded="false">
+            <span class="legend-toggle-icon">❓</span>
+            <span class="legend-toggle-text" data-translate="showLegend">Zobrazit legendu</span>
+            <span class="legend-toggle-arrow">▼</span>
+          </button>
+        </div>
 
-          <!-- Legend Toggle Button -->
-          <div class="legend-toggle-container">
-            <button
-              id="legendToggle"
-              class="legend-toggle-btn"
-              aria-expanded="false"
-            >
-              <span class="legend-toggle-icon">❓</span>
-              <span
-                class="legend-toggle-text"
-                data-translate="showLegend"
-                >Zobrazit legendu</span
-              >
-              <span class="legend-toggle-arrow">▼</span>
-            </button>
-          </div>
-
-          <!-- Comprehensive Legend -->
-          <div
-            id="calendarLegend"
-            class="calendar-legend legend-hidden"
-          >
-            <!-- Room States -->
-            <div class="legend-section">
-              <h3
-                class="legend-title"
-                data-translate="legendRoomStates"
-              >
-                Stavy pokojů
-              </h3>
-              <div class="legend-items">
-                <div class="legend-item">
-                  <span
-                    class="legend-color"
-                    style="background: #10b981"
-                  ></span>
-                  <div class="legend-text">
-                    <strong data-translate="legendAvailable">Volný pokoj</strong>
-                    <p data-translate="legendAvailableDesc">Pokoj je k dispozici pro rezervaci</p>
-                  </div>
+        <!-- Comprehensive Legend -->
+        <div id="calendarLegend" class="calendar-legend legend-hidden">
+          <!-- Room States -->
+          <div class="legend-section">
+            <h3 class="legend-title" data-translate="legendRoomStates">
+              Stavy pokojů
+            </h3>
+            <div class="legend-items">
+              <div class="legend-item">
+                <span class="legend-color" style="background: #10b981"></span>
+                <div class="legend-text">
+                  <strong data-translate="legendAvailable">Volný pokoj</strong>
+                  <p data-translate="legendAvailableDesc">Pokoj je k dispozici pro rezervaci</p>
                 </div>
-                <div class="legend-item">
-                  <span class="legend-color legend-gradient-edge"></span>
-                  <div class="legend-text">
-                    <strong data-translate="legendEdge">Krajní den rezervace</strong>
-                    <p data-translate="legendEdgeDesc">
-                      Jedna noc kolem dne je obsazena - klikatelný pro novou rezervaci (oranžový
-                      gradient)
-                    </p>
-                  </div>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color legend-gradient-edge"></span>
+                <div class="legend-text">
+                  <strong data-translate="legendEdge">Krajní den rezervace</strong>
+                  <p data-translate="legendEdgeDesc">
+                    Jedna noc kolem dne je obsazena - klikatelný pro novou rezervaci (oranžový
+                    gradient)
+                  </p>
                 </div>
-                <div class="legend-item">
-                  <span
-                    class="legend-color"
-                    style="background: #ef4444"
-                  ></span>
-                  <div class="legend-text">
-                    <strong data-translate="legendBooked">Obsazený pokoj</strong>
-                    <p data-translate="legendBookedDesc">
-                      Obě noci kolem dne jsou obsazeny (červený)
-                    </p>
-                  </div>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color" style="background: #ef4444"></span>
+                <div class="legend-text">
+                  <strong data-translate="legendBooked">Obsazený pokoj</strong>
+                  <p data-translate="legendBookedDesc">
+                    Obě noci kolem dne jsou obsazeny (červený)
+                  </p>
                 </div>
-                <div class="legend-item">
-                  <span
-                    class="legend-color"
-                    style="
+              </div>
+              <div class="legend-item">
+                <span class="legend-color" style="
                       background: repeating-linear-gradient(
                         45deg,
                         #ef4444,
@@ -254,1292 +126,698 @@
                         #dc2626 6px
                       );
                       position: relative;
-                    "
-                  >
-                    <span
-                      style="
+                    ">
+                  <span style="
                         position: absolute;
                         top: 50%;
                         left: 50%;
                         transform: translate(-50%, -50%);
                         font-size: 0.8rem;
-                      "
-                      >❌</span
-                    >
-                  </span>
-                  <div class="legend-text">
-                    <strong data-translate="legendBlocked">Blokovaný pokoj</strong>
-                    <p data-translate="legendBlockedDesc">Pokoj je administrativně blokován ❌</p>
-                  </div>
+                      ">❌</span>
+                </span>
+                <div class="legend-text">
+                  <strong data-translate="legendBlocked">Blokovaný pokoj</strong>
+                  <p data-translate="legendBlockedDesc">Pokoj je administrativně blokován ❌</p>
                 </div>
-                <div class="legend-item">
-                  <span
-                    class="legend-color"
-                    style="background: #eab308"
-                  ></span>
-                  <div class="legend-text">
-                    <strong data-translate="legendProposed">Navrhovaná rezervace</strong>
-                    <p data-translate="legendProposedDesc">
-                      Rezervace čekající na dokončení (žlutá barva)
-                    </p>
-                  </div>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color" style="background: #eab308"></span>
+                <div class="legend-text">
+                  <strong data-translate="legendProposed">Navrhovaná rezervace</strong>
+                  <p data-translate="legendProposedDesc">
+                    Rezervace čekající na dokončení (žlutá barva)
+                  </p>
                 </div>
-                <div class="legend-item">
-                  <span
-                    class="legend-color"
-                    style="border: 2px solid #f59e0b; background: transparent; position: relative"
-                  >
-                    <span
-                      style="
+              </div>
+              <div class="legend-item">
+                <span class="legend-color"
+                  style="border: 2px solid #f59e0b; background: transparent; position: relative">
+                  <span style="
                         position: absolute;
                         top: 50%;
                         left: 50%;
                         transform: translate(-50%, -50%);
                         font-size: 0.9rem;
-                      "
-                      >🎄</span
-                    >
-                  </span>
-                  <div class="legend-text">
-                    <strong data-translate="legendChristmas">Vánoční období</strong>
-                    <p data-translate="legendChristmasDesc">
-                      Speciální období s omezeným přístupem
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Report Bugs Section -->
-            <div
-              class="legend-section"
-              style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--gray-200)"
-            >
-              <div class="legend-instructions">
-                <div class="instruction-item">
-                  <span class="instruction-icon">📧</span>
-                  <span>
-                    <span data-translate="contactErrorsWriteTo">V případě chyb pište na:</span>
-                    <a
-                      href="mailto:prusek@utia.cas.cz"
-                      style="
-                        color: var(--primary-color);
-                        text-decoration: underline;
-                        margin-left: 0.25rem;
-                      "
-                      >prusek@utia.cas.cz</a
-                    >
-                  </span>
+                      ">🎄</span>
+                </span>
+                <div class="legend-text">
+                  <strong data-translate="legendChristmas">Vánoční období</strong>
+                  <p data-translate="legendChristmasDesc">
+                    Speciální období s omezeným přístupem
+                  </p>
                 </div>
               </div>
             </div>
           </div>
-        </section>
 
-        <!-- Booking Form Section -->
-        <section
-          class="booking-section"
-          id="tempReservationsSection"
-          style="display: none"
-        >
-          <div class="booking-card">
-            <!-- Temporary Reservations Display -->
-            <div
-              id="tempReservationsContainer"
-              style="display: none; margin-top: 1.5rem"
-            >
-              <h3 style="color: var(--primary-color); margin-bottom: 1rem">
-                <span data-translate="pendingReservations">Připravené rezervace</span>
-              </h3>
-              <div
-                id="tempReservationsList"
-                class="temp-reservations-list"
-              >
-                <!-- Temporary reservations will be displayed here -->
+          <!-- Report Bugs Section -->
+          <div class="legend-section"
+            style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--gray-200)">
+            <div class="legend-instructions">
+              <div class="instruction-item">
+                <span class="instruction-icon">📧</span>
+                <span>
+                  <span data-translate="contactErrorsWriteTo">V případě chyb pište na:</span>
+                  <a href="mailto:prusek@utia.cas.cz" style="
+                        color: var(--primary-color);
+                        text-decoration: underline;
+                        margin-left: 0.25rem;
+                      ">prusek@utia.cas.cz</a>
+                </span>
               </div>
-              <div
-                class="temp-reservations-summary"
-                style="
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Booking Form Section -->
+      <section class="booking-section" id="tempReservationsSection" style="display: none">
+        <div class="booking-card">
+          <!-- Temporary Reservations Display -->
+          <div id="tempReservationsContainer" style="display: none; margin-top: 1.5rem">
+            <h3 style="color: var(--primary-color); margin-bottom: 1rem">
+              <span data-translate="pendingReservations">Připravené rezervace</span>
+            </h3>
+            <div id="tempReservationsList" class="temp-reservations-list">
+              <!-- Temporary reservations will be displayed here -->
+            </div>
+            <div class="temp-reservations-summary" style="
                   margin-top: 1rem;
                   padding: 1rem;
                   background: var(--card-bg);
                   border-radius: 8px;
                   border: 2px solid var(--primary-color);
-                "
-              >
-                <div style="display: flex; justify-content: space-between; align-items: center">
-                  <span style="font-size: 1.2rem; font-weight: bold">
-                    <span data-translate="totalPrice">Celková cena</span>:
-                  </span>
-                  <span
-                    id="tempReservationsTotalPrice"
-                    style="font-size: 1.4rem; font-weight: bold; color: var(--primary-color)"
-                    >0 Kč</span
-                  >
-                </div>
+                ">
+              <div style="display: flex; justify-content: space-between; align-items: center">
+                <span style="font-size: 1.2rem; font-weight: bold">
+                  <span data-translate="totalPrice">Celková cena</span>:
+                </span>
+                <span id="tempReservationsTotalPrice"
+                  style="font-size: 1.4rem; font-weight: bold; color: var(--primary-color)">0 Kč</span>
               </div>
             </div>
-
-            <!-- Finalize Reservations Button - show only when there are reservations -->
-            <div
-              id="finalizeReservationsDiv"
-              style="margin-top: 1.5rem; text-align: center; display: none"
-            >
-              <button
-                id="finalizeReservationsBtn"
-                class="btn btn-primary"
-                onclick="finalizeAllReservations()"
-              >
-                <span data-translate="finalizeReservations">Dokončit všechny rezervace</span>
-              </button>
-            </div>
           </div>
-        </section>
-      </main>
 
-      <!-- Booking Details Modal -->
-      <div
-        id="bookingModal"
-        class="modal"
-      >
-        <div class="modal-content">
-          <button class="modal-close">&times;</button>
-          <h2>Detail rezervace</h2>
-          <div id="bookingDetails"></div>
-          <div class="modal-actions">
-            <button
-              id="contactOwner"
-              class="btn btn-primary"
-            >
-              Kontaktovat vlastníka
+          <!-- Finalize Reservations Button - show only when there are reservations -->
+          <div id="finalizeReservationsDiv" style="margin-top: 1.5rem; text-align: center; display: none">
+            <button id="finalizeReservationsBtn" class="btn btn-primary" onclick="finalizeAllReservations()">
+              <span data-translate="finalizeReservations">Dokončit všechny rezervace</span>
             </button>
           </div>
         </div>
-      </div>
+      </section>
+    </main>
 
-      <!-- Final Booking Form Modal -->
-      <div
-        id="finalBookingModal"
-        class="modal"
-      >
-        <div
-          class="modal-content"
-          style="max-width: 600px"
-        >
-          <button
-            class="modal-close"
-            onclick="closeFinalBookingModal()"
-          >
-            &times;
+    <!-- Booking Details Modal -->
+    <div id="bookingModal" class="modal">
+      <div class="modal-content">
+        <button class="modal-close">&times;</button>
+        <h2>Detail rezervace</h2>
+        <div id="bookingDetails"></div>
+        <div class="modal-actions">
+          <button id="contactOwner" class="btn btn-primary">
+            Kontaktovat vlastníka
           </button>
-          <h2 data-translate="completeBooking">Dokončit rezervaci</h2>
+        </div>
+      </div>
+    </div>
 
-          <!-- Reservations Summary -->
-          <div
-            style="
+    <!-- Final Booking Form Modal -->
+    <div id="finalBookingModal" class="modal">
+      <div class="modal-content" style="max-width: 600px">
+        <button class="modal-close" onclick="closeFinalBookingModal()">
+          &times;
+        </button>
+        <h2 data-translate="completeBooking">Dokončit rezervaci</h2>
+
+        <!-- Reservations Summary -->
+        <div style="
               background: var(--gray-50);
               padding: 1rem;
               border-radius: 8px;
               margin-bottom: 1.5rem;
-            "
-          >
-            <h3 style="margin-top: 0; color: var(--primary-color)">
-              <span data-translate="reservationSummary">Souhrn rezervace</span>
-            </h3>
-            <div id="finalBookingSummary"></div>
-            <div
-              style="
+            ">
+          <h3 style="margin-top: 0; color: var(--primary-color)">
+            <span data-translate="reservationSummary">Souhrn rezervace</span>
+          </h3>
+          <div id="finalBookingSummary"></div>
+          <div style="
                 margin-top: 1rem;
                 padding-top: 1rem;
                 border-top: 2px solid var(--primary-color);
-              "
-            >
-              <div style="display: flex; justify-content: space-between; align-items: center">
-                <span style="font-weight: bold; font-size: 1.1rem">
-                  <span data-translate="totalPrice">Celková cena</span>:
-                </span>
-                <span
-                  id="finalBookingTotalPrice"
-                  style="font-weight: bold; font-size: 1.2rem; color: var(--primary-color)"
-                  >0 Kč</span
-                >
-              </div>
+              ">
+            <div style="display: flex; justify-content: space-between; align-items: center">
+              <span style="font-weight: bold; font-size: 1.1rem">
+                <span data-translate="totalPrice">Celková cena</span>:
+              </span>
+              <span id="finalBookingTotalPrice"
+                style="font-weight: bold; font-size: 1.2rem; color: var(--primary-color)">0 Kč</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contact Form -->
+        <form id="finalBookingForm">
+          <h3 data-translate="contactDetails">Kontaktní údaje</h3>
+
+          <div class="input-group">
+            <label for="finalBookingName" data-translate="fullName">Jméno a příjmení *</label>
+            <input type="text" id="finalBookingName" required />
+          </div>
+
+          <div class="input-group">
+            <label for="finalBookingEmail" data-translate="email">Email *</label>
+            <input type="email" id="finalBookingEmail" required />
+          </div>
+
+          <div class="input-group">
+            <label for="finalBookingPhone" data-translate="phone">Telefon *</label>
+            <div class="phone-input-container">
+              <select id="finalBookingCountryCode" name="finalBookingCountryCode" class="phone-prefix-select">
+                <option value="+420">+420 (CZ)</option>
+                <option value="+421">+421 (SK)</option>
+                <option value="+1">+1 (US)</option>
+                <option value="+44">+44 (UK)</option>
+                <option value="+49">+49 (DE)</option>
+                <option value="+33">+33 (FR)</option>
+                <option value="+43">+43 (AT)</option>
+                <option value="+48">+48 (PL)</option>
+                <option value="+386">+386 (SI)</option>
+              </select>
+              <input type="tel" id="finalBookingPhone" class="phone-number-input" placeholder="123456789"
+                pattern="[0-9\s]{9,13}" title="Zadejte 9 číslic telefonního čísla" required />
             </div>
           </div>
 
-          <!-- Contact Form -->
-          <form id="finalBookingForm">
-            <h3 data-translate="contactDetails">Kontaktní údaje</h3>
+          <h3 data-translate="billingDetails">Fakturační údaje</h3>
 
+          <div class="input-group">
+            <label for="finalBookingCompany">Firma</label>
+            <input type="text" id="finalBookingCompany" minlength="2" />
+          </div>
+
+          <div class="input-group">
+            <label for="finalBookingAddress">Ulice a číslo *</label>
+            <input type="text" id="finalBookingAddress" required minlength="5" />
+          </div>
+
+          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem">
             <div class="input-group">
-              <label
-                for="finalBookingName"
-                data-translate="fullName"
-                >Jméno a příjmení *</label
-              >
-              <input
-                type="text"
-                id="finalBookingName"
-                required
-              />
+              <label for="finalBookingCity">Město *</label>
+              <input type="text" id="finalBookingCity" required minlength="2" />
             </div>
-
             <div class="input-group">
-              <label
-                for="finalBookingEmail"
-                data-translate="email"
-                >Email *</label
-              >
-              <input
-                type="email"
-                id="finalBookingEmail"
-                required
-              />
+              <label for="finalBookingZip">PSČ *</label>
+              <input type="text" id="finalBookingZip" required pattern="[0-9]{5}" maxlength="5" />
             </div>
+          </div>
 
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem">
             <div class="input-group">
-              <label
-                for="finalBookingPhone"
-                data-translate="phone"
-                >Telefon *</label
-              >
-              <div class="phone-input-container">
-                <select
-                  id="finalBookingCountryCode"
-                  name="finalBookingCountryCode"
-                  class="phone-prefix-select"
-                >
-                  <option value="+420">+420 (CZ)</option>
-                  <option value="+421">+421 (SK)</option>
-                  <option value="+1">+1 (US)</option>
-                  <option value="+44">+44 (UK)</option>
-                  <option value="+49">+49 (DE)</option>
-                  <option value="+33">+33 (FR)</option>
-                  <option value="+43">+43 (AT)</option>
-                  <option value="+48">+48 (PL)</option>
-                  <option value="+386">+386 (SI)</option>
-                </select>
-                <input
-                  type="tel"
-                  id="finalBookingPhone"
-                  class="phone-number-input"
-                  placeholder="123456789"
-                  pattern="[0-9\s]{9,13}"
-                  title="Zadejte 9 číslic telefonního čísla"
-                  required
-                />
-              </div>
+              <label for="finalBookingIco">IČO</label>
+              <input type="text" id="finalBookingIco" pattern="[0-9]{8}" maxlength="8" />
             </div>
-
-            <h3 data-translate="billingDetails">Fakturační údaje</h3>
-
             <div class="input-group">
-              <label for="finalBookingCompany">Firma</label>
-              <input
-                type="text"
-                id="finalBookingCompany"
-                minlength="2"
-              />
+              <label for="finalBookingDic" data-translate="dic">DIČ</label>
+              <input type="text" id="finalBookingDic" pattern="[A-Z]{2}[0-9]{8,10}" placeholder="CZ12345678" />
             </div>
+          </div>
 
-            <div class="input-group">
-              <label for="finalBookingAddress">Ulice a číslo *</label>
-              <input
-                type="text"
-                id="finalBookingAddress"
-                required
-                minlength="5"
-              />
-            </div>
+          <div class="input-group">
+            <label for="finalBookingNotes" data-translate="notes">Poznámky</label>
+            <textarea id="finalBookingNotes" rows="3"></textarea>
+          </div>
 
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem">
-              <div class="input-group">
-                <label for="finalBookingCity">Město *</label>
-                <input
-                  type="text"
-                  id="finalBookingCity"
-                  required
-                  minlength="2"
-                />
-              </div>
-              <div class="input-group">
-                <label for="finalBookingZip">PSČ *</label>
-                <input
-                  type="text"
-                  id="finalBookingZip"
-                  required
-                  pattern="[0-9]{5}"
-                  maxlength="5"
-                />
-              </div>
-            </div>
+          <!-- Christmas Access Code (conditionally shown) -->
+          <div class="input-group" id="finalChristmasCodeGroup" style="display: none">
+            <label for="finalChristmasCode" data-translate="christmasCodeLabel">Vánoční přístupový kód</label>
+            <input type="text" id="finalChristmasCode" name="finalChristmasCode" placeholder=""
+              data-translate-placeholder="christmasCodePlaceholder" />
+            <small style="color: var(--warning-color); display: block; margin-top: 0.25rem"
+              data-translate="christmasCodeRequired">
+              Pro rezervace ve vánočním období je vyžadován přístupový kód
+            </small>
+          </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem">
-              <div class="input-group">
-                <label for="finalBookingIco">IČO</label>
-                <input
-                  type="text"
-                  id="finalBookingIco"
-                  pattern="[0-9]{8}"
-                  maxlength="8"
-                />
-              </div>
-              <div class="input-group">
-                <label
-                  for="finalBookingDic"
-                  data-translate="dic"
-                  >DIČ</label
-                >
-                <input
-                  type="text"
-                  id="finalBookingDic"
-                  pattern="[A-Z]{2}[0-9]{8,10}"
-                  placeholder="CZ12345678"
-                />
-              </div>
-            </div>
+          <div class="input-group" style="margin-top: 1rem">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
+              <input type="checkbox" id="finalBookingBenefit" style="width: auto; margin: 0" />
+              <span data-translate="paymentFromBenefit">Platba z benefitů</span>
+            </label>
+          </div>
 
-            <div class="input-group">
-              <label
-                for="finalBookingNotes"
-                data-translate="notes"
-                >Poznámky</label
-              >
-              <textarea
-                id="finalBookingNotes"
-                rows="3"
-              ></textarea>
-            </div>
-
-            <!-- Christmas Access Code (conditionally shown) -->
-            <div
-              class="input-group"
-              id="finalChristmasCodeGroup"
-              style="display: none"
-            >
-              <label
-                for="finalChristmasCode"
-                data-translate="christmasCodeLabel"
-                >Vánoční přístupový kód</label
-              >
-              <input
-                type="text"
-                id="finalChristmasCode"
-                name="finalChristmasCode"
-                placeholder=""
-                data-translate-placeholder="christmasCodePlaceholder"
-              />
-              <small
-                style="color: var(--warning-color); display: block; margin-top: 0.25rem"
-                data-translate="christmasCodeRequired"
-              >
-                Pro rezervace ve vánočním období je vyžadován přístupový kód
-              </small>
-            </div>
-
-            <div
-              class="input-group"
-              style="margin-top: 1rem"
-            >
-              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
-                <input
-                  type="checkbox"
-                  id="finalBookingBenefit"
-                  style="width: auto; margin: 0"
-                />
-                <span data-translate="paymentFromBenefit">Platba z benefitů</span>
-              </label>
-            </div>
-
-            <div style="display: flex; gap: 1rem; margin-top: 1.5rem">
-              <button
-                type="button"
-                class="btn btn-secondary"
-                onclick="closeFinalBookingModal()"
-              >
-                <span data-translate="cancel">Zrušit</span>
-              </button>
-              <button
-                type="submit"
-                class="btn btn-primary"
-              >
-                <span data-translate="confirmBooking">Potvrdit rezervaci</span>
-              </button>
-            </div>
-          </form>
-        </div>
+          <div style="display: flex; gap: 1rem; margin-top: 1.5rem">
+            <button type="button" class="btn btn-secondary" onclick="closeFinalBookingModal()">
+              <span data-translate="cancel">Zrušit</span>
+            </button>
+            <button type="submit" class="btn btn-primary">
+              <span data-translate="confirmBooking">Potvrdit rezervaci</span>
+            </button>
+          </div>
+        </form>
       </div>
+    </div>
 
-      <!-- Contact Form Modal -->
-      <div
-        id="contactModal"
-        class="modal"
-      >
-        <div class="modal-content">
-          <button class="modal-close">&times;</button>
-          <h2 data-translate="contactOwnerTitle">Kontaktovat vlastníka rezervace</h2>
-          <div
-            style="
+    <!-- Contact Form Modal -->
+    <div id="contactModal" class="modal">
+      <div class="modal-content">
+        <button class="modal-close">&times;</button>
+        <h2 data-translate="contactOwnerTitle">Kontaktovat vlastníka rezervace</h2>
+        <div style="
               background: var(--gray-50);
               padding: 1rem;
               border-radius: var(--radius-md);
               margin-bottom: 1.5rem;
-            "
-          >
-            <p
-              style="font-size: 0.9rem; color: var(--gray-600); margin: 0"
-              data-translate="contactOwnerInfo"
-            >
-              Vaše zpráva bude odeslána vlastníkovi rezervace. Email vlastníka zůstává skrytý.
-            </p>
-          </div>
-          <form id="contactForm">
-            <div class="input-group">
-              <label
-                for="contactEmail"
-                data-translate="yourEmail"
-                >Váš email *</label
-              >
-              <input
-                type="email"
-                id="contactEmail"
-                required
-              />
-            </div>
-            <div class="input-group">
-              <label
-                for="contactMessage"
-                data-translate="message"
-                >Zpráva *</label
-              >
-              <textarea
-                id="contactMessage"
-                rows="5"
-                required
-                placeholder="Napište svou zprávu..."
-              ></textarea>
-            </div>
-            <button
-              type="submit"
-              class="btn-primary"
-              data-translate="sendMessage"
-            >
-              Odeslat zprávu
-            </button>
-          </form>
+            ">
+          <p style="font-size: 0.9rem; color: var(--gray-600); margin: 0" data-translate="contactOwnerInfo">
+            Vaše zpráva bude odeslána vlastníkovi rezervace. Email vlastníka zůstává skrytý.
+          </p>
         </div>
-      </div>
-
-      <!-- Booking Form Modal -->
-      <div
-        id="bookingFormModal"
-        class="modal"
-      >
-        <div class="modal-content">
-          <button
-            class="modal-close"
-            id="bookingFormModalClose"
-          >
-            &times;
+        <form id="contactForm">
+          <div class="input-group">
+            <label for="contactEmail" data-translate="yourEmail">Váš email *</label>
+            <input type="email" id="contactEmail" required />
+          </div>
+          <div class="input-group">
+            <label for="contactMessage" data-translate="message">Zpráva *</label>
+            <textarea id="contactMessage" rows="5" required placeholder="Napište svou zprávu..."></textarea>
+          </div>
+          <button type="submit" class="btn-primary" data-translate="sendMessage">
+            Odeslat zprávu
           </button>
-          <h2 data-translate="completeBooking">Dokončení rezervace</h2>
+        </form>
+      </div>
+    </div>
 
-          <!-- Booking Summary -->
-          <div
-            style="
+    <!-- Booking Form Modal -->
+    <div id="bookingFormModal" class="modal">
+      <div class="modal-content">
+        <button class="modal-close" id="bookingFormModalClose">
+          &times;
+        </button>
+        <h2 data-translate="completeBooking">Dokončení rezervace</h2>
+
+        <!-- Booking Summary -->
+        <div style="
               background: var(--gray-50);
               padding: 1rem;
               border-radius: var(--radius-md);
               margin-bottom: 2rem;
-            "
-          >
-            <h3
-              style="font-size: 1rem; margin-bottom: 1rem"
-              data-translate="bookingSummary"
-            >
-              Souhrn rezervace
-            </h3>
-            <div
-              id="bookingSummary"
-              style="display: grid; gap: 0.5rem"
-            >
-              <!-- Summary will be populated here -->
-            </div>
+            ">
+          <h3 style="font-size: 1rem; margin-bottom: 1rem" data-translate="bookingSummary">
+            Souhrn rezervace
+          </h3>
+          <div id="bookingSummary" style="display: grid; gap: 0.5rem">
+            <!-- Summary will be populated here -->
           </div>
+        </div>
 
-          <!-- Booking Form -->
-          <form id="bookingForm">
-            <h3
-              style="font-size: 1.1rem; margin-bottom: 1rem"
-              data-translate="billingDetails"
-            >
-              Fakturační údaje
-            </h3>
+        <!-- Booking Form -->
+        <form id="bookingForm">
+          <div id="bookingContactFormContainer"></div>
 
-            <div class="form-grid">
-              <div class="input-group">
-                <label
-                  for="name"
-                  data-translate="fullName"
-                  >Jméno a příjmení <span class="required-asterisk">*</span></label
-                >
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  required
-                  minlength="3"
-                  data-translate-placeholder="namePlaceholder"
-                  title="Zadejte celé jméno (min. 3 znaky)"
-                />
-              </div>
+          <div class="form-grid">
+            <div class="input-group">
+              <label for="ico" data-translate="ico">IČO</label>
+              <input type="text" id="ico" name="ico" pattern="[0-9]{8}" data-translate-placeholder="icoPlaceholder"
+                maxlength="8" title="IČO musí obsahovat 8 číslic (nepovinné)" />
+            </div>
 
-              <div class="input-group">
-                <label
-                  for="email"
-                  data-translate="email"
-                  >Email <span class="required-asterisk">*</span></label
-                >
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  required
-                  data-translate-placeholder="emailPlaceholder"
-                  pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
-                  title="Zadejte platnou emailovou adresu"
-                />
-              </div>
-
-              <div class="input-group">
-                <label
-                  for="phone"
-                  data-translate="phone"
-                  >Telefon <span class="required-asterisk">*</span></label
-                >
-                <div class="phone-input-container">
-                  <select
-                    id="phonePrefix"
-                    name="phonePrefix"
-                    class="phone-prefix-select"
-                  >
-                    <option value="+420">+420 (CZ)</option>
-                    <option value="+421">+421 (SK)</option>
-                    <option value="+1">+1 (US)</option>
-                    <option value="+44">+44 (UK)</option>
-                    <option value="+49">+49 (DE)</option>
-                    <option value="+33">+33 (FR)</option>
-                    <option value="+43">+43 (AT)</option>
-                    <option value="+48">+48 (PL)</option>
-                    <option value="+386">+386 (SI)</option>
-                  </select>
-                  <input
-                    type="tel"
-                    id="phone"
-                    name="phone"
-                    class="phone-number-input"
-                    required
-                    data-translate-placeholder="phonePlaceholder"
-                    pattern="[0-9\s]{9,13}"
-                    title="Zadejte 9 číslic telefonního čísla"
-                  />
-                </div>
-              </div>
-
-              <div class="input-group">
-                <label
-                  for="company"
-                  data-translate="company"
-                  >Firma</label
-                >
-                <input
-                  type="text"
-                  id="company"
-                  name="company"
-                  minlength="2"
-                  data-translate-placeholder="companyPlaceholder"
-                  title="Zadejte název firmy"
-                />
-              </div>
-
-              <div class="input-group full-width">
-                <label
-                  for="address"
-                  data-translate="address"
-                  >Adresa <span class="required-asterisk">*</span></label
-                >
-                <input
-                  type="text"
-                  id="address"
-                  name="address"
-                  required
-                  minlength="5"
-                  data-translate-placeholder="addressPlaceholder"
-                  title="Zadejte ulici a číslo popisné"
-                />
-              </div>
-
-              <div class="input-group">
-                <label
-                  for="city"
-                  data-translate="city"
-                  >Město <span class="required-asterisk">*</span></label
-                >
-                <input
-                  type="text"
-                  id="city"
-                  name="city"
-                  required
-                  minlength="2"
-                  data-translate-placeholder="cityPlaceholder"
-                  title="Zadejte název města"
-                />
-              </div>
-
-              <div class="input-group">
-                <label
-                  for="zip"
-                  data-translate="zip"
-                  >PSČ <span class="required-asterisk">*</span></label
-                >
-                <input
-                  type="text"
-                  id="zip"
-                  name="zip"
-                  required
-                  pattern="[0-9]{5}"
-                  data-translate-placeholder="zipPlaceholder"
-                  maxlength="5"
-                  title="PSČ musí obsahovat přesně 5 číslic"
-                />
-              </div>
-
-              <div class="input-group">
-                <label
-                  for="ico"
-                  data-translate="ico"
-                  >IČO</label
-                >
-                <input
-                  type="text"
-                  id="ico"
-                  name="ico"
-                  pattern="[0-9]{8}"
-                  data-translate-placeholder="icoPlaceholder"
-                  maxlength="8"
-                  title="IČO musí obsahovat 8 číslic (nepovinné)"
-                />
-              </div>
-
-              <div class="input-group">
-                <label
-                  for="dic"
-                  data-translate="dic"
-                  >DIČ</label
-                >
-                <input
-                  type="text"
-                  id="dic"
-                  name="dic"
-                  pattern="(CZ)?[0-9]{8,10}"
-                  data-translate-placeholder="dicPlaceholder"
-                  title="DIČ ve formátu CZ12345678"
-                />
-              </div>
+            <div class="input-group">
+              <label for="dic" data-translate="dic">DIČ</label>
+              <input type="text" id="dic" name="dic" pattern="(CZ)?[0-9]{8,10}" data-translate-placeholder="dicPlaceholder"
+                title="DIČ ve formátu CZ12345678" />
             </div>
 
             <div class="input-group full-width">
-              <label
-                for="notes"
-                data-translate="notes"
-              >
-                Poznámky
-              </label>
-              <textarea
-                id="notes"
-                name="notes"
-                rows="3"
-              ></textarea>
+              <label for="notes" data-translate="notes">Poznámky</label>
+              <textarea id="notes" name="notes" rows="3"></textarea>
             </div>
 
-
             <!-- Christmas Access Code (conditionally shown) -->
-            <div
-              class="input-group full-width"
-              id="christmasCodeGroup"
-              style="display: none"
-            >
-              <label
-                for="christmasCode"
-                data-translate="christmasCodeLabel"
-                >Vánoční přístupový kód</label
-              >
-              <input
-                type="text"
-                id="christmasCode"
-                name="christmasCode"
-                placeholder=""
-                data-translate-placeholder="christmasCodePlaceholder"
-              />
-              <small
-                style="color: var(--warning-color); display: block; margin-top: 0.25rem"
-                data-translate="christmasCodeRequired"
-              >
+            <div class="input-group full-width" id="christmasCodeGroup" style="display: none">
+              <label for="christmasCode" data-translate="christmasCodeLabel">Vánoční přístupový kód</label>
+              <input type="text" id="christmasCode" name="christmasCode" placeholder=""
+                data-translate-placeholder="christmasCodePlaceholder" />
+              <small style="color: var(--warning-color); display: block; margin-top: 0.25rem"
+                data-translate="christmasCodeRequired">
                 Pro rezervace ve vánočním období je vyžadován přístupový kód
               </small>
             </div>
 
             <div class="input-group full-width">
               <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
-                <input
-                  type="checkbox"
-                  id="payFromBenefit"
-                  name="payFromBenefit"
-                  style="width: auto; margin: 0"
-                />
+                <input type="checkbox" id="payFromBenefit" name="payFromBenefit" style="width: auto; margin: 0" />
                 <span data-translate="paymentFromBenefit">Platba z benefitů</span>
               </label>
             </div>
-
-            <div
-              class="modal-actions"
-              style="margin-top: 2rem"
-            >
-              <button
-                type="button"
-                class="btn btn-secondary"
-                onclick="document.getElementById('bookingFormModal').classList.remove('active')"
-                data-translate="cancel"
-              >
-                Zrušit
-              </button>
-              <button
-                type="submit"
-                class="btn btn-primary"
-                data-translate="confirmBooking"
-              >
-                Potvrdit rezervaci
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-
-      <!-- Single Room Booking Modal -->
-      <div
-        id="singleRoomBookingModal"
-        class="modal"
-      >
-        <div class="modal-content compact-booking-modal">
-          <button
-            class="modal-close"
-            onclick="window.app.singleRoomBooking.hideRoomBookingModal()"
-          >
-            &times;
-          </button>
-
-          <!-- Room Header -->
-          <div class="booking-modal-header">
-            <h2
-              id="roomBookingTitle"
-              data-translate="roomReservation"
-            >
-              Rezervace pokoje
-            </h2>
-            <div id="roomBookingBadge"></div>
           </div>
 
-          <div class="booking-modal-content">
-            <!-- Left Column: Calendar -->
-            <div class="booking-left-column">
-              <h3 data-translate="selectStayPeriod">Vyberte termín pobytu</h3>
+          <div class="modal-actions" style="margin-top: 2rem">
+            <button type="button" class="btn btn-secondary" id="bookingFormCancelBtn"
+              onclick="document.getElementById('bookingFormModal').classList.remove('active')" data-translate="cancel">
+              Zrušit
+            </button>
+            <button type="submit" class="btn btn-primary" data-translate="confirmBooking">
+              Potvrdit rezervaci
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
 
-              <!-- Interactive Calendar -->
-              <div
-                id="miniCalendar"
-                class="interactive-calendar"
-              >
-                <!-- Calendar will be generated here -->
-              </div>
-            </div>
+  <!-- Single Room Booking Modal -->
+  <div id="singleRoomBookingModal" class="modal">
+    <div class="modal-content compact-booking-modal">
+      <button class="modal-close" onclick="window.app.singleRoomBooking.hideRoomBookingModal()">
+        &times;
+      </button>
 
-            <!-- Right Column: Guest Details & Booking Form -->
-            <div class="booking-right-column">
-              <div class="booking-form-section">
-                <!-- Date Selection Summary - moved here -->
-                <div
-                  id="dateSelectionSummary"
-                  style="
+      <!-- Room Header -->
+      <div class="booking-modal-header">
+        <h2 id="roomBookingTitle" data-translate="roomReservation">
+          Rezervace pokoje
+        </h2>
+        <div id="roomBookingBadge"></div>
+      </div>
+
+      <div class="booking-modal-content">
+        <!-- Left Column: Calendar -->
+        <div class="booking-left-column">
+          <h3 data-translate="selectStayPeriod">Vyberte termín pobytu</h3>
+
+          <!-- Interactive Calendar -->
+          <div id="miniCalendar" class="interactive-calendar">
+            <!-- Calendar will be generated here -->
+          </div>
+        </div>
+
+        <!-- Right Column: Guest Details & Booking Form -->
+        <div class="booking-right-column">
+          <div class="booking-form-section">
+            <!-- Date Selection Summary - moved here -->
+            <div id="dateSelectionSummary" style="
                     margin-bottom: 1rem;
                     padding: 1rem;
                     background: #f0f9ff;
                     border-radius: 8px;
                     display: none;
-                  "
-                >
-                  <div style="display: flex; justify-content: space-between; align-items: center">
-                    <div>
-                      <div
-                        style="font-size: 0.9rem; color: #666"
-                        data-translate="selectedPeriodLabel"
-                      >
-                        Vybraný termín:
-                      </div>
-                      <div
-                        id="selectedDateRange"
-                        style="font-weight: 600; color: #333"
-                      ></div>
-                    </div>
-                    <div style="text-align: right">
-                      <div
-                        style="font-size: 0.9rem; color: #666"
-                        data-translate="nightsCountLabel"
-                      >
-                        Počet nocí:
-                      </div>
-                      <div
-                        id="nightsCount"
-                        style="font-weight: 600; color: #2563eb; font-size: 1.2rem"
-                      >
-                        0
-                      </div>
-                    </div>
+                  ">
+              <div style="display: flex; justify-content: space-between; align-items: center">
+                <div>
+                  <div style="font-size: 0.9rem; color: #666" data-translate="selectedPeriodLabel">
+                    Vybraný termín:
+                  </div>
+                  <div id="selectedDateRange" style="font-weight: 600; color: #333"></div>
+                </div>
+                <div style="text-align: right">
+                  <div style="font-size: 0.9rem; color: #666" data-translate="nightsCountLabel">
+                    Počet nocí:
+                  </div>
+                  <div id="nightsCount" style="font-weight: 600; color: #2563eb; font-size: 1.2rem">
+                    0
                   </div>
                 </div>
+              </div>
+            </div>
 
-                <h3 data-translate="guestTypeAndCount">Typ hosta a počet osob</h3>
+            <h3 data-translate="guestTypeAndCount">Typ hosta a počet osob</h3>
 
-                <!-- Guest Count -->
-                <div
-                  class="guest-counters"
-                  style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem"
-                >
-                  <div class="counter-item">
-                    <label
-                      class="counter-label"
-                      style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
-                      data-translate="adultsLabel"
-                      >Dospělí</label
-                    >
-                    <div
-                      class="counter-controls"
-                      style="
+            <!-- Guest Count -->
+            <div class="guest-counters" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem">
+              <div class="counter-item">
+                <label class="counter-label"
+                  style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
+                  data-translate="adultsLabel">Dospělí</label>
+                <div class="counter-controls" style="
                         display: flex;
                         align-items: center;
                         background: white;
                         border: 1px solid #e2e8f0;
                         border-radius: 6px;
-                      "
-                    >
-                      <button
-                        class="counter-btn"
-                        onclick="window.app.adjustGuests('adults', -1)"
-                        style="
+                      ">
+                  <button class="counter-btn" onclick="window.app.adjustGuests('adults', -1)" style="
                           padding: 0.5rem 0.75rem;
                           border: none;
                           background: transparent;
                           cursor: pointer;
                           font-size: 1.2rem;
-                        "
-                      >
-                        -
-                      </button>
-                      <span
-                        id="singleRoomAdults"
-                        class="counter-value"
-                        style="flex: 1; text-align: center; font-weight: 600"
-                        >1</span
-                      >
-                      <button
-                        class="counter-btn"
-                        onclick="window.app.adjustGuests('adults', 1)"
-                        style="
+                        ">
+                    -
+                  </button>
+                  <span id="singleRoomAdults" class="counter-value"
+                    style="flex: 1; text-align: center; font-weight: 600">1</span>
+                  <button class="counter-btn" onclick="window.app.adjustGuests('adults', 1)" style="
                           padding: 0.5rem 0.75rem;
                           border: none;
                           background: transparent;
                           cursor: pointer;
                           font-size: 1.2rem;
-                        "
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                  <div class="counter-item">
-                    <label
-                      class="counter-label"
-                      style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
-                      data-translate="childrenLabel"
-                      >Děti (3-17)</label
-                    >
-                    <div
-                      class="counter-controls"
-                      style="
-                        display: flex;
-                        align-items: center;
-                        background: white;
-                        border: 1px solid #e2e8f0;
-                        border-radius: 6px;
-                      "
-                    >
-                      <button
-                        class="counter-btn"
-                        onclick="window.app.adjustGuests('children', -1)"
-                        style="
-                          padding: 0.5rem 0.75rem;
-                          border: none;
-                          background: transparent;
-                          cursor: pointer;
-                          font-size: 1.2rem;
-                        "
-                      >
-                        -
-                      </button>
-                      <span
-                        id="singleRoomChildren"
-                        class="counter-value"
-                        style="flex: 1; text-align: center; font-weight: 600"
-                        >0</span
-                      >
-                      <button
-                        class="counter-btn"
-                        onclick="window.app.adjustGuests('children', 1)"
-                        style="
-                          padding: 0.5rem 0.75rem;
-                          border: none;
-                          background: transparent;
-                          cursor: pointer;
-                          font-size: 1.2rem;
-                        "
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                  <div class="counter-item">
-                    <label
-                      class="counter-label"
-                      style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
-                      data-translate="toddlersCount"
-                      >Batolata (0-3)</label
-                    >
-                    <div
-                      class="counter-controls"
-                      style="
-                        display: flex;
-                        align-items: center;
-                        background: white;
-                        border: 1px solid #e2e8f0;
-                        border-radius: 6px;
-                      "
-                    >
-                      <button
-                        class="counter-btn"
-                        onclick="window.app.adjustGuests('toddlers', -1)"
-                        style="
-                          padding: 0.5rem 0.75rem;
-                          border: none;
-                          background: transparent;
-                          cursor: pointer;
-                          font-size: 1.2rem;
-                        "
-                      >
-                        -
-                      </button>
-                      <span
-                        id="singleRoomToddlers"
-                        class="counter-value"
-                        style="flex: 1; text-align: center; font-weight: 600"
-                        >0</span
-                      >
-                      <button
-                        class="counter-btn"
-                        onclick="window.app.adjustGuests('toddlers', 1)"
-                        style="
-                          padding: 0.5rem 0.75rem;
-                          border: none;
-                          background: transparent;
-                          cursor: pointer;
-                          font-size: 1.2rem;
-                        "
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
+                        ">
+                    +
+                  </button>
                 </div>
+              </div>
+              <div class="counter-item">
+                <label class="counter-label"
+                  style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
+                  data-translate="childrenLabel">Děti (3-17)</label>
+                <div class="counter-controls" style="
+                        display: flex;
+                        align-items: center;
+                        background: white;
+                        border: 1px solid #e2e8f0;
+                        border-radius: 6px;
+                      ">
+                  <button class="counter-btn" onclick="window.app.adjustGuests('children', -1)" style="
+                          padding: 0.5rem 0.75rem;
+                          border: none;
+                          background: transparent;
+                          cursor: pointer;
+                          font-size: 1.2rem;
+                        ">
+                    -
+                  </button>
+                  <span id="singleRoomChildren" class="counter-value"
+                    style="flex: 1; text-align: center; font-weight: 600">0</span>
+                  <button class="counter-btn" onclick="window.app.adjustGuests('children', 1)" style="
+                          padding: 0.5rem 0.75rem;
+                          border: none;
+                          background: transparent;
+                          cursor: pointer;
+                          font-size: 1.2rem;
+                        ">
+                    +
+                  </button>
+                </div>
+              </div>
+              <div class="counter-item">
+                <label class="counter-label"
+                  style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
+                  data-translate="toddlersCount">Batolata (0-3)</label>
+                <div class="counter-controls" style="
+                        display: flex;
+                        align-items: center;
+                        background: white;
+                        border: 1px solid #e2e8f0;
+                        border-radius: 6px;
+                      ">
+                  <button class="counter-btn" onclick="window.app.adjustGuests('toddlers', -1)" style="
+                          padding: 0.5rem 0.75rem;
+                          border: none;
+                          background: transparent;
+                          cursor: pointer;
+                          font-size: 1.2rem;
+                        ">
+                    -
+                  </button>
+                  <span id="singleRoomToddlers" class="counter-value"
+                    style="flex: 1; text-align: center; font-weight: 600">0</span>
+                  <button class="counter-btn" onclick="window.app.adjustGuests('toddlers', 1)" style="
+                          padding: 0.5rem 0.75rem;
+                          border: none;
+                          background: transparent;
+                          cursor: pointer;
+                          font-size: 1.2rem;
+                        ">
+                    +
+                  </button>
+                </div>
+              </div>
+            </div>
 
-                <!-- Capacity Warning -->
-                <div
-                  id="capacityWarning"
-                  style="
+            <!-- Capacity Warning -->
+            <div id="capacityWarning" style="
                     margin-top: 0.5rem;
                     padding: 0.5rem;
                     background: #fff3cd;
                     border-left: 4px solid #ffc107;
                     border-radius: 4px;
                     display: none;
-                  "
-                >
-                  <span
-                    style="color: #856404; font-size: 0.9rem"
-                    data-translate="capacityExceededRoom"
-                    >⚠️ Překročena kapacita pokoje</span
-                  >
-                </div>
+                  ">
+              <span style="color: #856404; font-size: 0.9rem" data-translate="capacityExceededRoom">⚠️ Překročena
+                kapacita pokoje</span>
+            </div>
 
-                <!-- Per-Room Guest Type Selection (HIDDEN - 2025-11-04: Now per-guest instead) -->
-                <div id="singleRoomPerRoomGuestTypeContainer" style="display: none;">
-                  <label>Typ hostů pro tento pokoj:</label>
-                  <select id="singleRoomPerRoomGuestType" onchange="window.app.setRoomGuestType(this.value)">
-                    <option value="utia">Zaměstnanec ÚTIA</option>
-                    <option value="external">Externí host</option>
-                  </select>
-                </div>
+            <!-- Per-Room Guest Type Selection (HIDDEN - 2025-11-04: Now per-guest instead) -->
+            <div id="singleRoomPerRoomGuestTypeContainer" style="display: none;">
+              <label>Typ hostů pro tento pokoj:</label>
+              <select id="singleRoomPerRoomGuestType" onchange="window.app.setRoomGuestType(this.value)">
+                <option value="utia">Zaměstnanec ÚTIA</option>
+                <option value="external">Externí host</option>
+              </select>
+            </div>
 
-                <!-- Guest Names Section (OPTIONAL - not required for adding to temp reservations) -->
-                <div
-                  id="singleRoomGuestNamesSection"
-                  style="
+            <!-- Guest Names Section (OPTIONAL - not required for adding to temp reservations) -->
+            <div id="singleRoomGuestNamesSection" style="
                     display: none;
                     margin-top: 1rem;
                     padding: 1rem;
                     background: #f0fdf4;
                     border: 2px solid #10b981;
                     border-radius: 8px;
-                  "
-                >
-                  <h4
-                    style="margin-bottom: 0.75rem; color: #065f46; font-size: 1rem"
-                    data-translate="guestNamesTitle"
-                  >
-                    👥 Jména ubytovaných osob
-                  </h4>
-                  <!-- Adults Names -->
-                  <div id="singleRoomAdultsNamesContainer">
-                    <h5
-                      style="font-size: 0.9rem; margin-bottom: 0.5rem; color: #374151"
-                    >
-                      Dospělí (18+ let)
-                    </h5>
-                    <div
-                      id="singleRoomAdultsNamesList"
-                      style="display: grid; gap: 0.5rem"
-                    ></div>
-                  </div>
+                  ">
+              <h4 style="margin-bottom: 0.75rem; color: #065f46; font-size: 1rem" data-translate="guestNamesTitle">
+                👥 Jména ubytovaných osob
+              </h4>
+              <!-- Adults Names -->
+              <div id="singleRoomAdultsNamesContainer">
+                <h5 style="font-size: 0.9rem; margin-bottom: 0.5rem; color: #374151">
+                  Dospělí (18+ let)
+                </h5>
+                <div id="singleRoomAdultsNamesList" style="display: grid; gap: 0.5rem"></div>
+              </div>
 
-                  <!-- Children Names -->
-                  <div
-                    id="singleRoomChildrenNamesContainer"
-                    style="display: none; margin-top: 0.75rem"
-                  >
-                    <h5
-                      style="font-size: 0.9rem; margin-bottom: 0.5rem; color: #374151"
-                    >
-                      Děti (3-17 let)
-                    </h5>
-                    <div
-                      id="singleRoomChildrenNamesList"
-                      style="display: grid; gap: 0.5rem"
-                    ></div>
-                  </div>
+              <!-- Children Names -->
+              <div id="singleRoomChildrenNamesContainer" style="display: none; margin-top: 0.75rem">
+                <h5 style="font-size: 0.9rem; margin-bottom: 0.5rem; color: #374151">
+                  Děti (3-17 let)
+                </h5>
+                <div id="singleRoomChildrenNamesList" style="display: grid; gap: 0.5rem"></div>
+              </div>
 
-                  <!-- Toddlers Names -->
-                  <div
-                    id="singleRoomToddlersNamesContainer"
-                    style="display: none; margin-top: 0.75rem"
-                  >
-                    <h5
-                      style="font-size: 0.9rem; margin-bottom: 0.5rem; color: #374151"
-                    >
-                      Batolata (0-2 roky)
-                    </h5>
-                    <div
-                      id="singleRoomToddlersNamesList"
-                      style="display: grid; gap: 0.5rem"
-                    ></div>
-                  </div>
-                </div>
+              <!-- Toddlers Names -->
+              <div id="singleRoomToddlersNamesContainer" style="display: none; margin-top: 0.75rem">
+                <h5 style="font-size: 0.9rem; margin-bottom: 0.5rem; color: #374151">
+                  Batolata (0-2 roky)
+                </h5>
+                <div id="singleRoomToddlersNamesList" style="display: grid; gap: 0.5rem"></div>
+              </div>
+            </div>
 
-                <!-- Price Summary -->
-                <div
-                  class="price-summary"
-                  style="border-top: 2px solid #e2e8f0; padding-top: 1rem; margin-top: 1rem"
-                >
-                  <h4
-                    style="margin-bottom: 0.75rem; color: #333"
-                    data-translate="priceSummary"
-                  >
-                    Souhrn ceny
-                  </h4>
-                  <div
-                    id="priceBreakdown"
-                    style="
+            <!-- Price Summary -->
+            <div class="price-summary" style="border-top: 2px solid #e2e8f0; padding-top: 1rem; margin-top: 1rem">
+              <h4 style="margin-bottom: 0.75rem; color: #333" data-translate="priceSummary">
+                Souhrn ceny
+              </h4>
+              <div id="priceBreakdown" style="
                       background: white;
                       padding: 1rem;
                       border-radius: 8px;
                       border: 1px solid #e2e8f0;
-                    "
-                  >
-                    <div
-                      class="price-line"
-                      style="
+                    ">
+                <div class="price-line" style="
                         display: flex;
                         justify-content: space-between;
                         margin-bottom: 0.5rem;
                         font-size: 0.9rem;
-                      "
-                    >
-                      <span data-translate="basePricePerRoom">Základní cena za pokoj:</span>
-                      <span id="basePrice">0 Kč</span>
-                    </div>
-                    <div
-                      id="guestCountsDisplay"
-                      class="price-line"
-                      style="
+                      ">
+                  <span data-translate="basePricePerRoom">Základní cena za pokoj:</span>
+                  <span id="basePrice">0 Kč</span>
+                </div>
+                <div id="guestCountsDisplay" class="price-line" style="
                         display: flex;
                         justify-content: space-between;
                         margin-bottom: 0.5rem;
                         font-size: 0.9rem;
                         color: #666;
-                      "
-                    >
-                      <span data-translate="guestsCount">Počet osob:</span>
-                      <span id="guestCountsSummary">-</span>
-                    </div>
-                    <div
-                      id="adultsPrice"
-                      class="price-line"
-                      style="
+                      ">
+                  <span data-translate="guestsCount">Počet osob:</span>
+                  <span id="guestCountsSummary">-</span>
+                </div>
+                <div id="adultsPrice" class="price-line" style="
                         display: flex;
                         justify-content: space-between;
                         margin-bottom: 0.5rem;
                         font-size: 0.9rem;
-                      "
-                    >
-                      <span data-translate="adultsExtra">Příplatek za dospělé:</span>
-                      <span id="adultsSurcharge">0 Kč</span>
-                    </div>
-                    <div
-                      id="childrenPrice"
-                      class="price-line"
-                      style="
+                      ">
+                  <span data-translate="adultsExtra">Příplatek za dospělé:</span>
+                  <span id="adultsSurcharge">0 Kč</span>
+                </div>
+                <div id="childrenPrice" class="price-line" style="
                         display: flex;
                         justify-content: space-between;
                         margin-bottom: 0.5rem;
                         font-size: 0.9rem;
-                      "
-                    >
-                      <span data-translate="childrenExtra">Příplatek za děti:</span>
-                      <span id="childrenSurcharge">0 Kč</span>
-                    </div>
-                    <div
-                      id="toddlersInfo"
-                      class="price-line"
-                      style="
+                      ">
+                  <span data-translate="childrenExtra">Příplatek za děti:</span>
+                  <span id="childrenSurcharge">0 Kč</span>
+                </div>
+                <div id="toddlersInfo" class="price-line" style="
                         display: flex;
                         justify-content: space-between;
                         margin-bottom: 0.5rem;
                         font-size: 0.9rem;
                         color: #666;
-                      "
-                    >
-                      <span data-translate="toddlersFree">Batolata (do 3 let):</span>
-                      <span
-                        id="toddlersSummary"
-                        data-translate="toddlersFreeLabel"
-                        >zdarma</span
-                      >
-                    </div>
-                    <div
-                      id="nightsPrice"
-                      class="price-line"
-                      style="
+                      ">
+                  <span data-translate="toddlersFree">Batolata (do 3 let):</span>
+                  <span id="toddlersSummary" data-translate="toddlersFreeLabel">zdarma</span>
+                </div>
+                <div id="nightsPrice" class="price-line" style="
                         display: flex;
                         justify-content: space-between;
                         margin-bottom: 0.5rem;
                         font-size: 0.9rem;
-                      "
-                    >
-                      <span data-translate="nightsCount">Počet nocí:</span>
-                      <span>× <span id="nightsMultiplier">0</span></span>
-                    </div>
-                    <div
-                      style="
+                      ">
+                  <span data-translate="nightsCount">Počet nocí:</span>
+                  <span>× <span id="nightsMultiplier">0</span></span>
+                </div>
+                <div style="
                         border-top: 1px solid #dee2e6;
                         margin-top: 0.75rem;
                         padding-top: 0.75rem;
                         display: flex;
                         justify-content: space-between;
                         font-weight: bold;
-                      "
-                    >
-                      <span data-translate="totalAmount">Celkem:</span>
-                      <span
-                        id="totalPrice"
-                        style="color: #2e7d32"
-                        >0 Kč</span
-                      >
-                    </div>
-                  </div>
+                      ">
+                  <span data-translate="totalAmount">Celkem:</span>
+                  <span id="totalPrice" style="color: #2e7d32">0 Kč</span>
                 </div>
               </div>
-            </div>
-          </div>
-
-          <!-- Booking Actions -->
-          <div class="booking-actions">
-            <div style="display: flex; gap: 1rem; width: 100%">
-              <button
-                onclick="window.app.singleRoomBooking.hideRoomBookingModal()"
-                class="btn btn-secondary"
-                style="flex: 1"
-                data-translate="cancelButton"
-              >
-                Zrušit
-              </button>
-              <button
-                id="confirmSingleRoomBtn"
-                onclick="window.app.singleRoomBooking.confirmRoomBooking()"
-                class="btn btn-primary"
-                style="flex: 2"
-                disabled
-                data-translate="addReservationButton"
-              >
-                Přidat rezervaci
-              </button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Room Info Modal -->
-      <div
-        id="roomInfoModal"
-        class="modal"
-      >
-        <div
-          class="modal-content room-info-modal"
-          style="max-width: 900px; max-height: 85vh; overflow-y: auto"
-        >
-          <button
-            class="modal-close"
-            onclick="document.getElementById('roomInfoModal').classList.remove('active')"
-          >
-            &times;
+      <!-- Booking Actions -->
+      <div class="booking-actions">
+        <div style="display: flex; gap: 1rem; width: 100%">
+          <button onclick="window.app.singleRoomBooking.hideRoomBookingModal()" class="btn btn-secondary"
+            style="flex: 1" data-translate="cancelButton">
+            Zrušit
           </button>
-          <h2 data-translate="roomInfoTitle">Informace o pokojích</h2>
+          <button id="confirmSingleRoomBtn" onclick="window.app.singleRoomBooking.confirmRoomBooking()"
+            class="btn btn-primary" style="flex: 2" disabled data-translate="addReservationButton">
+            Přidat rezervaci
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-          <div style="margin-top: 2rem">
-            <h3
-              style="color: var(--primary-color); margin-bottom: 1.5rem"
-              data-translate="roomCapacity"
-            >
-              Kapacita pokojů
-            </h3>
-            <div
-              id="roomCapacityGrid"
-              style="
+  <!-- Room Info Modal -->
+  <div id="roomInfoModal" class="modal">
+    <div class="modal-content room-info-modal" style="max-width: 900px; max-height: 85vh; overflow-y: auto">
+      <button class="modal-close" onclick="document.getElementById('roomInfoModal').classList.remove('active')">
+        &times;
+      </button>
+      <h2 data-translate="roomInfoTitle">Informace o pokojích</h2>
+
+      <div style="margin-top: 2rem">
+        <h3 style="color: var(--primary-color); margin-bottom: 1.5rem" data-translate="roomCapacity">
+          Kapacita pokojů
+        </h3>
+        <div id="roomCapacityGrid" style="
                 display: grid;
                 grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
                 gap: 1rem;
@@ -1547,485 +825,330 @@
                 padding: 1.5rem;
                 border-radius: var(--radius-md);
                 border: 1px solid var(--gray-200);
-              "
-            >
-              <!-- Room capacity will be dynamically loaded here -->
-            </div>
-            <div
-              style="margin-top: 1rem; text-align: center; font-weight: 600; color: var(--gray-700)"
-            >
-              <span
-                id="totalCapacityText"
-                data-translate="totalCapacity"
-                >Celková kapacita: 26 lůžek</span
-              >
-            </div>
-          </div>
+              ">
+          <!-- Room capacity will be dynamically loaded here -->
+        </div>
+        <div style="margin-top: 1rem; text-align: center; font-weight: 600; color: var(--gray-700)">
+          <span id="totalCapacityText" data-translate="totalCapacity">Celková kapacita: 26 lůžek</span>
+        </div>
+      </div>
 
-          <div style="margin-top: 2rem">
-            <h3
-              style="color: var(--primary-color); margin-bottom: 1.5rem"
-              data-translate="priceList"
-            >
-              Ceník
-            </h3>
-            <div id="priceListContent">
-              <!-- Price list will be dynamically loaded here -->
-            </div>
-          </div>
+      <div style="margin-top: 2rem">
+        <h3 style="color: var(--primary-color); margin-bottom: 1.5rem" data-translate="priceList">
+          Ceník
+        </h3>
+        <div id="priceListContent">
+          <!-- Price list will be dynamically loaded here -->
+        </div>
+      </div>
 
-          <!-- Bulk Booking Price List -->
-          <div style="margin-top: 2rem">
-            <h3
-              style="color: #8b5cf6; margin-bottom: 1.5rem"
-              data-translate="bulkPriceList"
-            >
-              Ceník hromadné rezervace
-            </h3>
-            <div
-              style="
+      <!-- Bulk Booking Price List -->
+      <div style="margin-top: 2rem">
+        <h3 style="color: #8b5cf6; margin-bottom: 1.5rem" data-translate="bulkPriceList">
+          Ceník hromadné rezervace
+        </h3>
+        <div style="
                 background: linear-gradient(135deg, #fdf2f8 0%, #f3e8ff 100%);
                 padding: 1.5rem;
                 border-radius: var(--radius-md);
                 border: 2px solid #d8b4fe;
-              "
-            >
-              <div id="bulkPriceListContent">
-                <!-- Bulk price list will be dynamically loaded here -->
-              </div>
-              <div
-                style="
+              ">
+          <div id="bulkPriceListContent">
+            <!-- Bulk price list will be dynamically loaded here -->
+          </div>
+          <div style="
                   margin-top: 1rem;
                   padding: 0.75rem;
                   background: rgba(34, 197, 94, 0.1);
                   border-radius: 6px;
                   border-left: 4px solid #22c55e;
-                "
-              >
-                <p
-                  style="font-size: 0.9rem; color: #15803d; margin: 0"
-                  data-translate="bulkPriceNote"
-                >
-                  <strong>Poznámka:</strong> Hromadná rezervace znamená pronájem celé chaty pro
-                  jeden termín. Děti do 3 let jsou vždy zdarma.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div
-            style="
-              margin-top: 2rem;
-              padding: 1rem;
-              background: var(--gray-50);
-              border-radius: var(--radius-md);
-            "
-          >
-            <h4
-              style="color: var(--warning-color); margin-bottom: 0.5rem"
-              data-translate="christmasTitle"
-            >
-              🎄 Vánoční období
-            </h4>
-            <p
-              style="font-size: 0.95rem; color: var(--gray-700)"
-              data-translate="christmasInfo"
-            >
-              Rezervace během vánočních prázdnin podléhají speciálním pravidlům. Zaměstnanci ÚTIA
-              mohou rezervovat max. 1-2 pokoje do 30.9. příslušného roku.
+                ">
+            <p style="font-size: 0.9rem; color: #15803d; margin: 0" data-translate="bulkPriceNote">
+              <strong>Poznámka:</strong> Hromadná rezervace znamená pronájem celé chaty pro
+              jeden termín. Děti do 3 let jsou vždy zdarma.
             </p>
           </div>
         </div>
       </div>
 
-      <!-- Bulk Booking Modal - Using same interface as single room booking -->
-      <div
-        id="bulkBookingModal"
-        class="modal"
-      >
-        <div class="modal-content compact-booking-modal">
-          <button
-            class="modal-close"
-            onclick="closeBulkModal()"
-          >
-            &times;
-          </button>
+      <div style="
+              margin-top: 2rem;
+              padding: 1rem;
+              background: var(--gray-50);
+              border-radius: var(--radius-md);
+            ">
+        <h4 style="color: var(--warning-color); margin-bottom: 0.5rem" data-translate="christmasTitle">
+          🎄 Vánoční období
+        </h4>
+        <p style="font-size: 0.95rem; color: var(--gray-700)" data-translate="christmasInfo">
+          Rezervace během vánočních prázdnin podléhají speciálním pravidlům. Zaměstnanci ÚTIA
+          mohou rezervovat max. 1-2 pokoje do 30.9. příslušného roku.
+        </p>
+      </div>
+    </div>
+  </div>
 
-          <!-- Room Header -->
-          <div class="booking-modal-header">
-            <h2
-              id="bulkBookingTitle"
-              data-translate="bulkBookingModalTitle"
-            >
-              Hromadná rezervace celé chaty
-            </h2>
-            <div
-              id="bulkBookingBadge"
-              style="
+  <!-- Bulk Booking Modal - Using same interface as single room booking -->
+  <div id="bulkBookingModal" class="modal">
+    <div class="modal-content compact-booking-modal">
+      <button class="modal-close" onclick="closeBulkModal()">
+        &times;
+      </button>
+
+      <!-- Room Header -->
+      <div class="booking-modal-header">
+        <h2 id="bulkBookingTitle" data-translate="bulkBookingModalTitle">
+          Hromadná rezervace celé chaty
+        </h2>
+        <div id="bulkBookingBadge" style="
                 background: rgba(255, 255, 255, 0.2);
                 padding: 0.5rem 1rem;
                 border-radius: 6px;
                 font-size: 1.1rem;
-              "
-            >
-              <span data-translate="bulkBookingAllRooms">Rezervace všech 9 pokojů (26 lůžek)</span>
-            </div>
+              ">
+          <span data-translate="bulkBookingAllRooms">Rezervace všech 9 pokojů (26 lůžek)</span>
+        </div>
+      </div>
+
+      <div class="booking-modal-content">
+        <!-- Left Column: Calendar -->
+        <div class="booking-left-column">
+          <h3 data-translate="bulkSelectStayPeriod">Vyberte termín pobytu</h3>
+
+          <!-- Mini Calendar Navigation -->
+          <!-- Interactive Calendar -->
+          <div id="bulkCalendar" class="interactive-calendar">
+            <!-- Calendar will be generated here -->
           </div>
+        </div>
 
-          <div class="booking-modal-content">
-            <!-- Left Column: Calendar -->
-            <div class="booking-left-column">
-              <h3 data-translate="bulkSelectStayPeriod">Vyberte termín pobytu</h3>
-
-              <!-- Mini Calendar Navigation -->
-              <!-- Interactive Calendar -->
-              <div
-                id="bulkCalendar"
-                class="interactive-calendar"
-              >
-                <!-- Calendar will be generated here -->
-              </div>
-            </div>
-
-            <!-- Right Column: Guest Details & Booking Form -->
-            <div
-              class="booking-right-column"
-              style="overflow-y: auto; max-height: 500px; padding-right: 10px"
-            >
-              <div
-                class="booking-form-section"
-                style="padding-bottom: 1rem"
-              >
-                <!-- Date Selection Summary -->
-                <div
-                  id="bulkDateSelectionSummary"
-                  style="
+        <!-- Right Column: Guest Details & Booking Form -->
+        <div class="booking-right-column" style="overflow-y: auto; max-height: 500px; padding-right: 10px">
+          <div class="booking-form-section" style="padding-bottom: 1rem">
+            <!-- Date Selection Summary -->
+            <div id="bulkDateSelectionSummary" style="
                     margin-bottom: 1rem;
                     padding: 1rem;
                     background: #f0f9ff;
                     border-radius: 8px;
                     display: none;
-                  "
-                >
-                  <div style="display: flex; justify-content: space-between; align-items: center">
-                    <div>
-                      <div
-                        style="font-size: 0.9rem; color: #666"
-                        data-translate="bulkSelectedPeriod"
-                      >
-                        Vybraný termín:
-                      </div>
-                      <div
-                        id="bulkSelectedDateRange"
-                        style="font-weight: 600; color: #333"
-                      ></div>
-                    </div>
-                    <div style="text-align: right">
-                      <div
-                        style="font-size: 0.9rem; color: #666"
-                        data-translate="bulkNightsCountLabel"
-                      >
-                        Počet nocí:
-                      </div>
-                      <div
-                        id="bulkNightsCount"
-                        style="font-weight: 600; color: #2563eb; font-size: 1.2rem"
-                      >
-                        0
-                      </div>
-                    </div>
+                  ">
+              <div style="display: flex; justify-content: space-between; align-items: center">
+                <div>
+                  <div style="font-size: 0.9rem; color: #666" data-translate="bulkSelectedPeriod">
+                    Vybraný termín:
+                  </div>
+                  <div id="bulkSelectedDateRange" style="font-weight: 600; color: #333"></div>
+                </div>
+                <div style="text-align: right">
+                  <div style="font-size: 0.9rem; color: #666" data-translate="bulkNightsCountLabel">
+                    Počet nocí:
+                  </div>
+                  <div id="bulkNightsCount" style="font-weight: 600; color: #2563eb; font-size: 1.2rem">
+                    0
                   </div>
                 </div>
+              </div>
+            </div>
 
-                <h3 data-translate="guestTypeAndCount">Typ hosta a počet osob</h3>
+            <h3 data-translate="guestTypeAndCount">Typ hosta a počet osob</h3>
 
-                <!-- Guest Count -->
-                <div
-                  class="guest-counters"
-                  style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem"
-                >
-                  <div class="counter-item">
-                    <label
-                      class="counter-label"
-                      style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
-                      data-translate="adultsLabel"
-                      >Dospělí</label
-                    >
-                    <div
-                      class="counter-controls"
-                      style="
+            <!-- Guest Count -->
+            <div class="guest-counters" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem">
+              <div class="counter-item">
+                <label class="counter-label"
+                  style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
+                  data-translate="adultsLabel">Dospělí</label>
+                <div class="counter-controls" style="
                         display: flex;
                         align-items: center;
                         background: white;
                         border: 1px solid #e2e8f0;
                         border-radius: 6px;
-                      "
-                    >
-                      <button
-                        class="counter-btn"
-                        onclick="adjustBulkGuests('adults', -1)"
-                        style="
+                      ">
+                  <button class="counter-btn" onclick="adjustBulkGuests('adults', -1)" style="
                           padding: 0.5rem 0.75rem;
                           border: none;
                           background: transparent;
                           cursor: pointer;
                           font-size: 1.2rem;
-                        "
-                      >
-                        -
-                      </button>
-                      <span
-                        id="bulkAdults"
-                        class="counter-value"
-                        style="flex: 1; text-align: center; font-weight: 600"
-                        >10</span
-                      >
-                      <button
-                        class="counter-btn"
-                        onclick="adjustBulkGuests('adults', 1)"
-                        style="
+                        ">
+                    -
+                  </button>
+                  <span id="bulkAdults" class="counter-value"
+                    style="flex: 1; text-align: center; font-weight: 600">10</span>
+                  <button class="counter-btn" onclick="adjustBulkGuests('adults', 1)" style="
                           padding: 0.5rem 0.75rem;
                           border: none;
                           background: transparent;
                           cursor: pointer;
                           font-size: 1.2rem;
-                        "
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                  <div class="counter-item">
-                    <label
-                      class="counter-label"
-                      style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
-                      data-translate="childrenLabel"
-                      >Děti (3-17)</label
-                    >
-                    <div
-                      class="counter-controls"
-                      style="
+                        ">
+                    +
+                  </button>
+                </div>
+              </div>
+              <div class="counter-item">
+                <label class="counter-label"
+                  style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: #666"
+                  data-translate="childrenLabel">Děti (3-17)</label>
+                <div class="counter-controls" style="
                         display: flex;
                         align-items: center;
                         background: white;
                         border: 1px solid #e2e8f0;
                         border-radius: 6px;
-                      "
-                    >
-                      <button
-                        class="counter-btn"
-                        onclick="adjustBulkGuests('children', -1)"
-                        style="
+                      ">
+                  <button class="counter-btn" onclick="adjustBulkGuests('children', -1)" style="
                           padding: 0.5rem 0.75rem;
                           border: none;
                           background: transparent;
                           cursor: pointer;
                           font-size: 1.2rem;
-                        "
-                      >
-                        -
-                      </button>
-                      <span
-                        id="bulkChildren"
-                        class="counter-value"
-                        style="flex: 1; text-align: center; font-weight: 600"
-                        >0</span
-                      >
-                      <button
-                        class="counter-btn"
-                        onclick="adjustBulkGuests('children', 1)"
-                        style="
+                        ">
+                    -
+                  </button>
+                  <span id="bulkChildren" class="counter-value"
+                    style="flex: 1; text-align: center; font-weight: 600">0</span>
+                  <button class="counter-btn" onclick="adjustBulkGuests('children', 1)" style="
                           padding: 0.5rem 0.75rem;
                           border: none;
                           background: transparent;
                           cursor: pointer;
                           font-size: 1.2rem;
-                        "
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
+                        ">
+                    +
+                  </button>
                 </div>
+              </div>
+            </div>
 
-                <!-- Capacity Warning - will be shown only when exceeded -->
-                <div
-                  id="bulkCapacityWarning"
-                  style="
+            <!-- Capacity Warning - will be shown only when exceeded -->
+            <div id="bulkCapacityWarning" style="
                     margin-top: 1rem;
                     padding: 0.75rem;
                     background: #fee2e2;
                     border-left: 4px solid #dc2626;
                     border-radius: 4px;
                     display: none;
-                  "
-                >
-                  <span
-                    style="color: #991b1b; font-size: 0.9rem"
-                    data-translate="bulkCapacityExceededCottage"
-                    >⚠️ Překročena kapacita chaty (maximum 26 lůžek)</span
-                  >
-                </div>
+                  ">
+              <span style="color: #991b1b; font-size: 0.9rem" data-translate="bulkCapacityExceededCottage">⚠️
+                Překročena kapacita chaty (maximum 26 lůžek)</span>
+            </div>
 
-                <!-- Minimum Guests Warning - will be shown when < 10 guests -->
-                <div
-                  id="bulkMinimumWarning"
-                  style="
+            <!-- Minimum Guests Warning - will be shown when < 10 guests -->
+            <div id="bulkMinimumWarning" style="
                     margin-top: 1rem;
                     padding: 0.75rem;
                     background: #fef3c7;
                     border-left: 4px solid #d97706;
                     border-radius: 4px;
                     display: none;
-                  "
-                >
-                  <span
-                    style="color: #92400e; font-size: 0.9rem"
-                    data-translate="bulkMinimumGuestsWarning"
-                    >⚠️ Hromadná akce vyžaduje minimálně 10 osob (dospělí + děti)</span
-                  >
-                </div>
+                  ">
+              <span style="color: #92400e; font-size: 0.9rem" data-translate="bulkMinimumGuestsWarning">⚠️ Hromadná
+                akce vyžaduje minimálně 10 osob (dospělí + děti)</span>
+            </div>
 
-                <!-- Guest Names Section (REQUIRED before adding to temp reservations) -->
-                <div
-                  id="bulkGuestNamesSection"
-                  style="
+            <!-- Guest Names Section (REQUIRED before adding to temp reservations) -->
+            <div id="bulkGuestNamesSection" style="
                     display: none;
                     margin-top: 1rem;
                     padding: 1rem;
                     background: #f0fdf4;
                     border: 2px solid #10b981;
                     border-radius: 8px;
-                  "
-                >
-                  <h4
-                    style="margin-bottom: 0.75rem; color: #065f46; font-size: 1rem"
-                    data-translate="guestNamesSectionTitle"
-                  >
-                    👥 Jména ubytovaných osob
-                  </h4>
-                  <div id="bulkAdultsNamesContainer"></div>
-                  <div id="bulkChildrenNamesContainer"></div>
-                  <div id="bulkToddlersNamesContainer"></div>
-                </div>
+                  ">
+              <h4 style="margin-bottom: 0.75rem; color: #065f46; font-size: 1rem"
+                data-translate="guestNamesSectionTitle">
+                👥 Jména ubytovaných osob
+              </h4>
+              <div id="bulkAdultsNamesContainer"></div>
+              <div id="bulkChildrenNamesContainer"></div>
+              <div id="bulkToddlersNamesContainer"></div>
+            </div>
 
-                <!-- Price Calculation Section -->
-                <div
-                  class="price-summary"
-                  style="padding-top: 1rem; margin-top: 1rem"
-                >
-                  <h4
-                    style="margin-bottom: 0.75rem; color: #333"
-                    data-translate="priceSummary"
-                  >
-                    Souhrn ceny
-                  </h4>
-                  <div
-                    id="bulkPriceBreakdown"
-                    style="
+            <!-- Price Calculation Section -->
+            <div class="price-summary" style="padding-top: 1rem; margin-top: 1rem">
+              <h4 style="margin-bottom: 0.75rem; color: #333" data-translate="priceSummary">
+                Souhrn ceny
+              </h4>
+              <div id="bulkPriceBreakdown" style="
                       background: white;
                       padding: 1rem;
                       border-radius: 8px;
                       border: 1px solid #e2e8f0;
-                    "
-                  >
-                    <!-- Per Night Section -->
-                    <div
-                      style="
+                    ">
+                <!-- Per Night Section -->
+                <div style="
                         margin-bottom: 0.75rem;
                         padding-bottom: 0.75rem;
                         border-bottom: 1px solid #e2e8f0;
-                      "
-                    >
-                      <div
-                        style="
+                      ">
+                  <div style="
                           font-size: 0.85rem;
                           color: #666;
                           margin-bottom: 0.5rem;
                           font-weight: 500;
-                        "
-                        data-translate="bulkPricePerNight"
-                      >
-                        Cena za jednu noc:
-                      </div>
-                      <div
-                        class="price-line"
-                        style="
+                        " data-translate="bulkPricePerNight">
+                    Cena za jednu noc:
+                  </div>
+                  <div class="price-line" style="
                           display: flex;
                           justify-content: space-between;
                           margin-bottom: 0.25rem;
                           font-size: 0.9rem;
                           padding-left: 1rem;
-                        "
-                      >
-                        <span data-translate="bulkPriceBasePriceCottage"
-                          >Základní cena za chatu:</span
-                        >
-                        <span id="bulkBasePrice">0 Kč/noc</span>
-                      </div>
-                      <div
-                        id="bulkAdultsPrice"
-                        class="price-line"
-                        style="
+                        ">
+                    <span data-translate="bulkPriceBasePriceCottage">Základní cena za chatu:</span>
+                    <span id="bulkBasePrice">0 Kč/noc</span>
+                  </div>
+                  <div id="bulkAdultsPrice" class="price-line" style="
                           display: flex;
                           justify-content: space-between;
                           margin-bottom: 0.25rem;
                           font-size: 0.9rem;
                           padding-left: 1rem;
-                        "
-                      >
-                        <span data-translate="bulkPriceAdultSurcharge">Příplatek za dospělé:</span>
-                        <span id="bulkAdultsSurcharge">0 Kč/noc</span>
-                      </div>
-                      <div
-                        id="bulkChildrenPrice"
-                        class="price-line"
-                        style="
+                        ">
+                    <span data-translate="bulkPriceAdultSurcharge">Příplatek za dospělé:</span>
+                    <span id="bulkAdultsSurcharge">0 Kč/noc</span>
+                  </div>
+                  <div id="bulkChildrenPrice" class="price-line" style="
                           display: none;
                           justify-content: space-between;
                           margin-bottom: 0.25rem;
                           font-size: 0.9rem;
                           padding-left: 1rem;
-                        "
-                      >
-                        <span data-translate="bulkPriceChildSurcharge">Příplatek za děti:</span>
-                        <span id="bulkChildrenSurcharge">0 Kč/noc</span>
-                      </div>
-                      <div
-                        id="bulkPricePerNight"
-                        style="
+                        ">
+                    <span data-translate="bulkPriceChildSurcharge">Příplatek za děti:</span>
+                    <span id="bulkChildrenSurcharge">0 Kč/noc</span>
+                  </div>
+                  <div id="bulkPricePerNight" style="
                           display: flex;
                           justify-content: space-between;
                           margin-top: 0.5rem;
                           font-size: 0.95rem;
                           font-weight: 600;
                           color: #333;
-                        "
-                      >
-                        <span data-translate="pricePerNightTotal">Cena za noc celkem:</span>
-                        <span id="bulkPricePerNightAmount">0 Kč</span>
-                      </div>
-                    </div>
+                        ">
+                    <span data-translate="pricePerNightTotal">Cena za noc celkem:</span>
+                    <span id="bulkPricePerNightAmount">0 Kč</span>
+                  </div>
+                </div>
 
-                    <!-- Number of Nights -->
-                    <div
-                      id="bulkNightsPrice"
-                      class="price-line"
-                      style="
+                <!-- Number of Nights -->
+                <div id="bulkNightsPrice" class="price-line" style="
                         display: flex;
                         justify-content: space-between;
                         margin-bottom: 0.75rem;
                         font-size: 0.95rem;
                         font-weight: 500;
-                      "
-                    >
-                      <span data-translate="nightsCountLabel">Počet nocí:</span>
-                      <span id="bulkNightsMultiplier">× 0</span>
-                    </div>
+                      ">
+                  <span data-translate="nightsCountLabel">Počet nocí:</span>
+                  <span id="bulkNightsMultiplier">× 0</span>
+                </div>
 
-                    <!-- Total Price -->
-                    <div
-                      style="
+                <!-- Total Price -->
+                <div style="
                         border-top: 2px solid #dee2e6;
                         margin-top: 0.75rem;
                         padding-top: 0.75rem;
@@ -2033,83 +1156,69 @@
                         justify-content: space-between;
                         font-weight: bold;
                         font-size: 1.1rem;
-                      "
-                    >
-                      <span data-translate="totalPrice">Celková cena:</span>
-                      <span
-                        id="bulkTotalPrice"
-                        style="color: #2e7d32"
-                        >0 Kč</span
-                      >
-                    </div>
-                  </div>
+                      ">
+                  <span data-translate="totalPrice">Celková cena:</span>
+                  <span id="bulkTotalPrice" style="color: #2e7d32">0 Kč</span>
                 </div>
               </div>
             </div>
           </div>
+        </div>
+      </div>
 
-          <!-- Action buttons -->
-          <div
-            class="modal-footer"
-            style="
+      <!-- Action buttons -->
+      <div class="modal-footer" style="
               padding: 1.5rem;
               border-top: 1px solid #e2e8f0;
               display: flex;
               justify-content: flex-end;
               gap: 1rem;
-            "
-          >
-            <button
-              type="button"
-              class="btn btn-secondary"
-              onclick="closeBulkModal()"
-              data-translate="cancelButton"
-            >
-              Zrušit
-            </button>
-            <button
-              id="confirmBulkBookingBtn"
-              class="btn btn-primary"
-              onclick="addBulkBooking()"
-              disabled
-              data-translate="createReservationButton"
-            >
-              Vytvořit rezervaci
-            </button>
-          </div>
-        </div>
+            ">
+        <button type="button" class="btn btn-secondary" onclick="closeBulkModal()" data-translate="cancelButton">
+          Zrušit
+        </button>
+        <button id="confirmBulkBookingBtn" class="btn btn-primary" onclick="addBulkBooking()" disabled
+          data-translate="createReservationButton">
+          Vytvořit rezervaci
+        </button>
       </div>
-
-      <!-- Success Message -->
-      <div
-        id="successMessage"
-        class="success-message"
-      ></div>
     </div>
+  </div>
 
-    <!-- Shared utilities (MUST load before data.js) -->
-    <script src="js/shared/idGenerator.js"></script>
-    <script src="js/shared/domUtils.js"></script>
-    <script src="js/shared/dateUtils.js"></script>
-    <script src="js/shared/validationUtils.js"></script>
-    <script src="js/shared/priceCalculator.js"></script>
-    <script src="js/shared/christmasUtils.js"></script>
-    <script src="js/shared/bookingLogic.js"></script>
-    <script src="js/shared/bookingDisplayUtils.js"></script>
-    <script src="js/shared/GuestNameUtils.js"></script>
-    <script src="js/calendar-utils.js"></script>
-    <script src="js/shared/BaseCalendar.js"></script>
+  <!-- Success Message -->
+  <div id="successMessage" class="success-message"></div>
+  </div>
 
-    <!-- Core modules (depend on shared utilities) -->
-    <script src="data.js"></script>
-    <script src="translations.js"></script>
+  <!-- Shared utilities (MUST load before data.js) -->
+  <script src="js/shared/idGenerator.js"></script>
+  <script src="js/shared/domUtils.js"></script>
+  <script src="js/shared/dateUtils.js"></script>
+  <script src="js/shared/validationUtils.js"></script>
+  <script src="js/shared/priceCalculator.js"></script>
+  <script src="js/shared/christmasUtils.js"></script>
+  <script src="js/shared/bookingLogic.js"></script>
+  <script src="js/shared/bookingDisplayUtils.js"></script>
+  <script src="js/shared/GuestNameUtils.js"></script>
+  <script src="js/shared/ModalDialog.js"></script>
+  <script src="js/shared/NotificationManager.js"></script>
+  <script src="js/calendar-utils.js"></script>
+  <script src="js/shared/BaseCalendar.js"></script>
 
-    <!-- Modular JS files -->
-    <script src="js/calendar.js"></script>
-    <script src="js/single-room-booking.js"></script>
-    <script src="js/bulk-booking.js"></script>
-    <script src="js/booking-form.js"></script>
-    <script src="js/utils.js"></script>
-    <script src="js/booking-app.js"></script>
-  </body>
+  <!-- Core modules (depend on shared utilities) -->
+  <script src="data.js"></script>
+  <script src="translations.js"></script>
+
+  <!-- Reusable components (must load before booking-app.js) -->
+  <script src="js/shared/BookingContactForm.js"></script>
+  <script src="js/shared/CreateBookingComponent.js"></script>
+
+  <!-- Modular JS files -->
+  <script src="js/calendar.js"></script>
+  <script src="js/single-room-booking.js"></script>
+  <script src="js/bulk-booking.js"></script>
+  <script src="js/booking-form.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/booking-app.js"></script>
+</body>
+
 </html>

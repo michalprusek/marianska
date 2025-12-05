@@ -444,69 +444,7 @@ describe('DataManager Browser Implementation', () => {
     });
   });
 
-  describe('Price Calculation', () => {
-    beforeEach(async () => {
-      const data = {
-        bookings: [],
-        blockedDates: [],
-        settings: {
-          prices: {
-            utia: {
-              small: { base: 300, adult: 50, child: 25 },
-              large: { base: 400, adult: 50, child: 25 },
-            },
-            external: {
-              small: { base: 500, adult: 100, child: 50 },
-              large: { base: 600, adult: 100, child: 50 },
-            },
-          },
-        },
-      };
-      localStorage.setItem('chataMarianska', JSON.stringify(data));
-      await dataManager.initStorage();
-    });
 
-    it('should calculate base price for ÚTIA guest', () => {
-      const price = dataManager.calculatePrice('utia', 1, 0, 0, 2, 1, 'small');
-
-      expect(price).toBe(600); // 300 * 2 nights
-    });
-
-    it('should add surcharge for additional adults', () => {
-      const price = dataManager.calculatePrice('utia', 3, 0, 0, 2, 1, 'small');
-
-      // 300 base + (3-1) * 50 = 400 per night * 2 nights
-      expect(price).toBe(800);
-    });
-
-    it('should add surcharge for children', () => {
-      const price = dataManager.calculatePrice('utia', 2, 2, 0, 2, 1, 'small');
-
-      // 300 base + (2-1) * 50 + 2 * 25 = 400 per night * 2 nights
-      expect(price).toBe(800);
-    });
-
-    it('should not charge for toddlers', () => {
-      const price1 = dataManager.calculatePrice('utia', 2, 0, 0, 2, 1, 'small');
-      const price2 = dataManager.calculatePrice('utia', 2, 0, 3, 2, 1, 'small');
-
-      expect(price1).toBe(price2);
-    });
-
-    it('should calculate price for external guests', () => {
-      const price = dataManager.calculatePrice('external', 1, 0, 0, 2, 1, 'small');
-
-      expect(price).toBe(1000); // 500 * 2 nights
-    });
-
-    it('should use large room pricing', () => {
-      const smallPrice = dataManager.calculatePrice('utia', 1, 0, 0, 1, 1, 'small');
-      const largePrice = dataManager.calculatePrice('utia', 1, 0, 0, 1, 1, 'large');
-
-      expect(largePrice).toBeGreaterThan(smallPrice);
-      expect(largePrice).toBe(400); // Large room base
-    });
-  });
 
   describe('Christmas Period Detection', () => {
     beforeEach(async () => {

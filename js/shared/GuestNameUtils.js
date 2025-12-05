@@ -33,6 +33,7 @@ class GuestNameUtils {
    * @param {string} [config.defaultGuestType='utia'] - Default guest type for toggles
    * @param {string} [config.language='cs'] - Language for labels ('cs' or 'en')
    * @param {Function} [config.onToggleChange] - Callback when guest type toggle changes (for price updates)
+   * @param {Array|null} [config.existingGuestNames=null] - Pre-populate with existing guest data (for edit mode)
    * @returns {void} - Modifies DOM directly
    */
   static generateInputsHTML(config) {
@@ -45,6 +46,7 @@ class GuestNameUtils {
       defaultGuestType = 'utia',
       language = 'cs',
       onToggleChange = null,
+      existingGuestNames = null,
     } = config;
 
     const section = document.getElementById(sectionId);
@@ -65,7 +67,16 @@ class GuestNameUtils {
 
     // CAPTURE PHASE: Save existing guest data before clearing DOM
     // This preserves user input when component re-renders
-    const savedGuestData = showPricingToggles ? this._captureExistingData(section) : new Map();
+    // Priority: existingGuestNames (edit mode) > DOM capture (re-render)
+    let savedGuestData = new Map();
+
+    if (existingGuestNames && Array.isArray(existingGuestNames) && existingGuestNames.length > 0) {
+      // PRE-POPULATE from existingGuestNames (edit mode)
+      savedGuestData = this._prepopulateFromExisting(existingGuestNames, adults, children, toddlers);
+    } else if (showPricingToggles) {
+      // Capture from DOM (re-render preservation)
+      savedGuestData = this._captureExistingData(section);
+    }
 
     // Helper for generating IDs (uses sectionId as prefix)
     const makeId = (suffix) => `${sectionId.replace('GuestNamesSection', '')}${suffix}`;
@@ -132,22 +143,31 @@ class GuestNameUtils {
   /**
    * Collect and validate guest names from input fields
    *
-   * Validates that:
-   * - All first and last name fields are filled
-   * - Names are at least 2 characters
-   * - Guest types are set (if pricing toggles are present)
+   * Supports two modes:
+   * 1. Full validation (showValidationErrors=true): Validates all fields, returns complete guest data
+   * 2. Price update mode (showValidationErrors=false): Only collects toggle states for price calculation
    *
    * @param {string} sectionId - DOM ID of the guest names section
-   * @param {boolean} [showValidationErrors=true] - Show error notifications on validation failure
+   * @param {boolean} [showValidationErrors=true] - Show error notifications on validation failure.
+   *        When false, operates in "price update mode" - only collects toggle states without validation.
    * @param {Object} [appContext=null] - App context for showing notifications (optional)
    * @param {string} [language='cs'] - Language for error messages
    * @returns {Array|null} - Array of guest objects or null if validation fails
    *
    * @example
+   * // Full validation mode (for form submission)
    * const guests = GuestNameUtils.collectGuestNames('singleRoomGuestNamesSection', true, window.app);
    * // Returns: [
    * //   { firstName: 'Jan', lastName: 'Novák', personType: 'adult', guestPriceType: 'utia' },
    * //   { firstName: 'Marie', lastName: 'Nováková', personType: 'child', guestPriceType: 'external' }
+   * // ]
+   *
+   * @example
+   * // Price update mode (for toggle changes)
+   * const guests = GuestNameUtils.collectGuestNames('singleRoomGuestNamesSection', false);
+   * // Returns: [
+   * //   { personType: 'adult', guestPriceType: 'utia', firstName: '', lastName: '' },
+   * //   { personType: 'toddler', guestPriceType: 'utia', firstName: '', lastName: '' }
    * // ]
    */
   static collectGuestNames(
@@ -162,6 +182,51 @@ class GuestNameUtils {
     if (!section || section.style.display === 'none') {
       return []; // No names section visible, return empty array
     }
+
+    // PRICE UPDATE MODE: Only collect toggle states (no name validation)
+    // Used during toggle changes to quickly recalculate prices
+    if (!showValidationErrors) {
+      // Collect guest type from toggle switches (checkboxes) for adults and children
+      const guestTypeInputs = section.querySelectorAll('input[data-guest-price-type]');
+      guestTypeInputs.forEach((input) => {
+        const { guestType } = input.dataset; // adult, child
+        // UI logic: Unchecked (false) = ÚTIA, Checked (true) = External
+        const guestPriceType = input.checked ? 'external' : 'utia';
+
+        // Create dummy guest for price calculation
+        guestNames.push({
+          personType: guestType,
+          guestPriceType,
+          firstName: '', // Empty for price update mode
+          lastName: '',
+        });
+      });
+
+      // For toddlers, count the number of toddler name inputs and add them with default price type
+      const toddlerInputs = section.querySelectorAll('input[data-guest-type="toddler"]');
+      // Count unique toddler indices (each toddler has 2 inputs: firstName and lastName)
+      const toddlerIndices = new Set();
+      toddlerInputs.forEach((input) => {
+        if (input.dataset.guestIndex) {
+          toddlerIndices.add(input.dataset.guestIndex);
+        }
+      });
+
+      // Add a dummy guest for each toddler
+      toddlerIndices.forEach(() => {
+        guestNames.push({
+          personType: 'toddler',
+          guestPriceType: 'utia', // Default for toddlers (free anyway)
+          firstName: '', // Empty for price update mode
+          lastName: '',
+        });
+      });
+
+      return guestNames;
+    }
+
+    // FULL VALIDATION MODE: Validate all fields and collect complete guest data
+    // Used during form submission
 
     // Collect all text inputs (first/last names) - exclude toggle checkboxes
     const inputs = section.querySelectorAll('input[data-guest-type]:not([data-guest-price-type])');
@@ -184,10 +249,7 @@ class GuestNameUtils {
 
       // Validate: all fields must be filled and at least 2 characters
       if (!value || value.length < 2) {
-        // Highlight invalid field (only if showing errors)
-        if (showValidationErrors) {
-          input.style.borderColor = '#ef4444'; // Red border
-        }
+        input.style.borderColor = '#ef4444'; // Red border
         hasValidationError = true;
         return;
       }
@@ -205,7 +267,7 @@ class GuestNameUtils {
 
     // If any validation failed, show error and return null
     if (hasValidationError) {
-      if (showValidationErrors && appContext && appContext.showNotification) {
+      if (appContext && appContext.showNotification) {
         appContext.showNotification(this._getErrorMessage('fillAllNames', language), 'error');
       }
       return null;
@@ -229,18 +291,23 @@ class GuestNameUtils {
     for (const [key, guest] of guestMap) {
       // Validate that both names are present
       if (!guest.firstName || !guest.lastName) {
-        if (showValidationErrors && appContext && appContext.showNotification) {
+        if (appContext && appContext.showNotification) {
           appContext.showNotification(this._getErrorMessage('fillAllNames', language), 'error');
         }
         return null; // Incomplete guest data
       }
 
-      // Validate that guest type is set (if pricing toggles are enabled)
-      if (guestTypeInputs.length > 0 && !guest.guestPriceType) {
-        if (showValidationErrors && appContext && appContext.showNotification) {
+      // Validate that guest type is set (skip for toddlers - they have no toggle)
+      if (!guest.guestPriceType && guest.personType !== 'toddler') {
+        if (appContext && appContext.showNotification) {
           appContext.showNotification(this._getErrorMessage('selectGuestType', language), 'error');
         }
-        return null;
+        return null; // Missing guest type
+      }
+
+      // For toddlers without guestPriceType, set default (doesn't matter for price)
+      if (guest.personType === 'toddler' && !guest.guestPriceType) {
+        guest.guestPriceType = 'utia'; // Default for toddlers (free anyway)
       }
 
       guestNames.push(guest);
@@ -292,6 +359,56 @@ class GuestNameUtils {
 
       if (savedGuestData.has(key)) {
         savedGuestData.get(key).guestType = toggle.checked ? 'external' : 'utia';
+      }
+    });
+
+    return savedGuestData;
+  }
+
+  /**
+   * Pre-populate savedGuestData from existingGuestNames array (for edit mode)
+   *
+   * @private
+   * @param {Array} existingGuestNames - Array of guest objects from booking
+   * @param {number} adults - Expected number of adults
+   * @param {number} children - Expected number of children
+   * @param {number} toddlers - Expected number of toddlers
+   * @returns {Map} - Map of guest data keyed by 'type-index'
+   */
+  static _prepopulateFromExisting(existingGuestNames, adults, children, toddlers) {
+    const savedGuestData = new Map();
+    let adultIndex = 1;
+    let childIndex = 1;
+    let toddlerIndex = 1;
+
+    existingGuestNames.forEach((guest) => {
+      // Support both 'guestCategory' and 'personType' field names
+      const guestCategory = guest.guestCategory || guest.personType || 'adult';
+
+      if (guestCategory === 'adult' && adultIndex <= adults) {
+        const key = `adult-${adultIndex}`;
+        savedGuestData.set(key, {
+          firstName: guest.firstName || '',
+          lastName: guest.lastName || '',
+          guestType: guest.guestPriceType || guest.guestType || 'utia',
+        });
+        adultIndex += 1;
+      } else if (guestCategory === 'child' && childIndex <= children) {
+        const key = `child-${childIndex}`;
+        savedGuestData.set(key, {
+          firstName: guest.firstName || '',
+          lastName: guest.lastName || '',
+          guestType: guest.guestPriceType || guest.guestType || 'utia',
+        });
+        childIndex += 1;
+      } else if (guestCategory === 'toddler' && toddlerIndex <= toddlers) {
+        const key = `toddler-${toddlerIndex}`;
+        savedGuestData.set(key, {
+          firstName: guest.firstName || '',
+          lastName: guest.lastName || '',
+          guestType: guest.guestPriceType || guest.guestType || 'utia',
+        });
+        toddlerIndex += 1;
       }
     });
 
@@ -404,7 +521,8 @@ class GuestNameUtils {
     row.appendChild(lastNameInput);
 
     // Add pricing toggle if enabled (single room booking)
-    if (showPricingToggles) {
+    // BUT NOT for toddlers (they're free, no price difference)
+    if (showPricingToggles && guestType !== 'toddler') {
       const toggleContainer = this._createToggleSwitch({
         guestType,
         index,
@@ -524,6 +642,15 @@ class GuestNameUtils {
           await onToggleChange();
         } catch (error) {
           console.error('Failed to update price after guest type change:', error);
+          // FIX: Show user-visible notification about price calculation failure
+          // so they know the displayed price may be stale
+          // eslint-disable-next-line no-undef -- NotificationManager is defined globally in browser
+          if (typeof NotificationManager !== 'undefined' && NotificationManager.show) {
+            // eslint-disable-next-line no-undef
+            NotificationManager.show('Nepodařilo se aktualizovat cenu - zkuste stránku obnovit', 'warning');
+          } else if (window.app && window.app.showNotification) {
+            window.app.showNotification('Nepodařilo se aktualizovat cenu - zkuste stránku obnovit', 'warning');
+          }
         }
       }
     });

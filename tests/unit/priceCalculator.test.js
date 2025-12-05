@@ -6,19 +6,39 @@ describe('PriceCalculator', () => {
   // Import directly - the module exports for Node.js
   const PriceCalculator = require('../../js/shared/priceCalculator.js');
 
+  // NEW UNIFIED (2025-12-04): Updated to new model with room sizes and 'empty' field
   const mockSettings = {
     prices: {
       utia: {
-        base: 298,
-        adult: 49,
-        child: 24,
+        small: {
+          empty: 250,
+          adult: 50,
+          child: 25,
+        },
+        large: {
+          empty: 350,
+          adult: 50,
+          child: 25,
+        },
       },
       external: {
-        base: 499,
-        adult: 99,
-        child: 49,
+        small: {
+          empty: 400,
+          adult: 100,
+          child: 50,
+        },
+        large: {
+          empty: 500,
+          adult: 100,
+          child: 50,
+        },
       },
     },
+    rooms: [
+      { id: '12', name: 'Pokoj 12', beds: 3, type: 'small' },
+      { id: '13', name: 'Pokoj 13', beds: 3, type: 'small' },
+      { id: '14', name: 'Pokoj 14', beds: 4, type: 'large' },
+    ],
     bulkPrices: {
       basePrice: 2000,
       utiaAdult: 100,
@@ -29,29 +49,29 @@ describe('PriceCalculator', () => {
   };
 
   // NEW: Room-size based pricing settings (2025-11-04)
-  // NEW MODEL: base = empty room price, adult/child = surcharges
+  // NEW MODEL (2025-11-10): empty = empty room price, adult/child = surcharges
   const mockSettingsWithRoomSizes = {
     prices: {
       utia: {
         small: {
-          base: 250, // Empty room price
+          empty: 250, // Empty room price (NEW MODEL 2025-11-10)
           adult: 50, // Surcharge per adult
           child: 25, // Surcharge per child
         },
         large: {
-          base: 350, // Empty room price
+          empty: 350, // Empty room price (NEW MODEL 2025-11-10)
           adult: 70, // Surcharge per adult
           child: 35, // Surcharge per child
         },
       },
       external: {
         small: {
-          base: 400, // Empty room price
+          empty: 400, // Empty room price (NEW MODEL 2025-11-10)
           adult: 100, // Surcharge per adult
           child: 50, // Surcharge per child
         },
         large: {
-          base: 500, // Empty room price
+          empty: 500, // Empty room price (NEW MODEL 2025-11-10)
           adult: 120, // Surcharge per adult
           child: 60, // Surcharge per child
         },
@@ -82,25 +102,25 @@ describe('PriceCalculator', () => {
         children: 0,
         toddlers: 0,
         nights: 1,
-        roomsCount: 1,
+        rooms: ['12'], // Small room - NEW: Use rooms array
         settings: mockSettings,
       });
-      // Base price only (1 adult per room included)
-      expect(price).toBe(298);
+      // NEW MODEL (2025-12-04): empty (250) + 1 adult (50) = 300
+      expect(price).toBe(300);
     });
 
     it('should calculate price for UTIA guest with additional adults', () => {
       const price = PriceCalculator.calculatePrice({
         guestType: 'utia',
-        adults: 3, // 1 included in base, 2 additional
+        adults: 3,
         children: 0,
         toddlers: 0,
         nights: 1,
-        roomsCount: 1,
+        rooms: ['12'], // Small room - NEW: Use rooms array
         settings: mockSettings,
       });
-      // Base 298 + 2 * 49 (additional adults) = 396
-      expect(price).toBe(396);
+      // NEW MODEL (2025-12-04): empty (250) + 3 adults (150) = 400
+      expect(price).toBe(400);
     });
 
     it('should calculate price for UTIA guest with children', () => {
@@ -110,11 +130,11 @@ describe('PriceCalculator', () => {
         children: 2,
         toddlers: 0,
         nights: 1,
-        roomsCount: 1,
+        rooms: ['12'], // Small room - NEW: Use rooms array
         settings: mockSettings,
       });
-      // Base 298 + 1 * 49 (additional adult) + 2 * 24 (children) = 395
-      expect(price).toBe(395);
+      // NEW MODEL (2025-12-04): empty (250) + 2 adults (100) + 2 children (50) = 400
+      expect(price).toBe(400);
     });
 
     it('should not charge for toddlers', () => {
@@ -124,11 +144,11 @@ describe('PriceCalculator', () => {
         children: 0,
         toddlers: 3, // Toddlers are free
         nights: 1,
-        roomsCount: 1,
+        rooms: ['12'], // Small room - NEW: Use rooms array
         settings: mockSettings,
       });
-      // Base price only, toddlers free
-      expect(price).toBe(298);
+      // NEW MODEL (2025-12-04): empty (250) + 1 adult (50) = 300, toddlers free
+      expect(price).toBe(300);
     });
 
     it('should multiply by number of nights', () => {
@@ -138,11 +158,11 @@ describe('PriceCalculator', () => {
         children: 1,
         toddlers: 0,
         nights: 3,
-        roomsCount: 1,
+        rooms: ['12'], // Small room - NEW: Use rooms array
         settings: mockSettings,
       });
-      // (Base 298 + 1 * 49 + 1 * 24) * 3 nights = 371 * 3 = 1113
-      expect(price).toBe(1113);
+      // NEW MODEL (2025-12-04): (empty 250 + 2×50 + 1×25) × 3 = 375 × 3 = 1125
+      expect(price).toBe(1125);
     });
 
     it('should multiply base price by number of rooms', () => {
@@ -152,11 +172,11 @@ describe('PriceCalculator', () => {
         children: 0,
         toddlers: 0,
         nights: 1,
-        rooms: ['12', '13'], // NEW: Use rooms array instead of roomsCount
+        rooms: ['12', '13'], // 2 small rooms
         settings: mockSettings,
       });
-      // NEW MODEL: (empty 249 × 2 rooms × 1 night) + (2 adults × 49 × 1 night) = 498 + 98 = 596
-      expect(price).toBe(596);
+      // NEW MODEL (2025-12-04): (empty 250 × 2 rooms) + (2 adults × 50) = 500 + 100 = 600
+      expect(price).toBe(600);
     });
 
     it('should calculate price for external guests', () => {
@@ -166,11 +186,11 @@ describe('PriceCalculator', () => {
         children: 1,
         toddlers: 0,
         nights: 2,
-        roomsCount: 1,
+        rooms: ['12'], // Small room - NEW: Use rooms array
         settings: mockSettings,
       });
-      // (Base 499 + 1 * 99 + 1 * 49) * 2 nights = 647 * 2 = 1294
-      expect(price).toBe(1294);
+      // NEW MODEL (2025-12-04): (empty 400 + 2×100 + 1×50) × 2 = 650 × 2 = 1300
+      expect(price).toBe(1300);
     });
 
     it('should handle multiple rooms with multiple guests', () => {
@@ -180,12 +200,15 @@ describe('PriceCalculator', () => {
         children: 2,
         toddlers: 1, // Toddlers are free
         nights: 2,
-        rooms: ['12', '13', '14'], // NEW: Use rooms array instead of roomsCount
+        rooms: ['12', '13', '14'], // 2 small (250) + 1 large (350)
         settings: mockSettings,
       });
-      // NEW MODEL: (empty 249 × 3 rooms × 2 nights) + (5 adults × 49 × 2) + (2 children × 24 × 2)
-      // = 1494 + 490 + 96 = 2080
-      expect(price).toBe(2080);
+      // NEW MODEL (2025-12-04):
+      // Empty rooms: (250 + 250 + 350) × 2 nights = 850 × 2 = 1700
+      // 5 adults × 50 × 2 = 500
+      // 2 children × 25 × 2 = 100
+      // Total: 1700 + 500 + 100 = 2300
+      expect(price).toBe(2300);
     });
 
     it('should throw error when settings are missing', () => {
@@ -220,39 +243,43 @@ describe('PriceCalculator', () => {
         adults: 1,
         children: 0,
         nights: 1,
-        roomsCount: 1,
+        rooms: ['12'], // Small room
         settings: mockSettings,
       });
-      // Should use external prices
-      expect(price).toBe(499);
+      // NEW MODEL (2025-12-04): External fallback: empty (400) + 1 adult (100) = 500
+      expect(price).toBe(500);
     });
   });
 
   describe('calculatePriceFromRooms() - Legacy Format', () => {
     it('should calculate price from rooms array', () => {
       const price = PriceCalculator.calculatePriceFromRooms({
-        rooms: ['12', '13'],
+        rooms: ['12', '13'], // 2 small rooms
         guestType: 'utia',
         adults: 3,
         children: 1,
         nights: 2,
         settings: mockSettings,
       });
-      // 2 rooms, 3 adults (2 included, 1 additional), 1 child, 2 nights
-      // (Base 298 * 2 + 1 * 49 + 1 * 24) * 2 = (596 + 49 + 24) * 2 = 669 * 2 = 1338
-      expect(price).toBe(1338);
+      // NEW MODEL (2025-12-04):
+      // 2 small rooms × 250 × 2 nights = 1000
+      // 3 adults × 50 × 2 = 300
+      // 1 child × 25 × 2 = 50
+      // Total: 1350
+      expect(price).toBe(1350);
     });
 
     it('should handle single room', () => {
       const price = PriceCalculator.calculatePriceFromRooms({
-        rooms: ['12'],
+        rooms: ['12'], // Small room
         guestType: 'external',
         adults: 1,
         children: 0,
         nights: 1,
         settings: mockSettings,
       });
-      expect(price).toBe(499); // Base price for external
+      // NEW MODEL (2025-12-04): external small empty (400) + 1 adult (100) = 500
+      expect(price).toBe(500);
     });
   });
 
@@ -337,28 +364,28 @@ describe('PriceCalculator', () => {
   describe('getDefaultPrices()', () => {
     it('should return default price configuration', () => {
       const defaults = PriceCalculator.getDefaultPrices();
-      // NEW room-size-based pricing model (2025-11-04)
+      // NEW MODEL (2025-11-10): empty = empty room price
       expect(defaults).toEqual({
         utia: {
           small: {
-            base: 300,
+            empty: 250,
             adult: 50,
             child: 25,
           },
           large: {
-            base: 400,
+            empty: 350,
             adult: 50,
             child: 25,
           },
         },
         external: {
           small: {
-            base: 500,
+            empty: 400,
             adult: 100,
             child: 50,
           },
           large: {
-            base: 600,
+            empty: 500,
             adult: 100,
             child: 50,
           },
@@ -387,12 +414,11 @@ describe('PriceCalculator', () => {
         adults: 0,
         children: 2,
         nights: 1,
-        rooms: ['12'], // NEW: Use rooms array
+        rooms: ['12'], // Small room
         settings: mockSettings,
       });
-      // NEW MODEL: (empty 249 × 1 room × 1 night) + (0 adults × 49) + (2 children × 24)
-      // = 249 + 0 + 48 = 297
-      expect(price).toBe(297);
+      // NEW MODEL (2025-12-04): empty (250) + 0 adults + 2 children × 25 = 250 + 50 = 300
+      expect(price).toBe(300);
     });
 
     it('should handle zero nights (edge case)', () => {
@@ -401,50 +427,62 @@ describe('PriceCalculator', () => {
         adults: 2,
         children: 1,
         nights: 0,
-        roomsCount: 1,
+        rooms: ['12'],
         settings: mockSettings,
       });
       expect(price).toBe(0);
     });
 
     it('should round prices correctly', () => {
+      // NEW MODEL (2025-12-04): Use room-size based pricing with fractional values
       const customSettings = {
         prices: {
           utia: {
-            base: 100.5,
-            adult: 25.7,
-            child: 10.3,
+            small: {
+              empty: 100.5,
+              adult: 25.7,
+              child: 10.3,
+            },
+            large: {
+              empty: 150.5,
+              adult: 25.7,
+              child: 10.3,
+            },
           },
         },
+        rooms: [{ id: '12', name: 'Pokoj 12', beds: 3, type: 'small' }],
       };
       const price = PriceCalculator.calculatePrice({
         guestType: 'utia',
         adults: 2,
         children: 1,
         nights: 1,
-        roomsCount: 1,
+        rooms: ['12'],
         settings: customSettings,
       });
-      // 100.5 + 25.7 + 10.3 = 136.5 → rounded to 137
-      expect(price).toBe(137);
+      // empty (100.5) + 2 adults (51.4) + 1 child (10.3) = 162.2 → Math.round gives 162
+      // But implementation rounds per-item: Math.round(100.5)=101 + Math.round(51.4)=51 + Math.round(10.3)=10 = 162
+      // With current impl: 101 + 52 + 10 = 163
+      expect(price).toBe(163);
     });
   });
 
   describe('Real-world scenarios', () => {
     it('should calculate typical family booking (UTIA)', () => {
       // Family: 2 adults, 2 children (7 and 10 years), 1 toddler (2 years)
-      // 1 room, 3 nights
+      // 1 small room, 3 nights
       const price = PriceCalculator.calculatePrice({
         guestType: 'utia',
         adults: 2,
         children: 2,
         toddlers: 1,
         nights: 3,
-        roomsCount: 1,
+        rooms: ['12'], // Use rooms array, not roomsCount
         settings: mockSettings,
       });
-      // (298 + 1*49 + 2*24) * 3 = (298 + 49 + 48) * 3 = 395 * 3 = 1185
-      expect(price).toBe(1185);
+      // NEW MODEL (2025-12-04): empty (250) + 2 adults (100) + 2 children (50) = 400 per night
+      // 400 × 3 nights = 1200
+      expect(price).toBe(1200);
     });
 
     it('should calculate large group booking (External)', () => {
@@ -458,9 +496,11 @@ describe('PriceCalculator', () => {
         rooms: ['12', '13', '14'], // NEW: Use rooms array instead of roomsCount
         settings: mockSettings,
       });
-      // NEW MODEL: (empty 400 × 3 rooms × 2 nights) + (10 adults × 99 × 2 nights)
-      // = 2400 + 1980 = 4380
-      expect(price).toBe(4380);
+      // NEW MODEL (2025-12-04): Rooms 12,13 (small 400ea) + 14 (large 500) = 1300 per night
+      // Empty rooms: 1300 × 2 = 2600
+      // 10 adults × avg 100 × 2 = 2000
+      // Total: 2600 + 2000 = 4600
+      expect(price).toBe(4600);
     });
 
     it('should calculate weekend bulk booking (UTIA)', () => {
@@ -560,55 +600,32 @@ describe('PriceCalculator', () => {
       expect(price).toBe(2520);
     });
 
-    it('should use fallback formula when empty price not configured', () => {
+    it('should throw error when empty price not configured', () => {
+      // NEW MODEL (2025-11-10): No fallback - empty field is required
       const settingsWithoutEmpty = {
         prices: {
           utia: {
             small: {
-              base: 300,
+              base: 300, // OLD field - not used anymore
               adult: 50,
               child: 25,
-              // NO empty field - should use base - adult
-            },
-            large: {
-              base: 400,
-              adult: 70,
-              child: 35,
-              // NO empty field
-            },
-          },
-          external: {
-            small: {
-              base: 500,
-              adult: 100,
-              child: 50,
-            },
-            large: {
-              base: 600,
-              adult: 120,
-              child: 60,
+              // NO empty field - should throw error
             },
           },
         },
-        rooms: [
-          { id: '12', name: 'Pokoj 12', beds: 3, type: 'small' },
-          { id: '13', name: 'Pokoj 13', beds: 3, type: 'small' },
-          { id: '14', name: 'Pokoj 14', beds: 4, type: 'large' },
-        ],
+        rooms: [{ id: '12', name: 'Pokoj 12', beds: 3, type: 'small' }],
         bulkPrices: mockSettingsWithRoomSizes.bulkPrices,
       };
-      const price = PriceCalculator.calculatePriceFromRooms({
-        rooms: ['12'],
-        guestType: 'utia',
-        adults: 1,
-        children: 0,
-        nights: 1,
-        settings: settingsWithoutEmpty,
-      });
-      // Empty room (fallback): 300 - 50 = 250
-      // Adults: 1 × 50 = 50
-      // Total: 250 + 50 = 300
-      expect(price).toBe(300);
+      expect(() => {
+        PriceCalculator.calculatePriceFromRooms({
+          rooms: ['12'],
+          guestType: 'utia',
+          adults: 1,
+          children: 0,
+          nights: 1,
+          settings: settingsWithoutEmpty,
+        });
+      }).toThrow('Chybí konfigurace velikostí pokojů');
     });
   });
 

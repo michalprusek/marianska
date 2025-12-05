@@ -67,8 +67,8 @@ class BookingDisplayUtils {
   static formatPerRoomDetails(booking, language = 'cs', roomsConfig = null) {
     const roomDetails = [];
 
-    // Detect bulk booking: all 9 rooms OR isBulkBooking flag
-    const isBulkBooking = booking.isBulkBooking || booking.rooms.length === 9;
+    // FIX 2025-12-04: Only use explicit isBulkBooking flag, NOT room count
+    const isBulkBooking = booking.isBulkBooking === true;
 
     // Get room configuration from window if not provided
     const rooms = roomsConfig || (typeof window !== 'undefined' && window.roomsConfig);

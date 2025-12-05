@@ -1,17 +1,54 @@
+# Dependencies - will be built in container
 node_modules
 npm-debug.log
+package-lock.json.bak
+
+# Git
 .git
 .gitignore
-README.md
-.env
+.gitattributes
+
+# IDE and editor
+.vscode
+.idea
+*.swp
+*.swo
 .DS_Store
+
+# Environment and secrets
+.env
+.env.*
 ssl/
 
 # Test files and documentation (not needed in production)
 tests/
 *.test.js
 *.spec.js
-EDIT_DEADLINE_FEATURE.md
-EMAIL_IMPLEMENTATION_SUMMARY.md
-CLAUDE.md
+playwright-report/
+test-results/
+coverage/
+
+# Documentation
 docs/
+*.md
+!README.md
+
+# Development files
+docker-compose.dev.yml
+.jscpd.json
+.eslintrc*
+eslint.config.mjs
+.prettierrc*
+.husky/
+commitlint.config.js
+jest.config.js
+playwright.config.js
+
+# Logs and data (mounted as volumes)
+logs/
+data/
+*.log
+
+# Build cache
+.npm
+.cache

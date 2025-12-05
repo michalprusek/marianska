@@ -118,6 +118,10 @@ class SingleRoomBookingModule {
     const modal = document.getElementById('singleRoomBookingModal');
     const modalTitle = document.getElementById('roomBookingTitle');
 
+    // FIX 2025-12-04: Invalidate proposed bookings cache to ensure fresh data
+    // This prevents stale cache from hiding user's own proposed bookings
+    dataManager.invalidateProposedBookingsCache();
+
     const rooms = await dataManager.getRooms();
     const room = rooms.find((r) => r.id === roomId);
 
@@ -317,10 +321,10 @@ class SingleRoomBookingModule {
     // Sync app's selectedDates with calendar's selectedDates (for subsequent opens)
     this.miniCalendar.selectedDates = this.app.selectedDates;
 
-    // CRITICAL FIX: Always update sessionId before rendering to exclude user's own proposed bookings
-    // This is essential when editing a proposed reservation - without this, user's own reservation
-    // would show as yellow (blocked) and they couldn't modify the dates
-    this.miniCalendar.config.sessionId = this.app.sessionId;
+    // FIX 2025-12-04: Conditionally exclude session based on whether we're editing or creating
+    // When EDITING existing reservation: exclude user's own proposed booking (so they can modify dates)
+    // When CREATING new reservation: show ALL proposed bookings including user's own (warning about overlaps)
+    this.miniCalendar.config.sessionId = this.app.editingReservation ? this.app.sessionId : '';
 
     // Render calendar
     await this.miniCalendar.render();
@@ -349,6 +353,16 @@ class SingleRoomBookingModule {
         this.app.currentLanguage === 'cs' ? 'Přidat rezervaci' : 'Add Reservation';
     }
 
+    // FIX 2025-12-04: Clear guest names section DOM to prevent stale data
+    // This fixes bug where cancelled edit changes persist when re-editing
+    // The generateGuestNamesInputs() captures existing DOM values, so we must clear them
+    const adultsContainer = document.getElementById('singleRoomAdultsNamesContainer');
+    const childrenContainer = document.getElementById('singleRoomChildrenNamesContainer');
+    const toddlersContainer = document.getElementById('singleRoomToddlersNamesContainer');
+    if (adultsContainer) adultsContainer.innerHTML = '';
+    if (childrenContainer) childrenContainer.innerHTML = '';
+    if (toddlersContainer) toddlersContainer.innerHTML = '';
+
     // Clean up
     this.app.currentBookingRoom = null;
     this.app.selectedDates.clear();
@@ -360,7 +374,7 @@ class SingleRoomBookingModule {
   async confirmRoomBooking() {
     // Validate that dates are selected
     if (this.app.selectedDates.size === 0) {
-      this.app.showNotification(
+      window.notificationManager?.show(
         this.app.currentLanguage === 'cs' ? 'Vyberte prosím termín pobytu' : 'Please select dates',
         'warning'
       );
@@ -369,7 +383,7 @@ class SingleRoomBookingModule {
 
     // Validate minimum 2 days (1 night)
     if (this.app.selectedDates.size < 2) {
-      this.app.showNotification(
+      window.notificationManager?.show(
         this.app.currentLanguage === 'cs'
           ? 'Minimální rezervace je na 1 noc (2 dny)'
           : 'Minimum booking is for 1 night (2 days)',
@@ -380,7 +394,7 @@ class SingleRoomBookingModule {
 
     // Validate room is selected
     if (!this.app.currentBookingRoom) {
-      this.app.showNotification(
+      window.notificationManager?.show(
         this.app.currentLanguage === 'cs'
           ? 'Chyba: Žádný pokoj není vybrán'
           : 'Error: No room selected',
@@ -396,7 +410,7 @@ class SingleRoomBookingModule {
       const availability = await dataManager.getRoomAvailability(date, this.app.currentBookingRoom);
 
       if (availability.status === 'blocked') {
-        this.app.showNotification(
+        window.notificationManager?.show(
           this.app.currentLanguage === 'cs'
             ? 'Vybraný termín obsahuje blokované dny. Vyberte jiný termín.'
             : 'Selected dates include blocked days. Please choose different dates.',
@@ -416,7 +430,7 @@ class SingleRoomBookingModule {
     // NEW 2025-10-17: Validate that there is at least 1 person (adult OR child)
     const totalGuests = (guests.adults || 0) + (guests.children || 0);
     if (totalGuests === 0) {
-      this.app.showNotification(
+      window.notificationManager?.show(
         this.app.currentLanguage === 'cs'
           ? 'Musíte zadat alespoň 1 osobu (dospělého nebo dítě) na pokoji'
           : 'You must specify at least 1 person (adult or child) in the room',
@@ -435,7 +449,7 @@ class SingleRoomBookingModule {
     const room = rooms.find((r) => r.id === this.app.currentBookingRoom);
 
     if (!room) {
-      this.app.showNotification(langManager.t('roomNotFoundError'), 'error');
+      window.notificationManager?.show(langManager.t('roomNotFoundError'), 'error');
       return;
     }
 
@@ -487,7 +501,7 @@ class SingleRoomBookingModule {
     const expectedGuestCount =
       (guests.adults || 0) + (guests.children || 0) + (guests.toddlers || 0);
     if (guestNames.length !== expectedGuestCount) {
-      this.app.showNotification(
+      window.notificationManager?.show(
         this.app.currentLanguage === 'cs'
           ? `Počet vyplněných jmen (${guestNames.length}) neodpovídá počtu hostů (${expectedGuestCount})`
           : `Number of filled names (${guestNames.length}) doesn't match guest count (${expectedGuestCount})`,
@@ -508,7 +522,7 @@ class SingleRoomBookingModule {
           // Expected: 404 if reservation already expired
           if (error?.status !== 404 && !error?.message?.includes('not found')) {
             console.error('Failed to delete old proposed booking:', error);
-            this.app.showNotification(
+            window.notificationManager?.show(
               this.app.currentLanguage === 'cs'
                 ? 'Varování: Nepodařilo se vyčistit předchozí dočasnou rezervaci'
                 : 'Warning: Could not clean up previous temporary reservation',
@@ -571,7 +585,7 @@ class SingleRoomBookingModule {
         this.app.currentLanguage === 'cs'
           ? room.name
           : room.name.replace('Pokoj', 'Room');
-      this.app.showNotification(
+      window.notificationManager?.show(
         this.app.currentLanguage === 'cs'
           ? `${translatedRoomName} přidán do rezervace`
           : `${translatedRoomName} added to reservation`,
@@ -591,7 +605,7 @@ class SingleRoomBookingModule {
       }
     } catch (error) {
       console.error('Failed to create proposed booking:', error);
-      this.app.showNotification(
+      window.notificationManager?.show(
         this.app.currentLanguage === 'cs'
           ? 'Chyba při vytváření dočasné rezervace'
           : 'Error creating temporary reservation',
@@ -602,651 +616,42 @@ class SingleRoomBookingModule {
 
   /**
    * Generate guest name input fields dynamically
-   * REQUIRED inputs - all fields must be filled before adding to temp reservations
+   * Delegates to GuestNameUtils SSOT component
    * @param {number} adults - Number of adults
    * @param {number} children - Number of children
    * @param {number} toddlers - Number of toddlers (default 0)
+   * @param {Array|null} existingGuestNames - Existing guest names to pre-populate (for edit mode)
    */
-  generateGuestNamesInputs(adults, children, toddlers = 0) {
-    const section = document.getElementById('singleRoomGuestNamesSection');
-    const totalGuests = (adults || 0) + (children || 0) + (toddlers || 0);
-
-    // Show section only if there are guests
-    if (totalGuests > 0) {
-      section.style.display = 'block';
-    } else {
-      section.style.display = 'none';
-      return;
-    }
-
-    // CAPTURE PHASE: Save existing guest data before clearing DOM
-    const savedGuestData = new Map();
-
-    // Capture adults
-    const existingAdultInputs = section.querySelectorAll('input[data-guest-type="adult"]');
-    existingAdultInputs.forEach((input) => {
-      const index = input.dataset.guestIndex;
-      const key = `adult-${index}`;
-      if (!savedGuestData.has(key)) {
-        savedGuestData.set(key, {});
-      }
-      const data = savedGuestData.get(key);
-      if (input.id.includes('FirstName')) {
-        data.firstName = input.value;
-      } else if (input.id.includes('LastName')) {
-        data.lastName = input.value;
-      }
+  generateGuestNamesInputs(adults, children, toddlers = 0, existingGuestNames = null) {
+    // Delegate to GuestNameUtils SSOT component
+    GuestNameUtils.generateInputsHTML({
+      adults,
+      children,
+      toddlers,
+      sectionId: 'singleRoomGuestNamesSection',
+      showPricingToggles: true,
+      defaultGuestType: 'utia',
+      language: this.app.currentLanguage || 'cs',
+      onToggleChange: () => this.updatePriceForCurrentRoom(),
+      existingGuestNames,
     });
-
-    // Capture adult toggle states
-    const existingAdultToggles = section.querySelectorAll(
-      'input[data-guest-type="adult"][data-guest-price-type]'
-    );
-    existingAdultToggles.forEach((toggle) => {
-      const index = toggle.dataset.guestIndex;
-      const key = `adult-${index}`;
-      if (savedGuestData.has(key)) {
-        savedGuestData.get(key).guestType = toggle.checked ? 'external' : 'utia';
-      }
-    });
-
-    // Capture children
-    const existingChildInputs = section.querySelectorAll('input[data-guest-type="child"]');
-    existingChildInputs.forEach((input) => {
-      const index = input.dataset.guestIndex;
-      const key = `child-${index}`;
-      if (!savedGuestData.has(key)) {
-        savedGuestData.set(key, {});
-      }
-      const data = savedGuestData.get(key);
-      if (input.id.includes('FirstName')) {
-        data.firstName = input.value;
-      } else if (input.id.includes('LastName')) {
-        data.lastName = input.value;
-      }
-    });
-
-    // Capture children toggle states
-    const existingChildToggles = section.querySelectorAll(
-      'input[data-guest-type="child"][data-guest-price-type]'
-    );
-    existingChildToggles.forEach((toggle) => {
-      const index = toggle.dataset.guestIndex;
-      const key = `child-${index}`;
-      if (savedGuestData.has(key)) {
-        savedGuestData.get(key).guestType = toggle.checked ? 'external' : 'utia';
-      }
-    });
-
-    // Capture toddlers
-    const existingToddlerInputs = section.querySelectorAll('input[data-guest-type="toddler"]');
-    existingToddlerInputs.forEach((input) => {
-      const index = input.dataset.guestIndex;
-      const key = `toddler-${index}`;
-      if (!savedGuestData.has(key)) {
-        savedGuestData.set(key, {});
-      }
-      const data = savedGuestData.get(key);
-      if (input.id.includes('FirstName')) {
-        data.firstName = input.value;
-      } else if (input.id.includes('LastName')) {
-        data.lastName = input.value;
-      }
-    });
-
-    const makeId = (prefix) => prefix;
-
-    // Adults section
-    const adultsContainer = document.getElementById('singleRoomAdultsNamesContainer');
-    if (adultsContainer) {
-      adultsContainer.innerHTML = '';
-      if (adults > 0) {
-        adultsContainer.style.display = 'block';
-        const adultsHeader = document.createElement('h5');
-        adultsHeader.style.cssText = 'margin-bottom: 0.5rem; color: #374151; font-size: 0.95rem;';
-        adultsHeader.textContent = `${langManager.t('adultsLabel')} (${adults})`;
-        adultsContainer.appendChild(adultsHeader);
-
-        for (let i = 1; i <= adults; i++) {
-          const row = document.createElement('div');
-          row.style.cssText =
-            'display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;';
-
-          // Name inputs
-          const firstNameInput = document.createElement('input');
-          firstNameInput.type = 'text';
-          firstNameInput.id = `${makeId('singleRoomAdultFirstName')}${i}`;
-          firstNameInput.placeholder = langManager.t('firstNamePlaceholder');
-          firstNameInput.setAttribute('data-guest-type', 'adult');
-          firstNameInput.setAttribute('data-guest-index', i);
-          firstNameInput.required = true;
-          firstNameInput.minLength = 2;
-          firstNameInput.maxLength = 50;
-          firstNameInput.style.cssText =
-            'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
-
-          const lastNameInput = document.createElement('input');
-          lastNameInput.type = 'text';
-          lastNameInput.id = `${makeId('singleRoomAdultLastName')}${i}`;
-          lastNameInput.placeholder = langManager.t('lastNamePlaceholder');
-          lastNameInput.setAttribute('data-guest-type', 'adult');
-          lastNameInput.setAttribute('data-guest-index', i);
-          lastNameInput.required = true;
-          lastNameInput.minLength = 2;
-          lastNameInput.maxLength = 50;
-          lastNameInput.style.cssText =
-            'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
-
-          // Add input event listeners to remove red border when user starts typing
-          const removeRedBorder = (input) => {
-            if (
-              input.style.borderColor === 'rgb(239, 68, 68)' ||
-              input.style.borderColor === '#ef4444'
-            ) {
-              input.style.borderColor = '#d1d5db';
-            }
-          };
-
-          firstNameInput.addEventListener('input', function () {
-            removeRedBorder(this);
-          });
-
-          lastNameInput.addEventListener('input', function () {
-            removeRedBorder(this);
-          });
-
-          // Toggle switch container
-          const toggleContainer = document.createElement('div');
-          toggleContainer.style.cssText =
-            'display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; flex-shrink: 0;';
-
-          const toggleLabel = document.createElement('label');
-          toggleLabel.style.cssText =
-            'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer;';
-
-          const toggleInput = document.createElement('input');
-          toggleInput.type = 'checkbox';
-          toggleInput.id = `adult${i}GuestTypeToggle`;
-          toggleInput.setAttribute('data-guest-type', 'adult');
-          toggleInput.setAttribute('data-guest-index', i);
-          toggleInput.setAttribute('data-guest-price-type', 'true');
-          toggleInput.checked = false; // Unchecked = ÚTIA, Checked = External
-          toggleInput.style.cssText = 'opacity: 0; width: 0; height: 0;';
-
-          const toggleSlider = document.createElement('span');
-          toggleSlider.style.cssText = `
-            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #059669; transition: 0.3s; border-radius: 24px;
-          `;
-
-          const toggleThumb = document.createElement('span');
-          toggleThumb.style.cssText = `
-            position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px;
-            background-color: white; transition: 0.3s; border-radius: 50%;
-          `;
-          toggleSlider.appendChild(toggleThumb);
-
-          // Toggle state change handler
-          toggleInput.addEventListener('change', async function () {
-            if (this.checked) {
-              toggleSlider.style.backgroundColor = '#dc2626'; // Red for External
-              toggleThumb.style.transform = 'translateX(20px)';
-              toggleText.textContent = 'EXT';
-              toggleText.style.color = '#dc2626';
-            } else {
-              toggleSlider.style.backgroundColor = '#059669'; // Green for ÚTIA
-              toggleThumb.style.transform = 'translateX(0)';
-              toggleText.textContent = 'ÚTIA';
-              toggleText.style.color = '#059669';
-            }
-
-            // NOVÝ KÓD - Přepočet ceny po změně typu hosta:
-            if (window.app && window.app.singleRoomBooking) {
-              try {
-                await window.app.singleRoomBooking.updatePriceForCurrentRoom();
-              } catch (error) {
-                console.error('Failed to update price after guest type change:', error);
-              }
-            }
-          });
-
-          toggleLabel.appendChild(toggleInput);
-          toggleLabel.appendChild(toggleSlider);
-
-          const toggleText = document.createElement('span');
-          toggleText.textContent = 'ÚTIA';
-          toggleText.style.cssText =
-            'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px;';
-
-          toggleContainer.appendChild(toggleLabel);
-          toggleContainer.appendChild(toggleText);
-
-          // RESTORE PHASE: Restore saved data for this guest
-          const savedKey = `adult-${i}`;
-          if (savedGuestData.has(savedKey)) {
-            const saved = savedGuestData.get(savedKey);
-            if (saved.firstName) {
-              firstNameInput.value = saved.firstName;
-            }
-            if (saved.lastName) {
-              lastNameInput.value = saved.lastName;
-            }
-            if (saved.guestType) {
-              const isExternal = saved.guestType === 'external';
-              toggleInput.checked = isExternal;
-              // Trigger visual update
-              if (isExternal) {
-                toggleSlider.style.backgroundColor = '#dc2626';
-                toggleThumb.style.transform = 'translateX(20px)';
-                toggleText.textContent = 'EXT';
-                toggleText.style.color = '#dc2626';
-              } else {
-                toggleSlider.style.backgroundColor = '#059669';
-                toggleThumb.style.transform = 'translateX(0)';
-                toggleText.textContent = 'ÚTIA';
-                toggleText.style.color = '#059669';
-              }
-            }
-          }
-
-          row.appendChild(firstNameInput);
-          row.appendChild(lastNameInput);
-          row.appendChild(toggleContainer);
-          adultsContainer.appendChild(row);
-        }
-      } else {
-        adultsContainer.style.display = 'none';
-      }
-    }
-
-    // Children section
-    const childrenContainer = document.getElementById('singleRoomChildrenNamesContainer');
-    if (childrenContainer) {
-      childrenContainer.innerHTML = '';
-      if (children > 0) {
-        childrenContainer.style.display = 'block';
-        const childrenHeader = document.createElement('h5');
-        childrenHeader.style.cssText = 'margin-bottom: 0.5rem; color: #374151; font-size: 0.95rem;';
-        childrenHeader.textContent = `${langManager.t('childrenLabel')} (${children})`;
-        childrenContainer.appendChild(childrenHeader);
-
-        for (let i = 1; i <= children; i++) {
-          const row = document.createElement('div');
-          row.style.cssText =
-            'display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;';
-
-          // Name inputs
-          const firstNameInput = document.createElement('input');
-          firstNameInput.type = 'text';
-          firstNameInput.id = `${makeId('singleRoomChildFirstName')}${i}`;
-          firstNameInput.placeholder = langManager.t('firstNamePlaceholder');
-          firstNameInput.setAttribute('data-guest-type', 'child');
-          firstNameInput.setAttribute('data-guest-index', i);
-          firstNameInput.required = true;
-          firstNameInput.minLength = 2;
-          firstNameInput.maxLength = 50;
-          firstNameInput.style.cssText =
-            'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
-
-          const lastNameInput = document.createElement('input');
-          lastNameInput.type = 'text';
-          lastNameInput.id = `${makeId('singleRoomChildLastName')}${i}`;
-          lastNameInput.placeholder = langManager.t('lastNamePlaceholder');
-          lastNameInput.setAttribute('data-guest-type', 'child');
-          lastNameInput.setAttribute('data-guest-index', i);
-          lastNameInput.required = true;
-          lastNameInput.minLength = 2;
-          lastNameInput.maxLength = 50;
-          lastNameInput.style.cssText =
-            'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
-
-          // Toggle switch container
-          const toggleContainer = document.createElement('div');
-          toggleContainer.style.cssText =
-            'display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; flex-shrink: 0;';
-
-          const toggleLabel = document.createElement('label');
-          toggleLabel.style.cssText =
-            'position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer;';
-
-          const toggleInput = document.createElement('input');
-          toggleInput.type = 'checkbox';
-          toggleInput.id = `child${i}GuestTypeToggle`;
-          toggleInput.setAttribute('data-guest-type', 'child');
-          toggleInput.setAttribute('data-guest-index', i);
-          toggleInput.setAttribute('data-guest-price-type', 'true');
-          toggleInput.checked = false; // Unchecked = ÚTIA, Checked = External
-          toggleInput.style.cssText = 'opacity: 0; width: 0; height: 0;';
-
-          const toggleSlider = document.createElement('span');
-          toggleSlider.style.cssText = `
-            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #059669; transition: 0.3s; border-radius: 24px;
-          `;
-
-          const toggleThumb = document.createElement('span');
-          toggleThumb.style.cssText = `
-            position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px;
-            background-color: white; transition: 0.3s; border-radius: 50%;
-          `;
-          toggleSlider.appendChild(toggleThumb);
-
-          // Toggle state change handler
-          toggleInput.addEventListener('change', async function () {
-            if (this.checked) {
-              toggleSlider.style.backgroundColor = '#dc2626'; // Red for External
-              toggleThumb.style.transform = 'translateX(20px)';
-              toggleText.textContent = 'EXT';
-              toggleText.style.color = '#dc2626';
-            } else {
-              toggleSlider.style.backgroundColor = '#059669'; // Green for ÚTIA
-              toggleThumb.style.transform = 'translateX(0)';
-              toggleText.textContent = 'ÚTIA';
-              toggleText.style.color = '#059669';
-            }
-
-            // NOVÝ KÓD - Přepočet ceny po změně typu hosta:
-            if (window.app && window.app.singleRoomBooking) {
-              try {
-                await window.app.singleRoomBooking.updatePriceForCurrentRoom();
-              } catch (error) {
-                console.error('Failed to update price after guest type change:', error);
-              }
-            }
-          });
-
-          toggleLabel.appendChild(toggleInput);
-          toggleLabel.appendChild(toggleSlider);
-
-          const toggleText = document.createElement('span');
-          toggleText.textContent = 'ÚTIA';
-          toggleText.style.cssText =
-            'font-size: 0.75rem; font-weight: 600; color: #059669; min-width: 32px;';
-
-          toggleContainer.appendChild(toggleLabel);
-          toggleContainer.appendChild(toggleText);
-
-          // RESTORE PHASE: Restore saved data for this guest
-          const savedKey = `child-${i}`;
-          if (savedGuestData.has(savedKey)) {
-            const saved = savedGuestData.get(savedKey);
-            if (saved.firstName) {
-              firstNameInput.value = saved.firstName;
-            }
-            if (saved.lastName) {
-              lastNameInput.value = saved.lastName;
-            }
-            if (saved.guestType) {
-              const isExternal = saved.guestType === 'external';
-              toggleInput.checked = isExternal;
-              // Trigger visual update
-              if (isExternal) {
-                toggleSlider.style.backgroundColor = '#dc2626';
-                toggleThumb.style.transform = 'translateX(20px)';
-                toggleText.textContent = 'EXT';
-                toggleText.style.color = '#dc2626';
-              } else {
-                toggleSlider.style.backgroundColor = '#059669';
-                toggleThumb.style.transform = 'translateX(0)';
-                toggleText.textContent = 'ÚTIA';
-                toggleText.style.color = '#059669';
-              }
-            }
-          }
-
-          // Add input event listeners to remove red border when user starts typing
-          const removeRedBorderChild = (input) => {
-            if (
-              input.style.borderColor === 'rgb(239, 68, 68)' ||
-              input.style.borderColor === '#ef4444'
-            ) {
-              input.style.borderColor = '#d1d5db';
-            }
-          };
-
-          firstNameInput.addEventListener('input', function () {
-            removeRedBorderChild(this);
-          });
-
-          lastNameInput.addEventListener('input', function () {
-            removeRedBorderChild(this);
-          });
-
-          row.appendChild(firstNameInput);
-          row.appendChild(lastNameInput);
-          row.appendChild(toggleContainer);
-          childrenContainer.appendChild(row);
-        }
-      } else {
-        childrenContainer.style.display = 'none';
-      }
-    }
-
-    // Toddlers section
-    const toddlersContainer = document.getElementById('singleRoomToddlersNamesContainer');
-    if (toddlersContainer) {
-      toddlersContainer.innerHTML = '';
-      if (toddlers > 0) {
-        toddlersContainer.style.display = 'block';
-        const toddlersHeader = document.createElement('h5');
-        toddlersHeader.style.cssText = 'margin-bottom: 0.5rem; color: #374151; font-size: 0.95rem;';
-        toddlersHeader.textContent = `${langManager.t('toddlersLabel')} (${toddlers})`;
-        toddlersContainer.appendChild(toddlersHeader);
-
-        for (let i = 1; i <= toddlers; i++) {
-          const row = document.createElement('div');
-          row.style.cssText =
-            'display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;';
-
-          // Name inputs
-          const firstNameInput = document.createElement('input');
-          firstNameInput.type = 'text';
-          firstNameInput.id = `${makeId('singleRoomToddlerFirstName')}${i}`;
-          firstNameInput.placeholder = langManager.t('firstNameToddlerPlaceholder');
-          firstNameInput.setAttribute('data-guest-type', 'toddler');
-          firstNameInput.setAttribute('data-guest-index', i);
-          firstNameInput.required = true;
-          firstNameInput.minLength = 2;
-          firstNameInput.maxLength = 50;
-          firstNameInput.style.cssText =
-            'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
-
-          const lastNameInput = document.createElement('input');
-          lastNameInput.type = 'text';
-          lastNameInput.id = `${makeId('singleRoomToddlerLastName')}${i}`;
-          lastNameInput.placeholder = langManager.t('lastNameToddlerPlaceholder');
-          lastNameInput.setAttribute('data-guest-type', 'toddler');
-          lastNameInput.setAttribute('data-guest-index', i);
-          lastNameInput.required = true;
-          lastNameInput.minLength = 2;
-          lastNameInput.maxLength = 50;
-          lastNameInput.style.cssText =
-            'flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; min-width: 0;';
-
-          // RESTORE PHASE: Restore saved data for this guest
-          const savedKey = `toddler-${i}`;
-          if (savedGuestData.has(savedKey)) {
-            const saved = savedGuestData.get(savedKey);
-            if (saved.firstName) {
-              firstNameInput.value = saved.firstName;
-            }
-            if (saved.lastName) {
-              lastNameInput.value = saved.lastName;
-            }
-          }
-
-          // Add input event listeners to remove red border when user starts typing
-          const removeRedBorderToddler = (input) => {
-            if (
-              input.style.borderColor === 'rgb(239, 68, 68)' ||
-              input.style.borderColor === '#ef4444'
-            ) {
-              input.style.borderColor = '#d1d5db';
-            }
-          };
-
-          firstNameInput.addEventListener('input', function () {
-            removeRedBorderToddler(this);
-          });
-
-          lastNameInput.addEventListener('input', function () {
-            removeRedBorderToddler(this);
-          });
-
-          // Free label
-          const freeLabel = document.createElement('span');
-          freeLabel.textContent = `(${langManager.t('toddlersFreeLabel')})`;
-          freeLabel.style.cssText =
-            'font-size: 0.7rem; color: #6b7280; white-space: nowrap; flex-shrink: 0;';
-
-          row.appendChild(firstNameInput);
-          row.appendChild(lastNameInput);
-          row.appendChild(freeLabel);
-          toddlersContainer.appendChild(row);
-        }
-      } else {
-        toddlersContainer.style.display = 'none';
-      }
-    }
   }
 
   /**
    * Collect guest names from input fields
-   * Validates that ALL fields are filled
+   * Delegates to GuestNameUtils SSOT component
    * @param {boolean} showValidationErrors - If true, shows error notifications (default: true)
    * @returns {Array|null} Array of guest name objects or null if validation fails
    */
   collectGuestNames(showValidationErrors = true) {
-    const guestNames = [];
-    const section = document.getElementById('singleRoomGuestNamesSection');
-
-    if (!section || section.style.display === 'none') {
-      return []; // No names section visible, return empty array
-    }
-
-    // If NOT showing validation errors (price update mode), collect only checkboxes
-    if (!showValidationErrors) {
-      // Collect guest type from toggle switches (checkboxes) for adults and children
-      const guestTypeInputs = section.querySelectorAll('input[data-guest-price-type]');
-      guestTypeInputs.forEach((input) => {
-        const { guestType } = input.dataset; // adult, child
-        // UI logic: Unchecked (false) = ÚTIA, Checked (true) = External
-        const guestPriceType = input.checked ? 'external' : 'utia';
-
-        // Create dummy guest for price calculation
-        guestNames.push({
-          personType: guestType,
-          guestPriceType,
-          firstName: '', // Empty for price update mode
-          lastName: '',
-        });
-      });
-
-      // For toddlers, count the number of toddler name inputs and add them with default price type
-      const toddlerInputs = section.querySelectorAll('input[data-guest-type="toddler"]');
-      // Count unique toddler indices (each toddler has 2 inputs: firstName and lastName)
-      const toddlerIndices = new Set();
-      toddlerInputs.forEach((input) => {
-        if (input.dataset.guestIndex) {
-          toddlerIndices.add(input.dataset.guestIndex);
-        }
-      });
-
-      // Add a dummy guest for each toddler
-      toddlerIndices.forEach(() => {
-        guestNames.push({
-          personType: 'toddler',
-          guestPriceType: 'utia', // Default for toddlers (free anyway)
-          firstName: '', // Empty for price update mode
-          lastName: '',
-        });
-      });
-
-      return guestNames;
-    }
-
-    // FULL VALIDATION MODE (when submitting)
-    // Collect all inputs with data-guest-type attribute (text inputs for names)
-    const inputs = section.querySelectorAll('input[data-guest-type]:not([data-guest-price-type])');
-
-    // Group inputs by guest type and index
-    const guestMap = new Map();
-
-    inputs.forEach((input) => {
-      const { guestType } = input.dataset;
-      const { guestIndex } = input.dataset;
-      const key = `${guestType}-${guestIndex}`;
-
-      if (!guestMap.has(key)) {
-        guestMap.set(key, { personType: guestType });
-      }
-
-      const guest = guestMap.get(key);
-      const value = input.value.trim();
-
-      // Validate: all fields must be filled
-      if (!value || value.length < 2) {
-        input.style.borderColor = '#ef4444';
-        return null; // Validation failed
-      }
-
-      // Reset border color
-      input.style.borderColor = '#d1d5db';
-
-      // Determine if this is firstName or lastName based on ID
-      if (input.id.includes('FirstName')) {
-        guest.firstName = value;
-      } else if (input.id.includes('LastName')) {
-        guest.lastName = value;
-      }
-    });
-
-    // Collect guest type for each guest from toggle switches (checkboxes)
-    const guestTypeInputs = section.querySelectorAll('input[data-guest-price-type]');
-    guestTypeInputs.forEach((input) => {
-      const { guestType } = input.dataset;
-      const { guestIndex } = input.dataset;
-      const key = `${guestType}-${guestIndex}`;
-
-      if (guestMap.has(key)) {
-        const guest = guestMap.get(key);
-        // UI logic: Unchecked (false) = ÚTIA, Checked (true) = External
-        guest.guestPriceType = input.checked ? 'external' : 'utia';
-      }
-    });
-
-    // Convert map to array and validate completeness
-    for (const [key, guest] of guestMap) {
-      if (!guest.firstName || !guest.lastName) {
-        this.app.showNotification(
-          this.app.currentLanguage === 'cs'
-            ? 'Vyplňte všechna jména hostů (křestní i příjmení)'
-            : 'Fill in all guest names (first and last name)',
-          'error'
-        );
-        return null; // Incomplete guest data
-      }
-
-      // Validate that guest type is set (skip for toddlers - they have no toggle)
-      if (!guest.guestPriceType && guest.personType !== 'toddler') {
-        this.app.showNotification(
-          this.app.currentLanguage === 'cs'
-            ? 'Vyberte typ hosta (ÚTIA/Externí) pro všechny hosty'
-            : 'Select guest type (ÚTIA/External) for all guests',
-          'error'
-        );
-        return null; // Missing guest type
-      }
-
-      // For toddlers without guestPriceType, set default (doesn't matter for price)
-      if (guest.personType === 'toddler' && !guest.guestPriceType) {
-        guest.guestPriceType = 'utia'; // Default for toddlers (free anyway)
-      }
-
-      guestNames.push(guest);
-    }
-
-    return guestNames;
+    // Delegate to GuestNameUtils SSOT component
+    // showValidationErrors=false enables "price update mode" (only collects toggle states)
+    return GuestNameUtils.collectGuestNames(
+      'singleRoomGuestNamesSection',
+      showValidationErrors,
+      { showNotification: (msg, type) => window.notificationManager?.show(msg, type) },
+      this.app.currentLanguage || 'cs'
+    );
   }
 
   /**

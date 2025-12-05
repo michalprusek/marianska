@@ -321,6 +321,56 @@ class PriceCalculator {
   }
 
   /**
+   * Calculate bulk booking price with mixed ÚTIA/external guest types
+   *
+   * SSOT method for bulk bookings where guests may be a mix of ÚTIA employees
+   * and external guests, each with their own pricing rates.
+   *
+   * @param {Object} options - Pricing options
+   * @param {number} options.utiaAdults - Number of ÚTIA adults
+   * @param {number} options.externalAdults - Number of external adults
+   * @param {number} options.utiaChildren - Number of ÚTIA children (3-17 years)
+   * @param {number} options.externalChildren - Number of external children (3-17 years)
+   * @param {number} options.nights - Number of nights
+   * @param {Object} options.settings - Settings object with bulkPrices configuration
+   * @returns {number} Total price in CZK
+   */
+  static calculateMixedBulkPrice(options) {
+    const {
+      utiaAdults = 0,
+      externalAdults = 0,
+      utiaChildren = 0,
+      externalChildren = 0,
+      nights = 1,
+      settings,
+    } = options;
+
+    // CRITICAL: Validate required configuration exists
+    if (!settings || !settings.bulkPrices) {
+      const error = new Error('Chybí konfigurace cen pro hromadné rezervace');
+      console.error('[PriceCalculator] Missing settings or bulkPrices configuration', error);
+      throw error;
+    }
+
+    const { bulkPrices } = settings;
+
+    // Base price for entire chalet
+    let totalPrice = bulkPrices.basePrice * nights;
+
+    // ÚTIA guest surcharges
+    totalPrice += utiaAdults * bulkPrices.utiaAdult * nights;
+    totalPrice += utiaChildren * bulkPrices.utiaChild * nights;
+
+    // External guest surcharges
+    totalPrice += externalAdults * bulkPrices.externalAdult * nights;
+    totalPrice += externalChildren * bulkPrices.externalChild * nights;
+
+    // Toddlers are always free (not counted in any category)
+
+    return Math.round(totalPrice);
+  }
+
+  /**
    * Get default price configuration
    * NEW MODEL (2025-11-10): Room-size-based pricing with 'empty' field only
    *
@@ -551,9 +601,12 @@ class PriceCalculator {
    *
    * @param {Object} priceBreakdown - Output from calculatePerRoomPrices()
    * @param {string} language - 'cs' or 'en'
+   * @param {number|null} authoritativeTotal - Authoritative total price from database (SSOT).
+   *        When provided, this value is displayed as the grand total instead of calculated grandTotal.
+   *        If it differs from calculated grandTotal, an info note is shown.
    * @returns {string} Formatted HTML string
    */
-  static formatPerRoomPricesHTML(priceBreakdown, language = 'cs') {
+  static formatPerRoomPricesHTML(priceBreakdown, language = 'cs', authoritativeTotal = null) {
     const { rooms, grandTotal } = priceBreakdown;
 
     if (!rooms || rooms.length === 0) {
@@ -705,8 +758,11 @@ class PriceCalculator {
       html += `</div>`; // Close card
     }
 
-    // Grand total (if multiple rooms)
-    if (rooms.length > 1) {
+    // Grand total - FIXED 2025-12-04: Always display calculated grandTotal from current settings (SSOT)
+    // The authoritativeTotal (from database) is historical, current price settings are authoritative
+
+    // Show grand total for multiple rooms OR when authoritativeTotal is provided (SSOT display)
+    if (rooms.length > 1 || authoritativeTotal !== null) {
       html += `<div style="margin-top: 1rem; padding: 1rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; color: white;">`;
       html += `<div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: 700;">`;
       html += `<span>${t.grandTotal}:</span>`;
@@ -802,9 +858,12 @@ class PriceCalculator {
         // Use per-room guest type if available (NEW logic)
         roomGuestType = normalizedPerRoomGuests[roomId].guestType;
       } else {
-        // Fallback: Use booking-level guestType (when perRoomGuests data not available)
-        // This prevents incorrect pricing when mixing ÚTIA and external guests
-        roomGuestType = fallbackGuestType || 'external';
+        // NEW UNIFIED (2025-12-04): Check guestNames for ÚTIA guests
+        // If ANY paying guest (adult/child) is ÚTIA, use ÚTIA empty room rate
+        const hasUtiaGuest = guestNames.some(
+          (g) => g.guestPriceType === 'utia' && g.personType !== 'toddler'
+        );
+        roomGuestType = hasUtiaGuest ? 'utia' : (fallbackGuestType || 'external');
       }
 
       // CRITICAL: Validate price configuration exists for this guest type and room type

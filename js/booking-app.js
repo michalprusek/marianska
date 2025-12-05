@@ -53,6 +53,7 @@ class BookingApp {
     this.singleRoomBooking = new SingleRoomBookingModule(this);
     this.bulkBooking = new BulkBookingModule(this);
     this.bookingForm = new BookingFormModule(this);
+    this.createBookingComponent = new CreateBookingComponent(this);
     this.utils = new UtilsModule(this);
   }
 
@@ -77,6 +78,9 @@ class BookingApp {
 
     // Setup event listeners
     this.setupEventListeners();
+
+    // Initialize CreateBookingComponent
+    this.createBookingComponent.init();
 
     // Initial render
     await this.renderCalendar();
@@ -136,6 +140,12 @@ class BookingApp {
   async checkAndCleanExpiredProposedBookings() {
     if (!this.tempReservations || this.tempReservations.length === 0) {
       return; // No temp reservations to check
+    }
+
+    // FIX 2025-12-04: Skip cleanup during finalization to prevent race condition
+    // where interval removes tempReservations while submitBooking is processing them
+    if (this.isFinalizingReservations || this.bookingForm?.isSubmitting) {
+      return; // Finalization in progress - don't interfere
     }
 
     try {
@@ -198,11 +208,12 @@ class BookingApp {
           // Rooms is already an array from database.js
           const rooms = Array.isArray(proposed.rooms) ? proposed.rooms : [];
 
-          // Check if this is a bulk booking (all rooms)
-          const isBulkBooking = rooms.length === allRooms.length;
+          // FIX 2025-12-04: Check explicit isBulkBooking flag from database, NOT room count
+          // A booking with all 9 rooms is NOT necessarily a bulk booking
+          const isBulkBooking = proposed.is_bulk_booking === true || proposed.isBulkBooking === true;
 
           if (isBulkBooking) {
-            // Bulk booking format
+            // Bulk booking format - only for explicitly marked bulk bookings
             this.tempReservations.push({
               id: proposed.proposal_id,
               isBulkBooking: true,
@@ -409,12 +420,29 @@ class BookingApp {
     // Confirm and submit buttons
     const confirmDatesBtn = document.getElementById('confirmRoomDates');
     if (confirmDatesBtn) {
-      confirmDatesBtn.addEventListener('click', () => this.bookingForm.showBookingForm());
+      // Use CreateBookingComponent to show the final modal
+      confirmDatesBtn.addEventListener('click', () => {
+        // Hide single room modal first if needed, or just show finalize
+        // Usually we want to close the current modal and open the next
+        const singleRoomModal = document.getElementById('singleRoomBookingModal');
+        if (singleRoomModal) singleRoomModal.classList.remove('active');
+
+        this.createBookingComponent.showFinalizeModal();
+      });
     }
 
     const submitBtn = document.getElementById('submitRoomBooking');
     if (submitBtn) {
-      submitBtn.addEventListener('click', () => this.bookingForm.submitBooking());
+      // This button might be in the single room modal? 
+      // If so, it might be "Add to booking" rather than "Submit".
+      // But if it's "Submit", it's likely handled by CreateBookingComponent's form now.
+      // We'll leave it for now or redirect if it's the final submit.
+      // Checking ID 'submitRoomBooking' - usually this is "Potvrdit" in single room modal.
+      // If it submits the whole booking, we change it.
+      // But CreateBookingComponent attaches to #createBookingSubmit in the new form.
+      // So this listener might be obsolete or for a different button.
+      // Let's comment it out if we think it conflicts, or redirect.
+      // submitBtn.addEventListener('click', () => this.bookingForm.submitBooking());
     }
 
     // Back button
@@ -453,7 +481,13 @@ class BookingApp {
     // Confirm and submit buttons
     const confirmBtn = document.getElementById('confirmBulkDates');
     if (confirmBtn) {
-      confirmBtn.addEventListener('click', () => this.bulkBooking.confirmBulkDates());
+      confirmBtn.addEventListener('click', () => {
+        // Hide bulk modal first
+        const bulkModal = document.getElementById('bulkBookingModal');
+        if (bulkModal) bulkModal.classList.remove('active');
+
+        this.createBookingComponent.showFinalizeModal();
+      });
     }
 
     const submitBtn = document.getElementById('submitBulkBooking');
@@ -706,7 +740,11 @@ class BookingApp {
   }
 
   showNotification(message, type, duration) {
-    this.utils.showNotification(message, type, duration);
+    if (window.notificationManager) {
+      window.notificationManager.show(message, type, duration);
+    } else {
+      console.warn('NotificationManager not found, falling back to console');
+    }
   }
 
   updateBookingButton() {
@@ -925,15 +963,14 @@ class BookingApp {
                   <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
                     👥 ${guestText.join(', ')}
                   </div>
-                  ${
-                    booking.guestNames && booking.guestNames.length > 0
-                      ? `
+                  ${booking.guestNames && booking.guestNames.length > 0
+            ? `
                   <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
                     👤 ${booking.guestNames[0].firstName} ${booking.guestNames[0].lastName}${booking.guestNames.length > 1 ? ` +${booking.guestNames.length - 1} ${this.currentLanguage === 'cs' ? 'další' : 'other'}` : ''}
                   </div>
                   `
-                      : ''
-                  }
+            : ''
+          }
                   <div style="font-size: 0.9rem; color: var(--gray-600);">
                     🏷️ ${this.currentLanguage === 'cs' ? 'Typ' : 'Type'}: <span style="font-weight: 600;">${guestTypeText}</span>
                   </div>
@@ -976,11 +1013,10 @@ class BookingApp {
               <div style="flex: 1;">
                 <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
                   <span style="background: #ff4444; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">${this.currentLanguage === 'cs' ? 'NAVRHOVANÁ' : 'PROPOSED'}</span>
-                  <strong style="color: var(--primary-color); font-size: 1.1rem;">${
-                    this.currentLanguage === 'cs'
-                      ? booking.roomName
-                      : booking.roomName.replace('Pokoj', 'Room')
-                  }</strong>
+                  <strong style="color: var(--primary-color); font-size: 1.1rem;">${this.currentLanguage === 'cs'
+            ? booking.roomName
+            : booking.roomName.replace('Pokoj', 'Room')
+          }</strong>
                 </div>
                 <div style="background: white; padding: 0.75rem; border-radius: 6px; border: 1px solid #e0e0e0;">
                   <div style="color: var(--gray-700); font-size: 0.95rem; margin-bottom: 0.5rem;">
@@ -990,15 +1026,14 @@ class BookingApp {
                   <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
                     👥 ${guestText.join(', ')}
                   </div>
-                  ${
-                    booking.guestNames && booking.guestNames.length > 0
-                      ? `
+                  ${booking.guestNames && booking.guestNames.length > 0
+            ? `
                   <div style="font-size: 0.9rem; color: var(--gray-600); margin-bottom: 0.5rem;">
                     👤 ${booking.guestNames[0].firstName} ${booking.guestNames[0].lastName}${booking.guestNames.length > 1 ? ` +${booking.guestNames.length - 1} ${this.currentLanguage === 'cs' ? 'další' : 'other'}` : ''}
                   </div>
                   `
-                      : ''
-                  }
+            : ''
+          }
                   <div style="font-size: 0.9rem; color: var(--gray-600);">
                     🏷️ ${this.currentLanguage === 'cs' ? 'Typ' : 'Type'}: <span style="font-weight: 600;">${guestTypeText}</span>
                   </div>
@@ -1314,35 +1349,14 @@ class BookingApp {
           radioButton.checked = true;
         }
 
-        // Generate guest name inputs
+        // Generate guest name inputs with existing data from reservation
+        // FIX 2025-12-04: Pass guestNames to pre-populate inputs (unified with bulk-booking)
         singleRoomBooking.generateGuestNamesInputs(
           reservationToEdit.guests.adults || 0,
           reservationToEdit.guests.children || 0,
-          reservationToEdit.guests.toddlers || 0
+          reservationToEdit.guests.toddlers || 0,
+          reservationToEdit.guestNames || null
         );
-
-        // Pre-fill guest names if available
-        // Note: requestAnimationFrame ensures DOM elements are rendered before we try to populate them.
-        // This is more reliable than setTimeout with arbitrary delays, as it waits for the next browser
-        // paint cycle when the DOM is guaranteed to be ready.
-        if (reservationToEdit.guestNames && reservationToEdit.guestNames.length > 0) {
-          requestAnimationFrame(() => {
-            reservationToEdit.guestNames.forEach((guestName, index) => {
-              const input = document.querySelector(`[data-guest-index="${index}"]`);
-              if (input) {
-                input.value = guestName.name || '';
-
-                // Set guest type dropdown if it exists
-                const guestTypeDropdown = document.querySelector(
-                  `[data-guest-type-index="${index}"]`
-                );
-                if (guestTypeDropdown) {
-                  guestTypeDropdown.value = guestName.guestPriceType || 'external';
-                }
-              }
-            });
-          });
-        }
 
         // FIX 2025-12-02: Change button text to "Uložit" (Save) when editing
         const confirmBtn = document.getElementById('confirmSingleRoomBtn');
@@ -1364,8 +1378,13 @@ class BookingApp {
 
   // Finalize all temporary reservations - show booking form modal for contact details
   async finalizeAllReservations() {
+    // FIX 2025-12-04: Set flag IMMEDIATELY to prevent race condition with cleanup interval
+    // This must be set BEFORE checking tempReservations to prevent interval from clearing them
+    this.isFinalizingReservations = true;
+
     // Check if we have any temporary reservations
     if (!this.tempReservations || this.tempReservations.length === 0) {
+      this.isFinalizingReservations = false; // Reset flag
       this.showNotification(
         this.currentLanguage === 'cs'
           ? 'Nejsou žádné rezervace k dokončení'
@@ -1380,6 +1399,11 @@ class BookingApp {
     if (!modal) {
       console.error('Booking form modal not found');
       return;
+    }
+
+    // Render the contact form using the shared component
+    if (this.bookingForm && typeof this.bookingForm.renderContactForm === 'function') {
+      this.bookingForm.renderContactForm();
     }
 
     // Consolidate consecutive same-room bookings for display
@@ -1401,34 +1425,28 @@ class BookingApp {
             <div style="padding: 0.75rem; background: linear-gradient(135deg, #f3e8ff, #fef3ff); border: 1px solid #8b5cf6; border-radius: var(--radius-sm); margin-bottom: 0.5rem;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                  <strong style="color: #8b5cf6;">🏠 ${
-                    this.currentLanguage === 'cs'
-                      ? 'Hromadná rezervace celé chaty'
-                      : 'Bulk Booking - Entire Cottage'
-                  }</strong><br>
+                  <strong style="color: #8b5cf6;">🏠 ${this.currentLanguage === 'cs'
+              ? 'Hromadná rezervace celé chaty'
+              : 'Bulk Booking - Entire Cottage'
+            }</strong><br>
                   <span style="font-size: 0.9rem; color: var(--gray-600);">
-                    ${reservation.startDate} → ${reservation.endDate} (${reservation.nights} ${
-                      this.currentLanguage === 'cs' ? 'nocí' : 'nights'
-                    })
+                    ${reservation.startDate} → ${reservation.endDate} (${reservation.nights} ${this.currentLanguage === 'cs' ? 'nocí' : 'nights'
+            })
                   </span><br>
                   <span style="font-size: 0.9rem; color: var(--gray-600);">
-                    ${reservation.roomIds.length} ${
-                      this.currentLanguage === 'cs' ? 'pokojů' : 'rooms'
-                    }, ${reservation.guests.adults} ${
-                      this.currentLanguage === 'cs' ? 'dospělí' : 'adults'
-                    }${
-                      reservation.guests.children > 0
-                        ? `, ${reservation.guests.children} ${
-                            this.currentLanguage === 'cs' ? 'děti' : 'children'
-                          }`
-                        : ''
-                    }
+                    ${reservation.roomIds.length} ${this.currentLanguage === 'cs' ? 'pokojů' : 'rooms'
+            }, ${reservation.guests.adults} ${this.currentLanguage === 'cs' ? 'dospělí' : 'adults'
+            }${reservation.guests.children > 0
+              ? `, ${reservation.guests.children} ${this.currentLanguage === 'cs' ? 'děti' : 'children'
+              }`
+              : ''
+            }
                   </span>
                 </div>
                 <div style="text-align: right;">
                   <strong style="color: #8b5cf6; font-size: 1.1rem;">${reservation.totalPrice.toLocaleString(
-                    'cs-CZ'
-                  )} Kč</strong>
+              'cs-CZ'
+            )} Kč</strong>
                 </div>
               </div>
             </div>
@@ -1439,38 +1457,31 @@ class BookingApp {
             <div style="padding: 0.75rem; background: var(--gray-50); border-radius: var(--radius-sm); margin-bottom: 0.5rem;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                  <strong>${
-                    this.currentLanguage === 'cs'
-                      ? reservation.roomName
-                      : reservation.roomName.replace('Pokoj', 'Room')
-                  }</strong><br>
+                  <strong>${this.currentLanguage === 'cs'
+              ? reservation.roomName
+              : reservation.roomName.replace('Pokoj', 'Room')
+            }</strong><br>
                   <span style="font-size: 0.9rem; color: var(--gray-600);">
-                    ${reservation.startDate} → ${reservation.endDate} (${reservation.nights} ${
-                      this.currentLanguage === 'cs' ? 'nocí' : 'nights'
-                    })
+                    ${reservation.startDate} → ${reservation.endDate} (${reservation.nights} ${this.currentLanguage === 'cs' ? 'nocí' : 'nights'
+            })
                   </span><br>
                   <span style="font-size: 0.9rem; color: var(--gray-600);">
-                    ${reservation.guests.adults} ${
-                      this.currentLanguage === 'cs' ? 'dospělí' : 'adults'
-                    }${
-                      reservation.guests.children > 0
-                        ? `, ${reservation.guests.children} ${
-                            this.currentLanguage === 'cs' ? 'děti' : 'children'
-                          }`
-                        : ''
-                    }${
-                      reservation.guests.toddlers > 0
-                        ? `, ${reservation.guests.toddlers} ${
-                            this.currentLanguage === 'cs' ? 'batolata' : 'toddlers'
-                          }`
-                        : ''
-                    }
+                    ${reservation.guests.adults} ${this.currentLanguage === 'cs' ? 'dospělí' : 'adults'
+            }${reservation.guests.children > 0
+              ? `, ${reservation.guests.children} ${this.currentLanguage === 'cs' ? 'děti' : 'children'
+              }`
+              : ''
+            }${reservation.guests.toddlers > 0
+              ? `, ${reservation.guests.toddlers} ${this.currentLanguage === 'cs' ? 'batolata' : 'toddlers'
+              }`
+              : ''
+            }
                   </span>
                 </div>
                 <div style="text-align: right;">
                   <strong style="color: var(--primary-color);">${reservation.totalPrice.toLocaleString(
-                    'cs-CZ'
-                  )} Kč</strong>
+              'cs-CZ'
+            )} Kč</strong>
                 </div>
               </div>
             </div>
@@ -1482,12 +1493,11 @@ class BookingApp {
       summaryHTML += `
         <div style="margin-top: 1rem; padding-top: 1rem; border-top: 2px solid var(--gray-200);">
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <strong style="font-size: 1.1rem;">${
-              this.currentLanguage === 'cs' ? 'Celkem' : 'Total'
-            }:</strong>
+            <strong style="font-size: 1.1rem;">${this.currentLanguage === 'cs' ? 'Celkem' : 'Total'
+        }:</strong>
             <strong style="font-size: 1.2rem; color: var(--primary-color);">${totalPrice.toLocaleString(
-              'cs-CZ'
-            )} Kč</strong>
+          'cs-CZ'
+        )} Kč</strong>
           </div>
         </div>
       `;
@@ -1533,9 +1543,6 @@ class BookingApp {
 
     // Show the modal
     modal.classList.add('active');
-
-    // Store that we're in finalization mode
-    this.isFinalizingReservations = true;
   }
 
   // Load room information for the modal
@@ -1689,14 +1696,8 @@ class BookingApp {
     // Update bulk booking price list
     const bulkPriceListContent = document.getElementById('bulkPriceListContent');
     if (bulkPriceListContent) {
-      // Load bulk prices from admin settings
-      const bulkPricesSettings = settings.bulkPrices || {
-        basePrice: 2000,
-        utiaAdult: 100,
-        utiaChild: 0,
-        externalAdult: 250,
-        externalChild: 50,
-      };
+      // NEW UNIFIED (2025-12-04): Use PriceCalculator SSOT for bulk prices
+      const bulkPricesSettings = settings.bulkPrices || PriceCalculator.getDefaultBulkPrices();
 
       const t = (key) => langManager.t(key);
       bulkPriceListContent.innerHTML = `
