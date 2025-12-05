@@ -1026,14 +1026,13 @@ class DataManager {
       return { success: false };
     } catch (error) {
       console.error('Authentication error:', error);
-      // Fallback to local check for backward compatibility
-      const data = await this.getData();
-      // Check if password field exists (old format)
-      if (data.settings.adminPassword) {
-        const isValid = data.settings.adminPassword === password;
-        return { success: isValid };
-      }
-      return { success: false };
+      // SECURITY FIX: Do NOT fall back to plaintext password check
+      // This was a security vulnerability that could bypass server authentication
+      // and expose plaintext passwords in client-side code
+      return {
+        success: false,
+        error: 'Server není dostupný - nelze ověřit přihlášení'
+      };
     }
   }
 
@@ -1355,9 +1354,15 @@ class DataManager {
           this.proposedBookingsCacheTime = Date.now();
           return data;
         }
+        // Non-OK response - log warning but return empty to allow booking flow to continue
+        // This is acceptable because proposed bookings are a soft-lock mechanism
+        console.warn('[DataManager] Proposed bookings API returned non-OK status:', response.status);
         return [];
       } catch (error) {
-        console.warn('Failed to fetch proposed bookings:', error);
+        // FIX: Log error properly for debugging
+        console.error('[DataManager] Failed to fetch proposed bookings:', error.message || error);
+        // Return empty array to prevent blocking the booking flow
+        // The availability check will still work with confirmed bookings
         return [];
       } finally {
         this.proposedBookingsFetchPromise = null;

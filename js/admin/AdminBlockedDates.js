@@ -7,6 +7,18 @@ class AdminBlockedDates {
         this.adminPanel = adminPanel;
     }
 
+    /**
+     * Escape HTML to prevent XSS attacks
+     * @param {string} str - String to escape
+     * @returns {string} - Escaped string
+     */
+    escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
     setupEventListeners() {
         const form = document.getElementById('blockDateForm');
         if (form) {
@@ -99,11 +111,12 @@ class AdminBlockedDates {
                 }
                     </div>
                     <div style="font-size: 0.8rem; color: var(--gray-600);">
-                        <strong>Důvod:</strong> <em>${blockage.reason || 'Bez uvedení důvodu'}</em>
+                        <strong>Důvod:</strong> <em>${this.escapeHtml(blockage.reason) || 'Bez uvedení důvodu'}</em>
                     </div>
                 </div>
                 <div style="margin-top: auto; padding-top: 0.5rem;">
-                    <button onclick="adminPanel.blockedDates.unblockRange('${blockage.blockageId}').catch(console.error)"
+                    <button data-blockage-id="${this.escapeHtml(blockage.blockageId)}"
+                            class="unblock-range-btn"
                             style="width: 100%; padding: 0.5rem; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 0.85rem; transition: background 0.2s;"
                             onmouseover="this.style.background='#b91c1c'"
                             onmouseout="this.style.background='#dc2626'">
@@ -112,6 +125,14 @@ class AdminBlockedDates {
                 </div>
             `;
             container.appendChild(card);
+        });
+
+        // Add event listeners for unblock buttons (safer than inline onclick)
+        container.querySelectorAll('.unblock-range-btn').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                const blockageId = e.currentTarget.getAttribute('data-blockage-id');
+                this.unblockRange(blockageId).catch(console.error);
+            });
         });
     }
 
@@ -174,6 +195,11 @@ class AdminBlockedDates {
     }
 
     async unblockDate(date, roomId) {
+        // FIX: Validate session before admin operation
+        if (!this.adminPanel.validateSession()) {
+            return;
+        }
+
         try {
             await dataManager.unblockDate(new Date(date), roomId || null);
             await this.loadBlockedDates();
@@ -185,6 +211,11 @@ class AdminBlockedDates {
     }
 
     async unblockRange(blockageId) {
+        // FIX: Validate session before admin operation
+        if (!this.adminPanel.validateSession()) {
+            return;
+        }
+
         try {
             await dataManager.deleteBlockageInstance(blockageId);
             await this.loadBlockedDates();

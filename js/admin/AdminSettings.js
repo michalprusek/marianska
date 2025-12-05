@@ -406,10 +406,18 @@ class AdminSettings {
             const chip = document.createElement('div');
             chip.className = 'code-chip';
             chip.innerHTML = `
-                <span>${code}</span>
-                <button onclick="adminPanel.settings.removeCode('${code}').catch(console.error)">&times;</button>
+                <span>${this.adminPanel.bookings.escapeHtml(code)}</span>
+                <button class="remove-code-btn" data-code="${this.adminPanel.bookings.escapeHtml(code)}">&times;</button>
             `;
             container.appendChild(chip);
+        });
+
+        // Add event listeners for remove buttons (safer than inline onclick)
+        container.querySelectorAll('.remove-code-btn').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                const code = e.currentTarget.getAttribute('data-code');
+                this.removeCode(code).catch(console.error);
+            });
         });
 
         if (codes.length === 0) {
@@ -534,6 +542,8 @@ class AdminSettings {
 
             const card = document.createElement('div');
             card.className = 'christmas-period-card';
+            // Sanitize periodId for use in data attribute
+            const safePeriodId = this.adminPanel.bookings.escapeHtml(period.periodId || String(index));
             card.innerHTML = `
                 <div class="christmas-period-info">
                     <div class="christmas-period-dates">
@@ -541,8 +551,9 @@ class AdminSettings {
                     </div>
                     <div class="christmas-period-year">Rok ${year}</div>
                 </div>
-                <button onclick="adminPanel.settings.removeChristmasPeriod('${period.periodId || index}', ${index}).catch(console.error)"
-                        class="btn-danger btn-small"
+                <button class="remove-christmas-period-btn btn-danger btn-small"
+                        data-period-id="${safePeriodId}"
+                        data-period-index="${index}"
                         style="padding: 0.5rem 1rem; background: #dc2626; color: white; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: background 0.2s;"
                         onmouseover="this.style.background='#b91c1c'"
                         onmouseout="this.style.background='#dc2626'">
@@ -553,6 +564,15 @@ class AdminSettings {
                 </button>
             `;
             container.appendChild(card);
+        });
+
+        // Add event listeners for remove buttons (safer than inline onclick)
+        container.querySelectorAll('.remove-christmas-period-btn').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                const periodId = e.currentTarget.getAttribute('data-period-id');
+                const periodIndex = parseInt(e.currentTarget.getAttribute('data-period-index'), 10);
+                this.removeChristmasPeriod(periodId, periodIndex).catch(console.error);
+            });
         });
     }
 

@@ -642,6 +642,15 @@ class GuestNameUtils {
           await onToggleChange();
         } catch (error) {
           console.error('Failed to update price after guest type change:', error);
+          // FIX: Show user-visible notification about price calculation failure
+          // so they know the displayed price may be stale
+          // eslint-disable-next-line no-undef -- NotificationManager is defined globally in browser
+          if (typeof NotificationManager !== 'undefined' && NotificationManager.show) {
+            // eslint-disable-next-line no-undef
+            NotificationManager.show('Nepodařilo se aktualizovat cenu - zkuste stránku obnovit', 'warning');
+          } else if (window.app && window.app.showNotification) {
+            window.app.showNotification('Nepodařilo se aktualizovat cenu - zkuste stránku obnovit', 'warning');
+          }
         }
       }
     });
