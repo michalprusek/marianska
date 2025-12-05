@@ -29,9 +29,10 @@ class AdminAuth {
   }
 
   async checkAuthentication() {
-    // SECURITY FIX: Check session token with expiry (using localStorage for persistence)
-    const sessionToken = localStorage.getItem('adminSessionToken');
-    const sessionExpiry = localStorage.getItem('adminSessionExpiry');
+    // SECURITY FIX: Use sessionStorage (not localStorage) - clears when browser closes
+    // This is more secure as it prevents session persistence across browser sessions
+    const sessionToken = sessionStorage.getItem('adminSessionToken');
+    const sessionExpiry = sessionStorage.getItem('adminSessionExpiry');
 
     if (sessionToken && sessionExpiry) {
       // FIX: Parse ISO timestamp correctly (not parseInt!)
@@ -55,9 +56,10 @@ class AdminAuth {
   async login(password) {
     const loginResult = await dataManager.authenticateAdmin(password);
     if (loginResult && loginResult.success) {
-      // SECURITY FIX: Store session token and expiry in localStorage for persistence
-      localStorage.setItem('adminSessionToken', loginResult.sessionToken);
-      localStorage.setItem('adminSessionExpiry', loginResult.expiresAt);
+      // SECURITY FIX: Use sessionStorage (not localStorage) - more secure
+      // Session clears when browser closes, reducing XSS attack window
+      sessionStorage.setItem('adminSessionToken', loginResult.sessionToken);
+      sessionStorage.setItem('adminSessionExpiry', loginResult.expiresAt);
       this.callbacks.onLoginSuccess();
       this.setupSessionRefresh();
       return true;
@@ -81,7 +83,7 @@ class AdminAuth {
     }
 
     // Call logout endpoint
-    const sessionToken = localStorage.getItem('adminSessionToken');
+    const sessionToken = sessionStorage.getItem('adminSessionToken');
     if (sessionToken) {
       fetch('/api/admin/logout', {
         method: 'POST',
@@ -91,10 +93,13 @@ class AdminAuth {
       }).catch((err) => console.error('Logout error:', err));
     }
 
-    // Clear localStorage (changed from sessionStorage for persistence)
+    // SECURITY FIX: Clear sessionStorage (more secure than localStorage)
+    sessionStorage.removeItem('adminSessionToken');
+    sessionStorage.removeItem('adminSessionExpiry');
+    sessionStorage.removeItem('adminAuth'); // Old auth token (legacy cleanup)
+    // Also clear localStorage in case of legacy tokens
     localStorage.removeItem('adminSessionToken');
     localStorage.removeItem('adminSessionExpiry');
-    sessionStorage.removeItem('adminAuth'); // Old auth token (legacy cleanup)
 
     this.callbacks.onLogout();
   }
@@ -156,7 +161,7 @@ class AdminAuth {
       }, AdminAuth.SESSION_TIMEOUT - AdminAuth.SESSION_WARNING_TIME);
 
       // Call refresh endpoint to extend server-side session
-      const sessionToken = localStorage.getItem('adminSessionToken');
+      const sessionToken = sessionStorage.getItem('adminSessionToken');
       if (!sessionToken) {
         return;
       }
@@ -184,23 +189,25 @@ class AdminAuth {
           })
           .then((data) => {
             if (data && data.success) {
-              localStorage.setItem('adminSessionExpiry', data.expiresAt);
+              sessionStorage.setItem('adminSessionExpiry', data.expiresAt);
             }
           })
           .catch((err) => {
             console.error('Failed to refresh session:', err);
 
-            // Retry once after 5 minutes if this is the first failure
+            // SECURITY FIX: Retry sooner (30 seconds) to prevent session expiry
             if (retryCount === 0) {
-              // Will retry session refresh in 5 minutes...
+              this.callbacks.onShowWarning('Problém s obnovením session - zkusím znovu za 30s');
               setTimeout(
                 () => {
                   attemptRefresh(1);
                 },
-                5 * 60 * 1000
+                30 * 1000
               );
+            } else {
+              // After 2nd failure, warn user to re-login
+              this.callbacks.onShowError('Nepodařilo se obnovit session - zkuste se znovu přihlásit');
             }
-            // If retry also fails, session may expire (logged above)
           });
       };
 
@@ -232,8 +239,8 @@ class AdminAuth {
    * @returns {boolean} True if session is valid
    */
   isSessionValid() {
-    const sessionToken = localStorage.getItem('adminSessionToken');
-    const sessionExpiry = localStorage.getItem('adminSessionExpiry');
+    const sessionToken = sessionStorage.getItem('adminSessionToken');
+    const sessionExpiry = sessionStorage.getItem('adminSessionExpiry');
 
     if (!sessionToken || !sessionExpiry) {
       return false;

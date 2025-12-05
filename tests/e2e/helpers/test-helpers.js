@@ -76,7 +76,7 @@ async function resetDatabase(page) {
 
   // Clear all bookings and blocked dates via API with admin token
   await page.evaluate(async () => {
-    const token = localStorage.getItem('adminSessionToken') || '';
+    const token = sessionStorage.getItem('adminSessionToken') || '';
 
     // Get current data
     const response = await fetch('/api/data');
@@ -687,7 +687,7 @@ async function createBlockageViaAPI(page, options) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-session-token': localStorage.getItem('adminSessionToken') || ''
+        'x-session-token': sessionStorage.getItem('adminSessionToken') || ''
       },
       body: JSON.stringify({
         startDate,

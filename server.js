@@ -1678,9 +1678,11 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       stack: error.stack,
       bookingId: req.params.id,
     });
+    // SECURITY FIX: Don't expose internal error details in production
+    const errorDetails = process.env.NODE_ENV === 'production' ? undefined : error.message;
     return res
       .status(500)
-      .json({ error: 'Nepodařilo se aktualizovat rezervaci', details: error.message });
+      .json({ error: 'Nepodařilo se aktualizovat rezervaci', details: errorDetails });
   }
 });
 

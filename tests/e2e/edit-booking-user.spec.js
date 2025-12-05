@@ -118,7 +118,7 @@ test.describe('Edit Booking - User Workflow', () => {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'x-session-token': localStorage.getItem('adminSessionToken') || '',
+            'x-session-token': sessionStorage.getItem('adminSessionToken') || '',
           },
           body: JSON.stringify({ paid: true }),
         });

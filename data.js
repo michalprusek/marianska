@@ -1068,12 +1068,16 @@ class DataManager {
   // Removed: getApiKey() - deprecated method, use getSessionToken() instead
 
   getSessionToken() {
-    return localStorage.getItem('adminSessionToken');
+    // SECURITY FIX: Use sessionStorage (more secure than localStorage)
+    return sessionStorage.getItem('adminSessionToken');
   }
 
   // Handle 401 errors by triggering admin logout
   handleUnauthorizedError() {
-    // Clear session data (changed to localStorage for persistence)
+    // SECURITY FIX: Clear from sessionStorage (more secure)
+    sessionStorage.removeItem('adminSessionToken');
+    sessionStorage.removeItem('adminSessionExpiry');
+    // Also clear localStorage for legacy cleanup
     localStorage.removeItem('adminSessionToken');
     localStorage.removeItem('adminSessionExpiry');
 
@@ -1251,15 +1255,19 @@ class DataManager {
 
         return true;
       }
-      console.warn('[DataManager] Server rejected delete proposed booking:', response.status);
+      // SECURITY FIX: Log and throw error instead of silent failure
+      const errorText = await response.text().catch(() => 'Unknown error');
+      console.error('[DataManager] Server rejected delete proposed booking:', response.status, errorText);
+      throw new Error(`Nepodařilo se smazat návrh rezervace (${response.status})`);
     } catch (error) {
       const errorType = error.name === 'AbortError' ? 'timeout' : 'network';
       console.error(
         `[DataManager] Error deleting proposed booking (${errorType}):`,
         error.message || error
       );
+      // SECURITY FIX: Re-throw error so callers can handle it properly
+      throw error;
     }
-    return false;
   }
 
   async clearSessionProposedBookings() {
@@ -1270,17 +1278,28 @@ class DataManager {
 
       if (response.ok) {
         this.proposalId = null;
+        // Also clear cache
+        if (this.proposedBookingsCache && Array.isArray(this.proposedBookingsCache)) {
+          this.proposedBookingsCache = this.proposedBookingsCache.filter(
+            (pb) => pb.sessionId !== this.sessionId
+          );
+          this.proposedBookingsCacheTime = Date.now();
+        }
         return true;
       }
-      console.warn('[DataManager] Server rejected clear session proposals:', response.status);
+      // SECURITY FIX: Log and throw error instead of silent failure
+      const errorText = await response.text().catch(() => 'Unknown error');
+      console.error('[DataManager] Server rejected clear session proposals:', response.status, errorText);
+      throw new Error(`Nepodařilo se vyčistit návrhy rezervací (${response.status})`);
     } catch (error) {
       const errorType = error.name === 'AbortError' ? 'timeout' : 'network';
       console.error(
         `[DataManager] Error clearing session proposed bookings (${errorType}):`,
         error.message || error
       );
+      // SECURITY FIX: Re-throw error so callers can handle it properly
+      throw error;
     }
-    return false;
   }
 
   // Get room configuration
@@ -1362,14 +1381,34 @@ class DataManager {
 
   async deleteProposedBookingsForSession(sessionId) {
     if (!sessionId) {
-      return;
+      return true; // Nothing to delete
     }
     try {
-      await fetch(`${this.apiUrl}/proposed-bookings/session/${sessionId}`, {
+      const response = await fetch(`${this.apiUrl}/proposed-bookings/session/${sessionId}`, {
         method: 'DELETE',
       });
+
+      if (!response.ok) {
+        // SECURITY FIX: Log error details instead of silently ignoring
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error('[DataManager] Failed to delete proposed bookings:', response.status, errorText);
+        return false;
+      }
+
+      // Clear from cache if this is our session
+      if (sessionId === this.sessionId && this.proposedBookingsCache) {
+        this.proposedBookingsCache = this.proposedBookingsCache.filter(
+          (pb) => pb.sessionId !== sessionId
+        );
+        this.proposedBookingsCacheTime = Date.now();
+      }
+
+      return true;
     } catch (error) {
-      console.warn('Failed to delete proposed bookings:', error);
+      // SECURITY FIX: Log detailed error instead of generic warning
+      const errorType = error.name === 'AbortError' ? 'timeout' : 'network';
+      console.error(`[DataManager] Error deleting proposed bookings (${errorType}):`, error.message || error);
+      return false;
     }
   }
 

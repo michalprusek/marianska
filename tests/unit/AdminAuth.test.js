@@ -253,20 +253,25 @@ describe('AdminAuth', () => {
     });
 
     describe('logout', () => {
-        test('should clear localStorage session data', () => {
-            localStorageMock.getItem.mockImplementation((key) => {
+        test('should clear sessionStorage session data (more secure than localStorage)', () => {
+            // SECURITY FIX: Now uses sessionStorage instead of localStorage
+            sessionStorageMock.getItem.mockImplementation((key) => {
                 if (key === 'adminSessionToken') return 'test-token';
                 return null;
             });
 
             auth.logout();
 
+            // Should clear from sessionStorage (primary)
+            expect(sessionStorageMock.removeItem).toHaveBeenCalledWith('adminSessionToken');
+            expect(sessionStorageMock.removeItem).toHaveBeenCalledWith('adminSessionExpiry');
+            // Should also clear localStorage for legacy cleanup
             expect(localStorageMock.removeItem).toHaveBeenCalledWith('adminSessionToken');
             expect(localStorageMock.removeItem).toHaveBeenCalledWith('adminSessionExpiry');
         });
 
         test('should call logout API endpoint', () => {
-            localStorageMock.getItem.mockImplementation((key) => {
+            sessionStorageMock.getItem.mockImplementation((key) => {
                 if (key === 'adminSessionToken') return 'test-token';
                 return null;
             });
