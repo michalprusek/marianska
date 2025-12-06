@@ -217,6 +217,46 @@ class EditPage {
     return key;
   }
 
+  /**
+   * Convert error codes from DataManager to user-friendly messages
+   * @param {string} errorCode - Error code from DataManager
+   * @returns {string} User-friendly error message
+   */
+  getErrorMessage(errorCode) {
+    const errorMap = {
+      TIMEOUT: this.t('errorTimeout'),
+      NETWORK_ERROR: this.t('errorNetworkFailure'),
+      TOKEN_INVALID: this.t('errorTokenInvalid'),
+      TOKEN_EXPIRED: this.t('errorTokenExpired'),
+      BOOKING_LOCKED: this.t('editNotPossibleLocked'),
+      PARSE_ERROR: this.t('errorServerResponse'),
+    };
+
+    // Check if it's a known error code
+    if (errorMap[errorCode]) {
+      return errorMap[errorCode];
+    }
+
+    // Check for UPDATE_FAILED_XXX or DELETE_FAILED_XXX patterns
+    if (errorCode.startsWith('UPDATE_FAILED_') || errorCode.startsWith('DELETE_FAILED_')) {
+      const statusCode = errorCode.split('_').pop();
+      return `${this.t('errorServerError')} (${statusCode})`;
+    }
+
+    // Fallback to the error message itself or generic error
+    return errorCode || this.t('errorUnknown');
+  }
+
+  /**
+   * Validate edit token format before making API calls
+   * @param {string} token - Token to validate
+   * @returns {boolean} True if token format is valid
+   */
+  isValidTokenFormat(token) {
+    // Token should be alphanumeric with dashes/underscores, at least 20 chars
+    return token && /^[a-zA-Z0-9_-]{20,}$/u.test(token);
+  }
+
   async initialize() {
     // Initialize language from localStorage
     this.initializeLanguage();
@@ -227,6 +267,12 @@ class EditPage {
 
     if (!this.editToken) {
       this.showError(this.t('missingEditToken'));
+      return;
+    }
+
+    // Validate token format before making API calls
+    if (!this.isValidTokenFormat(this.editToken)) {
+      this.showError(this.t('errorTokenInvalid'));
       return;
     }
 
@@ -395,7 +441,8 @@ class EditPage {
     const bookingInfoSummary = document.getElementById('bookingInfoSummary');
 
     if (!container || !roomCardsGrid) {
-      console.error('Room selector container not found');
+      console.error('[EditPage] Room selector container not found - DOM may not be ready');
+      this.showError(this.t('errorRoomSelectorNotReady'));
       return;
     }
 
@@ -690,8 +737,8 @@ class EditPage {
         window.location.href = '/';
       }, 2000);
     } catch (error) {
-      console.error('Error updating booking:', error);
-      this.showError(error.message);
+      console.error('[EditPage] Error updating booking:', error.message);
+      this.showError(this.getErrorMessage(error.message));
     }
   }
 
@@ -722,8 +769,8 @@ class EditPage {
           window.location.href = '/';
         }, 2000);
       } catch (error) {
-        console.error('Error deleting booking:', error);
-        this.showError(error.message);
+        console.error('[EditPage] Error deleting booking:', error.message);
+        this.showError(this.getErrorMessage(error.message));
       }
     });
   }

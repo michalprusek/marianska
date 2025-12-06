@@ -28,7 +28,30 @@ class AdminAuth {
     await this.checkAuthentication();
   }
 
+  /**
+   * Check if sessionStorage is available (may be unavailable in private browsing)
+   * @returns {boolean} True if sessionStorage is available
+   */
+  isSessionStorageAvailable() {
+    try {
+      const testKey = '__storage_test__';
+      sessionStorage.setItem(testKey, testKey);
+      sessionStorage.removeItem(testKey);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   async checkAuthentication() {
+    // Check sessionStorage availability first
+    if (!this.isSessionStorageAvailable()) {
+      this.callbacks.onShowError(
+        'Váš prohlížeč nepodporuje session storage. Zkuste vypnout privátní režim.'
+      );
+      return false;
+    }
+
     // SECURITY FIX: Use sessionStorage (not localStorage) - clears when browser closes
     // This is more secure as it prevents session persistence across browser sessions
     const sessionToken = sessionStorage.getItem('adminSessionToken');
@@ -46,11 +69,13 @@ class AdminAuth {
       if (now < expiryTime) {
         this.callbacks.onLoginSuccess();
         this.setupSessionRefresh(); // Auto-refresh on activity
-      } else {
-        this.logout(); // Auto-logout on expiry
-        this.callbacks.onShowError('Session vypršela - přihlaste se znovu');
+        return true;
       }
+      this.logout(); // Auto-logout on expiry
+      this.callbacks.onShowError('Session vypršela - přihlaste se znovu');
+      return false;
     }
+    return false;
   }
 
   async login(password) {
@@ -193,16 +218,25 @@ class AdminAuth {
             }
           })
           .catch((err) => {
-            console.error('Failed to refresh session:', err);
+            console.error('[AdminAuth] Failed to refresh session:', err);
 
-            // SECURITY FIX: Retry sooner (30 seconds) to prevent session expiry
-            if (retryCount === 0) {
-              this.callbacks.onShowWarning('Problém s obnovením session - zkusím znovu za 30s');
+            // Exponential backoff with jitter to prevent thundering herd
+            const maxRetries = 3;
+            if (retryCount < maxRetries) {
+              // Exponential: 5s, 15s, 45s + up to 5s jitter
+              const baseDelay = 5000 * Math.pow(3, retryCount);
+              const jitter = Math.random() * 5000;
+              const delay = Math.min(baseDelay + jitter, 60000);
+              const delaySeconds = Math.round(delay / 1000);
+
+              this.callbacks.onShowWarning(
+                `Problém s obnovením session - zkusím znovu za ${delaySeconds}s`
+              );
               setTimeout(() => {
-                attemptRefresh(1);
-              }, 30 * 1000);
+                attemptRefresh(retryCount + 1);
+              }, delay);
             } else {
-              // After 2nd failure, warn user to re-login
+              // After max retries, warn user to re-login
               this.callbacks.onShowError(
                 'Nepodařilo se obnovit session - zkuste se znovu přihlásit'
               );

@@ -622,6 +622,16 @@ const translations = {
     editNotPossibleLocked: 'Úpravy rezervace nejsou možné. Rezervace je uzamčena.',
     deleteNotPossibleLocked: 'Zrušení rezervace není možné. Rezervace je uzamčena.',
 
+    // Edit page - network and token errors
+    errorTimeout: 'Požadavek vypršel. Zkontrolujte připojení k internetu a zkuste to znovu.',
+    errorNetworkFailure: 'Nepodařilo se spojit se serverem. Zkontrolujte připojení k internetu.',
+    errorTokenInvalid: 'Neplatný editační token. Prosím použijte aktuální odkaz z potvrzovacího emailu.',
+    errorTokenExpired: 'Editační token vypršel. Kontaktujte administrátora pro nový odkaz.',
+    errorServerResponse: 'Server vrátil neočekávanou odpověď. Zkuste to znovu později.',
+    errorServerError: 'Chyba serveru',
+    errorUnknown: 'Neznámá chyba. Zkuste to znovu nebo kontaktujte administrátora.',
+    errorRoomSelectorNotReady: 'Nepodařilo se načíst výběr pokojů. Obnovte stránku.',
+
     // Edit page - deadline warnings
     bookingAlreadyStarted: '⚠️ Rezervace již začala nebo proběhla.',
     daysUntilStart: 'Do začátku zbývá:',
@@ -1271,6 +1281,16 @@ const translations = {
     errorSavingBookingFallback: 'Failed to save booking',
     editNotPossibleLocked: 'Editing is not possible. The booking is locked.',
     deleteNotPossibleLocked: 'Cancellation is not possible. The booking is locked.',
+
+    // Edit page - network and token errors
+    errorTimeout: 'Request timed out. Check your internet connection and try again.',
+    errorNetworkFailure: 'Failed to connect to server. Check your internet connection.',
+    errorTokenInvalid: 'Invalid edit token. Please use the current link from your confirmation email.',
+    errorTokenExpired: 'Edit token has expired. Contact administrator for a new link.',
+    errorServerResponse: 'Server returned an unexpected response. Please try again later.',
+    errorServerError: 'Server error',
+    errorUnknown: 'Unknown error. Please try again or contact administrator.',
+    errorRoomSelectorNotReady: 'Failed to load room selector. Please refresh the page.',
 
     // Edit page - deadline warnings
     bookingAlreadyStarted: '⚠️ The booking has already started or ended.',

@@ -1361,10 +1361,23 @@ class DataManager {
     }
   }
 
-  // Token-based update and delete methods for user self-service
+  /**
+   * Update a booking using the edit token (for user self-service)
+   * Validates the edit token on the server and updates the booking if authorized
+   *
+   * @param {string|number} bookingId - Booking ID to update
+   * @param {Object} updates - Booking fields to update (partial update supported)
+   * @param {string} editToken - Edit token from the booking confirmation email
+   * @returns {Promise<Object>} Updated booking object
+   * @throws {Error} If token is invalid, expired, or update fails
+   */
   async updateBookingWithToken(bookingId, updates, editToken) {
+    let response;
+    let result;
+
+    // Network operation with focused try-catch
     try {
-      const response = await fetch(`${this.apiUrl}/booking/${bookingId}`, {
+      response = await fetch(`${this.apiUrl}/booking/${bookingId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -1372,54 +1385,125 @@ class DataManager {
         },
         body: JSON.stringify(updates),
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Chyba při aktualizaci rezervace');
-      }
-
-      const result = await response.json();
-
-      // Update local cache if we have data loaded
-      if (this.data && this.data.bookings) {
-        const index = this.data.bookings.findIndex((b) => b.id === bookingId);
-        if (index !== -1) {
-          this.data.bookings[index] = result.booking;
-        }
-      }
-
-      return result.booking;
     } catch (error) {
-      console.error('Error updating booking with token:', error);
-      throw error;
+      console.error(
+        `[DataManager] Network error updating booking (ID: ${bookingId}, token: ${editToken?.slice(0, 8)}...):`,
+        error.message
+      );
+      // Provide user-friendly network error
+      if (error.name === 'AbortError') {
+        throw new Error('TIMEOUT');
+      }
+      throw new Error('NETWORK_ERROR');
     }
+
+    // Handle error responses with specific status codes
+    if (!response.ok) {
+      let errorMessage;
+      const status = response.status;
+
+      // Safe JSON parsing - server might return non-JSON error
+      const data = await response.json().catch(() => ({}));
+
+      if (status === 401) {
+        errorMessage = 'TOKEN_INVALID';
+      } else if (status === 403) {
+        errorMessage = 'TOKEN_EXPIRED';
+      } else if (status === 423) {
+        errorMessage = 'BOOKING_LOCKED';
+      } else {
+        errorMessage = data.error || `UPDATE_FAILED_${status}`;
+      }
+
+      console.error(
+        `[DataManager] Server rejected update (ID: ${bookingId}, status: ${status}):`,
+        data.error || 'No error message'
+      );
+      throw new Error(errorMessage);
+    }
+
+    // Parse success response
+    try {
+      result = await response.json();
+    } catch (parseError) {
+      console.error(`[DataManager] Failed to parse update response for booking ${bookingId}`);
+      throw new Error('PARSE_ERROR');
+    }
+
+    // Update local cache (outside try-catch - let programming errors bubble up)
+    if (this.data?.bookings) {
+      const index = this.data.bookings.findIndex((b) => b.id === bookingId);
+      if (index !== -1) {
+        this.data.bookings[index] = result.booking;
+      }
+    }
+
+    return result.booking;
   }
 
+  /**
+   * Delete a booking using the edit token (for user self-service cancellation)
+   * Validates the edit token on the server and deletes the booking if authorized
+   *
+   * @param {string|number} bookingId - Booking ID to delete
+   * @param {string} editToken - Edit token from the booking confirmation email
+   * @returns {Promise<boolean>} True if deletion was successful
+   * @throws {Error} If token is invalid, expired, or deletion fails
+   */
   async deleteBookingWithToken(bookingId, editToken) {
+    let response;
+
+    // Network operation with focused try-catch
     try {
-      const response = await fetch(`${this.apiUrl}/booking/${bookingId}`, {
+      response = await fetch(`${this.apiUrl}/booking/${bookingId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
           'x-edit-token': editToken,
         },
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Chyba při mazání rezervace');
-      }
-
-      // Update local cache if we have data loaded
-      if (this.data && this.data.bookings) {
-        this.data.bookings = this.data.bookings.filter((b) => b.id !== bookingId);
-      }
-
-      return true;
     } catch (error) {
-      console.error('Error deleting booking with token:', error);
-      throw error;
+      console.error(
+        `[DataManager] Network error deleting booking (ID: ${bookingId}, token: ${editToken?.slice(0, 8)}...):`,
+        error.message
+      );
+      if (error.name === 'AbortError') {
+        throw new Error('TIMEOUT');
+      }
+      throw new Error('NETWORK_ERROR');
     }
+
+    // Handle error responses with specific status codes
+    if (!response.ok) {
+      const status = response.status;
+      let errorMessage;
+
+      // Safe JSON parsing
+      const data = await response.json().catch(() => ({}));
+
+      if (status === 401) {
+        errorMessage = 'TOKEN_INVALID';
+      } else if (status === 403) {
+        errorMessage = 'TOKEN_EXPIRED';
+      } else if (status === 423) {
+        errorMessage = 'BOOKING_LOCKED';
+      } else {
+        errorMessage = data.error || `DELETE_FAILED_${status}`;
+      }
+
+      console.error(
+        `[DataManager] Server rejected delete (ID: ${bookingId}, status: ${status}):`,
+        data.error || 'No error message'
+      );
+      throw new Error(errorMessage);
+    }
+
+    // Update local cache (outside try-catch)
+    if (this.data?.bookings) {
+      this.data.bookings = this.data.bookings.filter((b) => b.id !== bookingId);
+    }
+
+    return true;
   }
 
   // Proposed Bookings Management

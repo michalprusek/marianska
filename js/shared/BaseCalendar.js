@@ -84,13 +84,21 @@ class BaseCalendar {
 
   /**
    * Render calendar for current month
+   * Properly handles cancellation and cleanup of previous renders
    */
   async render() {
-    // Cancel any pending render
+    // Cancel any pending render and wait for cleanup
     if (this.renderPromise) {
       this.cancelRender = true;
+      try {
+        await this.renderPromise; // Wait for previous render to clean up
+      } catch (e) {
+        // Ignore errors from cancelled renders
+      }
     }
 
+    // Reset cancellation flag for new render
+    this.cancelRender = false;
     this.renderPromise = this._doRender();
     await this.renderPromise;
     this.renderPromise = null;

@@ -40,15 +40,15 @@
     <!-- Main Content -->
     <main class="main-content" style="padding: 2rem; max-width: 1200px; margin: 0 auto;">
       <!-- Loading State -->
-      <div id="loadingState" class="edit-state-container">
-        <div class="spinner"></div>
+      <div id="loadingState" class="edit-state-container" aria-live="polite" aria-busy="true">
+        <div class="spinner" role="status" aria-label="Načítání"></div>
         <p data-translate="loadingBooking">Načítání rezervace...</p>
       </div>
 
       <!-- Error State -->
-      <div id="errorState" class="edit-state-container" style="display: none;">
+      <div id="errorState" class="edit-state-container" role="alert" aria-live="assertive" style="display: none;">
         <div class="error-card">
-          <div class="error-icon">⚠️</div>
+          <div class="error-icon" aria-hidden="true">⚠️</div>
           <h2 data-translate="error">Chyba</h2>
           <p id="errorMessage"></p>
           <a href="/" class="btn btn-primary" data-translate="backToMain">
@@ -58,9 +58,9 @@
       </div>
 
       <!-- Edit Deadline Warning -->
-      <div id="editDeadlineWarning" class="edit-state-container" style="display: none;">
+      <div id="editDeadlineWarning" class="edit-state-container" role="alert" aria-live="assertive" style="display: none;">
         <div class="locked-card">
-          <div class="locked-icon">🔒</div>
+          <div class="locked-icon" aria-hidden="true">🔒</div>
           <h2 data-translate="bookingLocked">Rezervace je uzamčena</h2>
           <p id="deadlineMessage" data-translate="editDeadlineMessage">
             Úpravy a zrušení rezervace jsou možné pouze <strong>3 dny před začátkem pobytu</strong>.
