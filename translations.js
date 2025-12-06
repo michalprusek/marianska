@@ -575,6 +575,77 @@ const translations = {
     childrenNamesTitle: 'Děti (3-17 let)',
     cancelButton2: 'Zrušit',
     saveChangesButton: 'Uložit změny',
+
+    // Edit page translations
+    selectRoomToEdit: 'Vyberte pokoj k úpravě',
+    multiRoomInfo: 'Tato rezervace obsahuje více pokojů. Vyberte pokoj, který chcete upravit.',
+    backToMain: 'Zpět na hlavní stránku',
+    deleteEntireBooking: 'Smazat celou rezervaci',
+    loadingBooking: 'Načítání rezervace...',
+    error: 'Chyba',
+    bookingLocked: 'Rezervace je uzamčena',
+    editDeadlineMessage: 'Úpravy a zrušení rezervace jsou možné pouze 3 dny před začátkem pobytu.',
+    contactAdmin: 'Pro změny kontaktujte administrátora:',
+    selectedPeriod: 'Vybraný termín:',
+    editCapacityExceeded: '⚠️ Překročena kapacita pokoje',
+    cottageCapacityExceeded: '⚠️ Překročena kapacita chaty (maximum 26 lůžek)',
+    minimumGuestsRequired: '⚠️ Hromadná akce vyžaduje minimálně 10 osob (dospělí + děti)',
+    adultsOver18: 'Dospělí (18+ let)',
+    children3to17: 'Děti (3-17 let)',
+    toddlers0to2: 'Batolata (0-2 roky)',
+    baseRoomPrice: 'Základní cena za pokoj:',
+    adultSurcharge: 'Příplatek za dospělé:',
+    childrenSurcharge: 'Příplatek za děti:',
+    editToddlersFree: 'Batolata (do 3 let):',
+    total: 'Celkem:',
+    saveChanges: 'Uložit změny',
+    editBulkBooking: 'Upravit hromadnou rezervaci',
+    allRoomsReservation: 'Rezervace všech 9 pokojů (26 lůžek)',
+    pricePerNight: 'Cena za jednu noc:',
+    baseCottagePrice: 'Základní cena za chatu:',
+
+    // Edit page - room selector modal
+    roomSingular: 'pokoj',
+    roomPlural2to4: 'pokoje',
+    roomPlural5plus: 'pokojů',
+    noGuests: 'Bez hostů',
+
+    // Edit page - error/success messages
+    missingEditToken: 'Chybí editační token. Prosím použijte odkaz z potvrzovacího emailu.',
+    errorLoadingBookingFallback: 'Nepodařilo se načíst rezervaci',
+    bookingUpdatedSuccess: 'Rezervace byla úspěšně aktualizována!',
+    bookingUpdatedRedirecting:
+      'Rezervace byla úspěšně aktualizována! Přesměrování na hlavní stránku...',
+    confirmDeleteBooking: 'Opravdu chcete zrušit tuto rezervaci? Tuto akci nelze vrátit zpět.',
+    bookingDeletedSuccess: 'Rezervace byla úspěšně zrušena!',
+    errorSavingBookingFallback: 'Nepodařilo se uložit rezervaci',
+    editNotPossibleLocked: 'Úpravy rezervace nejsou možné. Rezervace je uzamčena.',
+    deleteNotPossibleLocked: 'Zrušení rezervace není možné. Rezervace je uzamčena.',
+
+    // Edit page - deadline warnings
+    bookingAlreadyStarted: '⚠️ Rezervace již začala nebo proběhla.',
+    daysUntilStart: 'Do začátku zbývá:',
+    daysSingular: 'den',
+    daysPlural2to4: 'dny',
+    daysPlural5plus: 'dní',
+    editDeadlineExplanation:
+      'Úpravy a zrušení rezervace jsou možné pouze 3 dny před začátkem pobytu.',
+
+    // Edit page - paid booking warning
+    bookingPaidTitle: '💳 Tato rezervace byla zaplacena.',
+    bookingPaidMessage:
+      'Úpravy a zrušení zaplacených rezervací nejsou možné prostřednictvím editačního odkazu.',
+    bookingPaidContactAdmin:
+      'Pro změny nebo zrušení rezervace prosím kontaktujte správce systému (administrátora).',
+
+    // Edit page - read-only view
+    readOnlyTerm: 'Termín:',
+    readOnlyRooms: 'Pokoje:',
+    readOnlyEditNotPossible: 'Úpravy termínu a pokojů nejsou možné.',
+
+    // Confirm dialog
+    confirmTitle: 'Potvrzení',
+    confirmButton: 'Potvrdit',
   },
   en: {
     // Header
@@ -1154,6 +1225,77 @@ const translations = {
     childrenNamesTitle: 'Children (3-17 years)',
     cancelButton2: 'Cancel',
     saveChangesButton: 'Save Changes',
+
+    // Edit page translations
+    selectRoomToEdit: 'Select room to edit',
+    multiRoomInfo: 'This reservation includes multiple rooms. Select the room you want to edit.',
+    backToMain: 'Back to main page',
+    deleteEntireBooking: 'Delete entire booking',
+    loadingBooking: 'Loading reservation...',
+    error: 'Error',
+    bookingLocked: 'Booking is locked',
+    editDeadlineMessage: 'Edits and cancellations are only possible 3 days before the stay begins.',
+    contactAdmin: 'For changes, contact the administrator:',
+    selectedPeriod: 'Selected period:',
+    editCapacityExceeded: '⚠️ Room capacity exceeded',
+    cottageCapacityExceeded: '⚠️ Cottage capacity exceeded (maximum 26 beds)',
+    minimumGuestsRequired: '⚠️ Bulk booking requires at least 10 persons (adults + children)',
+    adultsOver18: 'Adults (18+ years)',
+    children3to17: 'Children (3-17 years)',
+    toddlers0to2: 'Toddlers (0-2 years)',
+    baseRoomPrice: 'Base room price:',
+    adultSurcharge: 'Adult surcharge:',
+    childrenSurcharge: 'Children surcharge:',
+    editToddlersFree: 'Toddlers (under 3):',
+    total: 'Total:',
+    saveChanges: 'Save changes',
+    editBulkBooking: 'Edit bulk booking',
+    allRoomsReservation: 'Booking all 9 rooms (26 beds)',
+    pricePerNight: 'Price per night:',
+    baseCottagePrice: 'Base cottage price:',
+
+    // Edit page - room selector modal
+    roomSingular: 'room',
+    roomPlural2to4: 'rooms',
+    roomPlural5plus: 'rooms',
+    noGuests: 'No guests',
+
+    // Edit page - error/success messages
+    missingEditToken: 'Edit token is missing. Please use the link from the confirmation email.',
+    errorLoadingBookingFallback: 'Failed to load booking',
+    bookingUpdatedSuccess: 'Booking updated successfully!',
+    bookingUpdatedRedirecting: 'Booking updated successfully! Redirecting to main page...',
+    confirmDeleteBooking:
+      'Are you sure you want to cancel this booking? This action cannot be undone.',
+    bookingDeletedSuccess: 'Booking cancelled successfully!',
+    errorSavingBookingFallback: 'Failed to save booking',
+    editNotPossibleLocked: 'Editing is not possible. The booking is locked.',
+    deleteNotPossibleLocked: 'Cancellation is not possible. The booking is locked.',
+
+    // Edit page - deadline warnings
+    bookingAlreadyStarted: '⚠️ The booking has already started or ended.',
+    daysUntilStart: 'Days until start:',
+    daysSingular: 'day',
+    daysPlural2to4: 'days',
+    daysPlural5plus: 'days',
+    editDeadlineExplanation:
+      'Edits and cancellations are only possible up to 3 days before the stay begins.',
+
+    // Edit page - paid booking warning
+    bookingPaidTitle: '💳 This booking has been paid.',
+    bookingPaidMessage:
+      'Edits and cancellations of paid bookings are not possible via the edit link.',
+    bookingPaidContactAdmin:
+      'For changes or cancellations, please contact the system administrator.',
+
+    // Edit page - read-only view
+    readOnlyTerm: 'Term:',
+    readOnlyRooms: 'Rooms:',
+    readOnlyEditNotPossible: 'Editing dates and rooms is not possible.',
+
+    // Confirm dialog
+    confirmTitle: 'Confirmation',
+    confirmButton: 'Confirm',
   },
 };
 
@@ -1265,5 +1407,7 @@ class LanguageManager {
 }
 
 // Export for use
-// eslint-disable-next-line no-unused-vars
+
 const langManager = new LanguageManager();
+// Make it globally accessible
+window.langManager = langManager;

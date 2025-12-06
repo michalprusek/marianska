@@ -198,15 +198,14 @@ class AdminAuth {
             // SECURITY FIX: Retry sooner (30 seconds) to prevent session expiry
             if (retryCount === 0) {
               this.callbacks.onShowWarning('Problém s obnovením session - zkusím znovu za 30s');
-              setTimeout(
-                () => {
-                  attemptRefresh(1);
-                },
-                30 * 1000
-              );
+              setTimeout(() => {
+                attemptRefresh(1);
+              }, 30 * 1000);
             } else {
               // After 2nd failure, warn user to re-login
-              this.callbacks.onShowError('Nepodařilo se obnovit session - zkuste se znovu přihlásit');
+              this.callbacks.onShowError(
+                'Nepodařilo se obnovit session - zkuste se znovu přihlásit'
+              );
             }
           });
       };

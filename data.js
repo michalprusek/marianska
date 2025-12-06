@@ -1257,7 +1257,11 @@ class DataManager {
       }
       // SECURITY FIX: Log and throw error instead of silent failure
       const errorText = await response.text().catch(() => 'Unknown error');
-      console.error('[DataManager] Server rejected delete proposed booking:', response.status, errorText);
+      console.error(
+        '[DataManager] Server rejected delete proposed booking:',
+        response.status,
+        errorText
+      );
       throw new Error(`Nepodařilo se smazat návrh rezervace (${response.status})`);
     } catch (error) {
       const errorType = error.name === 'AbortError' ? 'timeout' : 'network';
@@ -1289,7 +1293,11 @@ class DataManager {
       }
       // SECURITY FIX: Log and throw error instead of silent failure
       const errorText = await response.text().catch(() => 'Unknown error');
-      console.error('[DataManager] Server rejected clear session proposals:', response.status, errorText);
+      console.error(
+        '[DataManager] Server rejected clear session proposals:',
+        response.status,
+        errorText
+      );
       throw new Error(`Nepodařilo se vyčistit návrhy rezervací (${response.status})`);
     } catch (error) {
       const errorType = error.name === 'AbortError' ? 'timeout' : 'network';
@@ -1355,25 +1363,63 @@ class DataManager {
 
   // Token-based update and delete methods for user self-service
   async updateBookingWithToken(bookingId, updates, editToken) {
-    // First verify the token
-    const booking = await this.getBooking(bookingId);
-    if (!booking || booking.editToken !== editToken) {
-      throw new Error('Neplatný edit token');
-    }
+    try {
+      const response = await fetch(`${this.apiUrl}/booking/${bookingId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-edit-token': editToken,
+        },
+        body: JSON.stringify(updates),
+      });
 
-    // Use the regular update method
-    return this.updateBooking(bookingId, updates);
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Chyba při aktualizaci rezervace');
+      }
+
+      const result = await response.json();
+
+      // Update local cache if we have data loaded
+      if (this.data && this.data.bookings) {
+        const index = this.data.bookings.findIndex((b) => b.id === bookingId);
+        if (index !== -1) {
+          this.data.bookings[index] = result.booking;
+        }
+      }
+
+      return result.booking;
+    } catch (error) {
+      console.error('Error updating booking with token:', error);
+      throw error;
+    }
   }
 
   async deleteBookingWithToken(bookingId, editToken) {
-    // First verify the token
-    const booking = await this.getBooking(bookingId);
-    if (!booking || booking.editToken !== editToken) {
-      throw new Error('Neplatný edit token');
-    }
+    try {
+      const response = await fetch(`${this.apiUrl}/booking/${bookingId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-edit-token': editToken,
+        },
+      });
 
-    // Use the regular delete method
-    return this.deleteBooking(bookingId);
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Chyba při mazání rezervace');
+      }
+
+      // Update local cache if we have data loaded
+      if (this.data && this.data.bookings) {
+        this.data.bookings = this.data.bookings.filter((b) => b.id !== bookingId);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error deleting booking with token:', error);
+      throw error;
+    }
   }
 
   // Proposed Bookings Management
@@ -1391,7 +1437,11 @@ class DataManager {
       if (!response.ok) {
         // SECURITY FIX: Log error details instead of silently ignoring
         const errorText = await response.text().catch(() => 'Unknown error');
-        console.error('[DataManager] Failed to delete proposed bookings:', response.status, errorText);
+        console.error(
+          '[DataManager] Failed to delete proposed bookings:',
+          response.status,
+          errorText
+        );
         return false;
       }
 
@@ -1407,7 +1457,10 @@ class DataManager {
     } catch (error) {
       // SECURITY FIX: Log detailed error instead of generic warning
       const errorType = error.name === 'AbortError' ? 'timeout' : 'network';
-      console.error(`[DataManager] Error deleting proposed bookings (${errorType}):`, error.message || error);
+      console.error(
+        `[DataManager] Error deleting proposed bookings (${errorType}):`,
+        error.message || error
+      );
       return false;
     }
   }
