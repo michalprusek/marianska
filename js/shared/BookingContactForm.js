@@ -72,29 +72,29 @@ class BookingContactForm {
         <h3 data-translate="billingDetails" style="margin-top: 1.5rem;">Fakturační údaje</h3>
 
         <div class="input-group">
-          <label for="${p}Company">Firma</label>
+          <label for="${p}Company" data-translate="company">Firma</label>
           <input type="text" id="${p}Company" value="${this.escapeHtml(d.company || '')}" ${ro} />
         </div>
 
         <div class="input-group">
-          <label for="${p}Address">Ulice a číslo *</label>
+          <label for="${p}Address" data-translate="address">Ulice a číslo *</label>
           <input type="text" id="${p}Address" value="${this.escapeHtml(d.address || '')}" required minlength="5" ${ro} />
         </div>
 
         <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem;">
           <div class="input-group">
-            <label for="${p}City">Město *</label>
+            <label for="${p}City" data-translate="city">Město *</label>
             <input type="text" id="${p}City" value="${this.escapeHtml(d.city || '')}" required minlength="2" ${ro} />
           </div>
           <div class="input-group">
-            <label for="${p}Zip">PSČ *</label>
+            <label for="${p}Zip" data-translate="zip">PSČ *</label>
             <input type="text" id="${p}Zip" value="${this.escapeHtml(d.zip || '')}" required pattern="[0-9]{5}" maxlength="5" ${ro} />
           </div>
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
           <div class="input-group">
-            <label for="${p}Ico">IČO</label>
+            <label for="${p}Ico" data-translate="ico">IČO</label>
             <input type="text" id="${p}Ico" value="${this.escapeHtml(d.ico || '')}" maxlength="8" ${ro} />
           </div>
           <div class="input-group">
@@ -121,6 +121,11 @@ class BookingContactForm {
     `;
 
     this.attachEventListeners();
+
+    // Apply translations after dynamic render
+    if (typeof langManager !== 'undefined' && langManager.applyTranslations) {
+      langManager.applyTranslations();
+    }
   }
 
   renderChristmasCodeField(p, d, ro) {

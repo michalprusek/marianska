@@ -556,40 +556,41 @@ class DatabaseManager {
       });
 
       // Insert room associations with per-room dates and guest counts
-      if (data.rooms && data.rooms.length > 0) {
-        for (const roomId of data.rooms) {
-          if (roomId != null && roomId !== '') {
-            // Use per-room dates if available, otherwise use booking-level dates
-            let roomStartDate = data.startDate;
-            let roomEndDate = data.endDate;
-            let roomAdults = 0;
-            let roomChildren = 0;
-            let roomToddlers = 0;
+      // FIX 2025-12-06: Deduplicate rooms to prevent UNIQUE constraint violation
+      const uniqueRooms = data.rooms && data.rooms.length > 0
+        ? [...new Set(data.rooms.filter(r => r != null && r !== ''))]
+        : [];
 
-            if (data.perRoomDates && data.perRoomDates[roomId]) {
-              roomStartDate = data.perRoomDates[roomId].startDate;
-              roomEndDate = data.perRoomDates[roomId].endDate;
-            }
+      for (const roomId of uniqueRooms) {
+        // Use per-room dates if available, otherwise use booking-level dates
+        let roomStartDate = data.startDate;
+        let roomEndDate = data.endDate;
+        let roomAdults = 0;
+        let roomChildren = 0;
+        let roomToddlers = 0;
 
-            // Use per-room guest counts if available
-            if (data.perRoomGuests && data.perRoomGuests[roomId]) {
-              roomAdults = data.perRoomGuests[roomId].adults ?? 0;
-              roomChildren = data.perRoomGuests[roomId].children ?? 0;
-              roomToddlers = data.perRoomGuests[roomId].toddlers ?? 0;
-            }
-
-            // No guest_type parameter - removed from schema
-            this.statements.insertBookingRoom.run(
-              data.id,
-              roomId,
-              roomStartDate,
-              roomEndDate,
-              roomAdults,
-              roomChildren,
-              roomToddlers
-            );
-          }
+        if (data.perRoomDates && data.perRoomDates[roomId]) {
+          roomStartDate = data.perRoomDates[roomId].startDate;
+          roomEndDate = data.perRoomDates[roomId].endDate;
         }
+
+        // Use per-room guest counts if available
+        if (data.perRoomGuests && data.perRoomGuests[roomId]) {
+          roomAdults = data.perRoomGuests[roomId].adults ?? 0;
+          roomChildren = data.perRoomGuests[roomId].children ?? 0;
+          roomToddlers = data.perRoomGuests[roomId].toddlers ?? 0;
+        }
+
+        // No guest_type parameter - removed from schema
+        this.statements.insertBookingRoom.run(
+          data.id,
+          roomId,
+          roomStartDate,
+          roomEndDate,
+          roomAdults,
+          roomChildren,
+          roomToddlers
+        );
       }
 
       // Insert guest names - room_id and guest_type are now REQUIRED
@@ -642,38 +643,39 @@ class DatabaseManager {
       });
 
       // Update rooms (delete and re-insert) - no guest_type
+      // FIX 2025-12-06: Deduplicate rooms to prevent UNIQUE constraint violation
       this.statements.deleteBookingRooms.run(bookingId);
-      if (data.rooms && data.rooms.length > 0) {
-        for (const roomId of data.rooms) {
-          if (roomId != null && roomId !== '') {
-            let roomStartDate = data.startDate;
-            let roomEndDate = data.endDate;
-            let roomAdults = 0;
-            let roomChildren = 0;
-            let roomToddlers = 0;
+      const uniqueRooms = data.rooms && data.rooms.length > 0
+        ? [...new Set(data.rooms.filter(r => r != null && r !== ''))]
+        : [];
 
-            if (data.perRoomDates && data.perRoomDates[roomId]) {
-              roomStartDate = data.perRoomDates[roomId].startDate;
-              roomEndDate = data.perRoomDates[roomId].endDate;
-            }
+      for (const roomId of uniqueRooms) {
+        let roomStartDate = data.startDate;
+        let roomEndDate = data.endDate;
+        let roomAdults = 0;
+        let roomChildren = 0;
+        let roomToddlers = 0;
 
-            if (data.perRoomGuests && data.perRoomGuests[roomId]) {
-              roomAdults = data.perRoomGuests[roomId].adults ?? 0;
-              roomChildren = data.perRoomGuests[roomId].children ?? 0;
-              roomToddlers = data.perRoomGuests[roomId].toddlers ?? 0;
-            }
-
-            this.statements.insertBookingRoom.run(
-              bookingId,
-              roomId,
-              roomStartDate,
-              roomEndDate,
-              roomAdults,
-              roomChildren,
-              roomToddlers
-            );
-          }
+        if (data.perRoomDates && data.perRoomDates[roomId]) {
+          roomStartDate = data.perRoomDates[roomId].startDate;
+          roomEndDate = data.perRoomDates[roomId].endDate;
         }
+
+        if (data.perRoomGuests && data.perRoomGuests[roomId]) {
+          roomAdults = data.perRoomGuests[roomId].adults ?? 0;
+          roomChildren = data.perRoomGuests[roomId].children ?? 0;
+          roomToddlers = data.perRoomGuests[roomId].toddlers ?? 0;
+        }
+
+        this.statements.insertBookingRoom.run(
+          bookingId,
+          roomId,
+          roomStartDate,
+          roomEndDate,
+          roomAdults,
+          roomChildren,
+          roomToddlers
+        );
       }
 
       // Update guest names - room_id and guest_type are now REQUIRED
@@ -744,17 +746,7 @@ class DatabaseManager {
       );
       const derivedGuestType = hasUtiaGuest ? 'utia' : 'external';
 
-      // Calculate totals from booking_rooms
-      let totalAdults = 0;
-      let totalChildren = 0;
-      let totalToddlers = 0;
-      Object.values(perRoomGuests).forEach((room) => {
-        totalAdults += room.adults;
-        totalChildren += room.children;
-        totalToddlers += room.toddlers;
-      });
-
-      // Derive guest type breakdown from guest_names
+      // Derive guest type breakdown from guest_names (SSOT)
       const guestTypeBreakdown = {
         utiaAdults: guestNames.filter(
           (g) => g.personType === 'adult' && g.guestPriceType === 'utia'
@@ -769,6 +761,13 @@ class DatabaseManager {
           (g) => g.personType === 'child' && g.guestPriceType === 'external'
         ).length,
       };
+
+      // FIX 2025-12-06: Derive guest counts from guestNames (SSOT), NOT from booking_rooms
+      // Previously: summing perRoomGuests caused 9×10=90 for bulk bookings
+      // Now: count directly from guestNames which is the single source of truth
+      const totalAdults = (guestNames || []).filter((g) => g?.personType === 'adult').length;
+      const totalChildren = (guestNames || []).filter((g) => g?.personType === 'child').length;
+      const totalToddlers = (guestNames || []).filter((g) => g?.personType === 'toddler').length;
 
       // Return booking with derived values
       return {
@@ -790,7 +789,7 @@ class DatabaseManager {
         guestType: derivedGuestType, // Derived from guest_names
         guestTypeBreakdown, // Derived from guest_names
         isBulkBooking: Boolean(booking.is_bulk_booking),
-        adults: totalAdults, // Derived from booking_rooms
+        adults: totalAdults, // Derived from guestNames (SSOT)
         children: totalChildren,
         toddlers: totalToddlers,
         totalPrice: booking.total_price,
@@ -843,9 +842,6 @@ class DatabaseManager {
       const rooms = [];
       const perRoomDates = {};
       const perRoomGuests = {};
-      let totalAdults = 0;
-      let totalChildren = 0;
-      let totalToddlers = 0;
 
       if (booking.room_data) {
         const roomEntries = booking.room_data.split(',');
@@ -863,14 +859,10 @@ class DatabaseManager {
             children: childrenNum,
             toddlers: toddlersNum,
           };
-
-          totalAdults += adultsNum;
-          totalChildren += childrenNum;
-          totalToddlers += toddlersNum;
         });
       }
 
-      // Fetch guest names - SSOT for guest types
+      // Fetch guest names - SSOT for guest types AND guest counts
       const guestNameRows = this.statements.getGuestNamesByBooking.all(booking.id);
       const guestNames = guestNameRows.map((row) => ({
         roomId: row.room_id,
@@ -901,6 +893,12 @@ class DatabaseManager {
           (g) => g.personType === 'child' && g.guestPriceType === 'external'
         ).length,
       };
+
+      // FIX 2025-12-06: Derive guest counts from guestNames (SSOT), NOT from booking_rooms
+      // Previously: summing perRoomGuests caused 9×10=90 for bulk bookings
+      const totalAdults = guestNames.filter((g) => g.personType === 'adult').length;
+      const totalChildren = guestNames.filter((g) => g.personType === 'child').length;
+      const totalToddlers = guestNames.filter((g) => g.personType === 'toddler').length;
 
       return {
         id: booking.id,
@@ -1149,27 +1147,27 @@ class DatabaseManager {
     settings.prices = pricesJson
       ? JSON.parse(pricesJson)
       : {
-          utia: {
-            small: { empty: 250, adult: 50, child: 25 },
-            large: { empty: 350, adult: 50, child: 25 },
-          },
-          external: {
-            small: { empty: 400, adult: 100, child: 50 },
-            large: { empty: 500, adult: 100, child: 50 },
-          },
-        };
+        utia: {
+          small: { empty: 250, adult: 50, child: 25 },
+          large: { empty: 350, adult: 50, child: 25 },
+        },
+        external: {
+          small: { empty: 400, adult: 100, child: 50 },
+          large: { empty: 500, adult: 100, child: 50 },
+        },
+      };
 
     // Get bulk prices
     const bulkPricesJson = this.getSetting('bulkPrices');
     settings.bulkPrices = bulkPricesJson
       ? JSON.parse(bulkPricesJson)
       : {
-          basePrice: 2000,
-          utiaAdult: 100,
-          utiaChild: 0,
-          externalAdult: 250,
-          externalChild: 50,
-        };
+        basePrice: 2000,
+        utiaAdult: 100,
+        utiaChild: 0,
+        externalAdult: 250,
+        externalChild: 50,
+      };
 
     // Get rooms
     settings.rooms = this.statements.getAllRooms.all();

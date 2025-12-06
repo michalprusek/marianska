@@ -204,8 +204,9 @@ class BookingApp {
       if (response.ok) {
         const proposedBookings = await response.json();
 
-        // Get all rooms once for efficiency
+        // Get all rooms and settings once for efficiency
         const allRooms = await dataManager.getRooms();
+        const settings = await dataManager.getSettings();
 
         // Convert proposed bookings to tempReservations format
         for (const proposed of proposedBookings) {
@@ -235,6 +236,28 @@ class BookingApp {
 
           if (isBulkBooking) {
             // Bulk booking format - only for explicitly marked bulk bookings
+            const bulkNights = this.calculateNights(startDate, endDate);
+            const bulkAdults = proposed.adults || 1;
+            const bulkChildren = proposed.children || 0;
+            const bulkGuestType = proposed.guest_type || proposed.guestType || 'external';
+
+            // Calculate price if not stored (after page refresh)
+            let bulkPrice = proposed.total_price || proposed.totalPrice || 0;
+            if (bulkPrice === 0 && typeof PriceCalculator !== 'undefined' && settings) {
+              try {
+                bulkPrice = PriceCalculator.calculatePrice({
+                  guestType: bulkGuestType,
+                  adults: bulkAdults,
+                  children: bulkChildren,
+                  nights: bulkNights,
+                  rooms: rooms,
+                  settings: settings,
+                });
+              } catch (e) {
+                console.warn('Failed to calculate bulk price:', e);
+              }
+            }
+
             this.tempReservations.push({
               id: proposed.proposalId,
               isBulkBooking: true,
@@ -242,15 +265,15 @@ class BookingApp {
               roomNames: allRooms.map((r) => r.name).join(', '),
               startDate,
               endDate,
-              nights: this.calculateNights(startDate, endDate),
+              nights: bulkNights,
               proposalId: proposed.proposalId,
               guests: {
-                adults: proposed.adults || 1,
-                children: proposed.children || 0,
+                adults: bulkAdults,
+                children: bulkChildren,
                 toddlers: proposed.toddlers || 0,
               },
-              guestType: proposed.guest_type || proposed.guestType || 'external',
-              totalPrice: proposed.total_price || proposed.totalPrice || 0,
+              guestType: bulkGuestType,
+              totalPrice: bulkPrice,
             });
           } else {
             // Single room booking format
@@ -261,21 +284,43 @@ class BookingApp {
               const roomDates = proposed.perRoomDates?.[roomId] || { startDate, endDate };
               // eslint-disable-next-line max-depth -- Deep nesting required for nested booking data structure
               if (room && roomDates.startDate && roomDates.endDate) {
+                const roomNights = this.calculateNights(roomDates.startDate, roomDates.endDate);
+                const roomAdults = proposed.adults || 1;
+                const roomChildren = proposed.children || 0;
+                const roomGuestType = proposed.guest_type || proposed.guestType || 'external';
+
+                // FIX 2025-12-06: Calculate price if not stored (after page refresh)
+                let roomPrice = proposed.total_price || proposed.totalPrice || 0;
+                if (roomPrice === 0 && typeof PriceCalculator !== 'undefined' && settings) {
+                  try {
+                    roomPrice = PriceCalculator.calculatePrice({
+                      guestType: roomGuestType,
+                      adults: roomAdults,
+                      children: roomChildren,
+                      nights: roomNights,
+                      rooms: [roomId],
+                      settings: settings,
+                    });
+                  } catch (e) {
+                    console.warn('Failed to calculate room price:', e);
+                  }
+                }
+
                 this.tempReservations.push({
                   id: `${proposed.proposalId}-${roomId}`,
                   roomId,
                   roomName: room.name,
                   startDate: roomDates.startDate,
                   endDate: roomDates.endDate,
-                  nights: this.calculateNights(roomDates.startDate, roomDates.endDate),
+                  nights: roomNights,
                   proposalId: proposed.proposalId,
                   guests: {
-                    adults: proposed.adults || 1,
-                    children: proposed.children || 0,
+                    adults: roomAdults,
+                    children: roomChildren,
                     toddlers: proposed.toddlers || 0,
                   },
-                  guestType: proposed.guest_type || proposed.guestType || 'external',
-                  totalPrice: proposed.total_price || proposed.totalPrice || 0,
+                  guestType: roomGuestType,
+                  totalPrice: roomPrice,
                 });
               }
             }
@@ -808,73 +853,12 @@ class BookingApp {
    * @returns {Array} Consolidated reservations
    */
   consolidateTempReservations(reservations) {
+    // FIX 2025-12-06: Do NOT consolidate - return reservations as-is
+    // Each booking should remain separate, no merging of consecutive dates
     if (!reservations || reservations.length === 0) {
       return [];
     }
-
-    // Group by roomId (or roomIds for bulk bookings)
-    const roomGroups = new Map();
-
-    reservations.forEach((booking) => {
-      const key = booking.isBulkBooking
-        ? `BULK_${booking.roomIds?.sort().join(',')}`
-        : booking.roomId;
-
-      if (!roomGroups.has(key)) {
-        roomGroups.set(key, []);
-      }
-      roomGroups.get(key).push(booking);
-    });
-
-    // Consolidate each room group if dates are consecutive
-    const consolidated = [];
-
-    for (const [, bookings] of roomGroups) {
-      if (bookings.length === 1) {
-        // No consolidation needed - single booking for this room
-        consolidated.push(bookings[0]);
-        continue;
-      }
-
-      // Sort by start date
-      bookings.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
-
-      let current = { ...bookings[0] };
-      for (let i = 1; i < bookings.length; i++) {
-        const next = bookings[i];
-
-        // Check if dates are consecutive (current.endDate + 1 day === next.startDate)
-        const currentEnd = new Date(current.endDate);
-        const nextStart = new Date(next.startDate);
-        const nextDay = new Date(currentEnd);
-        nextDay.setDate(nextDay.getDate() + 1);
-
-        const isConsecutive =
-          nextDay.toISOString().split('T')[0] === nextStart.toISOString().split('T')[0];
-
-        if (isConsecutive && current.guestType === next.guestType) {
-          // Merge consecutive bookings
-          current.endDate = next.endDate;
-          current.nights += next.nights;
-          current.totalPrice += next.totalPrice;
-          // Keep same guests (they should be identical for same room)
-          // Store original IDs for potential removal
-          if (!current.consolidatedIds) {
-            current.consolidatedIds = [current.id];
-          }
-          current.consolidatedIds.push(next.id);
-        } else {
-          // Not consecutive or different guest type - push current and start new
-          consolidated.push(current);
-          current = { ...next };
-        }
-      }
-
-      // Push the last booking
-      consolidated.push(current);
-    }
-
-    return consolidated;
+    return [...reservations];
   }
 
   async displayTempReservations() {

@@ -8,6 +8,23 @@ class AdminBookings {
     this.isLoadingBookings = false;
     this.selectedBookings = new Set();
     this.editComponent = null;
+
+    // Sorting state - load from localStorage or use defaults
+    const savedSort = localStorage.getItem('adminBookingsSort');
+    if (savedSort) {
+      try {
+        const { column, direction } = JSON.parse(savedSort);
+        this.sortColumn = column || 'createdAt';
+        this.sortDirection = direction || 'desc';
+      } catch (error) {
+        console.warn('[AdminBookings] Failed to parse saved sort preferences, using defaults:', error.message);
+        this.sortColumn = 'createdAt';
+        this.sortDirection = 'desc';
+      }
+    } else {
+      this.sortColumn = 'createdAt';
+      this.sortDirection = 'desc';
+    }
   }
 
   // Defense-in-depth: HTML escaping helper
@@ -22,6 +39,127 @@ class AdminBookings {
       .replace(/"/gu, '&quot;')
       .replace(/'/gu, '&#039;');
   }
+
+  // ========== SORTING METHODS ==========
+
+  /**
+   * Handle column header click for sorting
+   * @param {string} column - Column key to sort by
+   */
+  handleSort(column) {
+    if (this.sortColumn === column) {
+      // Toggle direction if same column
+      this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      // New column - default to ascending
+      this.sortColumn = column;
+      this.sortDirection = 'asc';
+    }
+
+    // Persist to localStorage
+    localStorage.setItem(
+      'adminBookingsSort',
+      JSON.stringify({
+        column: this.sortColumn,
+        direction: this.sortDirection,
+      })
+    );
+
+    // Reload with new sort
+    this.loadBookings();
+  }
+
+  /**
+   * Compare two bookings for sorting
+   * @param {Object} a - First booking
+   * @param {Object} b - Second booking
+   * @param {string} column - Column to sort by
+   * @param {string} direction - 'asc' or 'desc'
+   * @returns {number} - Comparison result
+   */
+  compareBookings(a, b, column, direction) {
+    let valA;
+    let valB;
+
+    switch (column) {
+      case 'id':
+        valA = a.id || '';
+        valB = b.id || '';
+        break;
+      case 'name':
+        valA = (a.name || '').toLowerCase();
+        valB = (b.name || '').toLowerCase();
+        return direction === 'asc'
+          ? valA.localeCompare(valB, 'cs')
+          : valB.localeCompare(valA, 'cs');
+      case 'email':
+        valA = (a.email || '').toLowerCase();
+        valB = (b.email || '').toLowerCase();
+        return direction === 'asc'
+          ? valA.localeCompare(valB, 'cs')
+          : valB.localeCompare(valA, 'cs');
+      case 'payFromBenefit':
+        valA = a.payFromBenefit ? 1 : 0;
+        valB = b.payFromBenefit ? 1 : 0;
+        break;
+      case 'startDate': {
+        // Get earliest start date from perRoomDates or fallback to booking.startDate
+        const getStartDate = (booking) => {
+          if (booking.perRoomDates && Object.keys(booking.perRoomDates).length > 0) {
+            const dates = Object.values(booking.perRoomDates).map((d) => d.startDate);
+            return Math.min(...dates.map((d) => new Date(d).getTime()));
+          }
+          return new Date(booking.startDate || 0).getTime();
+        };
+        valA = getStartDate(a);
+        valB = getStartDate(b);
+        break;
+      }
+      case 'rooms':
+        // Sort by first room number
+        valA = parseInt(a.rooms?.[0], 10) || 0;
+        valB = parseInt(b.rooms?.[0], 10) || 0;
+        break;
+      case 'totalPrice':
+        valA = a.totalPrice || 0;
+        valB = b.totalPrice || 0;
+        break;
+      case 'paid':
+        valA = a.paid ? 1 : 0;
+        valB = b.paid ? 1 : 0;
+        break;
+      case 'createdAt':
+      default:
+        valA = new Date(a.createdAt || 0).getTime();
+        valB = new Date(b.createdAt || 0).getTime();
+        break;
+    }
+
+    if (valA < valB) return direction === 'asc' ? -1 : 1;
+    if (valA > valB) return direction === 'asc' ? 1 : -1;
+    return 0;
+  }
+
+  /**
+   * Update sort indicators in table headers
+   */
+  updateSortIndicators() {
+    // Remove all existing indicators
+    document.querySelectorAll('#bookingsTable th .sort-indicator').forEach((el) => {
+      el.textContent = '';
+    });
+
+    // Add indicator to current sort column
+    const header = document.querySelector(`#bookingsTable th[data-sort="${this.sortColumn}"]`);
+    if (header) {
+      const indicator = header.querySelector('.sort-indicator');
+      if (indicator) {
+        indicator.textContent = this.sortDirection === 'asc' ? ' ▲' : ' ▼';
+      }
+    }
+  }
+
+  // ========== END SORTING METHODS ==========
 
   /**
    * Create an editable field with pencil icon for inline editing
@@ -129,6 +267,9 @@ class AdminBookings {
       }
 
       this.adminPanel.showSuccessMessage('Pole úspěšně aktualizováno');
+
+      // FIX 2025-12-06: Refresh booking list to reflect changes
+      await this.loadBookings();
     } catch (error) {
       console.error('Error toggling checkbox field:', error);
       this.adminPanel.showErrorMessage(error.message || 'Chyba při ukládání');
@@ -604,7 +745,8 @@ class AdminBookings {
 
       tbody.innerHTML = '';
 
-      bookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      // Dynamic sorting based on selected column and direction
+      bookings.sort((a, b) => this.compareBookings(a, b, this.sortColumn, this.sortDirection));
 
       // SSOT FIX 2025-12-04: Always recalculate prices using current settings (SSOT)
       // This ensures list view shows the same price as edit view
@@ -617,22 +759,11 @@ class AdminBookings {
       for (const booking of bookings) {
         // Format date range display
         let dateRangeDisplay = '';
-        let isCompositeBooking = false; // NEW 2025-11-14: Track composite bookings
 
         if (booking.perRoomDates && Object.keys(booking.perRoomDates).length > 0) {
           // Calculate overall range from per-room dates
           let minStart = booking.startDate;
           let maxEnd = booking.endDate;
-
-          // Check if rooms have different date ranges (composite booking)
-          const roomDates = Object.values(booking.perRoomDates);
-          if (roomDates.length > 1) {
-            const firstStart = roomDates[0].startDate;
-            const firstEnd = roomDates[0].endDate;
-            isCompositeBooking = roomDates.some(
-              (dates) => dates.startDate !== firstStart || dates.endDate !== firstEnd
-            );
-          }
 
           Object.values(booking.perRoomDates).forEach((dates) => {
             if (!minStart || dates.startDate < minStart) {
@@ -644,12 +775,6 @@ class AdminBookings {
           });
 
           dateRangeDisplay = `${new Date(minStart).toLocaleDateString('cs-CZ')} - ${new Date(maxEnd).toLocaleDateString('cs-CZ')}`;
-
-          // NEW 2025-11-14: Add "složená rezervace" indicator for composite bookings
-          if (isCompositeBooking) {
-            dateRangeDisplay +=
-              '<br><span style="display: inline-block; margin-top: 0.25rem; padding: 0.2rem 0.5rem; background: #f59e0b; color: white; border-radius: 3px; font-size: 0.75rem; font-weight: 600;">📅 Složená rezervace</span>';
-          }
         } else {
           // Fallback to booking-level dates
           dateRangeDisplay = `${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}`;
@@ -724,6 +849,9 @@ class AdminBookings {
       // Reset selection state
       this.selectedBookings.clear();
       this.updateBulkActionsUI();
+
+      // Update sort indicators in table headers
+      this.updateSortIndicators();
     } finally {
       this.isLoadingBookings = false;
     }
@@ -748,11 +876,28 @@ class AdminBookings {
     try {
       if (booking.isBulkBooking) {
         // Bulk booking - use bulk pricing
+        // FIX 2025-12-06: Derive guestTypeBreakdown from guestNames (SSOT)
+        const guestNames = booking.guestNames || [];
+        const derivedBreakdown = {
+          utiaAdults: guestNames.filter(
+            (g) => g.personType === 'adult' && g.guestPriceType === 'utia'
+          ).length,
+          externalAdults: guestNames.filter(
+            (g) => g.personType === 'adult' && g.guestPriceType === 'external'
+          ).length,
+          utiaChildren: guestNames.filter(
+            (g) => g.personType === 'child' && g.guestPriceType === 'utia'
+          ).length,
+          externalChildren: guestNames.filter(
+            (g) => g.personType === 'child' && g.guestPriceType === 'external'
+          ).length,
+        };
+
         return PriceCalculator.calculateMixedBulkPrice({
-          utiaAdults: booking.guestTypeBreakdown?.utiaAdults || 0,
-          externalAdults: booking.guestTypeBreakdown?.externalAdults || booking.adults || 0,
-          utiaChildren: booking.guestTypeBreakdown?.utiaChildren || 0,
-          externalChildren: booking.guestTypeBreakdown?.externalChildren || booking.children || 0,
+          utiaAdults: derivedBreakdown.utiaAdults,
+          externalAdults: derivedBreakdown.externalAdults,
+          utiaChildren: derivedBreakdown.utiaChildren,
+          externalChildren: derivedBreakdown.externalChildren,
           nights: this.calculateNights(booking),
           settings,
         });

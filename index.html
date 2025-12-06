@@ -312,29 +312,29 @@
           <h3 data-translate="billingDetails">Fakturační údaje</h3>
 
           <div class="input-group">
-            <label for="finalBookingCompany">Firma</label>
+            <label for="finalBookingCompany" data-translate="company">Firma</label>
             <input type="text" id="finalBookingCompany" minlength="2" />
           </div>
 
           <div class="input-group">
-            <label for="finalBookingAddress">Ulice a číslo *</label>
+            <label for="finalBookingAddress" data-translate="address">Ulice a číslo *</label>
             <input type="text" id="finalBookingAddress" required minlength="5" />
           </div>
 
           <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem">
             <div class="input-group">
-              <label for="finalBookingCity">Město *</label>
+              <label for="finalBookingCity" data-translate="city">Město *</label>
               <input type="text" id="finalBookingCity" required minlength="2" />
             </div>
             <div class="input-group">
-              <label for="finalBookingZip">PSČ *</label>
+              <label for="finalBookingZip" data-translate="zip">PSČ *</label>
               <input type="text" id="finalBookingZip" required pattern="[0-9]{5}" maxlength="5" />
             </div>
           </div>
 
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem">
             <div class="input-group">
-              <label for="finalBookingIco">IČO</label>
+              <label for="finalBookingIco" data-translate="ico">IČO</label>
               <input type="text" id="finalBookingIco" pattern="[0-9]{8}" maxlength="8" />
             </div>
             <div class="input-group">

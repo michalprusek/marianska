@@ -146,6 +146,47 @@ class EmailService {
     const address = this.decodeHtmlEntities(booking.address);
     const city = this.decodeHtmlEntities(booking.city);
 
+    // ENHANCEMENT 2025-12-06: Include ÚTIA/external breakdown in guest count display
+    const guestNames = booking.guestNames || [];
+    const utiaAdults = guestNames.filter(
+      (g) => g?.personType === 'adult' && g?.guestPriceType === 'utia'
+    ).length;
+    const externalAdults = guestNames.filter(
+      (g) => g?.personType === 'adult' && g?.guestPriceType === 'external'
+    ).length;
+    const utiaChildren = guestNames.filter(
+      (g) => g?.personType === 'child' && g?.guestPriceType === 'utia'
+    ).length;
+    const externalChildren = guestNames.filter(
+      (g) => g?.personType === 'child' && g?.guestPriceType === 'external'
+    ).length;
+
+    // Build guest count string with ÚTIA/external breakdown
+    let guestCountText = '';
+    const totalAdults = booking.adults || 0;
+    const totalChildren = booking.children || 0;
+
+    if (guestNames.length > 0 && (utiaAdults + externalAdults + utiaChildren + externalChildren > 0)) {
+      // Build breakdown parts
+      const parts = [];
+      if (utiaAdults > 0) {
+        parts.push(`${utiaAdults} ÚTIA dosp.`);
+      }
+      if (externalAdults > 0) {
+        parts.push(`${externalAdults} ext. dosp.`);
+      }
+      if (utiaChildren > 0) {
+        parts.push(`${utiaChildren} ÚTIA dětí`);
+      }
+      if (externalChildren > 0) {
+        parts.push(`${externalChildren} ext. dětí`);
+      }
+      guestCountText = parts.join(', ');
+    } else {
+      // Fallback to simple count
+      guestCountText = `${totalAdults} dospělých, ${totalChildren} dětí`;
+    }
+
     return {
       startDate: booking.startDate,
       endDate: booking.endDate,
@@ -159,6 +200,7 @@ class EmailService {
       adults: booking.adults,
       children: booking.children || 0,
       toddlers: booking.toddlers || 0,
+      guestCountText, // NEW: includes ÚTIA/external breakdown
       notes,
       name,
       company,
@@ -762,7 +804,7 @@ body{font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;mar
 Odjezd: ${details.endDateFormatted} (${details.endDate})<br>
 Nocí: ${details.nights} | Pokoje: ${details.roomList}<br>
 Typ: ${details.guestTypeText}<br>
-Osob: ${details.adults} dospělých, ${details.children} dětí${details.notes ? `<br>Poznámka: ${details.notes}` : ''}</p>
+Osob: ${details.guestCountText}${details.notes ? `<br>Poznámka: ${details.notes}` : ''}</p>
 </div>
 ${perRoomPriceHtml}
 <div class="p">Celková cena: ${details.priceFormatted}</div>
@@ -932,7 +974,7 @@ Příjezd: ${details.startDateFormatted} (${details.startDate})
 Odjezd: ${details.endDateFormatted} (${details.endDate})
 Nocí: ${details.nights} | Pokoje: ${details.roomList}
 Typ: ${details.guestTypeText}
-Osob: ${details.adults} dospělých, ${details.children} dětí${details.notes ? `\nPoznámka: ${details.notes}` : ''}
+Osob: ${details.guestCountText}${details.notes ? `\nPoznámka: ${details.notes}` : ''}
 
 ROZPIS CENY:
 ${priceBreakdown}
@@ -1188,7 +1230,7 @@ Příjezd: ${details.startDateFormatted} (${details.startDate})
 Odjezd: ${details.endDateFormatted} (${details.endDate})
 Nocí: ${details.nights} | Pokoje: ${details.roomList}
 Typ: ${details.guestTypeText}
-Osob: ${details.adults} dospělých, ${details.children} dětí
+Osob: ${details.guestCountText}
 Cena: ${details.priceFormatted}${details.notes ? `\nPoznámka: ${details.notes}` : ''}
 
 EDITACE/ZRUŠENÍ REZERVACE:
@@ -1281,7 +1323,7 @@ Příjezd: ${details.startDateFormatted} (${details.startDate})
 Odjezd: ${details.endDateFormatted} (${details.endDate})
 Nocí: ${details.nights} | Pokoje: ${details.roomList}
 Typ: ${details.guestTypeText}
-Osob: ${details.adults} dospělých, ${details.children} dětí
+Osob: ${details.guestCountText}
 Cena: ${details.priceFormatted}${details.notes ? `\nPoznámka: ${details.notes}` : ''}
 
 Čas zrušení: ${timestamp}
