@@ -80,6 +80,22 @@
       font-weight: 600;
     }
 
+    .bookings-table th.sortable {
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s ease;
+    }
+
+    .bookings-table th.sortable:hover {
+      background: var(--gray-100);
+    }
+
+    .bookings-table th .sort-indicator {
+      font-size: 0.75rem;
+      margin-left: 0.25rem;
+      color: var(--primary-color);
+    }
+
     .bookings-table tr:hover {
       background: var(--gray-50);
     }
@@ -634,7 +650,7 @@
             </button>
           </div>
         </div>
-        <table class="bookings-table">
+        <table id="bookingsTable" class="bookings-table">
           <thead>
             <tr>
               <th style="width: 40px">
@@ -645,14 +661,14 @@
                       accent-color: var(--primary-color);
                     " onchange="adminPanel.toggleSelectAll(this.checked)" title="Vybrat všechny" />
               </th>
-              <th>Číslo</th>
-              <th>Jméno</th>
-              <th>Email</th>
-              <th>Platba benefitem</th>
-              <th>Termín</th>
-              <th>Pokoje</th>
-              <th>Cena</th>
-              <th>Zaplaceno</th>
+              <th class="sortable" data-sort="id" onclick="adminPanel.bookings.handleSort('id')">Číslo<span class="sort-indicator"></span></th>
+              <th class="sortable" data-sort="name" onclick="adminPanel.bookings.handleSort('name')">Jméno<span class="sort-indicator"></span></th>
+              <th class="sortable" data-sort="email" onclick="adminPanel.bookings.handleSort('email')">Email<span class="sort-indicator"></span></th>
+              <th class="sortable" data-sort="payFromBenefit" onclick="adminPanel.bookings.handleSort('payFromBenefit')">Platba benefitem<span class="sort-indicator"></span></th>
+              <th class="sortable" data-sort="startDate" onclick="adminPanel.bookings.handleSort('startDate')">Termín<span class="sort-indicator"></span></th>
+              <th class="sortable" data-sort="rooms" onclick="adminPanel.bookings.handleSort('rooms')">Pokoje<span class="sort-indicator"></span></th>
+              <th class="sortable" data-sort="totalPrice" onclick="adminPanel.bookings.handleSort('totalPrice')">Cena<span class="sort-indicator"></span></th>
+              <th class="sortable" data-sort="paid" onclick="adminPanel.bookings.handleSort('paid')">Zaplaceno<span class="sort-indicator"></span></th>
               <th>Akce</th>
             </tr>
           </thead>

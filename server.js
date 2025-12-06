@@ -870,21 +870,32 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
       // CRITICAL FIX: Use correct price calculation based on booking type
       if (bookingData.isBulkBooking) {
         // Bulk booking: Use bulk pricing structure (flat base + per-person charges)
-        // FIX 2025-12-02: Use guestTypeBreakdown for mixed ÚTIA/external pricing
-        if (bookingData.guestTypeBreakdown) {
-          const {
-            utiaAdults = 0,
-            externalAdults = 0,
-            utiaChildren = 0,
-            externalChildren = 0,
-          } = bookingData.guestTypeBreakdown;
-          // Validate guestTypeBreakdown values are non-negative integers
-          const breakdownValues = [utiaAdults, externalAdults, utiaChildren, externalChildren];
-          if (breakdownValues.some((v) => typeof v !== 'number' || v < 0 || !Number.isInteger(v))) {
-            return res.status(400).json({
-              error: 'Neplatné hodnoty v guestTypeBreakdown - musí být nezáporná celá čísla',
-            });
-          }
+        // FIX 2025-12-06: Derive guestTypeBreakdown from guestNames (SSOT) instead of trusting frontend
+        const guestNames = bookingData.guestNames || [];
+        const derivedBreakdown = {
+          utiaAdults: guestNames.filter(
+            (g) => g.personType === 'adult' && g.guestPriceType === 'utia'
+          ).length,
+          externalAdults: guestNames.filter(
+            (g) => g.personType === 'adult' && g.guestPriceType === 'external'
+          ).length,
+          utiaChildren: guestNames.filter(
+            (g) => g.personType === 'child' && g.guestPriceType === 'utia'
+          ).length,
+          externalChildren: guestNames.filter(
+            (g) => g.personType === 'child' && g.guestPriceType === 'external'
+          ).length,
+        };
+
+        const hasGuestBreakdown =
+          derivedBreakdown.utiaAdults +
+            derivedBreakdown.externalAdults +
+            derivedBreakdown.utiaChildren +
+            derivedBreakdown.externalChildren >
+          0;
+
+        if (hasGuestBreakdown) {
+          const { utiaAdults, externalAdults, utiaChildren, externalChildren } = derivedBreakdown;
           // SSOT: Use PriceCalculator for mixed guest type pricing
           bookingData.totalPrice = PriceCalculator.calculateMixedBulkPrice({
             utiaAdults,
@@ -894,8 +905,8 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
             nights,
             settings,
           });
-          logger.info('Bulk booking price calculated with mixed guest types', {
-            guestTypeBreakdown: bookingData.guestTypeBreakdown,
+          logger.info('Bulk booking price calculated with mixed guest types (derived from guestNames)', {
+            guestTypeBreakdown: derivedBreakdown,
             nights,
             totalPrice: bookingData.totalPrice,
           });
@@ -1161,8 +1172,10 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       bookingData.notes = sanitizeInput(bookingData.notes, MAX_LENGTHS.notes);
     }
 
-    // Validate guest names if provided
-    if (bookingData.guestNames) {
+    // FIX 2025-12-06: Only validate guest names when explicitly provided in request body
+    // This prevents validation errors when editing unrelated fields (e.g., payFromBenefit)
+    // Previously: bookingData.guestNames included inherited values, triggering false validation
+    if (req.body.guestNames) {
       if (!Array.isArray(bookingData.guestNames)) {
         return res.status(400).json({ error: 'Jména hostů musí být pole' });
       }
@@ -1397,23 +1410,34 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       }
     }
 
-    // Check room availability using unified BookingLogic (excluding current booking)
-    const bookings = db.getAllBookings();
-    const otherBookings = bookings.filter((b) => b.id !== bookingId);
+    // FIX 2025-12-06: Only check room availability when dates or rooms are actually changing
+    // This prevents false conflict errors when editing non-date fields (e.g., payFromBenefit, name)
+    const datesOrRoomsChanged =
+      bookingData.startDate !== existingBooking.startDate ||
+      bookingData.endDate !== existingBooking.endDate ||
+      JSON.stringify((bookingData.rooms || []).sort()) !==
+      JSON.stringify((existingBooking.rooms || []).sort());
 
-    const conflictCheck = BookingLogic.checkBookingConflict(
-      startDate,
-      endDate,
-      bookingData.rooms,
-      otherBookings,
-      bookingId
-    );
+    if (datesOrRoomsChanged) {
+      // Check room availability using unified BookingLogic (excluding current booking)
+      const bookings = db.getAllBookings();
+      const otherBookings = bookings.filter((b) => b.id !== bookingId);
 
-    if (conflictCheck.hasConflict) {
-      return res.status(409).json({
-        error: `Pokoj ${conflictCheck.roomId} je již rezervován v tomto termínu`,
-      });
+      const conflictCheck = BookingLogic.checkBookingConflict(
+        startDate,
+        endDate,
+        bookingData.rooms,
+        otherBookings,
+        bookingId
+      );
+
+      if (conflictCheck.hasConflict) {
+        return res.status(409).json({
+          error: `Pokoj ${conflictCheck.roomId} je již rezervován v tomto termínu`,
+        });
+      }
     }
+
 
     // Detect if only payment-related fields are changing
     const priceAffectingFieldsChanged =
@@ -1440,22 +1464,32 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       // CRITICAL FIX: Use correct price calculation based on booking type
       if (bookingData.isBulkBooking) {
         // Bulk booking: Use bulk pricing structure (flat base + per-person charges)
-        // FIX 2025-12-02: Use guestTypeBreakdown for mixed ÚTIA/external pricing
-        const breakdown = bookingData.guestTypeBreakdown || existingBooking.guestTypeBreakdown;
-        if (breakdown) {
-          const {
-            utiaAdults = 0,
-            externalAdults = 0,
-            utiaChildren = 0,
-            externalChildren = 0,
-          } = breakdown;
-          // Validate guestTypeBreakdown values are non-negative integers
-          const breakdownValues = [utiaAdults, externalAdults, utiaChildren, externalChildren];
-          if (breakdownValues.some((v) => typeof v !== 'number' || v < 0 || !Number.isInteger(v))) {
-            return res.status(400).json({
-              error: 'Neplatné hodnoty v guestTypeBreakdown - musí být nezáporná celá čísla',
-            });
-          }
+        // FIX 2025-12-06: Derive guestTypeBreakdown from guestNames (SSOT) instead of trusting frontend
+        const guestNames = bookingData.guestNames || existingBooking.guestNames || [];
+        const derivedBreakdown = {
+          utiaAdults: guestNames.filter(
+            (g) => g.personType === 'adult' && g.guestPriceType === 'utia'
+          ).length,
+          externalAdults: guestNames.filter(
+            (g) => g.personType === 'adult' && g.guestPriceType === 'external'
+          ).length,
+          utiaChildren: guestNames.filter(
+            (g) => g.personType === 'child' && g.guestPriceType === 'utia'
+          ).length,
+          externalChildren: guestNames.filter(
+            (g) => g.personType === 'child' && g.guestPriceType === 'external'
+          ).length,
+        };
+
+        const hasGuestBreakdown =
+          derivedBreakdown.utiaAdults +
+            derivedBreakdown.externalAdults +
+            derivedBreakdown.utiaChildren +
+            derivedBreakdown.externalChildren >
+          0;
+
+        if (hasGuestBreakdown) {
+          const { utiaAdults, externalAdults, utiaChildren, externalChildren } = derivedBreakdown;
           // SSOT: Use PriceCalculator for mixed guest type pricing
           bookingData.totalPrice = PriceCalculator.calculateMixedBulkPrice({
             utiaAdults,
@@ -1465,8 +1499,8 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
             nights,
             settings,
           });
-          logger.info('Bulk booking update price calculated with mixed guest types', {
-            guestTypeBreakdown: breakdown,
+          logger.info('Bulk booking update price calculated with mixed guest types (derived from guestNames)', {
+            guestTypeBreakdown: derivedBreakdown,
             nights,
             totalPrice: bookingData.totalPrice,
           });
@@ -2585,9 +2619,10 @@ app.post('/api/proposed-bookings', writeLimiter, (req, res) => {
           const existingDates = proposal.perRoomDates[roomId];
 
           if (existingDates) {
+            // FIX 2025-12-06: Use <= and >= to allow consecutive bookings (checkout = checkin)
             const datesOverlap = !(
-              newDates.endDate < existingDates.startDate ||
-              newDates.startDate > existingDates.endDate
+              newDates.endDate <= existingDates.startDate ||
+              newDates.startDate >= existingDates.endDate
             );
 
             if (datesOverlap) {

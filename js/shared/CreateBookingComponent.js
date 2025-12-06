@@ -214,31 +214,42 @@ class CreateBookingComponent {
 
     let html = '';
     let totalPrice = 0;
+    const lang = typeof langManager !== 'undefined' ? langManager.currentLang : 'cs';
 
     // Group by reservation - use escapeHtml to prevent XSS
     for (const res of this.app.tempReservations) {
-      const safeRoomName = this.escapeHtml(res.roomName || res.roomNames || 'Pokoj');
-      const safeStartDate = this.escapeHtml(DateUtils.formatDateDisplay(new Date(res.startDate)));
-      const safeEndDate = this.escapeHtml(DateUtils.formatDateDisplay(new Date(res.endDate)));
+      // Translate room name - "Pokoj" → "Room"
+      let roomName = res.roomName || res.roomNames || (lang === 'cs' ? 'Pokoj' : 'Room');
+      if (lang === 'en' && roomName.startsWith('Pokoj')) {
+        roomName = roomName.replace('Pokoj', 'Room');
+      }
+      const safeRoomName = this.escapeHtml(roomName);
+      const safeStartDate = this.escapeHtml(DateUtils.formatDateDisplay(new Date(res.startDate), lang));
+      const safeEndDate = this.escapeHtml(DateUtils.formatDateDisplay(new Date(res.endDate), lang));
       const adults = parseInt(res.guests?.adults, 10) || 0;
       const children = parseInt(res.guests?.children, 10) || 0;
       const toddlers = parseInt(res.guests?.toddlers, 10) || 0;
       const price = parseFloat(res.totalPrice) || 0;
 
+      const adultsLabel = lang === 'cs' ? 'dosp.' : 'adults';
+      const childrenLabel = lang === 'cs' ? 'dětí' : 'children';
+      const toddlersLabel = lang === 'cs' ? 'batolat' : 'toddlers';
+
       html += `
         <div class="summary-item" style="border-bottom: 1px solid #eee; padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
           <div style="font-weight: bold;">${safeRoomName}</div>
           <div>${safeStartDate} - ${safeEndDate}</div>
-          <div>${adults} dosp., ${children} dětí, ${toddlers} batolat</div>
+          <div>${adults} ${adultsLabel}, ${children} ${childrenLabel}, ${toddlers} ${toddlersLabel}</div>
           <div style="font-weight: bold; color: var(--primary-color);">${price.toLocaleString('cs-CZ')} Kč</div>
         </div>
       `;
       totalPrice += price;
     }
 
+    const totalLabel = lang === 'en' ? 'Total:' : 'Celkem:';
     html += `
       <div class="summary-total" style="margin-top: 1rem; font-size: 1.2rem; text-align: right;">
-        <strong>Celkem: <span style="color: var(--primary-color);">${totalPrice.toLocaleString('cs-CZ')} Kč</span></strong>
+        <strong>${totalLabel} <span style="color: var(--primary-color);">${totalPrice.toLocaleString('cs-CZ')} Kč</span></strong>
       </div>
     `;
 
@@ -328,31 +339,17 @@ class CreateBookingComponent {
       throw new Error('Žádné rezervace k vytvoření');
     }
 
-    // Consolidate temporary reservations into a single booking object
-    const allRoomIds = [];
-    const allGuestNames = [];
-    let totalAdults = 0;
-    let totalChildren = 0;
-    let totalToddlers = 0;
-    let totalPrice = 0;
-    const guestTypesSet = new Set();
-    const roomGuestsMap = {};
-    const perRoomDatesMap = {};
-
-    let minStartDate = null;
-    let maxEndDate = null;
-
-    // Process each temporary reservation
+    // FIX 2025-12-06: Create SEPARATE bookings for each tempReservation
+    // Do NOT consolidate - user wants individual bookings
     for (const res of this.app.tempReservations) {
       const roomIds = res.isBulkBooking ? res.roomIds || [] : [res.roomId];
 
-      roomIds.forEach((rid) => {
-        if (!rid) {
-          return;
-        } // Skip invalid room IDs
-        allRoomIds.push(rid);
+      const roomGuestsMap = {};
+      const perRoomDatesMap = {};
 
-        // Store per-room guest information
+      roomIds.forEach((rid) => {
+        if (!rid) return;
+
         roomGuestsMap[rid] = {
           adults: res.guests?.adults || 0,
           children: res.guests?.children || 0,
@@ -366,53 +363,39 @@ class CreateBookingComponent {
         };
       });
 
-      // Collect guest names from each temp reservation
-      // FIX: Guest names were not being collected, causing "Jména hostů jsou povinná" error
+      // Collect guest names for this reservation
+      const guestNames = [];
       if (res.guestNames && Array.isArray(res.guestNames)) {
-        // For single room bookings, add roomId to each guest
         const roomId = res.isBulkBooking ? null : res.roomId;
         res.guestNames.forEach((guest) => {
-          allGuestNames.push({
+          guestNames.push({
             ...guest,
             roomId: guest.roomId || roomId,
           });
         });
       }
 
-      totalAdults += res.guests?.adults || 0;
-      totalChildren += res.guests?.children || 0;
-      totalToddlers += res.guests?.toddlers || 0;
-      totalPrice += res.totalPrice || 0;
-      guestTypesSet.add(res.guestType || 'utia');
+      // Construct booking for this single reservation
+      const booking = {
+        ...formData,
+        sessionId: this.app.sessionId,
+        startDate: res.startDate,
+        endDate: res.endDate,
+        rooms: roomIds,
+        guestType: res.guestType || 'utia',
+        adults: res.guests?.adults || 0,
+        children: res.guests?.children || 0,
+        toddlers: res.guests?.toddlers || 0,
+        totalPrice: res.totalPrice || 0,
+        guestNames,
+        perRoomGuests: roomGuestsMap,
+        perRoomDates: perRoomDatesMap,
+        isBulkBooking: res.isBulkBooking || false,
+      };
 
-      if (!minStartDate || new Date(res.startDate) < new Date(minStartDate)) {
-        minStartDate = res.startDate;
-      }
-      if (!maxEndDate || new Date(res.endDate) > new Date(maxEndDate)) {
-        maxEndDate = res.endDate;
-      }
+      // Call API to create this individual booking
+      await dataManager.createBooking(booking);
     }
-
-    // Construct the final booking object
-    const booking = {
-      ...formData,
-      sessionId: this.app.sessionId,
-      startDate: minStartDate,
-      endDate: maxEndDate,
-      rooms: allRoomIds,
-      guestType: guestTypesSet.has('utia') ? 'utia' : 'external',
-      adults: totalAdults,
-      children: totalChildren,
-      toddlers: totalToddlers,
-      totalPrice,
-      guestNames: allGuestNames, // FIX: Include guest names in booking
-      perRoomGuests: roomGuestsMap,
-      perRoomDates: perRoomDatesMap,
-      isBulkBooking: this.app.tempReservations.some((r) => r.isBulkBooking),
-    };
-
-    // Call API to create the booking
-    await dataManager.createBooking(booking);
 
     // Cleanup proposed bookings
     for (const res of this.app.tempReservations) {
