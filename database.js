@@ -765,9 +765,9 @@ class DatabaseManager {
       // FIX 2025-12-06: Derive guest counts from guestNames (SSOT), NOT from booking_rooms
       // Previously: summing perRoomGuests caused 9×10=90 for bulk bookings
       // Now: count directly from guestNames which is the single source of truth
-      const totalAdults = guestNames.filter((g) => g.personType === 'adult').length;
-      const totalChildren = guestNames.filter((g) => g.personType === 'child').length;
-      const totalToddlers = guestNames.filter((g) => g.personType === 'toddler').length;
+      const totalAdults = (guestNames || []).filter((g) => g?.personType === 'adult').length;
+      const totalChildren = (guestNames || []).filter((g) => g?.personType === 'child').length;
+      const totalToddlers = (guestNames || []).filter((g) => g?.personType === 'toddler').length;
 
       // Return booking with derived values
       return {
@@ -789,7 +789,7 @@ class DatabaseManager {
         guestType: derivedGuestType, // Derived from guest_names
         guestTypeBreakdown, // Derived from guest_names
         isBulkBooking: Boolean(booking.is_bulk_booking),
-        adults: totalAdults, // Derived from booking_rooms
+        adults: totalAdults, // Derived from guestNames (SSOT)
         children: totalChildren,
         toddlers: totalToddlers,
         totalPrice: booking.total_price,

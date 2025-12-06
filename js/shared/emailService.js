@@ -146,19 +146,19 @@ class EmailService {
     const address = this.decodeHtmlEntities(booking.address);
     const city = this.decodeHtmlEntities(booking.city);
 
-    // FIX 2025-12-06: Add ÚTIA/external breakdown for guest counts
+    // ENHANCEMENT 2025-12-06: Include ÚTIA/external breakdown in guest count display
     const guestNames = booking.guestNames || [];
     const utiaAdults = guestNames.filter(
-      (g) => g.personType === 'adult' && g.guestPriceType === 'utia'
+      (g) => g?.personType === 'adult' && g?.guestPriceType === 'utia'
     ).length;
     const externalAdults = guestNames.filter(
-      (g) => g.personType === 'adult' && g.guestPriceType === 'external'
+      (g) => g?.personType === 'adult' && g?.guestPriceType === 'external'
     ).length;
     const utiaChildren = guestNames.filter(
-      (g) => g.personType === 'child' && g.guestPriceType === 'utia'
+      (g) => g?.personType === 'child' && g?.guestPriceType === 'utia'
     ).length;
     const externalChildren = guestNames.filter(
-      (g) => g.personType === 'child' && g.guestPriceType === 'external'
+      (g) => g?.personType === 'child' && g?.guestPriceType === 'external'
     ).length;
 
     // Build guest count string with ÚTIA/external breakdown

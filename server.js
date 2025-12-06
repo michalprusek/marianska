@@ -856,7 +856,6 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
       // Calculate price using shared PriceCalculator
       // NEW 2025-11-14: Use booking-level nights only as fallback (for bulk or non-composite bookings)
       const nights = DateUtils.getDaysBetween(bookingData.startDate, bookingData.endDate);
-      // settings already defined earlier in the function (line 489)
 
       // CRITICAL FIX: Determine correct guestType based on actual guest names
       // If at least ONE guest has guestPriceType 'utia', use ÚTIA pricing for empty room

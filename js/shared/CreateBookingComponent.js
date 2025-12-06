@@ -340,7 +340,9 @@ class CreateBookingComponent {
     }
 
     // FIX 2025-12-06: Create SEPARATE bookings for each tempReservation
-    // Do NOT consolidate - user wants individual bookings
+    // Consolidation was causing guest count multiplication in bulk bookings
+    // Each tempReservation already contains its own complete guest/pricing data
+    const createdBookings = [];
     for (const res of this.app.tempReservations) {
       const roomIds = res.isBulkBooking ? res.roomIds || [] : [res.roomId];
 
@@ -394,7 +396,8 @@ class CreateBookingComponent {
       };
 
       // Call API to create this individual booking
-      await dataManager.createBooking(booking);
+      const result = await dataManager.createBooking(booking);
+      createdBookings.push(result);
     }
 
     // Cleanup proposed bookings
@@ -403,6 +406,9 @@ class CreateBookingComponent {
         await dataManager.deleteProposedBooking(res.proposalId);
       }
     }
+
+    // Return created bookings for callers that need the result
+    return createdBookings.length === 1 ? createdBookings[0] : createdBookings;
   }
 }
 

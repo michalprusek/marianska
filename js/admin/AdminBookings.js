@@ -16,7 +16,8 @@ class AdminBookings {
         const { column, direction } = JSON.parse(savedSort);
         this.sortColumn = column || 'createdAt';
         this.sortDirection = direction || 'desc';
-      } catch {
+      } catch (error) {
+        console.warn('[AdminBookings] Failed to parse saved sort preferences, using defaults:', error.message);
         this.sortColumn = 'createdAt';
         this.sortDirection = 'desc';
       }
