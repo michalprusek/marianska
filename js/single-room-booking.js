@@ -417,17 +417,52 @@ class SingleRoomBookingModule {
       return;
     }
 
-    // Validate no blocked dates in selection
+    // CRITICAL FIX 2025-12-05: Validate no unavailable dates in selection
+    // Check for blocked, occupied, AND proposed dates (not just blocked!)
+    // This prevents creating overlapping reservations
     const sortedDatesArray = Array.from(this.app.selectedDates).sort();
+
+    // Invalidate cache to ensure fresh availability data
+    dataManager.invalidateProposedBookingsCache();
+
+    // FIX 2025-12-06: When EDITING a proposed booking, exclude user's own proposed booking
+    // When CREATING a new reservation, check ALL proposed bookings (including own session)
+    const isEditing = Boolean(this.app.editingReservation);
+    const excludeSessionId = isEditing ? this.app.sessionId : '';
+
     for (const dateStr of sortedDatesArray) {
       const date = new Date(`${dateStr}T12:00:00`);
-      const availability = await dataManager.getRoomAvailability(date, this.app.currentBookingRoom);
+      const availability = await dataManager.getRoomAvailability(
+        date,
+        this.app.currentBookingRoom,
+        excludeSessionId
+      );
 
       if (availability.status === 'blocked') {
         window.notificationManager?.show(
           this.app.currentLanguage === 'cs'
             ? 'Vybraný termín obsahuje blokované dny. Vyberte jiný termín.'
             : 'Selected dates include blocked days. Please choose different dates.',
+          'error'
+        );
+        return;
+      }
+
+      if (availability.status === 'occupied') {
+        window.notificationManager?.show(
+          this.app.currentLanguage === 'cs'
+            ? 'Vybraný termín obsahuje již rezervované dny. Vyberte jiný termín.'
+            : 'Selected dates include already booked days. Please choose different dates.',
+          'error'
+        );
+        return;
+      }
+
+      if (availability.status === 'proposed') {
+        window.notificationManager?.show(
+          this.app.currentLanguage === 'cs'
+            ? 'Vybraný termín obsahuje dočasnou rezervaci jiného uživatele. Vyberte jiný termín.'
+            : 'Selected dates include a temporary reservation by another user. Please choose different dates.',
           'error'
         );
         return;
@@ -714,8 +749,8 @@ class SingleRoomBookingModule {
       const hasUtiaGuest =
         guestNames && guestNames.length > 0
           ? guestNames.some(
-              (guest) => guest.guestPriceType === 'utia' && guest.personType !== 'toddler'
-            )
+            (guest) => guest.guestPriceType === 'utia' && guest.personType !== 'toddler'
+          )
           : true; // FIX 2025-11-07: Default to ÚTIA when no guests yet (matches default radio selection)
       const actualGuestType = hasUtiaGuest ? 'utia' : 'external';
 
@@ -767,8 +802,8 @@ class SingleRoomBookingModule {
     const hasUtiaGuest =
       guestNames && guestNames.length > 0
         ? guestNames.some(
-            (guest) => guest.guestPriceType === 'utia' && guest.personType !== 'toddler'
-          )
+          (guest) => guest.guestPriceType === 'utia' && guest.personType !== 'toddler'
+        )
         : true; // FIX 2025-11-07: Default to ÚTIA when no guests yet (matches default radio selection)
     const actualGuestType = hasUtiaGuest ? 'utia' : 'external';
 
@@ -941,14 +976,20 @@ class SingleRoomBookingModule {
    * @param {Object} booking - Full booking object from database
    * @param {string} roomId - ID of room to edit
    * @param {Object} callbacks - Admin callbacks {onSubmit, onCancel, onDelete}
+   * @param {Object} options - Optional: {isUserMode, restrictions}
    */
-  async openForAdminEdit(booking, roomId, callbacks) {
+  async openForAdminEdit(booking, roomId, callbacks, options = {}) {
+    const isUserMode = options.isUserMode || false;
+    const restrictions = options.restrictions || {};
+
     // Store admin edit context
     this.adminEditContext = {
       booking,
       roomId,
       callbacks,
-      isAdminEdit: true,
+      isAdminEdit: !isUserMode,
+      isUserMode,
+      restrictions,
     };
 
     const modal = document.getElementById('singleRoomBookingModal');
@@ -1092,8 +1133,47 @@ class SingleRoomBookingModule {
     const startDate = sortedDates[0];
     const endDate = sortedDates[sortedDates.length - 1];
 
-    // Get guests
-    const { roomId } = this.adminEditContext;
+    // CRITICAL FIX 2025-12-05: Validate no conflicts with OTHER reservations
+    // Exclude the current booking being edited from the check
+    const { roomId, booking } = this.adminEditContext;
+    const currentBookingId = booking?.id || null;
+
+    // Invalidate cache to ensure fresh availability data
+    dataManager.invalidateProposedBookingsCache();
+
+    for (const dateStr of sortedDates) {
+      const date = new Date(`${dateStr}T12:00:00`);
+      // Exclude current booking from conflict check (allows modifying its dates)
+      const availability = await dataManager.getRoomAvailability(
+        date,
+        roomId,
+        '',
+        currentBookingId
+      );
+
+      if (availability.status === 'blocked') {
+        window.notificationManager?.show(`Datum ${dateStr} je blokováno administrátorem.`, 'error');
+        return;
+      }
+
+      if (availability.status === 'occupied') {
+        window.notificationManager?.show(
+          `Datum ${dateStr} je již rezervováno jinou rezervací.`,
+          'error'
+        );
+        return;
+      }
+
+      if (availability.status === 'proposed') {
+        window.notificationManager?.show(
+          `Datum ${dateStr} má dočasnou rezervaci jiného uživatele.`,
+          'error'
+        );
+        return;
+      }
+    }
+
+    // Get guests (roomId already destructured above)
     const guests = this.app.roomGuests.get(roomId) || { adults: 1, children: 0, toddlers: 0 };
 
     // Validate guest names
@@ -1130,6 +1210,17 @@ class SingleRoomBookingModule {
       guestNames: guestNames.map((g) => ({ ...g, roomId })),
       totalPrice: price,
       rooms: [roomId],
+      // Include per-room data for proper booking structure
+      perRoomDates: {
+        [roomId]: { startDate, endDate },
+      },
+      perRoomGuests: {
+        [roomId]: {
+          adults: guests.adults,
+          children: guests.children,
+          toddlers: guests.toddlers || 0,
+        },
+      },
     };
 
     // Call admin callback

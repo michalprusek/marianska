@@ -84,13 +84,21 @@ class BaseCalendar {
 
   /**
    * Render calendar for current month
+   * Properly handles cancellation and cleanup of previous renders
    */
   async render() {
-    // Cancel any pending render
+    // Cancel any pending render and wait for cleanup
     if (this.renderPromise) {
       this.cancelRender = true;
+      try {
+        await this.renderPromise; // Wait for previous render to clean up
+      } catch (e) {
+        // Ignore errors from cancelled renders
+      }
     }
 
+    // Reset cancellation flag for new render
+    this.cancelRender = false;
     this.renderPromise = this._doRender();
     await this.renderPromise;
     this.renderPromise = null;
@@ -166,11 +174,11 @@ class BaseCalendar {
       </div>
       <div class="calendar-weekdays" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.25rem; margin-bottom: 0.5rem;">
         ${CalendarUtils.getWeekdayHeaders(language)
-          .map(
-            (day) =>
-              `<div class="weekday-header" style="text-align: center; font-weight: 600; color: #666; font-size: 0.875rem; padding: 0.75rem; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${day}</div>`
-          )
-          .join('')}
+        .map(
+          (day) =>
+            `<div class="weekday-header" style="text-align: center; font-weight: 600; color: #666; font-size: 0.875rem; padding: 0.75rem; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${day}</div>`
+        )
+        .join('')}
       </div>
     `;
   }
@@ -1065,12 +1073,18 @@ class BaseCalendar {
 
   /**
    * Validate interval availability - check if all dates in range are available
+   * CRITICAL FIX 2025-12-06: Also checks that no occupied nights exist within the interval
+   * Edge days are allowed for check-in/check-out, but the interval must not span occupied nights
    * @param {Array<string>} dateRange - Array of date strings to check
    * @returns {Promise<boolean>} - True if any date is unavailable (booked/blocked/proposed)
    */
   async validateIntervalAvailability(dateRange) {
+    // Sort dates to ensure proper order
+    const sortedDates = [...dateRange].sort();
+
     // For each date in the range, check availability
-    for (const dateStr of dateRange) {
+    for (let i = 0; i < sortedDates.length; i++) {
+      const dateStr = sortedDates[i];
       const date = new Date(dateStr);
 
       // Get availability based on mode
@@ -1092,8 +1106,45 @@ class BaseCalendar {
             this.config.sessionId,
             this.config.currentEditingBookingId
           );
-          // Edge days are available for new bookings
-          isUnavailable = availability.status !== 'available' && availability.status !== 'edge';
+
+          // Blocked, occupied, or proposed days are always unavailable
+          if (
+            availability.status === 'blocked' ||
+            availability.status === 'occupied' ||
+            availability.status === 'proposed'
+          ) {
+            isUnavailable = true;
+          } else if (availability.status === 'edge') {
+            // CRITICAL FIX 2025-12-06: Edge days need special handling
+            // Edge day is OK for first day (check-in) or last day (check-out)
+            // But if it's a middle day AND ANY night is occupied, we can't pass through
+            const isFirstDay = i === 0;
+            const isLastDay = i === sortedDates.length - 1;
+
+            if (!isFirstDay && !isLastDay) {
+              // Middle day - we need to "pass through" this day
+              // If EITHER night around this day is occupied, we can't pass through
+              // (The occupied night would overlap with our stay)
+              if (availability.nightBefore || availability.nightAfter) {
+                isUnavailable = true;
+              }
+            } else if (isFirstDay && !isLastDay) {
+              // First day (check-in) - nightAfter must be free for our stay
+              // nightBefore can be occupied (someone checking out that morning)
+              if (availability.nightAfter) {
+                isUnavailable = true;
+              }
+            } else if (isLastDay && !isFirstDay) {
+              // Last day (check-out) - nightBefore must be free for our stay
+              // nightAfter can be occupied (someone checking in that evening)
+              if (availability.nightBefore) {
+                isUnavailable = true;
+              }
+            }
+            // Single-day selection (isFirstDay && isLastDay) would need special handling
+            // but minimum 2 nights is enforced elsewhere so this shouldn't happen
+          }
+          // 'available' status is always OK
         }
       }
 

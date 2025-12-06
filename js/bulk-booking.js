@@ -835,15 +835,21 @@ class BulkBookingModule {
       }
     }
 
-    // Validate no blocked dates in selection for any room
+    // CRITICAL FIX 2025-12-05: Validate no unavailable dates in selection for any room
+    // Check for blocked, occupied, AND proposed dates (not just blocked!)
+    // This prevents creating overlapping reservations
     const rooms = await dataManager.getRooms();
+
+    // Invalidate cache to ensure fresh availability data
+    dataManager.invalidateProposedBookingsCache();
 
     for (const dateStr of sortedDatesArray) {
       const date = new Date(`${dateStr}T12:00:00`);
 
       // Check each room for this date
       for (const room of rooms) {
-        const availability = await dataManager.getRoomAvailability(date, room.id);
+        // Pass empty sessionId to check ALL proposed bookings (including own session)
+        const availability = await dataManager.getRoomAvailability(date, room.id, '');
 
         if (availability.status === 'blocked') {
           window.notificationManager?.show(
@@ -851,6 +857,26 @@ class BulkBookingModule {
               .t('roomBlockedOnDate')
               .replace('{roomName}', room.name)
               .replace('{date}', dateStr),
+            'error'
+          );
+          return;
+        }
+
+        if (availability.status === 'occupied') {
+          window.notificationManager?.show(
+            this.app.currentLanguage === 'cs'
+              ? `Pokoj ${room.name} je na datum ${dateStr} již rezervován. Vyberte jiný termín.`
+              : `Room ${room.name} is already booked on ${dateStr}. Please choose different dates.`,
+            'error'
+          );
+          return;
+        }
+
+        if (availability.status === 'proposed') {
+          window.notificationManager?.show(
+            this.app.currentLanguage === 'cs'
+              ? `Pokoj ${room.name} má na datum ${dateStr} dočasnou rezervaci jiného uživatele. Vyberte jiný termín.`
+              : `Room ${room.name} has a temporary reservation by another user on ${dateStr}. Please choose different dates.`,
             'error'
           );
           return;
@@ -1315,13 +1341,19 @@ class BulkBookingModule {
    * Pre-fills with existing booking data and uses admin callbacks
    * @param {Object} booking - Full booking object from database
    * @param {Object} callbacks - Admin callbacks {onSubmit, onCancel, onDelete}
+   * @param {Object} options - Optional: {isUserMode, restrictions}
    */
-  async openForAdminEdit(booking, callbacks) {
+  async openForAdminEdit(booking, callbacks, options = {}) {
+    const isUserMode = options.isUserMode || false;
+    const restrictions = options.restrictions || {};
+
     // Store admin edit context
     this.adminEditContext = {
       booking,
       callbacks,
-      isAdminEdit: true,
+      isAdminEdit: !isUserMode,
+      isUserMode,
+      restrictions,
     };
 
     const modal = document.getElementById('bulkBookingModal');
@@ -1447,6 +1479,53 @@ class BulkBookingModule {
     const endDate = sortedDates[sortedDates.length - 1];
     const nights = sortedDates.length - 1;
 
+    // CRITICAL FIX 2025-12-05: Validate no conflicts with OTHER reservations
+    // Exclude the current booking being edited from the check
+    const currentBookingId = this.adminEditContext.booking?.id || null;
+    const allRooms = await dataManager.getRooms();
+
+    // Invalidate cache to ensure fresh availability data
+    dataManager.invalidateProposedBookingsCache();
+
+    for (const dateStr of sortedDates) {
+      const date = new Date(`${dateStr}T12:00:00`);
+
+      // Check each room for conflicts
+      for (const room of allRooms) {
+        // Exclude current booking from conflict check (allows modifying its dates)
+        const availability = await dataManager.getRoomAvailability(
+          date,
+          room.id,
+          '',
+          currentBookingId
+        );
+
+        if (availability.status === 'blocked') {
+          window.notificationManager?.show(
+            `Pokoj ${room.name} je na datum ${dateStr} blokován.`,
+            'error'
+          );
+          return;
+        }
+
+        if (availability.status === 'occupied') {
+          window.notificationManager?.show(
+            `Pokoj ${room.name} je na datum ${dateStr} již rezervován jinou rezervací.`,
+            'error'
+          );
+          return;
+        }
+
+        if (availability.status === 'proposed') {
+          window.notificationManager?.show(
+            `Pokoj ${room.name} má na datum ${dateStr} dočasnou rezervaci jiného uživatele.`,
+            'error'
+          );
+          return;
+        }
+      }
+    }
+
     // Get guest counts
     const adults = parseInt(document.getElementById('bulkAdults')?.textContent, 10) || 10;
     const children = parseInt(document.getElementById('bulkChildren')?.textContent, 10) || 0;
@@ -1503,7 +1582,7 @@ class BulkBookingModule {
 
     // FIX 2025-12-05: Generate perRoomGuests with smart allocation
     // This ensures the database stores correct per-room guest distribution
-    const allRooms = await dataManager.getRooms();
+    // Note: allRooms already loaded earlier for conflict validation
     const perRoomGuests = {};
 
     // Get room capacities (sorted by capacity desc, then by room ID)
@@ -1555,6 +1634,13 @@ class BulkBookingModule {
       remainingChildren -= childrenInRoom;
     }
 
+    // Build perRoomDates - all rooms have same dates for bulk booking
+    const { rooms } = this.adminEditContext.booking;
+    const perRoomDates = {};
+    rooms.forEach((roomId) => {
+      perRoomDates[roomId] = { startDate, endDate };
+    });
+
     // Build form data
     const formData = {
       startDate,
@@ -1566,7 +1652,8 @@ class BulkBookingModule {
       guestNames,
       totalPrice: price,
       isBulkBooking: true,
-      rooms: this.adminEditContext.booking.rooms, // Keep original rooms
+      rooms, // Keep original rooms
+      perRoomDates, // FIX 2025-12-05: Include per-room dates
       perRoomGuests, // FIX 2025-12-05: Include smart room allocation
       guestTypeBreakdown: {
         utiaAdults,

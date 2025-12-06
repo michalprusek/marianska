@@ -1257,7 +1257,11 @@ class DataManager {
       }
       // SECURITY FIX: Log and throw error instead of silent failure
       const errorText = await response.text().catch(() => 'Unknown error');
-      console.error('[DataManager] Server rejected delete proposed booking:', response.status, errorText);
+      console.error(
+        '[DataManager] Server rejected delete proposed booking:',
+        response.status,
+        errorText
+      );
       throw new Error(`Nepodařilo se smazat návrh rezervace (${response.status})`);
     } catch (error) {
       const errorType = error.name === 'AbortError' ? 'timeout' : 'network';
@@ -1289,7 +1293,11 @@ class DataManager {
       }
       // SECURITY FIX: Log and throw error instead of silent failure
       const errorText = await response.text().catch(() => 'Unknown error');
-      console.error('[DataManager] Server rejected clear session proposals:', response.status, errorText);
+      console.error(
+        '[DataManager] Server rejected clear session proposals:',
+        response.status,
+        errorText
+      );
       throw new Error(`Nepodařilo se vyčistit návrhy rezervací (${response.status})`);
     } catch (error) {
       const errorType = error.name === 'AbortError' ? 'timeout' : 'network';
@@ -1353,27 +1361,149 @@ class DataManager {
     }
   }
 
-  // Token-based update and delete methods for user self-service
+  /**
+   * Update a booking using the edit token (for user self-service)
+   * Validates the edit token on the server and updates the booking if authorized
+   *
+   * @param {string|number} bookingId - Booking ID to update
+   * @param {Object} updates - Booking fields to update (partial update supported)
+   * @param {string} editToken - Edit token from the booking confirmation email
+   * @returns {Promise<Object>} Updated booking object
+   * @throws {Error} If token is invalid, expired, or update fails
+   */
   async updateBookingWithToken(bookingId, updates, editToken) {
-    // First verify the token
-    const booking = await this.getBooking(bookingId);
-    if (!booking || booking.editToken !== editToken) {
-      throw new Error('Neplatný edit token');
+    let response;
+    let result;
+
+    // Network operation with focused try-catch
+    try {
+      response = await fetch(`${this.apiUrl}/booking/${bookingId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-edit-token': editToken,
+        },
+        body: JSON.stringify(updates),
+      });
+    } catch (error) {
+      console.error(
+        `[DataManager] Network error updating booking (ID: ${bookingId}, token: ${editToken?.slice(0, 8)}...):`,
+        error.message
+      );
+      // Provide user-friendly network error
+      if (error.name === 'AbortError') {
+        throw new Error('TIMEOUT');
+      }
+      throw new Error('NETWORK_ERROR');
     }
 
-    // Use the regular update method
-    return this.updateBooking(bookingId, updates);
+    // Handle error responses with specific status codes
+    if (!response.ok) {
+      let errorMessage;
+      const status = response.status;
+
+      // Safe JSON parsing - server might return non-JSON error
+      const data = await response.json().catch(() => ({}));
+
+      if (status === 401) {
+        errorMessage = 'TOKEN_INVALID';
+      } else if (status === 403) {
+        errorMessage = 'TOKEN_EXPIRED';
+      } else if (status === 423) {
+        errorMessage = 'BOOKING_LOCKED';
+      } else {
+        errorMessage = data.error || `UPDATE_FAILED_${status}`;
+      }
+
+      console.error(
+        `[DataManager] Server rejected update (ID: ${bookingId}, status: ${status}):`,
+        data.error || 'No error message'
+      );
+      throw new Error(errorMessage);
+    }
+
+    // Parse success response
+    try {
+      result = await response.json();
+    } catch (parseError) {
+      console.error(`[DataManager] Failed to parse update response for booking ${bookingId}`);
+      throw new Error('PARSE_ERROR');
+    }
+
+    // Update local cache (outside try-catch - let programming errors bubble up)
+    if (this.data?.bookings) {
+      const index = this.data.bookings.findIndex((b) => b.id === bookingId);
+      if (index !== -1) {
+        this.data.bookings[index] = result.booking;
+      }
+    }
+
+    return result.booking;
   }
 
+  /**
+   * Delete a booking using the edit token (for user self-service cancellation)
+   * Validates the edit token on the server and deletes the booking if authorized
+   *
+   * @param {string|number} bookingId - Booking ID to delete
+   * @param {string} editToken - Edit token from the booking confirmation email
+   * @returns {Promise<boolean>} True if deletion was successful
+   * @throws {Error} If token is invalid, expired, or deletion fails
+   */
   async deleteBookingWithToken(bookingId, editToken) {
-    // First verify the token
-    const booking = await this.getBooking(bookingId);
-    if (!booking || booking.editToken !== editToken) {
-      throw new Error('Neplatný edit token');
+    let response;
+
+    // Network operation with focused try-catch
+    try {
+      response = await fetch(`${this.apiUrl}/booking/${bookingId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-edit-token': editToken,
+        },
+      });
+    } catch (error) {
+      console.error(
+        `[DataManager] Network error deleting booking (ID: ${bookingId}, token: ${editToken?.slice(0, 8)}...):`,
+        error.message
+      );
+      if (error.name === 'AbortError') {
+        throw new Error('TIMEOUT');
+      }
+      throw new Error('NETWORK_ERROR');
     }
 
-    // Use the regular delete method
-    return this.deleteBooking(bookingId);
+    // Handle error responses with specific status codes
+    if (!response.ok) {
+      const status = response.status;
+      let errorMessage;
+
+      // Safe JSON parsing
+      const data = await response.json().catch(() => ({}));
+
+      if (status === 401) {
+        errorMessage = 'TOKEN_INVALID';
+      } else if (status === 403) {
+        errorMessage = 'TOKEN_EXPIRED';
+      } else if (status === 423) {
+        errorMessage = 'BOOKING_LOCKED';
+      } else {
+        errorMessage = data.error || `DELETE_FAILED_${status}`;
+      }
+
+      console.error(
+        `[DataManager] Server rejected delete (ID: ${bookingId}, status: ${status}):`,
+        data.error || 'No error message'
+      );
+      throw new Error(errorMessage);
+    }
+
+    // Update local cache (outside try-catch)
+    if (this.data?.bookings) {
+      this.data.bookings = this.data.bookings.filter((b) => b.id !== bookingId);
+    }
+
+    return true;
   }
 
   // Proposed Bookings Management
@@ -1391,7 +1521,11 @@ class DataManager {
       if (!response.ok) {
         // SECURITY FIX: Log error details instead of silently ignoring
         const errorText = await response.text().catch(() => 'Unknown error');
-        console.error('[DataManager] Failed to delete proposed bookings:', response.status, errorText);
+        console.error(
+          '[DataManager] Failed to delete proposed bookings:',
+          response.status,
+          errorText
+        );
         return false;
       }
 
@@ -1407,7 +1541,10 @@ class DataManager {
     } catch (error) {
       // SECURITY FIX: Log detailed error instead of generic warning
       const errorType = error.name === 'AbortError' ? 'timeout' : 'network';
-      console.error(`[DataManager] Error deleting proposed bookings (${errorType}):`, error.message || error);
+      console.error(
+        `[DataManager] Error deleting proposed bookings (${errorType}):`,
+        error.message || error
+      );
       return false;
     }
   }

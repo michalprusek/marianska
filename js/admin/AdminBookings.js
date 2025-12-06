@@ -540,11 +540,11 @@ class AdminBookings {
           <div style="font-weight: 600; color: #4b5563; font-size: 0.85rem; margin-bottom: 0.5rem;">Dospělí:</div>
           <div style="display: flex; flex-direction: column; gap: 0.35rem;">
             ${adults
-          .map(
-            (guest) =>
-              `<div style="color: #6b7280; font-size: 0.9rem;">${this.escapeHtml(guest.firstName)} ${this.escapeHtml(guest.lastName)}</div>`
-          )
-          .join('')}
+              .map(
+                (guest) =>
+                  `<div style="color: #6b7280; font-size: 0.9rem;">${this.escapeHtml(guest.firstName)} ${this.escapeHtml(guest.lastName)}</div>`
+              )
+              .join('')}
           </div>
         </div>
       `;
@@ -556,11 +556,11 @@ class AdminBookings {
           <div style="font-weight: 600; color: #4b5563; font-size: 0.85rem; margin-bottom: 0.5rem;">Děti:</div>
           <div style="display: flex; flex-direction: column; gap: 0.35rem;">
             ${children
-          .map(
-            (guest) =>
-              `<div style="color: #6b7280; font-size: 0.9rem;">${this.escapeHtml(guest.firstName)} ${this.escapeHtml(guest.lastName)}</div>`
-          )
-          .join('')}
+              .map(
+                (guest) =>
+                  `<div style="color: #6b7280; font-size: 0.9rem;">${this.escapeHtml(guest.firstName)} ${this.escapeHtml(guest.lastName)}</div>`
+              )
+              .join('')}
           </div>
         </div>
       `;
@@ -572,11 +572,11 @@ class AdminBookings {
           <div style="font-weight: 600; color: #4b5563; font-size: 0.85rem; margin-bottom: 0.5rem;">Batolata:</div>
           <div style="display: flex; flex-direction: column; gap: 0.35rem;">
             ${toddlers
-          .map(
-            (guest) =>
-              `<div style="color: #6b7280; font-size: 0.9rem;">${this.escapeHtml(guest.firstName)} ${this.escapeHtml(guest.lastName)}</div>`
-          )
-          .join('')}
+              .map(
+                (guest) =>
+                  `<div style="color: #6b7280; font-size: 0.9rem;">${this.escapeHtml(guest.firstName)} ${this.escapeHtml(guest.lastName)}</div>`
+              )
+              .join('')}
           </div>
         </div>
       `;
@@ -769,9 +769,9 @@ class AdminBookings {
           const roomDates = booking.perRoomDates[roomId];
           const nights = roomDates
             ? Math.ceil(
-              (new Date(roomDates.endDate) - new Date(roomDates.startDate)) /
-              (1000 * 60 * 60 * 24)
-            )
+                (new Date(roomDates.endDate) - new Date(roomDates.startDate)) /
+                  (1000 * 60 * 60 * 24)
+              )
             : this.calculateNights(booking);
 
           // Determine guest type from guests in this room
@@ -856,24 +856,25 @@ class AdminBookings {
                 <button class="modal-close" onclick="adminPanel.bookings.closeDetailModal(this.closest('.modal'))">&times;</button>
                 <h2 style="margin-right: 3rem; word-break: break-all;">Detail rezervace<br><span style="font-size: 0.8em; color: var(--gray-600);">${booking.id}</span></h2>
 
-                ${booking.isBulkBooking
-        ? (() => {
-          const createdAt = new Date(booking.createdAt || booking.created_at);
-          const startDate = new Date(booking.startDate || booking.start_date);
-          const msPerDay = 1000 * 60 * 60 * 24;
-          const daysAhead = Math.floor((startDate - createdAt) / msPerDay);
-          const isLessThan3Months = daysAhead < 90;
+                ${
+                  booking.isBulkBooking
+                    ? (() => {
+                        const createdAt = new Date(booking.createdAt || booking.created_at);
+                        const startDate = new Date(booking.startDate || booking.start_date);
+                        const msPerDay = 1000 * 60 * 60 * 24;
+                        const daysAhead = Math.floor((startDate - createdAt) / msPerDay);
+                        const isLessThan3Months = daysAhead < 90;
 
-          return isLessThan3Months
-            ? `<div style="background: #fef3c7; color: #92400e; padding: 0.75rem; border-radius: 8px; margin: 1rem 0; border-left: 4px solid #d97706;">
+                        return isLessThan3Months
+                          ? `<div style="background: #fef3c7; color: #92400e; padding: 0.75rem; border-radius: 8px; margin: 1rem 0; border-left: 4px solid #d97706;">
                               <strong>⚠️ Hromadná akce</strong> - Vytvořeno ${daysAhead} dní předem (doporučeno min. 90 dní)
                              </div>`
-            : `<div style="background: #d1fae5; color: #065f46; padding: 0.75rem; border-radius: 8px; margin: 1rem 0; border-left: 4px solid #10b981;">
+                          : `<div style="background: #d1fae5; color: #065f46; padding: 0.75rem; border-radius: 8px; margin: 1rem 0; border-left: 4px solid #10b981;">
                               <strong>✓ Hromadná akce</strong> - Vytvořeno ${daysAhead} dní předem
                              </div>`;
-        })()
-        : ''
-      }
+                      })()
+                    : ''
+                }
 
                 <div style="display: grid; gap: 1.5rem; margin-top: 1.5rem;">
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
@@ -896,9 +897,9 @@ class AdminBookings {
                         <strong style="color: var(--gray-600); font-size: 0.9rem;">Termín a pokoje:</strong>
                         <div style="margin-top: 0.5rem;">
                             ${
-      // FIX 2025-12-04: Only use explicit isBulkBooking flag
-      booking.isBulkBooking === true
-        ? `
+                              // FIX 2025-12-04: Only use explicit isBulkBooking flag
+                              booking.isBulkBooking === true
+                                ? `
                             <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
                               <span style="color: #4b5563;">
                                 ${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}
@@ -907,13 +908,13 @@ class AdminBookings {
                               ${this.createRoomDisplay(booking, true)}
                             </div>
                           `
-        : booking.perRoomDates &&
-          Object.keys(booking.perRoomDates).length > 0
-          ? booking.rooms
-            .map((roomId) => {
-              const dates = booking.perRoomDates[roomId];
-              if (dates) {
-                return `
+                                : booking.perRoomDates &&
+                                    Object.keys(booking.perRoomDates).length > 0
+                                  ? booking.rooms
+                                      .map((roomId) => {
+                                        const dates = booking.perRoomDates[roomId];
+                                        if (dates) {
+                                          return `
                                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
                                       ${this.createRoomBadge(roomId, true)}
                                       <span style="color: #4b5563;">
@@ -921,8 +922,8 @@ class AdminBookings {
                                       </span>
                                     </div>
                                   `;
-              }
-              return `
+                                        }
+                                        return `
                                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
                                       ${this.createRoomBadge(roomId, true)}
                                       <span style="color: #4b5563;">
@@ -930,9 +931,9 @@ class AdminBookings {
                                       </span>
                                     </div>
                                   `;
-            })
-            .join('')
-          : `
+                                      })
+                                      .join('')
+                                  : `
                             <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
                               <span style="color: #4b5563;">
                                 ${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}
@@ -941,7 +942,7 @@ class AdminBookings {
                               ${this.createRoomDisplay(booking, true)}
                             </div>
                           `
-      }
+                            }
                         </div>
                     </div>
 
@@ -949,9 +950,9 @@ class AdminBookings {
                         <strong style="color: var(--gray-600); font-size: 0.9rem;">Hosté:</strong>
                         <div style="margin-top: 0.75rem;">
                             ${
-      // FIX 2025-12-04: Only use explicit isBulkBooking flag
-      booking.isBulkBooking === true
-        ? `
+                              // FIX 2025-12-04: Only use explicit isBulkBooking flag
+                              booking.isBulkBooking === true
+                                ? `
                             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
                               ${this.createRoomDisplay(booking, true)}
                               <span style="color: #4b5563;">
@@ -961,21 +962,21 @@ class AdminBookings {
                               </span>
                             </div>
                           `
-        : booking.perRoomGuests &&
-          Object.keys(booking.perRoomGuests).length > 0
-          ? booking.rooms
-            .map((roomId) => {
-              const guests = booking.perRoomGuests[roomId];
-              if (guests) {
-                // Skip rooms with no guests (0 adults AND 0 children)
-                const hasGuests =
-                  guests.adults > 0 || guests.children > 0;
-                if (!hasGuests) {
-                  return ''; // Don't display empty rooms
-                }
+                                : booking.perRoomGuests &&
+                                    Object.keys(booking.perRoomGuests).length > 0
+                                  ? booking.rooms
+                                      .map((roomId) => {
+                                        const guests = booking.perRoomGuests[roomId];
+                                        if (guests) {
+                                          // Skip rooms with no guests (0 adults AND 0 children)
+                                          const hasGuests =
+                                            guests.adults > 0 || guests.children > 0;
+                                          if (!hasGuests) {
+                                            return ''; // Don't display empty rooms
+                                          }
 
-                const guestType = guests.guestType || booking.guestType;
-                return `
+                                          const guestType = guests.guestType || booking.guestType;
+                                          return `
                                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
                                       ${this.createRoomBadge(roomId, true)}
                                       <span style="color: #4b5563;">
@@ -985,39 +986,40 @@ class AdminBookings {
                                       </span>
                                     </div>
                                   `;
-              }
-              return `
+                                        }
+                                        return `
                                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
                                       ${this.createRoomBadge(roomId, true)}
                                       <span style="color: #9ca3af; font-size: 0.85rem;">Bez údajů</span>
                                     </div>
                                   `;
-            })
-            .join('')
-          : `
+                                      })
+                                      .join('')
+                                  : `
                             <div style="color: #ef4444; font-size: 0.85rem;">
                               ⚠️ Chybí údaje o hostech v pokojích (celkem: ${booking.adults} dosp., ${booking.children} děti, ${booking.toddlers} bat.)
                             </div>
                           `
-      }
+                            }
                             <!-- Show totals in gray for reference (only for non-bulk with perRoomGuests) -->
                             ${
-      // FIX 2025-12-04: Only use explicit isBulkBooking flag
-      booking.isBulkBooking !== true &&
-        booking.perRoomGuests &&
-        Object.keys(booking.perRoomGuests).length > 0
-        ? `
+                              // FIX 2025-12-04: Only use explicit isBulkBooking flag
+                              booking.isBulkBooking !== true &&
+                              booking.perRoomGuests &&
+                              Object.keys(booking.perRoomGuests).length > 0
+                                ? `
                             <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 0.85rem;">
                               Celkem: ${booking.adults} dosp., ${booking.children} děti, ${booking.toddlers} bat.
                             </div>
                           `
-        : ''
-      }
+                                : ''
+                            }
                         </div>
                     </div>
 
-                    ${booking.guestNames && booking.guestNames.length > 0
-        ? `
+                    ${
+                      booking.guestNames && booking.guestNames.length > 0
+                        ? `
                     <div>
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
                             <strong style="color: var(--gray-600); font-size: 0.9rem;">Jména hostů (podle pokojů):</strong>
@@ -1037,16 +1039,17 @@ class AdminBookings {
                         ${this.renderGuestNamesByRoom(booking)}
                     </div>
                     `
-        : ''
-      }
+                        : ''
+                    }
 
                     <!-- FIXED 2025-12-04: Always show price breakdown with recalculated prices from current settings -->
                     <div style="margin-bottom: 1rem;">
                         ${await this.generatePerRoomPriceBreakdown(booking)}
                     </div>
 
-                    ${booking.notes
-        ? `
+                    ${
+                      booking.notes
+                        ? `
                         <div>
                             <strong style="color: var(--gray-600); font-size: 0.9rem;">Poznámky:</strong>
                             <div style="margin-top: 0.25rem; padding: 0.75rem; background: var(--gray-50); border-radius: var(--radius-sm); white-space: pre-wrap;">
@@ -1054,22 +1057,23 @@ class AdminBookings {
                             </div>
                         </div>
                     `
-        : ''
-      }
+                        : ''
+                    }
 
                     <div style="padding-top: 1rem; border-top: 1px solid var(--gray-200);">
                         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; font-size: 0.85rem; color: var(--gray-500);">
                             <div>
                                 <strong>Vytvořeno:</strong> ${new Date(booking.createdAt).toLocaleString('cs-CZ')}
                             </div>
-                            ${booking.updatedAt
-        ? `
+                            ${
+                              booking.updatedAt
+                                ? `
                                 <div>
                                     <strong>Upraveno:</strong> ${new Date(booking.updatedAt).toLocaleString('cs-CZ')}
                                 </div>
                             `
-        : ''
-      }
+                                : ''
+                            }
                         </div>
                     </div>
                 </div>
@@ -1886,8 +1890,8 @@ class AdminBookings {
       const nights = booking.perRoomDates
         ? null // Will be calculated per room by PriceCalculator
         : Math.ceil(
-          (new Date(booking.endDate) - new Date(booking.startDate)) / (1000 * 60 * 60 * 24)
-        );
+            (new Date(booking.endDate) - new Date(booking.startDate)) / (1000 * 60 * 60 * 24)
+          );
 
       // Calculate per-room prices
       const perRoomPrices = PriceCalculator.calculatePerRoomPrices({
@@ -2272,7 +2276,7 @@ class AdminBookings {
 
           // Refresh main calendar if it exists
           if (window.app && typeof window.app.renderCalendar === 'function') {
-            window.app.renderCalendar().catch(() => { });
+            window.app.renderCalendar().catch(() => {});
           }
 
           // Show success message
@@ -2412,14 +2416,15 @@ class AdminBookings {
                                 <span class="field-label">Zaplaceno:</span>
                                 <span class="${booking.paid ? 'paid' : 'unpaid'}">${booking.paid ? 'Ano' : 'Ne'}</span>
                             </div>
-                            ${booking.notes
-            ? `
+                            ${
+                              booking.notes
+                                ? `
                             <div class="booking-field" style="grid-column: 1 / -1;">
                                 <span class="field-label">Poznámky:</span> ${this.escapeHtml(booking.notes)}
                             </div>
                             `
-            : ''
-          }
+                                : ''
+                            }
                         </div>
                     </div>
                 `;

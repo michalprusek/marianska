@@ -4,295 +4,381 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Upravit rezervaci - Chata Mariánská</title>
+  <title data-translate="editPageTitle">Upravit rezervaci - Chata Mariánská</title>
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   <link rel="stylesheet" href="css/styles-unified.css" />
   <link rel="stylesheet" href="css/mobile-improvements.css" />
 </head>
 
-<body style="margin: 0; padding: 0; width: 100%; max-width: 100%; overflow-x: hidden">
-  <div style="width: 100%; max-width: 100%; padding: 1rem 1rem; box-sizing: border-box">
-    <div class="header" style="max-width: none">
-      <h1>📝 Upravit rezervaci</h1>
-      <p style="color: var(--gray-600)" data-translate="cottageName">
-        Chata Mariánská
-      </p>
-    </div>
+<body>
+  <div class="app-container">
+    <!-- Header matching main app -->
+    <header class="header">
+      <div class="header-content">
+        <h1 class="logo" data-translate="cottageName">
+          Chata Mariánská
+        </h1>
+        <nav class="nav">
+          <!-- Language Switch -->
+          <div class="language-switch">
+            <span class="lang-label">CZ</span>
+            <label class="switch" for="languageSwitch" aria-label="Switch language">
+              <input type="checkbox" id="languageSwitch" role="switch" aria-checked="false"
+                     onchange="if(window.editPage) editPage.app.setLanguage(this.checked ? 'en' : 'cs')" />
+              <span class="slider"></span>
+            </label>
+            <span class="lang-label">EN</span>
+          </div>
 
-    <!-- Loading State -->
-    <div id="loadingState" style="text-align: center; padding: 3rem">
-      <div class="spinner"></div>
-      <p>Načítání rezervace...</p>
-    </div>
-
-    <!-- Error State -->
-    <div id="errorState" style="display: none">
-      <div style="
-            background: #fee2e2;
-            border: 2px solid #ef4444;
-            border-radius: 12px;
-            padding: 2rem;
-            text-align: center;
-          ">
-        <h2 style="color: #dc2626; margin-bottom: 1rem">⚠️ Chyba</h2>
-        <p id="errorMessage" style="color: #991b1b; font-size: 1.1rem"></p>
-        <a href="/" class="btn btn-primary" style="margin-top: 1rem; display: inline-block">
-          Zpět na hlavní stránku
-        </a>
+          <a href="/" class="btn btn-secondary">
+            <span data-translate="backToMain">Zpět na hlavní stránku</span>
+          </a>
+        </nav>
       </div>
-    </div>
+    </header>
 
-    <!-- Edit Deadline Warning -->
-    <div id="editDeadlineWarning" style="display: none">
-      <div style="
-            background: linear-gradient(135deg, #fee2e2, #fecaca);
-            border: 3px solid #ef4444;
-            border-radius: 16px;
-            padding: 2rem;
-            margin-bottom: 2rem;
-            animation: pulse 2s infinite;
-          ">
-        <h3 style="color: #dc2626; margin-bottom: 1rem">
-          <span style="font-size: 2rem">🔒</span>
-          <span>Rezervace je uzamčena</span>
-        </h3>
-        <p id="deadlineMessage">
-          Úpravy a zrušení rezervace jsou možné pouze <strong>3 dny před začátkem pobytu</strong>.
-        </p>
-        <p>
-          💡 Pro změny kontaktujte administrátora:
-          <strong><span id="contactEmailDisplay">chata@utia.cas.cz</span></strong>
-        </p>
+    <!-- Main Content -->
+    <main class="main-content" style="padding: 2rem; max-width: 1200px; margin: 0 auto;">
+      <!-- Loading State -->
+      <div id="loadingState" class="edit-state-container" aria-live="polite" aria-busy="true">
+        <div class="spinner" role="status" aria-label="Načítání"></div>
+        <p data-translate="loadingBooking">Načítání rezervace...</p>
       </div>
-    </div>
 
-    <!-- Edit Form Container -->
-    <div id="editFormContainer" style="display: none">
-      <div class="modal-content" style="
-            width: 100%;
-            max-width: 100%;
-            background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-            box-sizing: border-box;
-          ">
-        <h2 id="editModalTitle" style="margin-bottom: 2rem">
-          Upravit rezervaci <span id="bookingIdDisplay"></span>
-        </h2>
-
-        <!-- Tab navigation -->
-        <div class="edit-tabs" style="
-              display: flex;
-              gap: 1rem;
-              margin-bottom: 1.5rem;
-              border-bottom: 2px solid #e5e7eb;
-            ">
-          <button class="edit-tab-btn active" data-tab="dates" onclick="editPage.editComponent.switchTab('dates')"
-            style="
-                padding: 0.75rem 1.5rem;
-                background: none;
-                border: none;
-                border-bottom: 3px solid #0d9488;
-                color: #0d9488;
-                font-weight: 600;
-                cursor: pointer;
-              ">
-            📅 Termín a pokoje
-          </button>
-          <button class="edit-tab-btn" data-tab="billing" onclick="editPage.editComponent.switchTab('billing')" style="
-                padding: 0.75rem 1.5rem;
-                background: none;
-                border: none;
-                border-bottom: 3px solid transparent;
-                color: #6b7280;
-                font-weight: 600;
-                cursor: pointer;
-              ">
-            📋 Fakturační údaje
-          </button>
+      <!-- Error State -->
+      <div id="errorState" class="edit-state-container" role="alert" aria-live="assertive" style="display: none;">
+        <div class="error-card">
+          <div class="error-icon" aria-hidden="true">⚠️</div>
+          <h2 data-translate="error">Chyba</h2>
+          <p id="errorMessage"></p>
+          <a href="/" class="btn btn-primary" data-translate="backToMain">
+            Zpět na hlavní stránku
+          </a>
         </div>
-
-        <form id="editBookingForm">
-          <input type="hidden" id="editBookingId" />
-
-          <!-- Dates and Rooms Tab -->
-          <div id="editDatesTab" class="edit-tab-content">
-            <div style="
-                  margin-bottom: 1rem;
-                  padding: 1rem;
-                  background: #e0f2fe;
-                  border-radius: 8px;
-                  border-left: 4px solid #0284c7;
-                ">
-              <p style="margin: 0; font-size: 0.9rem; color: #075985">
-                ℹ️ <strong>Klikněte na "Změnit termín"</strong> u pokoje, který chcete upravit.
-                Kalendář zobrazí původní termín <strong style="color: #3b82f6">modře</strong>.
-              </p>
-            </div>
-
-            <!-- Two column layout: Calendar left, Rooms right -->
-            <div class="edit-dates-layout">
-              <div>
-                <div id="editCalendarHeader" style="display: none; margin-bottom: 1rem">
-                  <h3 style="margin: 0 0 0.5rem 0">
-                    Kalendář - <span id="editingRoomName"></span>
-                  </h3>
-                  <button type="button" id="cancelRoomEditBtn" class="btn btn-secondary" style="padding: 0.5rem 1rem">
-                    ✕ Zavřít kalendář
-                  </button>
-                </div>
-                <div id="editCalendarContainer" style="display: none"></div>
-                <div id="editSelectedDatesContainer" style="
-                      display: none;
-                      margin-top: 1rem;
-                      padding: 1rem;
-                      background: #fef3c7;
-                      border-radius: 8px;
-                    ">
-                  <strong>Nově vybraný termín:</strong>
-                  <div id="editSelectedDates" style="margin-top: 0.5rem; color: #d97706; font-weight: 600">
-                    Zatím nevybráno
-                  </div>
-                </div>
-                <button type="button" id="saveRoomDatesBtn" class="btn btn-primary" style="
-                      display: none;
-                      margin-top: 1rem;
-                      padding: 0.75rem 1.5rem;
-                      width: 100%;
-                      font-size: 1.1rem;
-                    ">
-                  ✓ Uložit termín
-                </button>
-              </div>
-
-              <div>
-                <h3>Všechny pokoje</h3>
-                <div id="editRoomsList" style="display: flex; flex-direction: column; gap: 0.5rem">
-                  <!-- Rooms will be populated here -->
-                </div>
-
-                <div style="
-                      margin-top: 1.5rem;
-                      padding: 1rem;
-                      background: #fef3c7;
-                      border-radius: 8px;
-                    ">
-                  <strong>Celková cena:</strong>
-                  <div id="editTotalPrice" style="font-size: 1.5rem; color: #d97706">
-                    0 Kč
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Billing Information Tab -->
-          <div id="editBillingTab" class="edit-tab-content" style="display: none">
-            <div class="form-grid">
-              <div class="input-group">
-                <label for="editName">Jméno a příjmení <span class="required-asterisk">*</span></label>
-                <input type="text" id="editName" required />
-              </div>
-              <div class="input-group">
-                <label for="editEmail">Email <span class="required-asterisk">*</span></label>
-                <input type="email" id="editEmail" required />
-              </div>
-              <div class="input-group">
-                <label for="editPhone">Telefon <span class="required-asterisk">*</span></label>
-                <input type="tel" id="editPhone" required />
-              </div>
-              <div class="input-group">
-                <label for="editCompany">Firma</label>
-                <input type="text" id="editCompany" />
-              </div>
-              <div class="input-group full-width">
-                <label for="editAddress">Adresa <span class="required-asterisk">*</span></label>
-                <input type="text" id="editAddress" required />
-              </div>
-              <div class="input-group">
-                <label for="editCity">Město <span class="required-asterisk">*</span></label>
-                <input type="text" id="editCity" required />
-              </div>
-              <div class="input-group">
-                <label for="editZip">PSČ <span class="required-asterisk">*</span></label>
-                <input type="text" id="editZip" pattern="[0-9]{5}" required />
-              </div>
-              <div class="input-group">
-                <label for="editIco">IČO</label>
-                <input type="text" id="editIco" />
-              </div>
-              <div class="input-group">
-                <label for="editDic">DIČ</label>
-                <input type="text" id="editDic" />
-              </div>
-              <div class="input-group full-width">
-                <label for="editNotes" data-translate="notes">
-                  Poznámky
-                </label>
-                <textarea id="editNotes" rows="3"></textarea>
-              </div>
-              <div class="input-group full-width">
-                <label style="display: flex; align-items: center; gap: 0.5rem">
-                  <input type="checkbox" id="editPayFromBenefit" style="width: auto; margin: 0" />
-                  <span>Platba z benefitů</span>
-                </label>
-              </div>
-
-              <!-- Guest Names Section -->
-              <div id="editGuestNamesSection" class="input-group full-width" style="
-                    display: none;
-                    margin-top: 1.5rem;
-                    padding: 1.5rem;
-                    background: #f0fdf4;
-                    border: 2px solid #10b981;
-                    border-radius: 8px;
-                  ">
-                <h3 style="margin: 0 0 1rem 0; color: #047857" data-translate="guestNamesTitle">👥 Jména ubytovaných
-                  osob</h3>
-
-                <!-- Adults Names -->
-                <div id="editAdultsNamesContainer" style="margin-bottom: 1.5rem">
-                  <h4 style="margin: 0 0 0.75rem 0; color: #059669">Dospělí (18+ let)</h4>
-                  <div id="editAdultsNamesList"></div>
-                </div>
-
-                <!-- Children Names -->
-                <div id="editChildrenNamesContainer" style="display: none">
-                  <h4 style="margin: 0 0 0.75rem 0; color: #059669">Děti (3-17 let)</h4>
-                  <div id="editChildrenNamesList"></div>
-                </div>
-
-                <!-- Toddlers Names -->
-                <div id="editToddlersNamesContainer" style="display: none">
-                  <h4 style="margin: 0 0 0.75rem 0; color: #059669">Batolata (0-2 roky)</h4>
-                  <div id="editToddlersNamesList"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="modal-actions" style="margin-top: 2rem; text-align: right">
-            <button type="button" class="btn btn-secondary" onclick="window.location.href='/'">
-              Zrušit
-            </button>
-            <button type="submit" class="btn btn-primary" id="editSubmitButton">
-              Uložit změny
-            </button>
-            <button type="button" class="btn btn-danger" id="deleteBookingButton" onclick="editPage.deleteBooking()"
-              style="margin-left: 1rem">
-              Smazat rezervaci
-            </button>
-          </div>
-        </form>
       </div>
-    </div>
 
-    <!-- Success Message -->
-    <div id="successMessage" class="success-message" style="display: none"></div>
+      <!-- Edit Deadline Warning -->
+      <div id="editDeadlineWarning" class="edit-state-container" role="alert" aria-live="assertive" style="display: none;">
+        <div class="locked-card">
+          <div class="locked-icon" aria-hidden="true">🔒</div>
+          <h2 data-translate="bookingLocked">Rezervace je uzamčena</h2>
+          <p id="deadlineMessage" data-translate="editDeadlineMessage">
+            Úpravy a zrušení rezervace jsou možné pouze <strong>3 dny před začátkem pobytu</strong>.
+          </p>
+          <p class="contact-info">
+            <span data-translate="contactAdmin">Pro změny kontaktujte administrátora:</span>
+            <strong><span id="contactEmailDisplay">chata@utia.cas.cz</span></strong>
+          </p>
+          <a href="/" class="btn btn-primary" data-translate="backToMain">
+            Zpět na hlavní stránku
+          </a>
+        </div>
+      </div>
+
+      <!-- Room Selector (for multi-room bookings) -->
+      <div id="roomSelectorContainer" style="display: none;">
+        <div class="edit-card">
+          <div class="edit-card-header">
+            <h2 data-translate="selectRoomToEdit">Vyberte pokoj k úpravě</h2>
+            <p class="edit-card-subtitle" data-translate="multiRoomInfo">
+              Tato rezervace obsahuje více pokojů. Vyberte pokoj, který chcete upravit.
+            </p>
+          </div>
+
+          <!-- Booking Info Summary -->
+          <div id="bookingInfoSummary" class="booking-summary-card">
+            <!-- Will be populated by JS -->
+          </div>
+
+          <!-- Room Cards Grid -->
+          <div id="roomCardsGrid" class="room-cards-grid">
+            <!-- Room cards will be populated by JS -->
+          </div>
+
+          <!-- Actions -->
+          <div class="edit-card-actions">
+            <button type="button" class="btn btn-danger" id="deleteEntireBookingBtn" onclick="editPage.handleModalDelete()">
+              <span>🗑️</span>
+              <span data-translate="deleteEntireBooking">Smazat celou rezervaci</span>
+            </button>
+            <a href="/" class="btn btn-secondary" data-translate="cancel">Zavřít</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Edit Form Container (for single room / bulk - uses modals) -->
+      <div id="editFormContainer" style="display: none;">
+        <!-- This will trigger the modal-based edit -->
+      </div>
+
+      <!-- Success Message -->
+      <div id="successMessage" class="success-message" style="display: none;"></div>
+    </main>
   </div>
 
-  <!-- Shared utilities (MUST load before data.js) -->
+  <!-- Single Room Booking Modal -->
+  <div id="singleRoomBookingModal" class="modal">
+    <div class="modal-content compact-booking-modal">
+      <button class="modal-close" onclick="editPage.app.singleRoomBooking.hideRoomBookingModal()">
+        &times;
+      </button>
+
+      <!-- Room Header -->
+      <div class="booking-modal-header">
+        <h2 id="roomBookingTitle">Upravit pokoj</h2>
+        <div id="roomBookingBadge"></div>
+      </div>
+
+      <div class="booking-modal-content">
+        <!-- Left Column: Calendar -->
+        <div class="booking-left-column">
+          <h3 data-translate="selectStayPeriod">Vyberte termín pobytu</h3>
+          <div id="miniCalendar" class="interactive-calendar"></div>
+        </div>
+
+        <!-- Right Column: Guest Details -->
+        <div class="booking-right-column">
+          <div class="booking-form-section">
+            <!-- Date Selection Summary -->
+            <div id="dateSelectionSummary" class="date-summary" style="display: none;">
+              <div class="date-summary-row">
+                <div>
+                  <div class="date-summary-label" data-translate="selectedPeriod">Vybraný termín:</div>
+                  <div id="selectedDateRange" class="date-summary-value"></div>
+                </div>
+                <div class="date-summary-nights">
+                  <div class="date-summary-label" data-translate="nightsCount">Počet nocí:</div>
+                  <div id="nightsCount" class="nights-value">0</div>
+                </div>
+              </div>
+            </div>
+
+            <h3 data-translate="guestTypeAndCount">Typ hosta a počet osob</h3>
+
+            <!-- Guest Count -->
+            <div class="guest-counters">
+              <div class="counter-item">
+                <label class="counter-label" data-translate="adults">Dospělí</label>
+                <div class="counter-controls">
+                  <button type="button" class="counter-btn" onclick="editPage.app.adjustGuests('adults', -1)">-</button>
+                  <span id="singleRoomAdults" class="counter-value">1</span>
+                  <button type="button" class="counter-btn" onclick="editPage.app.adjustGuests('adults', 1)">+</button>
+                </div>
+              </div>
+              <div class="counter-item">
+                <label class="counter-label" data-translate="childrenLabel">Děti (3-17)</label>
+                <div class="counter-controls">
+                  <button type="button" class="counter-btn" onclick="editPage.app.adjustGuests('children', -1)">-</button>
+                  <span id="singleRoomChildren" class="counter-value">0</span>
+                  <button type="button" class="counter-btn" onclick="editPage.app.adjustGuests('children', 1)">+</button>
+                </div>
+              </div>
+              <div class="counter-item">
+                <label class="counter-label" data-translate="toddlersLabel">Batolata (0-3)</label>
+                <div class="counter-controls">
+                  <button type="button" class="counter-btn" onclick="editPage.app.adjustGuests('toddlers', -1)">-</button>
+                  <span id="singleRoomToddlers" class="counter-value">0</span>
+                  <button type="button" class="counter-btn" onclick="editPage.app.adjustGuests('toddlers', 1)">+</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Capacity Warning -->
+            <div id="capacityWarning" class="capacity-warning" style="display: none;">
+              <span data-translate="capacityExceeded">⚠️ Překročena kapacita pokoje</span>
+            </div>
+
+            <!-- Guest Names Section -->
+            <div id="singleRoomGuestNamesSection" class="guest-names-section" style="display: none;">
+              <h4 data-translate="guestNamesTitle">👥 Jména ubytovaných osob</h4>
+              <div id="singleRoomAdultsNamesContainer">
+                <h5 data-translate="adultsOver18">Dospělí (18+ let)</h5>
+                <div id="singleRoomAdultsNamesList"></div>
+              </div>
+              <div id="singleRoomChildrenNamesContainer" style="display: none;">
+                <h5 data-translate="children3to17">Děti (3-17 let)</h5>
+                <div id="singleRoomChildrenNamesList"></div>
+              </div>
+              <div id="singleRoomToddlersNamesContainer" style="display: none;">
+                <h5 data-translate="toddlers0to2">Batolata (0-2 roky)</h5>
+                <div id="singleRoomToddlersNamesList"></div>
+              </div>
+            </div>
+
+            <!-- Price Summary -->
+            <div class="price-summary">
+              <h4 data-translate="priceSummary">Souhrn ceny</h4>
+              <div id="priceBreakdown" class="price-breakdown">
+                <div class="price-line">
+                  <span data-translate="baseRoomPrice">Základní cena za pokoj:</span>
+                  <span id="basePrice">0 Kč</span>
+                </div>
+                <div id="guestCountsDisplay" class="price-line muted">
+                  <span data-translate="guestCount">Počet osob:</span>
+                  <span id="guestCountsSummary">-</span>
+                </div>
+                <div id="adultsPrice" class="price-line">
+                  <span data-translate="adultSurcharge">Příplatek za dospělé:</span>
+                  <span id="adultsSurcharge">0 Kč</span>
+                </div>
+                <div id="childrenPrice" class="price-line">
+                  <span data-translate="childrenSurcharge">Příplatek za děti:</span>
+                  <span id="childrenSurcharge">0 Kč</span>
+                </div>
+                <div id="toddlersInfo" class="price-line muted">
+                  <span data-translate="toddlersFree">Batolata (do 3 let):</span>
+                  <span id="toddlersSummary" data-translate="free">zdarma</span>
+                </div>
+                <div id="nightsPrice" class="price-line">
+                  <span data-translate="nightsCount">Počet nocí:</span>
+                  <span>× <span id="nightsMultiplier">0</span></span>
+                </div>
+                <div class="price-total">
+                  <span data-translate="total">Celkem:</span>
+                  <span id="totalPrice">0 Kč</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Booking Actions -->
+      <div class="booking-actions">
+        <button type="button" onclick="editPage.app.singleRoomBooking.hideRoomBookingModal()" class="btn btn-secondary" data-translate="cancel">
+          Zrušit
+        </button>
+        <button type="button" id="confirmSingleRoomBtn" onclick="editPage.app.singleRoomBooking.confirmRoomBooking()" class="btn btn-primary" disabled data-translate="saveChanges">
+          Uložit změny
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bulk Booking Modal -->
+  <div id="bulkBookingModal" class="modal">
+    <div class="modal-content compact-booking-modal">
+      <button class="modal-close" onclick="editPage.closeBulkModal()">&times;</button>
+
+      <div class="booking-modal-header">
+        <h2 id="bulkBookingTitle" data-translate="editBulkBooking">Upravit hromadnou rezervaci</h2>
+        <div id="bulkBookingBadge" class="booking-badge">
+          <span data-translate="allRoomsReservation">Rezervace všech 9 pokojů (26 lůžek)</span>
+        </div>
+      </div>
+
+      <div class="booking-modal-content">
+        <!-- Left Column: Calendar -->
+        <div class="booking-left-column">
+          <h3 data-translate="selectStayPeriod">Vyberte termín pobytu</h3>
+          <div id="bulkCalendar" class="interactive-calendar"></div>
+        </div>
+
+        <!-- Right Column: Guest Details -->
+        <div class="booking-right-column" style="overflow-y: auto; max-height: 500px;">
+          <div class="booking-form-section">
+            <!-- Date Selection Summary -->
+            <div id="bulkDateSelectionSummary" class="date-summary" style="display: none;">
+              <div class="date-summary-row">
+                <div>
+                  <div class="date-summary-label" data-translate="selectedPeriod">Vybraný termín:</div>
+                  <div id="bulkSelectedDateRange" class="date-summary-value"></div>
+                </div>
+                <div class="date-summary-nights">
+                  <div class="date-summary-label" data-translate="nightsCount">Počet nocí:</div>
+                  <div id="bulkNightsCount" class="nights-value">0</div>
+                </div>
+              </div>
+            </div>
+
+            <h3 data-translate="guestTypeAndCount">Typ hosta a počet osob</h3>
+
+            <!-- Guest Count -->
+            <div class="guest-counters" style="grid-template-columns: repeat(2, 1fr);">
+              <div class="counter-item">
+                <label class="counter-label" data-translate="adults">Dospělí</label>
+                <div class="counter-controls">
+                  <button type="button" class="counter-btn" onclick="editPage.adjustBulkGuests('adults', -1)">-</button>
+                  <span id="bulkAdults" class="counter-value">10</span>
+                  <button type="button" class="counter-btn" onclick="editPage.adjustBulkGuests('adults', 1)">+</button>
+                </div>
+              </div>
+              <div class="counter-item">
+                <label class="counter-label" data-translate="childrenLabel">Děti (3-17)</label>
+                <div class="counter-controls">
+                  <button type="button" class="counter-btn" onclick="editPage.adjustBulkGuests('children', -1)">-</button>
+                  <span id="bulkChildren" class="counter-value">0</span>
+                  <button type="button" class="counter-btn" onclick="editPage.adjustBulkGuests('children', 1)">+</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Capacity Warning -->
+            <div id="bulkCapacityWarning" class="capacity-warning danger" style="display: none;">
+              <span data-translate="cottageCapacityExceeded">⚠️ Překročena kapacita chaty (maximum 26 lůžek)</span>
+            </div>
+
+            <!-- Minimum Guests Warning -->
+            <div id="bulkMinimumWarning" class="capacity-warning warning" style="display: none;">
+              <span data-translate="minimumGuestsRequired">⚠️ Hromadná akce vyžaduje minimálně 10 osob (dospělí + děti)</span>
+            </div>
+
+            <!-- Guest Names Section -->
+            <div id="bulkGuestNamesSection" class="guest-names-section" style="display: none;">
+              <h4 data-translate="guestNamesTitle">👥 Jména ubytovaných osob</h4>
+              <div id="bulkAdultsNamesContainer"></div>
+              <div id="bulkChildrenNamesContainer"></div>
+              <div id="bulkToddlersNamesContainer"></div>
+            </div>
+
+            <!-- Price Summary -->
+            <div class="price-summary">
+              <h4 data-translate="priceSummary">Souhrn ceny</h4>
+              <div id="bulkPriceBreakdown" class="price-breakdown">
+                <div class="price-section-header" data-translate="pricePerNight">Cena za jednu noc:</div>
+                <div class="price-line indented">
+                  <span data-translate="baseCottagePrice">Základní cena za chatu:</span>
+                  <span id="bulkBasePrice">0 Kč/noc</span>
+                </div>
+                <div id="bulkAdultsPrice" class="price-line indented">
+                  <span data-translate="adultSurcharge">Příplatek za dospělé:</span>
+                  <span id="bulkAdultsSurcharge">0 Kč/noc</span>
+                </div>
+                <div id="bulkChildrenPrice" class="price-line indented" style="display: none;">
+                  <span data-translate="childrenSurcharge">Příplatek za děti:</span>
+                  <span id="bulkChildrenSurcharge">0 Kč/noc</span>
+                </div>
+                <div id="bulkPricePerNight" class="price-line subtotal">
+                  <span data-translate="pricePerNightTotal">Cena za noc celkem:</span>
+                  <span id="bulkPricePerNightAmount">0 Kč</span>
+                </div>
+                <div id="bulkNightsPrice" class="price-line">
+                  <span data-translate="nightsCount">Počet nocí:</span>
+                  <span id="bulkNightsMultiplier">× 0</span>
+                </div>
+                <div class="price-total">
+                  <span data-translate="totalPrice">Celková cena:</span>
+                  <span id="bulkTotalPrice">0 Kč</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="booking-actions">
+        <button type="button" class="btn btn-secondary" onclick="editPage.closeBulkModal()" data-translate="cancel">
+          Zrušit
+        </button>
+        <button type="button" id="confirmBulkBookingBtn" class="btn btn-primary" onclick="editPage.addBulkBooking()" disabled data-translate="saveChanges">
+          Uložit změny
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shared utilities -->
   <script src="js/shared/idGenerator.js"></script>
   <script src="js/shared/domUtils.js"></script>
   <script src="js/shared/dateUtils.js"></script>
@@ -310,134 +396,419 @@
   <script src="js/shared/edit-booking/EditBookingGuests.js"></script>
   <script src="js/shared/edit-booking/EditBookingRooms.js"></script>
   <script src="js/shared/EditBookingComponent.js"></script>
+  <script src="translations.js"></script>
   <script src="data.js"></script>
+  <script src="js/single-room-booking.js"></script>
+  <script src="js/bulk-booking.js"></script>
   <script src="js/edit-page.js"></script>
 
   <style>
-    @keyframes pulse {
-
-      0%,
-      100% {
-        transform: scale(1);
-      }
-
-      50% {
-        transform: scale(1.02);
-      }
+    /* Edit Page Specific Styles */
+    .edit-state-container {
+      text-align: center;
+      padding: 3rem;
     }
 
-    .spinner {
-      border: 4px solid #f3f4f6;
-      border-top: 4px solid #0d9488;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      animation: spin 1s linear infinite;
+    .error-card,
+    .locked-card {
+      background: white;
+      border-radius: 16px;
+      padding: 2.5rem;
+      max-width: 500px;
       margin: 0 auto;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
     }
 
-    @keyframes spin {
-      0% {
-        transform: rotate(0deg);
-      }
-
-      100% {
-        transform: rotate(360deg);
-      }
+    .error-card {
+      border: 2px solid #ef4444;
     }
 
-    @keyframes highlightPulse {
-
-      0%,
-      100% {
-        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
-      }
-
-      50% {
-        box-shadow: 0 0 20px 10px rgba(239, 68, 68, 0.5);
-      }
+    .locked-card {
+      border: 2px solid #f59e0b;
     }
 
-    .form-grid {
+    .error-icon,
+    .locked-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    .error-card h2 {
+      color: #dc2626;
+      margin-bottom: 1rem;
+    }
+
+    .locked-card h2 {
+      color: #d97706;
+      margin-bottom: 1rem;
+    }
+
+    .error-card p,
+    .locked-card p {
+      color: #6b7280;
+      margin-bottom: 1rem;
+    }
+
+    .contact-info {
+      background: #fef3c7;
+      padding: 1rem;
+      border-radius: 8px;
+      margin: 1rem 0;
+    }
+
+    /* Edit Card Styles */
+    .edit-card {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+
+    .edit-card-header {
+      background: linear-gradient(135deg, var(--primary-color, #0d9488), var(--primary-dark, #0f766e));
+      color: white;
+      padding: 1.5rem 2rem;
+    }
+
+    .edit-card-header h2 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1.5rem;
+    }
+
+    .edit-card-subtitle {
+      margin: 0;
+      opacity: 0.9;
+      font-size: 0.95rem;
+    }
+
+    .booking-summary-card {
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .booking-summary-card .contact-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: white;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      color: #374151;
+    }
+
+    /* Room Cards Grid */
+    .room-cards-grid {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+      padding: 1.5rem 2rem;
+    }
+
+    .room-select-card {
+      background: white;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 1.25rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
       gap: 1rem;
     }
 
-    .form-grid .full-width {
-      grid-column: 1 / -1;
+    .room-select-card:hover {
+      border-color: var(--primary-color, #0d9488);
+      box-shadow: 0 4px 12px rgba(13, 148, 136, 0.15);
+      transform: translateY(-2px);
     }
 
-    .input-group {
+    .room-select-card .room-number {
+      background: var(--primary-color, #0d9488);
+      color: white;
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .room-select-card .room-details {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .room-select-card .room-dates {
+      font-size: 0.9rem;
+      color: #374151;
+      font-weight: 500;
+      margin-bottom: 0.25rem;
+    }
+
+    .room-select-card .room-info {
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+
+    .room-select-card .room-price {
+      font-weight: 600;
+      color: var(--primary-color, #0d9488);
+      font-size: 1rem;
+    }
+
+    .room-select-card .arrow {
+      color: #9ca3af;
+      font-size: 1.25rem;
+      transition: transform 0.2s;
+    }
+
+    .room-select-card:hover .arrow {
+      transform: translateX(4px);
+      color: var(--primary-color, #0d9488);
+    }
+
+    /* Edit Card Actions */
+    .edit-card-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.5rem 2rem;
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    /* Guest counters */
+    .guest-counters {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    .counter-item {
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
     }
 
-    .input-group label {
-      font-weight: 600;
-      color: var(--gray-700);
+    .counter-label {
+      font-size: 0.9rem;
+      color: #6b7280;
     }
 
-    .input-group input,
-    .input-group textarea {
-      padding: 0.75rem;
-      border: 1px solid #d1d5db;
-      border-radius: 8px;
-      font-size: 1rem;
-    }
-
-    .input-group input:focus,
-    .input-group textarea:focus {
-      outline: none;
-      border-color: #0d9488;
-      box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
-    }
-
-    .modal-actions {
+    .counter-controls {
       display: flex;
-      gap: 1rem;
-      justify-content: flex-end;
-      padding-top: 1.5rem;
-      border-top: 1px solid #e5e7eb;
-    }
-
-    .btn {
-      padding: 0.75rem 1.5rem;
-      border: none;
+      align-items: center;
+      background: white;
+      border: 1px solid #e2e8f0;
       border-radius: 8px;
-      font-weight: 600;
+    }
+
+    .counter-btn {
+      padding: 0.5rem 1rem;
+      border: none;
+      background: transparent;
       cursor: pointer;
-      transition: all 0.2s;
+      font-size: 1.25rem;
+      color: #374151;
+      transition: background 0.2s;
     }
 
-    .btn-primary {
-      background: #0d9488;
-      color: white;
+    .counter-btn:hover {
+      background: #f3f4f6;
     }
 
-    .btn-primary:hover {
-      background: #0f766e;
+    .counter-value {
+      flex: 1;
+      text-align: center;
+      font-weight: 600;
+      font-size: 1.1rem;
     }
 
-    .btn-secondary {
-      background: #e5e7eb;
+    /* Date summary */
+    .date-summary {
+      background: #f0f9ff;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .date-summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .date-summary-label {
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+
+    .date-summary-value {
+      font-weight: 600;
+      color: #1f2937;
+    }
+
+    .nights-value {
+      font-weight: 700;
+      color: #2563eb;
+      font-size: 1.25rem;
+    }
+
+    /* Capacity warnings */
+    .capacity-warning {
+      margin-top: 0.75rem;
+      padding: 0.75rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+
+    .capacity-warning:not(.danger):not(.warning) {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      color: #856404;
+    }
+
+    .capacity-warning.danger {
+      background: #fee2e2;
+      border-left: 4px solid #dc2626;
+      color: #991b1b;
+    }
+
+    .capacity-warning.warning {
+      background: #fef3c7;
+      border-left: 4px solid #d97706;
+      color: #92400e;
+    }
+
+    /* Guest names section */
+    .guest-names-section {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: #f0fdf4;
+      border: 2px solid #10b981;
+      border-radius: 8px;
+    }
+
+    .guest-names-section h4 {
+      margin: 0 0 0.75rem 0;
+      color: #065f46;
+    }
+
+    .guest-names-section h5 {
+      margin: 0 0 0.5rem 0;
+      font-size: 0.9rem;
       color: #374151;
     }
 
-    .btn-secondary:hover {
-      background: #d1d5db;
+    /* Price summary */
+    .price-summary {
+      border-top: 2px solid #e2e8f0;
+      padding-top: 1rem;
+      margin-top: 1rem;
     }
 
-    .btn-danger {
-      background: #ef4444;
-      color: white;
+    .price-summary h4 {
+      margin: 0 0 0.75rem 0;
+      color: #1f2937;
     }
 
-    .btn-danger:hover {
-      background: #dc2626;
+    .price-breakdown {
+      background: white;
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
     }
 
+    .price-line {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .price-line.muted {
+      color: #6b7280;
+    }
+
+    .price-line.indented {
+      padding-left: 1rem;
+    }
+
+    .price-line.subtotal {
+      font-weight: 600;
+      margin-top: 0.5rem;
+      padding-top: 0.5rem;
+      border-top: 1px dashed #e2e8f0;
+    }
+
+    .price-section-header {
+      font-size: 0.85rem;
+      color: #6b7280;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+    }
+
+    .price-total {
+      display: flex;
+      justify-content: space-between;
+      border-top: 2px solid #e2e8f0;
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+
+    .price-total span:last-child {
+      color: #059669;
+    }
+
+    /* Booking actions */
+    .booking-actions {
+      display: flex;
+      gap: 1rem;
+      padding: 1.5rem;
+      border-top: 1px solid #e2e8f0;
+      justify-content: flex-end;
+    }
+
+    .booking-actions .btn {
+      min-width: 120px;
+    }
+
+    /* Booking badge */
+    .booking-badge {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      font-size: 0.95rem;
+    }
+
+    /* Spinner */
+    .spinner {
+      border: 4px solid #f3f4f6;
+      border-top: 4px solid var(--primary-color, #0d9488);
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Success message */
     .success-message {
       position: fixed;
       top: 2rem;
@@ -445,25 +816,38 @@
       background: #10b981;
       color: white;
       padding: 1rem 2rem;
-      border-radius: 8px;
+      border-radius: 12px;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
       z-index: 10000;
+      font-weight: 500;
     }
 
-    /* Ensure notification container is visible */
-    #notificationContainer {
-      position: fixed;
-      bottom: 20px;
-      left: 20px;
-      z-index: 10000;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      pointer-events: none;
-    }
+    /* Responsive */
+    @media (max-width: 768px) {
+      .room-cards-grid {
+        grid-template-columns: 1fr;
+      }
 
-    #notificationContainer .notification {
-      pointer-events: all;
+      .guest-counters {
+        grid-template-columns: 1fr;
+      }
+
+      .edit-card-actions {
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .edit-card-actions .btn {
+        width: 100%;
+      }
+
+      .booking-actions {
+        flex-direction: column;
+      }
+
+      .booking-actions .btn {
+        width: 100%;
+      }
     }
   </style>
 </body>
