@@ -1,3 +1,4 @@
+/* global DOMUtils, DateUtils */
 /**
  * Edit Page - Standalone booking edit interface
  * Uses admin-style modal UI for consistent UX
@@ -154,20 +155,13 @@ class UserModeApp {
     }
   }
 
-  /**
-   * Get date ranges from selected dates
-   */
+  // FIX 2025-12-08: Delegate to DateUtils (SSOT for date ranges)
   getDateRanges(dates) {
     if (!dates || dates.size === 0) {
       return [];
     }
     const sortedDates = Array.from(dates).sort();
-    return [
-      {
-        start: sortedDates[0],
-        end: sortedDates[sortedDates.length - 1],
-      },
-    ];
+    return DateUtils.getDateRanges(sortedDates);
   }
 
   /**
@@ -628,13 +622,9 @@ class EditPage {
     `;
   }
 
-  /**
-   * Escape HTML for XSS prevention
-   */
+  // FIX 2025-12-08: Delegate to DOMUtils (SSOT for HTML escaping)
   escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    return DOMUtils.escapeHtml(text);
   }
 
   /**

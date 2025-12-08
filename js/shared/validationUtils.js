@@ -3,8 +3,9 @@ class ValidationUtils {
     if (!email || typeof email !== 'string') {
       return false;
     }
+    // FIX 2025-12-08: Added max length check per RFC 5321 (254 char limit)
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
-    return emailRegex.test(email);
+    return emailRegex.test(email) && email.length <= 254;
   }
 
   static validatePhone(phone) {

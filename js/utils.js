@@ -14,6 +14,9 @@ class UtilsModule {
     return DateUtils.getDateRanges(dates);
   }
 
+  // NOTE 2025-12-08: For new modals, prefer using ModalDialog class:
+  //   window.modalDialog.open({ title, content, footerButtons })
+  // This legacy implementation is kept for backwards compatibility.
   async showBookingDetails(date, roomId) {
     const booking = await dataManager.getBookingForRoom(date, roomId);
     if (!booking) {
@@ -216,6 +219,9 @@ class UtilsModule {
     }
   }
 
+  // NOTE 2025-12-08: For new modals, prefer using ModalDialog class:
+  //   window.modalDialog.alert({ message, title, type: 'warning' })
+  // This legacy implementation is kept for backwards compatibility.
   showBlockedReason(availability) {
     const modal = document.createElement('div');
     modal.className = 'modal';

@@ -1431,10 +1431,11 @@ class DataManager {
     }
 
     // Update local cache (outside try-catch - let programming errors bubble up)
-    if (this.data?.bookings) {
-      const index = this.data.bookings.findIndex((b) => b.id === bookingId);
+    // FIX 2025-12-08: Use cachedData (SSOT) instead of undefined this.data
+    if (this.cachedData?.bookings) {
+      const index = this.cachedData.bookings.findIndex((b) => b.id === bookingId);
       if (index !== -1) {
-        this.data.bookings[index] = result.booking;
+        this.cachedData.bookings[index] = result.booking;
       }
     }
 
@@ -1499,8 +1500,9 @@ class DataManager {
     }
 
     // Update local cache (outside try-catch)
-    if (this.data?.bookings) {
-      this.data.bookings = this.data.bookings.filter((b) => b.id !== bookingId);
+    // FIX 2025-12-08: Use cachedData (SSOT) instead of undefined this.data
+    if (this.cachedData?.bookings) {
+      this.cachedData.bookings = this.cachedData.bookings.filter((b) => b.id !== bookingId);
     }
 
     return true;

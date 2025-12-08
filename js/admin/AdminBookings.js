@@ -1,6 +1,12 @@
+/* global AdminBookingsSorting, AdminBookingsPricing, DOMUtils */
 /**
  * Admin Bookings Module
  * Handles loading, filtering, and rendering the bookings table.
+ *
+ * REFACTORED 2025-12-08: Extracted sorting and pricing logic to separate modules
+ * for better separation of concerns. Delegates to:
+ * - AdminBookingsSorting - handles column sorting and persistence
+ * - AdminBookingsPricing - handles price calculation from current settings
  */
 class AdminBookings {
   constructor(adminPanel) {
@@ -9,135 +15,39 @@ class AdminBookings {
     this.selectedBookings = new Set();
     this.editComponent = null;
 
-    // Sorting state - load from localStorage or use defaults
-    const savedSort = localStorage.getItem('adminBookingsSort');
-    if (savedSort) {
-      try {
-        const { column, direction } = JSON.parse(savedSort);
-        this.sortColumn = column || 'createdAt';
-        this.sortDirection = direction || 'desc';
-      } catch (error) {
-        console.warn('[AdminBookings] Failed to parse saved sort preferences, using defaults:', error.message);
-        this.sortColumn = 'createdAt';
-        this.sortDirection = 'desc';
-      }
-    } else {
-      this.sortColumn = 'createdAt';
-      this.sortDirection = 'desc';
-    }
+    // REFACTORED 2025-12-08: Use extracted modules
+    this.sorting = new AdminBookingsSorting(this);
+    this.pricing = new AdminBookingsPricing(this);
+
+    // Backwards compatibility: expose sortColumn/sortDirection from sorting module
+    Object.defineProperty(this, 'sortColumn', {
+      get: () => this.sorting.sortColumn,
+      set: (val) => {
+        this.sorting.sortColumn = val;
+      },
+    });
+    Object.defineProperty(this, 'sortDirection', {
+      get: () => this.sorting.sortDirection,
+      set: (val) => {
+        this.sorting.sortDirection = val;
+      },
+    });
   }
 
-  // Defense-in-depth: HTML escaping helper
+  // FIX 2025-12-08: Delegate to DOMUtils (SSOT for HTML escaping)
   escapeHtml(unsafe) {
-    if (!unsafe) {
-      return '';
-    }
-    return String(unsafe)
-      .replace(/&/gu, '&amp;')
-      .replace(/</gu, '&lt;')
-      .replace(/>/gu, '&gt;')
-      .replace(/"/gu, '&quot;')
-      .replace(/'/gu, '&#039;');
+    return DOMUtils.escapeHtml(unsafe);
   }
 
   // ========== SORTING METHODS ==========
+  // REFACTORED 2025-12-08: Delegate to AdminBookingsSorting module
 
-  /**
-   * Handle column header click for sorting
-   * @param {string} column - Column key to sort by
-   */
   handleSort(column) {
-    if (this.sortColumn === column) {
-      // Toggle direction if same column
-      this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
-    } else {
-      // New column - default to ascending
-      this.sortColumn = column;
-      this.sortDirection = 'asc';
-    }
-
-    // Persist to localStorage
-    localStorage.setItem(
-      'adminBookingsSort',
-      JSON.stringify({
-        column: this.sortColumn,
-        direction: this.sortDirection,
-      })
-    );
-
-    // Reload with new sort
-    this.loadBookings();
+    this.sorting.handleSort(column);
   }
 
-  /**
-   * Compare two bookings for sorting
-   * @param {Object} a - First booking
-   * @param {Object} b - Second booking
-   * @param {string} column - Column to sort by
-   * @param {string} direction - 'asc' or 'desc'
-   * @returns {number} - Comparison result
-   */
   compareBookings(a, b, column, direction) {
-    let valA;
-    let valB;
-
-    switch (column) {
-      case 'id':
-        valA = a.id || '';
-        valB = b.id || '';
-        break;
-      case 'name':
-        valA = (a.name || '').toLowerCase();
-        valB = (b.name || '').toLowerCase();
-        return direction === 'asc'
-          ? valA.localeCompare(valB, 'cs')
-          : valB.localeCompare(valA, 'cs');
-      case 'email':
-        valA = (a.email || '').toLowerCase();
-        valB = (b.email || '').toLowerCase();
-        return direction === 'asc'
-          ? valA.localeCompare(valB, 'cs')
-          : valB.localeCompare(valA, 'cs');
-      case 'payFromBenefit':
-        valA = a.payFromBenefit ? 1 : 0;
-        valB = b.payFromBenefit ? 1 : 0;
-        break;
-      case 'startDate': {
-        // Get earliest start date from perRoomDates or fallback to booking.startDate
-        const getStartDate = (booking) => {
-          if (booking.perRoomDates && Object.keys(booking.perRoomDates).length > 0) {
-            const dates = Object.values(booking.perRoomDates).map((d) => d.startDate);
-            return Math.min(...dates.map((d) => new Date(d).getTime()));
-          }
-          return new Date(booking.startDate || 0).getTime();
-        };
-        valA = getStartDate(a);
-        valB = getStartDate(b);
-        break;
-      }
-      case 'rooms':
-        // Sort by first room number
-        valA = parseInt(a.rooms?.[0], 10) || 0;
-        valB = parseInt(b.rooms?.[0], 10) || 0;
-        break;
-      case 'totalPrice':
-        valA = a.totalPrice || 0;
-        valB = b.totalPrice || 0;
-        break;
-      case 'paid':
-        valA = a.paid ? 1 : 0;
-        valB = b.paid ? 1 : 0;
-        break;
-      case 'createdAt':
-      default:
-        valA = new Date(a.createdAt || 0).getTime();
-        valB = new Date(b.createdAt || 0).getTime();
-        break;
-    }
-
-    if (valA < valB) return direction === 'asc' ? -1 : 1;
-    if (valA > valB) return direction === 'asc' ? 1 : -1;
-    return 0;
+    return this.sorting.compareBookings(a, b, column, direction);
   }
 
   /**
@@ -857,124 +767,15 @@ class AdminBookings {
     }
   }
 
-  /**
-   * FIXED 2025-12-04: Calculate price from current settings (SSOT).
-   *
-   * Admin panel should ALWAYS show prices calculated from current price settings.
-   * The stored booking.totalPrice is historical - what was charged at booking time.
-   *
-   * @param {Object} booking - Booking object
-   * @param {Object} settings - Current settings with prices
-   * @returns {number} Recalculated price from current settings
-   */
+  // ========== PRICING METHODS ==========
+  // REFACTORED 2025-12-08: Delegate to AdminBookingsPricing module
+
   getBookingPrice(booking, settings) {
-    if (!settings || !settings.prices) {
-      // Fallback to stored price if settings not available
-      return booking.totalPrice || 0;
-    }
-
-    try {
-      if (booking.isBulkBooking) {
-        // Bulk booking - use bulk pricing
-        // FIX 2025-12-06: Derive guestTypeBreakdown from guestNames (SSOT)
-        const guestNames = booking.guestNames || [];
-        const derivedBreakdown = {
-          utiaAdults: guestNames.filter(
-            (g) => g.personType === 'adult' && g.guestPriceType === 'utia'
-          ).length,
-          externalAdults: guestNames.filter(
-            (g) => g.personType === 'adult' && g.guestPriceType === 'external'
-          ).length,
-          utiaChildren: guestNames.filter(
-            (g) => g.personType === 'child' && g.guestPriceType === 'utia'
-          ).length,
-          externalChildren: guestNames.filter(
-            (g) => g.personType === 'child' && g.guestPriceType === 'external'
-          ).length,
-        };
-
-        return PriceCalculator.calculateMixedBulkPrice({
-          utiaAdults: derivedBreakdown.utiaAdults,
-          externalAdults: derivedBreakdown.externalAdults,
-          utiaChildren: derivedBreakdown.utiaChildren,
-          externalChildren: derivedBreakdown.externalChildren,
-          nights: this.calculateNights(booking),
-          settings,
-        });
-      }
-
-      // FIX 2025-12-05: For composite bookings, sum up prices of individual rooms
-      // Each room is calculated separately with its own dates and guest types
-      if (booking.rooms && booking.rooms.length > 1 && booking.perRoomDates) {
-        let totalPrice = 0;
-        for (const roomId of booking.rooms) {
-          const roomGuestNames = (booking.guestNames || []).filter(
-            (g) => String(g.roomId) === String(roomId)
-          );
-          const roomDates = booking.perRoomDates[roomId];
-          const nights = roomDates
-            ? Math.ceil(
-                (new Date(roomDates.endDate) - new Date(roomDates.startDate)) /
-                  (1000 * 60 * 60 * 24)
-              )
-            : this.calculateNights(booking);
-
-          // Determine guest type from guests in this room
-          const hasUtiaGuest = roomGuestNames.some(
-            (g) => g.guestPriceType === 'utia' && g.personType !== 'toddler'
-          );
-          const roomGuestType = hasUtiaGuest ? 'utia' : 'external';
-
-          const roomPrice = PriceCalculator.calculatePerGuestPrice({
-            rooms: [roomId],
-            guestNames: roomGuestNames,
-            nights,
-            settings,
-            fallbackGuestType: roomGuestType,
-          });
-          totalPrice += roomPrice;
-        }
-        return totalPrice;
-      }
-
-      // Single room booking - use per-guest pricing if available
-      if (booking.guestNames && booking.guestNames.length > 0) {
-        return PriceCalculator.calculatePerGuestPrice({
-          rooms: booking.rooms || [],
-          guestNames: booking.guestNames,
-          perRoomDates: booking.perRoomDates || null,
-          perRoomGuests: booking.perRoomGuests || {},
-          nights: this.calculateNights(booking),
-          settings,
-          fallbackGuestType: booking.guestType || 'external',
-        });
-      }
-      // Fallback to simple calculation
-      return PriceCalculator.calculatePrice({
-        guestType: booking.guestType || 'external',
-        adults: booking.adults || 0,
-        children: booking.children || 0,
-        toddlers: booking.toddlers || 0,
-        nights: this.calculateNights(booking),
-        rooms: booking.rooms || [],
-        settings,
-      });
-    } catch (error) {
-      console.error('[AdminBookings] Error calculating price:', error);
-      // Fallback to stored price on error
-      return booking.totalPrice || 0;
-    }
+    return this.pricing.getBookingPrice(booking, settings);
   }
 
-  /**
-   * Calculate number of nights for a booking
-   * @param {Object} booking - Booking object
-   * @returns {number} Number of nights
-   */
   calculateNights(booking) {
-    const start = new Date(booking.startDate);
-    const end = new Date(booking.endDate);
-    return Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+    return this.pricing.calculateNights(booking);
   }
 
   filterBookings(searchTerm) {

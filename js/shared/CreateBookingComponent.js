@@ -1,3 +1,4 @@
+/* global DOMUtils */
 /**
  * CreateBookingComponent - Manages the booking creation flow
  * Handles single room and bulk booking modals, temporary reservations, and final submission.
@@ -10,18 +11,9 @@ class CreateBookingComponent {
     this.isSubmitting = false;
   }
 
-  /**
-   * Escape HTML to prevent XSS attacks
-   * @param {string} text - Text to escape
-   * @returns {string} - Escaped text safe for innerHTML
-   */
+  // FIX 2025-12-08: Delegate to DOMUtils (SSOT for HTML escaping)
   escapeHtml(text) {
-    if (typeof text !== 'string') {
-      return String(text);
-    }
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    return DOMUtils.escapeHtml(text);
   }
 
   /**
