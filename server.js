@@ -1013,6 +1013,202 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
   }
 });
 
+// ============================================================
+// GROUPED BOOKING ENDPOINT (2025-12-09)
+// Create multiple bookings in a single transaction, grouped together
+// ============================================================
+app.post('/api/booking/group', bookingLimiter, async (req, res) => {
+  try {
+    const { sessionId, reservations, contact, christmasCode } = req.body;
+
+    // Validate required fields
+    if (!reservations || !Array.isArray(reservations) || reservations.length === 0) {
+      return res.status(400).json({ error: 'Chybí rezervace' });
+    }
+
+    if (!contact || !contact.name || !contact.email || !contact.phone) {
+      return res.status(400).json({ error: 'Chybí kontaktní údaje' });
+    }
+
+    // Validate field lengths
+    if (contact.name && contact.name.length > MAX_LENGTHS.name) {
+      return res.status(400).json({ error: `Jméno je příliš dlouhé (max ${MAX_LENGTHS.name} znaků)` });
+    }
+    if (contact.email && contact.email.length > MAX_LENGTHS.email) {
+      return res.status(400).json({ error: `Email je příliš dlouhý (max ${MAX_LENGTHS.email} znaků)` });
+    }
+
+    // Validate email format
+    if (!ValidationUtils.validateEmail(contact.email)) {
+      return res.status(400).json({
+        error: ValidationUtils.getValidationError('email', contact.email, 'cs')
+      });
+    }
+
+    // Validate phone format
+    if (!ValidationUtils.validatePhone(contact.phone)) {
+      return res.status(400).json({
+        error: ValidationUtils.getValidationError('phone', contact.phone, 'cs')
+      });
+    }
+
+    // Sanitize inputs
+    contact.name = sanitizeInput(contact.name, MAX_LENGTHS.name);
+    contact.company = sanitizeInput(contact.company, MAX_LENGTHS.company);
+    contact.address = sanitizeInput(contact.address, MAX_LENGTHS.address);
+    contact.city = sanitizeInput(contact.city, MAX_LENGTHS.city);
+    contact.notes = sanitizeInput(contact.notes, MAX_LENGTHS.notes);
+
+    // Get settings for Christmas period and pricing
+    const settings = db.getSettings();
+
+    // Validate each reservation
+    for (let i = 0; i < reservations.length; i++) {
+      const reservation = reservations[i];
+
+      // Validate dates
+      if (!reservation.startDate || !reservation.endDate) {
+        return res.status(400).json({ error: `Rezervace ${i + 1}: Chybí datum` });
+      }
+
+      // Validate rooms
+      if (!reservation.rooms || !Array.isArray(reservation.rooms) || reservation.rooms.length === 0) {
+        return res.status(400).json({ error: `Rezervace ${i + 1}: Chybí pokoje` });
+      }
+
+      // Check Christmas period access
+      const isChristmas =
+        ChristmasUtils.isChristmasPeriod(reservation.startDate, settings) ||
+        ChristmasUtils.isChristmasPeriod(reservation.endDate, settings);
+
+      if (isChristmas) {
+        const christmasPeriodStart = settings.christmasPeriod?.start;
+        const today = new Date();
+        const { codeRequired, bulkBlocked } = ChristmasUtils.checkChristmasAccessRequirement(
+          today, christmasPeriodStart, reservation.isBulkBooking
+        );
+
+        if (bulkBlocked && reservation.isBulkBooking) {
+          return res.status(403).json({
+            error: 'Hromadné rezervace celé chaty nejsou po 1. října povoleny pro vánoční období.'
+          });
+        }
+
+        if (codeRequired && !ChristmasUtils.validateChristmasCode(christmasCode, settings)) {
+          return res.status(403).json({ error: 'Neplatný přístupový kód pro vánoční období' });
+        }
+      }
+
+      // Check guest counts
+      const totalGuests = (reservation.guestNames || []).filter(g => g.personType === 'adult').length;
+      if (totalGuests < 1) {
+        return res.status(400).json({ error: `Rezervace ${i + 1}: Je vyžadován alespoň 1 dospělý` });
+      }
+
+      // Validate room availability for each room in this reservation
+      for (const roomId of reservation.rooms) {
+        const roomDates = reservation.perRoomDates?.[roomId] || {
+          startDate: reservation.startDate,
+          endDate: reservation.endDate
+        };
+
+        // Check availability
+        const startDate = new Date(roomDates.startDate);
+        const endDate = new Date(roomDates.endDate);
+
+        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+          const dateStr = DateUtils.formatDate(d);
+          const availability = db.getRoomAvailability(roomId, dateStr, sessionId);
+
+          // Skip edge days - they are available for booking
+          if (availability.status === 'edge') continue;
+
+          if (!availability.available) {
+            return res.status(409).json({
+              error: `Pokoj ${roomId} není dostupný v termínu ${roomDates.startDate} - ${roomDates.endDate}`,
+              room: roomId,
+              date: dateStr
+            });
+          }
+        }
+      }
+    }
+
+    // Create grouped booking in database transaction
+    const result = db.createGroupedBooking({
+      sessionId,
+      reservations,
+      contact
+    });
+
+    logger.info('Grouped booking created', {
+      groupId: result.groupId,
+      bookingCount: result.bookings.length,
+      totalPrice: result.totalPrice,
+      email: contact.email
+    });
+
+    // Send confirmation email (non-blocking)
+    try {
+      const { sendBookingConfirmation } = require('./email-service');
+
+      // Create a combined booking object for email
+      const combinedBooking = {
+        id: result.groupId,
+        name: contact.name,
+        email: contact.email,
+        phone: contact.phone,
+        startDate: reservations.reduce((min, r) => r.startDate < min ? r.startDate : min, reservations[0].startDate),
+        endDate: reservations.reduce((max, r) => r.endDate > max ? r.endDate : max, reservations[0].endDate),
+        rooms: [...new Set(reservations.flatMap(r => r.rooms))],
+        totalPrice: result.totalPrice,
+        isBulkBooking: reservations.some(r => r.isBulkBooking),
+        isGroupedBooking: true,
+        bookingCount: result.bookings.length,
+        intervals: reservations.map(r => ({
+          rooms: r.rooms,
+          startDate: r.startDate,
+          endDate: r.endDate,
+          price: r.totalPrice
+        }))
+      };
+
+      sendBookingConfirmation(combinedBooking, settings).catch(emailErr => {
+        logger.error('Failed to send grouped booking confirmation', {
+          error: emailErr.message,
+          groupId: result.groupId
+        });
+      });
+    } catch (emailError) {
+      logger.error('Email service error for grouped booking', { error: emailError.message });
+    }
+
+    // Delete proposed bookings for this session
+    db.deleteProposedBookingsBySession(sessionId);
+
+    return res.status(201).json({
+      success: true,
+      groupId: result.groupId,
+      bookings: result.bookings,
+      totalPrice: result.totalPrice
+    });
+
+  } catch (error) {
+    logger.error('Error creating grouped booking', {
+      error: error.message,
+      stack: error.stack
+    });
+
+    const errorMessage = error.message.includes('není dostupný')
+      ? error.message
+      : 'Nepodařilo se vytvořit skupinovou rezervaci';
+
+    return res
+      .status(error.message.includes('není dostupný') ? 409 : 500)
+      .json({ error: errorMessage });
+  }
+});
+
 // Get booking by edit token - for user edit page
 app.get('/api/booking-by-token', readLimiter, (req, res) => {
   try {
@@ -1640,6 +1836,16 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
     // Update the booking
     db.updateBooking(bookingId, bookingData);
     const updatedBooking = db.getBooking(bookingId);
+
+    // FIX 2025-12-09: Recalculate group price if booking is part of a group
+    if (updatedBooking.groupId) {
+      const newGroupTotal = db.updateBookingGroupPrice(updatedBooking.groupId);
+      logger.info('Group price recalculated after booking update', {
+        bookingId,
+        groupId: updatedBooking.groupId,
+        newGroupTotal
+      });
+    }
 
     // Send notification emails
     // 1. Send to user (booking owner) about the modification
