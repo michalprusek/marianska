@@ -308,8 +308,8 @@ class DatabaseManager {
           },
           large: {
             empty: 350, // Empty large room base price
-            adult: 70, // Per adult
-            child: 35, // Per child (3-17 years)
+            adult: 50, // Per adult (same as small room)
+            child: 25, // Per child (3-17 years, same as small room)
           },
         },
         external: {
@@ -320,8 +320,8 @@ class DatabaseManager {
           },
           large: {
             empty: 500, // Empty large room base price
-            adult: 120, // Per adult
-            child: 60, // Per child (3-17 years)
+            adult: 100, // Per adult (same as small room)
+            child: 50, // Per child (3-17 years, same as small room)
           },
         },
       };

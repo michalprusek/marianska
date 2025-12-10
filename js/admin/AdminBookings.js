@@ -768,12 +768,12 @@ class AdminBookings {
           <input
             type="checkbox"
             class="booking-checkbox group-checkbox"
-            data-group-id="${group.groupId}"
+            data-group-id="${this.escapeHtml(group.groupId)}"
             style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary-color);"
             onclick="event.stopPropagation();"
-            onchange="adminPanel.bookings.toggleGroupSelection('${group.groupId}', this.checked)"
+            onchange="adminPanel.bookings.toggleGroupSelection('${this.escapeHtml(group.groupId)}', this.checked)"
           />
-          <button class="expand-toggle" onclick="event.stopPropagation(); adminPanel.bookings.toggleGroupExpand('${group.groupId}')" title="Rozbalit/Sbalit" style="background: none; border: none; cursor: pointer; padding: 4px;">
+          <button class="expand-toggle" onclick="event.stopPropagation(); adminPanel.bookings.toggleGroupExpand('${this.escapeHtml(group.groupId)}')" title="Rozbalit/Sbalit" style="background: none; border: none; cursor: pointer; padding: 4px;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition: transform 0.2s;">
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
@@ -819,14 +819,14 @@ class AdminBookings {
       </td>
       <td>
         <div class="action-buttons">
-          <button class="btn-modern btn-view" onclick="event.stopPropagation(); adminPanel.bookings.viewGroupDetails('${group.groupId}')" title="Zobrazit detail skupiny">
+          <button class="btn-modern btn-view" onclick="event.stopPropagation(); adminPanel.bookings.viewGroupDetails('${this.escapeHtml(group.groupId)}')" title="Zobrazit detail skupiny">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
               <circle cx="12" cy="12" r="3"/>
             </svg>
             Detail
           </button>
-          <button class="btn-modern btn-edit" onclick="event.stopPropagation(); adminPanel.bookings.editGroup('${group.groupId}')" title="Upravit skupinu">
+          <button class="btn-modern btn-edit" onclick="event.stopPropagation(); adminPanel.bookings.editGroup('${this.escapeHtml(group.groupId)}')" title="Upravit skupinu">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
               <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -1008,7 +1008,7 @@ class AdminBookings {
                   <input
                     type="checkbox"
                     ${booking.paid ? 'checked' : ''}
-                    onchange="adminPanel.bookings.toggleIntervalPaid('${booking.id}', this.checked, '${groupId}')"
+                    onchange="adminPanel.bookings.toggleIntervalPaid('${this.escapeHtml(booking.id)}', this.checked, '${this.escapeHtml(groupId)}')"
                     style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--success-color);"
                   />
                   <span style="font-weight: 600; color: ${booking.paid ? '#10b981' : '#ef4444'}; font-size: 0.85rem;">
@@ -1018,7 +1018,7 @@ class AdminBookings {
               </td>
               <td>
                 <div class="action-buttons">
-                  <button class="btn-modern btn-delete btn-sm" onclick="adminPanel.bookings.deleteInterval('${booking.id}', '${groupId}')" title="Smazat interval">
+                  <button class="btn-modern btn-delete btn-sm" onclick="adminPanel.bookings.deleteInterval('${this.escapeHtml(booking.id)}', '${this.escapeHtml(groupId)}')" title="Smazat interval">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/>
                       <line x1="10" y1="11" x2="10" y2="17"/>
@@ -1193,6 +1193,9 @@ class AdminBookings {
       groupBookings = dataManager.getBookingsByGroupId(booking.groupId);
     }
     const isGroupedBooking = groupBookings.length > 1;
+
+    // SSOT FIX 2025-12-09: Fetch settings for price calculation
+    const settings = await dataManager.getSettings();
 
     const modal = document.createElement('div');
     modal.className = 'modal active';
@@ -1500,7 +1503,8 @@ class AdminBookings {
                                 let groupTotal = 0;
                                 for (let i = 0; i < groupBookings.length; i++) {
                                   const gb = groupBookings[i];
-                                  groupTotal += gb.totalPrice || 0;
+                                  // SSOT FIX 2025-12-09: Use getBookingPrice instead of stored totalPrice
+                                  groupTotal += this.getBookingPrice(gb, settings);
                                   html += `
                                     <div style="border-left: 3px solid #8b5cf6; padding-left: 0.75rem; margin-bottom: 1rem;">
                                       <div style="font-weight: 600; color: #4b5563; font-size: 0.85rem; margin-bottom: 0.5rem;">
@@ -2221,24 +2225,52 @@ class AdminBookings {
 
   /**
    * Copy guest names to clipboard
+   * FIX 2025-12-10: For grouped bookings, copy all guests from all intervals
    * @param {string} bookingId - Booking ID to copy guest names from
    */
   async copyGuestNames(bookingId) {
     try {
       const booking = await dataManager.getBooking(bookingId);
-      if (!booking || !booking.guestNames || booking.guestNames.length === 0) {
+      if (!booking) {
+        this.adminPanel.showToast('Rezervace nenalezena', 'warning');
+        return;
+      }
+
+      // FIX 2025-12-10: Get all bookings in group for grouped reservations
+      let allBookings = [booking];
+      if (booking.groupId) {
+        const groupBookings = dataManager.getBookingsByGroupId(booking.groupId);
+        if (groupBookings.length > 1) {
+          allBookings = groupBookings;
+        }
+      }
+
+      // Collect all guest names from all intervals
+      const allGuestNames = [];
+      let totalGuests = 0;
+
+      allBookings.forEach((b, idx) => {
+        if (b.guestNames && b.guestNames.length > 0) {
+          // Add interval header if multiple intervals
+          if (allBookings.length > 1) {
+            allGuestNames.push(`--- Interval ${idx + 1} (${b.startDate} - ${b.endDate}) ---`);
+          }
+          b.guestNames.forEach((guest) => {
+            allGuestNames.push(`${guest.firstName} ${guest.lastName}`);
+            totalGuests++;
+          });
+        }
+      });
+
+      if (totalGuests === 0) {
         this.adminPanel.showToast('Žádná jména hostů k zkopírování', 'warning');
         return;
       }
 
-      // Format: "FirstName LastName\n" for each guest
-      const guestNamesText = booking.guestNames
-        .map((guest) => `${guest.firstName} ${guest.lastName}`)
-        .join('\n');
-
       // Copy to clipboard
-      await navigator.clipboard.writeText(guestNamesText);
-      this.adminPanel.showToast(`Zkopírováno ${booking.guestNames.length} jmen hostů`, 'success');
+      await navigator.clipboard.writeText(allGuestNames.join('\n'));
+      const intervalInfo = allBookings.length > 1 ? ` z ${allBookings.length} intervalů` : '';
+      this.adminPanel.showToast(`Zkopírováno ${totalGuests} jmen hostů${intervalInfo}`, 'success');
     } catch (error) {
       console.error('Chyba při kopírování jmen hostů:', error);
       this.adminPanel.showToast('Nepodařilo se zkopírovat jména hostů', 'error');
@@ -2641,19 +2673,22 @@ class AdminBookings {
     this.updateBulkActionsUI();
   }
 
-  toggleSelectAll(checked) {
+  // FIX 2025-12-09: Fixed toggle logic - ignore checked parameter, use actual state
+  toggleSelectAll() {
+    // Determine action: if any are selected, deselect all; otherwise select all
+    const shouldSelect = this.selectedBookings.size === 0 && this.selectedGroups.size === 0;
+
     const checkboxes = document.querySelectorAll('.booking-checkbox');
     checkboxes.forEach((checkbox) => {
       const bookingId = checkbox.getAttribute('data-booking-id');
       const groupId = checkbox.getAttribute('data-group-id');
-      checkbox.checked = checked;
+      checkbox.checked = shouldSelect;
 
       if (groupId) {
-        // FIX 2025-12-09: Handle group checkbox
-        this.toggleGroupSelection(groupId, checked);
+        this.toggleGroupSelection(groupId, shouldSelect);
       } else if (bookingId) {
         // Regular booking checkbox
-        if (checked) {
+        if (shouldSelect) {
           this.selectedBookings.add(bookingId);
         } else {
           this.selectedBookings.delete(bookingId);
@@ -3144,7 +3179,7 @@ class AdminBookings {
    * @param {string} _originalBookingId - The booking ID used to open the modal (for refresh) - unused but kept for API compatibility
    */
   async toggleIntervalPaid(intervalBookingId, paid, _originalBookingId) {
-    if (!this.adminPanel.validateSession()) {
+    if (!(await this.adminPanel.validateSession())) {
       return;
     }
 
@@ -3156,7 +3191,9 @@ class AdminBookings {
         return;
       }
 
-      // Update via API
+      // FIX 2025-12-09: Only send paid field to avoid guestNames vs perRoomGuests validation mismatch
+      // Sending entire booking object caused validation error for bulk bookings where
+      // perRoomGuests (90 guests across 9 rooms) != guestNames.length (10 actual guests)
       const sessionToken = sessionStorage.getItem('adminSessionToken');
       const response = await fetch(`/api/booking/${intervalBookingId}`, {
         method: 'PUT',
@@ -3164,7 +3201,7 @@ class AdminBookings {
           'Content-Type': 'application/json',
           'x-session-token': sessionToken,
         },
-        body: JSON.stringify({ ...booking, paid }),
+        body: JSON.stringify({ paid }),
       });
 
       if (!response.ok) {
@@ -3193,7 +3230,7 @@ class AdminBookings {
    * @param {string} parentGroupId - The group ID (for determining if group should collapse)
    */
   async deleteInterval(intervalBookingId, parentGroupId) {
-    if (!this.adminPanel.validateSession()) {
+    if (!(await this.adminPanel.validateSession())) {
       return;
     }
 

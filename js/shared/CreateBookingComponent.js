@@ -401,13 +401,19 @@ class CreateBookingComponent {
     // Call grouped booking API
     const result = await dataManager.createGroupedBooking(groupedPayload);
 
-    // Cleanup proposed bookings (server also does this, but for safety)
+    // Cleanup proposed bookings client-side as a fallback
+    // (Server cleans up via deleteProposedBookingsBySession, but network issues may prevent that)
     for (const res of this.app.tempReservations) {
       if (res.proposalId) {
         try {
           await dataManager.deleteProposedBooking(res.proposalId);
-        } catch (_e) {
-          // Ignore cleanup errors - server already cleaned up
+        } catch (cleanupError) {
+          // Log for debugging - server should have cleaned up, but track if it didn't
+          console.warn('[CreateBookingComponent] Failed to cleanup proposed booking:', {
+            proposalId: res.proposalId,
+            error: cleanupError.message,
+          });
+          // Don't throw - booking was successful, cleanup is best-effort
         }
       }
     }

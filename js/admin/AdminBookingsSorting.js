@@ -47,14 +47,21 @@ class AdminBookingsSorting {
 
   /**
    * Handle column header click for sorting
+   * FIX 2025-12-09: Three-state sorting: asc → desc → reset (default)
    * @param {string} column - Column key to sort by
    */
   handleSort(column) {
     if (this.sortColumn === column) {
-      // Toggle direction if same column
-      this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+      if (this.sortDirection === 'asc') {
+        // asc → desc
+        this.sortDirection = 'desc';
+      } else {
+        // desc → reset to default (createdAt desc = newest first)
+        this.sortColumn = 'createdAt';
+        this.sortDirection = 'desc';
+      }
     } else {
-      // New column - default to ascending
+      // New column - start with ascending
       this.sortColumn = column;
       this.sortDirection = 'asc';
     }

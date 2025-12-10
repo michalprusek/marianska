@@ -247,8 +247,9 @@ class EditPage {
    * @returns {boolean} True if token format is valid
    */
   isValidTokenFormat(token) {
-    // Token should be alphanumeric with dashes/underscores, at least 20 chars
-    return token && /^[a-zA-Z0-9_-]{20,}$/u.test(token);
+    // FIX 2025-12-09: Lowered minimum from 20 to 8 for backwards compatibility
+    // Old tokens were 12 chars, new tokens are 30 chars
+    return token && /^[a-zA-Z0-9_-]{8,}$/u.test(token);
   }
 
   async initialize() {

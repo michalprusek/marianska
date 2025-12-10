@@ -990,7 +990,7 @@
                   <div style="display: grid; gap: 0.5rem">
                     <div style="display: flex; align-items: center; gap: 0.5rem">
                       <label style="min-width: 180px">Prázdný pokoj:</label>
-                      <input type="number" id="utia_small_base" value="300" min="0" style="width: 80px" />
+                      <input type="number" id="utia_small_base" value="250" min="0" style="width: 80px" />
                       <span>Kč/noc</span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 0.5rem">
@@ -1012,7 +1012,7 @@
                   <div style="display: grid; gap: 0.5rem">
                     <div style="display: flex; align-items: center; gap: 0.5rem">
                       <label style="min-width: 180px">Prázdný pokoj:</label>
-                      <input type="number" id="utia_large_base" value="400" min="0" style="width: 80px" />
+                      <input type="number" id="utia_large_base" value="350" min="0" style="width: 80px" />
                       <span>Kč/noc</span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 0.5rem">
@@ -1048,7 +1048,7 @@
                   <div style="display: grid; gap: 0.5rem">
                     <div style="display: flex; align-items: center; gap: 0.5rem">
                       <label style="min-width: 180px">Prázdný pokoj:</label>
-                      <input type="number" id="external_small_base" value="500" min="0" style="width: 80px" />
+                      <input type="number" id="external_small_base" value="400" min="0" style="width: 80px" />
                       <span>Kč/noc</span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 0.5rem">
@@ -1070,7 +1070,7 @@
                   <div style="display: grid; gap: 0.5rem">
                     <div style="display: flex; align-items: center; gap: 0.5rem">
                       <label style="min-width: 180px">Prázdný pokoj:</label>
-                      <input type="number" id="external_large_base" value="600" min="0" style="width: 80px" />
+                      <input type="number" id="external_large_base" value="500" min="0" style="width: 80px" />
                       <span>Kč/noc</span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 0.5rem">
@@ -2069,10 +2069,24 @@ Tým Chata Mariánská</textarea>
           }
         },
 
-        adjustGuests(type, delta) {
+        async adjustGuests(type, delta) {
           console.debug('[Admin] adjustGuests:', type, delta);
           if (!this.currentBookingRoom) return;
           const guests = this.roomGuests.get(this.currentBookingRoom) || { adults: 1, children: 0, toddlers: 0 };
+
+          // FIX 2025-12-10: Validate room capacity before incrementing
+          if (delta > 0 && (type === 'adults' || type === 'children')) {
+            const rooms = await dataManager.getRooms();
+            const room = rooms.find(r => r.id === this.currentBookingRoom);
+            const maxCapacity = room?.beds || 4; // Default to 4 if not found
+            const currentTotal = (guests.adults || 0) + (guests.children || 0);
+
+            if (currentTotal >= maxCapacity) {
+              window.notificationManager?.show(`Kapacita pokoje je ${maxCapacity} osob (dospělí + děti)`, 'warning');
+              return;
+            }
+          }
+
           guests[type] = Math.max(type === 'adults' ? 1 : 0, (guests[type] || 0) + delta);
           this.roomGuests.set(this.currentBookingRoom, guests);
 

@@ -967,6 +967,14 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
     // Execute transaction atomically
     const booking = transaction();
 
+    // FIX 2025-12-10: Ensure guest counts are derived from guestNames (SSOT) for email template
+    // Client may send guestNames without explicit adults/children counts
+    if (booking.guestNames && Array.isArray(booking.guestNames)) {
+      booking.adults = booking.guestNames.filter(g => g.personType === 'adult').length;
+      booking.children = booking.guestNames.filter(g => g.personType === 'child').length;
+      booking.toddlers = booking.guestNames.filter(g => g.personType === 'toddler').length;
+    }
+
     // FIX 2025-12-02: Send booking confirmation email NON-BLOCKING
     // Previously, awaiting email caused 30+ second delays when SMTP server was slow/unreachable
     // Now we fire-and-forget: booking response is sent immediately, email sent in background
@@ -1024,6 +1032,12 @@ app.post('/api/booking/group', bookingLimiter, async (req, res) => {
     // Validate required fields
     if (!reservations || !Array.isArray(reservations) || reservations.length === 0) {
       return res.status(400).json({ error: 'Chybí rezervace' });
+    }
+
+    // FIX 2025-12-09: Limit maximum number of reservations per group to prevent DoS
+    const MAX_RESERVATIONS_PER_GROUP = 50;
+    if (reservations.length > MAX_RESERVATIONS_PER_GROUP) {
+      return res.status(400).json({ error: `Příliš mnoho rezervací v jedné skupině (max ${MAX_RESERVATIONS_PER_GROUP})` });
     }
 
     if (!contact || !contact.name || !contact.email || !contact.phone) {
@@ -1148,40 +1162,61 @@ app.post('/api/booking/group', bookingLimiter, async (req, res) => {
       email: contact.email
     });
 
+    // FIX 2025-12-09: Use pre-initialized emailService instance instead of non-existent require
     // Send confirmation email (non-blocking)
-    try {
-      const { sendBookingConfirmation } = require('./email-service');
 
-      // Create a combined booking object for email
-      const combinedBooking = {
-        id: result.groupId,
-        name: contact.name,
-        email: contact.email,
-        phone: contact.phone,
-        startDate: reservations.reduce((min, r) => r.startDate < min ? r.startDate : min, reservations[0].startDate),
-        endDate: reservations.reduce((max, r) => r.endDate > max ? r.endDate : max, reservations[0].endDate),
-        rooms: [...new Set(reservations.flatMap(r => r.rooms))],
-        totalPrice: result.totalPrice,
-        isBulkBooking: reservations.some(r => r.isBulkBooking),
-        isGroupedBooking: true,
-        bookingCount: result.bookings.length,
-        intervals: reservations.map(r => ({
-          rooms: r.rooms,
-          startDate: r.startDate,
-          endDate: r.endDate,
-          price: r.totalPrice
-        }))
-      };
-
-      sendBookingConfirmation(combinedBooking, settings).catch(emailErr => {
-        logger.error('Failed to send grouped booking confirmation', {
-          error: emailErr.message,
-          groupId: result.groupId
-        });
-      });
-    } catch (emailError) {
-      logger.error('Email service error for grouped booking', { error: emailError.message });
+    // FIX 2025-12-10: Aggregate guest data from all reservations for email template
+    const allGuestNames = reservations.flatMap(r => r.guestNames || []);
+    const aggregatedAdults = allGuestNames.filter(g => g.personType === 'adult').length;
+    const aggregatedChildren = allGuestNames.filter(g => g.personType === 'child').length;
+    const aggregatedToddlers = allGuestNames.filter(g => g.personType === 'toddler').length;
+    // Determine guestType: if any ÚTIA guest exists, mark as utia
+    const hasUtiaGuest = allGuestNames.some(g => g.guestPriceType === 'utia' && g.personType !== 'toddler');
+    const aggregatedGuestType = hasUtiaGuest ? 'utia' : 'external';
+    // Merge perRoomDates and perRoomGuests from all reservations
+    const mergedPerRoomDates = {};
+    const mergedPerRoomGuests = {};
+    for (const r of reservations) {
+      Object.assign(mergedPerRoomDates, r.perRoomDates || {});
+      Object.assign(mergedPerRoomGuests, r.perRoomGuests || {});
     }
+
+    const combinedBooking = {
+      id: result.groupId,
+      name: contact.name,
+      email: contact.email,
+      phone: contact.phone,
+      // FIX 2025-12-10: Add editToken from first booking - required for sendBookingConfirmation
+      editToken: result.bookings[0]?.editToken,
+      startDate: reservations.reduce((min, r) => r.startDate < min ? r.startDate : min, reservations[0].startDate),
+      endDate: reservations.reduce((max, r) => r.endDate > max ? r.endDate : max, reservations[0].endDate),
+      rooms: [...new Set(reservations.flatMap(r => r.rooms))],
+      totalPrice: result.totalPrice,
+      isBulkBooking: reservations.some(r => r.isBulkBooking),
+      isGroupedBooking: true,
+      bookingCount: result.bookings.length,
+      // FIX 2025-12-10: Add guest data for email template
+      adults: aggregatedAdults,
+      children: aggregatedChildren,
+      toddlers: aggregatedToddlers,
+      guestType: aggregatedGuestType,
+      guestNames: allGuestNames,
+      perRoomDates: mergedPerRoomDates,
+      perRoomGuests: mergedPerRoomGuests,
+      intervals: reservations.map(r => ({
+        rooms: r.rooms,
+        startDate: r.startDate,
+        endDate: r.endDate,
+        price: r.totalPrice
+      }))
+    };
+
+    emailService.sendBookingConfirmation(combinedBooking, { settings }).catch(emailErr => {
+      logger.error('Failed to send grouped booking confirmation', {
+        error: emailErr.message,
+        groupId: result.groupId
+      });
+    });
 
     // Delete proposed bookings for this session
     db.deleteProposedBookingsBySession(sessionId);
@@ -2504,6 +2539,7 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
       });
 
       // Send email to booking owner using sendCustomEmailToBooker (await for delivery)
+      // FIX 2025-12-10: Add editToken for edit link in email
       const emailData = {
         bookingId: booking.id,
         bookingOwnerEmail: booking.email,
@@ -2511,6 +2547,7 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
         senderEmail: contactData.senderEmail,
         subject: 'Zpráva ohledně Vaší rezervace - Chata Mariánská',
         message: contactData.message,
+        editToken: booking.editToken,
       };
 
       try {

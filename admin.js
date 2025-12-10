@@ -120,7 +120,6 @@ class AdminPanel {
         await this.settings.loadRoomConfig();
         await this.settings.loadPriceConfig();
         await this.settings.loadBulkPriceConfig();
-        await this.settings.loadBulkPriceConfig();
         // Christmas settings moved to separate tab
         break;
       case 'blocked':

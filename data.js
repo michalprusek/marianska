@@ -283,15 +283,15 @@ class DataManager {
           { id: '43', name: 'Pokoj 43', type: 'small', beds: 2 },
           { id: '44', name: 'Pokoj 44', type: 'large', beds: 4 },
         ],
-        // NEW (2025-10-17): Room-size-based pricing
+        // FIX 2025-12-10: Use 'empty' field (SSOT with PriceCalculator and database)
         prices: {
           utia: {
-            small: { base: 300, adult: 50, child: 25 },
-            large: { base: 400, adult: 50, child: 25 },
+            small: { empty: 250, adult: 50, child: 25 },
+            large: { empty: 350, adult: 50, child: 25 },
           },
           external: {
-            small: { base: 500, adult: 100, child: 50 },
-            large: { base: 600, adult: 100, child: 50 },
+            small: { empty: 400, adult: 100, child: 50 },
+            large: { empty: 500, adult: 100, child: 50 },
           },
         },
         bulkPrices: {
