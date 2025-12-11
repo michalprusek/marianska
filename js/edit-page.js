@@ -387,10 +387,21 @@ class EditPage {
     // Fetch all bookings in the group
     const groupBookings = dataManager.getBookingsByGroupId(this.currentBooking.groupId);
 
-    if (!groupBookings || groupBookings.length === 0) {
-      // Fallback: treat as single booking if group fetch fails
-      console.warn('[EditPage] Group fetch failed, falling back to single booking mode');
-      await this.continueWithSingleBooking();
+    // FIX 2025-12-11: Distinguish between fetch failure and empty result
+    if (groupBookings === null || groupBookings === undefined) {
+      console.error('[EditPage] Failed to fetch group bookings - dataManager returned null', {
+        groupId: this.currentBooking.groupId,
+      });
+      this.showError(this.t('errorLoadingBooking'));
+      return;
+    }
+
+    if (groupBookings.length === 0) {
+      // This should never happen - a group with zero bookings is invalid data
+      console.error('[EditPage] Group has zero bookings - data integrity issue', {
+        groupId: this.currentBooking.groupId,
+      });
+      this.showError(this.t('errorLoadingBooking'));
       return;
     }
 
@@ -466,12 +477,13 @@ class EditPage {
 
       const lockedClass = isLocked ? 'interval-locked' : '';
       const lockedIcon = isLocked ? '<span class="lock-icon">🔒</span>' : '';
-      // FIX 2025-12-11: Escape values in onclick to prevent XSS
-      const escapedBookingId = this.escapeHtml(booking.id || '');
-      const escapedLockReason = this.escapeHtml(lockReason || '');
+      // FIX 2025-12-11: Use JSON.stringify for JavaScript string context to prevent XSS
+      // escapeHtml doesn't escape single quotes which could break out of JS string
+      const safeBookingId = JSON.stringify(booking.id || '').slice(1, -1);
+      const safeLockReason = JSON.stringify(lockReason || '').slice(1, -1);
       const clickHandler = isLocked
-        ? `onclick="editPage.showLockedIntervalMessage('${escapedLockReason}')"`
-        : `onclick="editPage.selectIntervalForEdit('${escapedBookingId}')"`;
+        ? `onclick="editPage.showLockedIntervalMessage('${safeLockReason}')"`
+        : `onclick="editPage.selectIntervalForEdit('${safeBookingId}')"`;
 
       intervalsHtml += `
         <div class="interval-card ${lockedClass}" ${clickHandler}>
@@ -1050,7 +1062,13 @@ class EditPage {
       if (this.groupContext && this.groupContext.bookings.length > 1) {
         // Delay to show success message, then return to selector
         setTimeout(async () => {
-          await this.showIntervalSelector();
+          try {
+            await this.showIntervalSelector();
+          } catch (error) {
+            console.error('[EditPage] Failed to show interval selector after update:', error);
+            // Fallback: redirect home
+            window.location.href = '/';
+          }
         }, 1500);
       } else {
         // Single booking or non-grouped: redirect to home
@@ -1067,10 +1085,15 @@ class EditPage {
   /**
    * Handle modal cancel
    */
-  handleModalCancel() {
+  async handleModalCancel() {
     // FIX 2025-12-11: If editing a grouped booking, return to interval selector
     if (this.groupContext && this.groupContext.bookings.length > 1) {
-      this.showIntervalSelector();
+      try {
+        await this.showIntervalSelector();
+      } catch (error) {
+        console.error('[EditPage] Failed to return to interval selector:', error);
+        window.location.href = '/';
+      }
     } else {
       window.location.href = '/';
     }

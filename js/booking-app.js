@@ -1865,7 +1865,7 @@ class BookingApp {
   }
 
   // FIX 2025-12-11: DELETED submitFinalBooking() - legacy method that created ungrouped bookings
-  // Modern booking flow uses CreateBookingComponent.submitGroupedBooking() which properly groups bookings
+  // Modern booking flow uses CreateBookingComponent.createBookings() which calls dataManager.createGroupedBooking()
 }
 
 // Initialize app when DOM is ready
