@@ -86,6 +86,18 @@ const MAX_LENGTHS = {
   notes: 1000,
 };
 
+// FIX 2025-12-11: Utility function to count guests by type (SSOT - used in multiple endpoints)
+function countGuestsByType(guestNames) {
+  if (!guestNames || !Array.isArray(guestNames)) {
+    return { adults: 0, children: 0, toddlers: 0 };
+  }
+  return {
+    adults: guestNames.filter(g => g.personType === 'adult').length,
+    children: guestNames.filter(g => g.personType === 'child').length,
+    toddlers: guestNames.filter(g => g.personType === 'toddler').length,
+  };
+}
+
 // Initialize SQLite database
 const db = new DatabaseManager();
 
@@ -968,12 +980,11 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
     const booking = transaction();
 
     // FIX 2025-12-10: Ensure guest counts are derived from guestNames (SSOT) for email template
-    // Client may send guestNames without explicit adults/children counts
-    if (booking.guestNames && Array.isArray(booking.guestNames)) {
-      booking.adults = booking.guestNames.filter(g => g.personType === 'adult').length;
-      booking.children = booking.guestNames.filter(g => g.personType === 'child').length;
-      booking.toddlers = booking.guestNames.filter(g => g.personType === 'toddler').length;
-    }
+    // FIX 2025-12-11: Use countGuestsByType utility function
+    const guestCounts = countGuestsByType(booking.guestNames);
+    booking.adults = guestCounts.adults;
+    booking.children = guestCounts.children;
+    booking.toddlers = guestCounts.toddlers;
 
     // FIX 2025-12-02: Send booking confirmation email NON-BLOCKING
     // Previously, awaiting email caused 30+ second delays when SMTP server was slow/unreachable
@@ -1166,10 +1177,9 @@ app.post('/api/booking/group', bookingLimiter, async (req, res) => {
     // Send confirmation email (non-blocking)
 
     // FIX 2025-12-10: Aggregate guest data from all reservations for email template
+    // FIX 2025-12-11: Use countGuestsByType utility function
     const allGuestNames = reservations.flatMap(r => r.guestNames || []);
-    const aggregatedAdults = allGuestNames.filter(g => g.personType === 'adult').length;
-    const aggregatedChildren = allGuestNames.filter(g => g.personType === 'child').length;
-    const aggregatedToddlers = allGuestNames.filter(g => g.personType === 'toddler').length;
+    const { adults: aggregatedAdults, children: aggregatedChildren, toddlers: aggregatedToddlers } = countGuestsByType(allGuestNames);
     // Determine guestType: if any ÚTIA guest exists, mark as utia
     const hasUtiaGuest = allGuestNames.some(g => g.guestPriceType === 'utia' && g.personType !== 'toddler');
     const aggregatedGuestType = hasUtiaGuest ? 'utia' : 'external';

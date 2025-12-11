@@ -2289,6 +2289,8 @@ class AdminBookings {
     try {
       const settings = await dataManager.getSettings();
       if (!settings) {
+        // FIX 2025-12-11: Log when settings unavailable for price breakdown
+        console.warn('[AdminBookings] Settings not loaded for price breakdown, booking:', booking.id);
         return '';
       }
 
@@ -2299,10 +2301,13 @@ class AdminBookings {
 
       // Check if we have per-room guest data
       if (!booking.perRoomGuests || Object.keys(booking.perRoomGuests).length === 0) {
+        // This is expected for legacy bookings - no warning needed
         return '';
       }
 
       if (!settings.prices) {
+        // FIX 2025-12-11: Log when prices config missing
+        console.warn('[AdminBookings] Missing prices in settings for booking:', booking.id);
         return '';
       }
 
@@ -3179,7 +3184,8 @@ class AdminBookings {
    * @param {string} _originalBookingId - The booking ID used to open the modal (for refresh) - unused but kept for API compatibility
    */
   async toggleIntervalPaid(intervalBookingId, paid, _originalBookingId) {
-    if (!(await this.adminPanel.validateSession())) {
+    // FIX 2025-12-11: validateSession is synchronous - removed unnecessary await
+    if (!this.adminPanel.validateSession()) {
       return;
     }
 
@@ -3230,7 +3236,8 @@ class AdminBookings {
    * @param {string} parentGroupId - The group ID (for determining if group should collapse)
    */
   async deleteInterval(intervalBookingId, parentGroupId) {
-    if (!(await this.adminPanel.validateSession())) {
+    // FIX 2025-12-11: validateSession is synchronous - removed unnecessary await
+    if (!this.adminPanel.validateSession()) {
       return;
     }
 

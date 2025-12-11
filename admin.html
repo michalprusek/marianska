@@ -659,7 +659,7 @@
                       height: 18px;
                       cursor: pointer;
                       accent-color: var(--primary-color);
-                    " onchange="adminPanel.toggleSelectAll(this.checked)" title="Vybrat všechny" />
+                    " onchange="adminPanel.toggleSelectAll()" title="Vybrat všechny" />
               </th>
               <th class="sortable" data-sort="id" onclick="adminPanel.bookings.handleSort('id')">Číslo<span class="sort-indicator"></span></th>
               <th class="sortable" data-sort="name" onclick="adminPanel.bookings.handleSort('name')">Jméno<span class="sort-indicator"></span></th>
@@ -2069,35 +2069,45 @@ Tým Chata Mariánská</textarea>
           }
         },
 
+        // FIX 2025-12-11: Added try-catch for async error handling
         async adjustGuests(type, delta) {
-          console.debug('[Admin] adjustGuests:', type, delta);
-          if (!this.currentBookingRoom) return;
-          const guests = this.roomGuests.get(this.currentBookingRoom) || { adults: 1, children: 0, toddlers: 0 };
+          try {
+            console.debug('[Admin] adjustGuests:', type, delta);
+            if (!this.currentBookingRoom) return;
+            const guests = this.roomGuests.get(this.currentBookingRoom) || { adults: 1, children: 0, toddlers: 0 };
 
-          // FIX 2025-12-10: Validate room capacity before incrementing
-          if (delta > 0 && (type === 'adults' || type === 'children')) {
-            const rooms = await dataManager.getRooms();
-            const room = rooms.find(r => r.id === this.currentBookingRoom);
-            const maxCapacity = room?.beds || 4; // Default to 4 if not found
-            const currentTotal = (guests.adults || 0) + (guests.children || 0);
+            // FIX 2025-12-10: Validate room capacity before incrementing
+            if (delta > 0 && (type === 'adults' || type === 'children')) {
+              const rooms = await dataManager.getRooms();
+              const room = rooms.find(r => r.id === this.currentBookingRoom);
+              if (!room) {
+                console.warn('[Admin] Room not found for capacity check:', this.currentBookingRoom);
+                // Allow increment but log warning - don't block user for missing data
+              }
+              const maxCapacity = room?.beds || 4;
+              const currentTotal = (guests.adults || 0) + (guests.children || 0);
 
-            if (currentTotal >= maxCapacity) {
-              window.notificationManager?.show(`Kapacita pokoje je ${maxCapacity} osob (dospělí + děti)`, 'warning');
-              return;
+              if (currentTotal >= maxCapacity) {
+                window.notificationManager?.show(`Kapacita pokoje je ${maxCapacity} osob (dospělí + děti)`, 'warning');
+                return;
+              }
             }
-          }
 
-          guests[type] = Math.max(type === 'adults' ? 1 : 0, (guests[type] || 0) + delta);
-          this.roomGuests.set(this.currentBookingRoom, guests);
+            guests[type] = Math.max(type === 'adults' ? 1 : 0, (guests[type] || 0) + delta);
+            this.roomGuests.set(this.currentBookingRoom, guests);
 
-          // Update display
-          const el = document.getElementById(`singleRoom${type.charAt(0).toUpperCase() + type.slice(1)}`);
-          if (el) el.textContent = guests[type].toString();
+            // Update display
+            const el = document.getElementById(`singleRoom${type.charAt(0).toUpperCase() + type.slice(1)}`);
+            if (el) el.textContent = guests[type].toString();
 
-          // Regenerate guest name inputs and update price using module methods
-          if (this.singleRoomBooking) {
-            this.singleRoomBooking.generateGuestNamesInputs(guests.adults, guests.children, guests.toddlers || 0);
-            this.singleRoomBooking.updatePriceForCurrentRoom();
+            // Regenerate guest name inputs and update price using module methods
+            if (this.singleRoomBooking) {
+              this.singleRoomBooking.generateGuestNamesInputs(guests.adults, guests.children, guests.toddlers || 0);
+              this.singleRoomBooking.updatePriceForCurrentRoom();
+            }
+          } catch (error) {
+            console.error('[Admin] Error adjusting guests:', error);
+            window.notificationManager?.show('Nepodařilo se upravit počet hostů', 'error');
           }
         },
 

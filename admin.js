@@ -201,8 +201,9 @@ class AdminPanel {
     return this.bookings.togglePaidStatus(bookingId, paid);
   }
 
-  toggleSelectAll(checked) {
-    return this.bookings.toggleSelectAll(checked);
+  // FIX 2025-12-11: Removed parameter - toggleSelectAll now determines state internally
+  toggleSelectAll() {
+    return this.bookings.toggleSelectAll();
   }
 
   toggleBookingSelection(bookingId, checked) {
