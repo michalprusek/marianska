@@ -1292,7 +1292,8 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
     }
 
     // FIX 2025-12-11: Extract skipOwnerEmail flag before merging (not a booking field)
-    const skipOwnerEmail = req.body.skipOwnerEmail === true;
+    // NOTE: This flag is only honored for admin requests (checked later after isAdmin is determined)
+    const skipOwnerEmailRequested = req.body.skipOwnerEmail === true;
 
     // Merge existing booking with incoming changes (partial update support)
     // This allows updating only specific fields like name, email, phone etc.
@@ -1901,6 +1902,8 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
     // 2. Send to admins and cabin managers based on change type
     try {
       // FIX 2025-12-11: Allow admin to skip owner email notification
+      // Security: Only honor skipOwnerEmail if request is from admin
+      const skipOwnerEmail = isAdmin && skipOwnerEmailRequested;
       if (!skipOwnerEmail) {
         // Send modification email to the user (non-blocking)
         emailService

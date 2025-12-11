@@ -173,9 +173,15 @@ class AdminBookings {
             // sendEmail = true means "Ano, odeslat" was clicked
             // skipOwnerEmail should be false in that case
             resolve(!sendEmail);
+          })
+          .catch((error) => {
+            // FIX 2025-12-11: Handle modal errors gracefully - default to sending email
+            console.error('[AdminBookings] Modal error, defaulting to send email:', error);
+            resolve(false);
           });
       } else {
-        // Fallback to native confirm
+        // Fallback to native confirm (modalDialog not available)
+        console.warn('[AdminBookings] modalDialog not available, using native confirm');
         const sendEmail = confirm(message);
         resolve(!sendEmail);
       }
@@ -2894,7 +2900,10 @@ class AdminBookings {
 
           // Refresh main calendar if it exists
           if (window.app && typeof window.app.renderCalendar === 'function') {
-            window.app.renderCalendar().catch(() => {});
+            // FIX 2025-12-11: Add error logging instead of empty catch
+            window.app.renderCalendar().catch((error) => {
+              console.warn('[Admin] Calendar refresh failed after bulk delete:', error);
+            });
           }
 
           // Show success message

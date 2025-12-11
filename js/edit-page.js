@@ -466,9 +466,12 @@ class EditPage {
 
       const lockedClass = isLocked ? 'interval-locked' : '';
       const lockedIcon = isLocked ? '<span class="lock-icon">🔒</span>' : '';
+      // FIX 2025-12-11: Escape values in onclick to prevent XSS
+      const escapedBookingId = this.escapeHtml(booking.id || '');
+      const escapedLockReason = this.escapeHtml(lockReason || '');
       const clickHandler = isLocked
-        ? `onclick="editPage.showLockedIntervalMessage('${lockReason}')"`
-        : `onclick="editPage.selectIntervalForEdit('${booking.id}')"`;
+        ? `onclick="editPage.showLockedIntervalMessage('${escapedLockReason}')"`
+        : `onclick="editPage.selectIntervalForEdit('${escapedBookingId}')"`;
 
       intervalsHtml += `
         <div class="interval-card ${lockedClass}" ${clickHandler}>
@@ -583,6 +586,13 @@ class EditPage {
    * Select an interval for editing
    */
   async selectIntervalForEdit(bookingId) {
+    // FIX 2025-12-11: Add null check for groupContext
+    if (!this.groupContext || !this.groupContext.bookings) {
+      console.error('[EditPage] selectIntervalForEdit called without valid groupContext');
+      this.showError(this.t('intervalNotFound'));
+      return;
+    }
+
     // Find the booking in group context
     const booking = this.groupContext.bookings.find((b) => b.id === bookingId);
 
@@ -623,22 +633,21 @@ class EditPage {
    * Show interval selector container (return after edit)
    */
   async showIntervalSelector() {
-    // Refresh group data from server
-    if (this.groupContext) {
-      await dataManager.syncWithServer(true);
-      this.groupContext.bookings = dataManager.getBookingsByGroupId(this.groupContext.groupId);
-      this.openIntervalSelectorModal(this.groupContext.bookings);
+    // FIX 2025-12-11: Add try-catch for error handling
+    try {
+      // Refresh group data from server
+      if (this.groupContext) {
+        await dataManager.syncWithServer(true);
+        this.groupContext.bookings = dataManager.getBookingsByGroupId(this.groupContext.groupId);
+        this.openIntervalSelectorModal(this.groupContext.bookings);
+      }
+    } catch (error) {
+      console.error('[EditPage] Error showing interval selector:', error);
+      this.showError(this.t('errorLoadingBookingFallback'));
     }
   }
 
-  /**
-   * Escape HTML to prevent XSS
-   */
-  escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
+  // NOTE: escapeHtml() method is defined below (delegates to DOMUtils for SSOT)
 
   /**
    * Show notification message
