@@ -2210,6 +2210,53 @@ class DatabaseManager {
     }));
   }
 
+  // FIX 2025-12-11: Migrate ungrouped bookings that should be grouped
+  // Groups bookings by email + created_at timestamp (same moment = same booking session)
+  migrateUngroupedBookings() {
+    const transaction = this.db.transaction(() => {
+      // Find ungrouped bookings that were created at the same time with same email
+      const ungroupedGroups = this.db.prepare(`
+        SELECT email, created_at, GROUP_CONCAT(id) as booking_ids, COUNT(*) as cnt
+        FROM bookings
+        WHERE group_id IS NULL
+        GROUP BY email, created_at
+        HAVING cnt > 1
+      `).all();
+
+      let migratedCount = 0;
+
+      for (const group of ungroupedGroups) {
+        const bookingIds = group.booking_ids.split(',');
+        const groupId = this.generateGroupId();
+        const now = new Date().toISOString();
+
+        // Create reservation group
+        this.statements.insertReservationGroup.run(groupId, null, 0, now, now);
+
+        // Calculate total price and assign group_id to each booking
+        let totalPrice = 0;
+        for (const bookingId of bookingIds) {
+          // Get booking price
+          const booking = this.db.prepare('SELECT total_price FROM bookings WHERE id = ?').get(bookingId);
+          if (booking) {
+            totalPrice += booking.total_price || 0;
+          }
+
+          // Update booking with group_id
+          this.statements.updateBookingGroupId.run(groupId, now, bookingId);
+          migratedCount += 1;
+        }
+
+        // Update group total price
+        this.statements.updateReservationGroupPrice.run(totalPrice, now, groupId);
+      }
+
+      return { groupsCreated: ungroupedGroups.length, bookingsMigrated: migratedCount };
+    });
+
+    return transaction();
+  }
+
   // Close database connection
   close() {
     this.db.close();

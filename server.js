@@ -503,6 +503,17 @@ app.post('/api/data', writeLimiter, requireApiKeyOrSession, (req, res) => {
     // CRITICAL FIX: Remove nested transactions - each method has its own transaction
     // Just call methods sequentially instead of wrapping in outer transaction
 
+    // FIX 2025-12-11: Preserve group_id mappings before deletion
+    // The insertBooking statement doesn't include group_id, so we need to restore it after re-insert
+    const groupIdMap = new Map();
+    const existingBookings = db.getAllBookings();
+    existingBookings.forEach(b => {
+      if (b.groupId) {
+        groupIdMap.set(b.id, b.groupId);
+      }
+    });
+    logger.info('Preserved group_id mappings before data save', { count: groupIdMap.size });
+
     // Clear existing data
     db.db.exec('DELETE FROM bookings');
     db.db.exec('DELETE FROM booking_rooms');
@@ -513,6 +524,12 @@ app.post('/api/data', writeLimiter, requireApiKeyOrSession, (req, res) => {
     if (dataToSave.bookings && dataToSave.bookings.length > 0) {
       for (const booking of dataToSave.bookings) {
         db.createBooking(booking);
+
+        // FIX 2025-12-11: Restore group_id if it existed before deletion
+        const originalGroupId = groupIdMap.get(booking.id);
+        if (originalGroupId) {
+          db.statements.updateBookingGroupId.run(originalGroupId, new Date().toISOString(), booking.id);
+        }
       }
     }
 
@@ -2808,6 +2825,23 @@ app.delete('/api/admin/christmas-periods/:periodId', requireApiKeyOrSession, (re
   } catch (error) {
     logger.error('deleting Christmas period:', error);
     return res.status(500).json({ error: 'Chyba při mazání vánočního období' });
+  }
+});
+
+// FIX 2025-12-11: Migration endpoint to fix ungrouped bookings
+// Groups bookings by email + created_at timestamp (same moment = same booking session)
+app.post('/api/admin/migrate-ungrouped-bookings', requireSession, (req, res) => {
+  try {
+    const result = db.migrateUngroupedBookings();
+    logger.info('Migration completed', result);
+    return res.json({
+      success: true,
+      message: `Migrace dokončena: vytvořeno ${result.groupsCreated} skupin, migrováno ${result.bookingsMigrated} rezervací`,
+      ...result
+    });
+  } catch (error) {
+    logger.error('Migration failed:', error);
+    return res.status(500).json({ error: 'Chyba při migraci rezervací' });
   }
 });
 
