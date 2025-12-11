@@ -1,3 +1,4 @@
+/* global DOMUtils */
 /**
  * BookingContactForm - Reusable component for booking contact details
  * Handles rendering, validation, and data collection for contact forms.
@@ -278,17 +279,9 @@ class BookingContactForm {
     return { valid: true };
   }
 
-  // Helpers
+  // FIX 2025-12-08: Delegate to DOMUtils (SSOT for HTML escaping)
   escapeHtml(unsafe) {
-    if (!unsafe) {
-      return '';
-    }
-    return String(unsafe)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+    return DOMUtils.escapeHtml(unsafe);
   }
 
   isSelectedPrefix(fullPhone, prefix) {

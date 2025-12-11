@@ -235,6 +235,38 @@ class DatabaseManager {
             CREATE INDEX IF NOT EXISTS idx_audit_logs_room ON audit_logs(room_id);
         `);
 
+    // ============================================================
+    // RESERVATION GROUPS TABLE (2025-12-09)
+    // Groups multiple bookings created in the same session
+    // ============================================================
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS reservation_groups (
+        group_id TEXT PRIMARY KEY,
+        session_id TEXT,
+        total_price REAL NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `);
+
+    // Create indexes for reservation groups
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_reservation_groups_session ON reservation_groups(session_id);
+      CREATE INDEX IF NOT EXISTS idx_reservation_groups_created ON reservation_groups(created_at);
+    `);
+
+    // Add group_id column to bookings table if it doesn't exist
+    // This links bookings to their parent group
+    try {
+      this.db.exec(`ALTER TABLE bookings ADD COLUMN group_id TEXT REFERENCES reservation_groups(group_id) ON DELETE SET NULL`);
+      this.db.exec(`CREATE INDEX IF NOT EXISTS idx_bookings_group ON bookings(group_id)`);
+    } catch (e) {
+      // Column already exists, ignore error
+      if (!e.message.includes('duplicate column name')) {
+        throw e;
+      }
+    }
+
     // Create all indexes for performance - AFTER all tables are created
     this.db.exec(`
             CREATE INDEX IF NOT EXISTS idx_bookings_dates ON bookings(start_date, end_date);
@@ -276,8 +308,8 @@ class DatabaseManager {
           },
           large: {
             empty: 350, // Empty large room base price
-            adult: 70, // Per adult
-            child: 35, // Per child (3-17 years)
+            adult: 50, // Per adult (same as small room)
+            child: 25, // Per child (3-17 years, same as small room)
           },
         },
         external: {
@@ -288,8 +320,8 @@ class DatabaseManager {
           },
           large: {
             empty: 500, // Empty large room base price
-            adult: 120, // Per adult
-            child: 60, // Per child (3-17 years)
+            adult: 100, // Per adult (same as small room)
+            child: 50, // Per child (3-17 years, same as small room)
           },
         },
       };
@@ -523,6 +555,36 @@ class DatabaseManager {
         SELECT * FROM audit_logs
         ORDER BY created_at DESC
         LIMIT ?
+      `),
+
+      // Reservation groups
+      insertReservationGroup: this.db.prepare(`
+        INSERT INTO reservation_groups (group_id, session_id, total_price, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+      `),
+
+      updateReservationGroupPrice: this.db.prepare(`
+        UPDATE reservation_groups SET total_price = ?, updated_at = ? WHERE group_id = ?
+      `),
+
+      getReservationGroup: this.db.prepare(`
+        SELECT * FROM reservation_groups WHERE group_id = ?
+      `),
+
+      getAllReservationGroups: this.db.prepare(`
+        SELECT * FROM reservation_groups ORDER BY created_at DESC
+      `),
+
+      deleteReservationGroup: this.db.prepare(`
+        DELETE FROM reservation_groups WHERE group_id = ?
+      `),
+
+      getBookingsByGroupId: this.db.prepare(`
+        SELECT * FROM bookings WHERE group_id = ? ORDER BY start_date
+      `),
+
+      updateBookingGroupId: this.db.prepare(`
+        UPDATE bookings SET group_id = ?, updated_at = ? WHERE id = ?
       `),
     };
   }
@@ -800,6 +862,7 @@ class DatabaseManager {
         createdAt: booking.created_at,
         updatedAt: booking.updated_at,
         guestNames,
+        groupId: booking.group_id || null, // FIX 2025-12-09: Include group_id for grouped bookings
       };
     }
     return null;
@@ -816,11 +879,263 @@ class DatabaseManager {
     return null;
   }
 
+  // ============================================================
+  // GROUPED BOOKING OPERATIONS (2025-12-09)
+  // ============================================================
+
+  /**
+   * Generate a unique group ID
+   */
+  generateGroupId() {
+    return IdGenerator.generateBookingId().replace('RES-', 'GRP-');
+  }
+
+  /**
+   * Create a grouped booking (multiple reservations in one transaction)
+   * @param {Object} groupData - Group data including sessionId, reservations, and contact info
+   * @returns {Object} - Created group with all bookings
+   */
+  createGroupedBooking(groupData) {
+    const { sessionId, reservations, contact } = groupData;
+
+    const transaction = this.db.transaction(() => {
+      const groupId = this.generateGroupId();
+      const now = new Date().toISOString();
+      const createdBookings = [];
+      let totalGroupPrice = 0;
+
+      // Create reservation group
+      this.statements.insertReservationGroup.run(groupId, sessionId, 0, now, now);
+
+      // Create individual bookings for each reservation
+      for (let i = 0; i < reservations.length; i++) {
+        const reservation = reservations[i];
+        const bookingId = IdGenerator.generateBookingId();
+        const editToken = IdGenerator.generateToken(12);
+
+        // Insert booking with group link
+        this.db.prepare(`
+          INSERT INTO bookings (
+            id, name, email, phone, company, address, city, zip, ico, dic,
+            start_date, end_date, total_price, notes, is_bulk_booking,
+            paid, pay_from_benefit, edit_token, created_at, updated_at, group_id
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          bookingId,
+          contact.name,
+          contact.email,
+          contact.phone,
+          contact.company || null,
+          contact.address || null,
+          contact.city || null,
+          contact.zip || null,
+          contact.ico || null,
+          contact.dic || null,
+          reservation.startDate,
+          reservation.endDate,
+          reservation.totalPrice || 0,
+          contact.notes || null,
+          reservation.isBulkBooking ? 1 : 0,
+          0, // paid
+          0, // pay_from_benefit
+          editToken,
+          now,
+          now,
+          groupId
+        );
+
+        // Insert room associations
+        const rooms = reservation.rooms || [];
+        const uniqueRooms = [...new Set(rooms.filter(r => r != null && r !== ''))];
+
+        for (const roomId of uniqueRooms) {
+          const roomDates = reservation.perRoomDates?.[roomId] || {
+            startDate: reservation.startDate,
+            endDate: reservation.endDate
+          };
+          const roomGuests = reservation.perRoomGuests?.[roomId] || {
+            adults: 0, children: 0, toddlers: 0
+          };
+
+          this.statements.insertBookingRoom.run(
+            bookingId,
+            roomId,
+            roomDates.startDate,
+            roomDates.endDate,
+            roomGuests.adults || 0,
+            roomGuests.children || 0,
+            roomGuests.toddlers || 0
+          );
+        }
+
+        // Insert guest names
+        if (reservation.guestNames && Array.isArray(reservation.guestNames)) {
+          reservation.guestNames.forEach((guest, index) => {
+            if (!guest.roomId && uniqueRooms.length > 0) {
+              guest.roomId = uniqueRooms[0]; // Default to first room if not specified
+            }
+            this.statements.insertGuestName.run(
+              bookingId,
+              guest.roomId,
+              guest.personType,
+              guest.firstName,
+              guest.lastName,
+              guest.guestPriceType || 'external',
+              index + 1,
+              now
+            );
+          });
+        }
+
+        totalGroupPrice += reservation.totalPrice || 0;
+        createdBookings.push({
+          id: bookingId,
+          editToken,
+          rooms: uniqueRooms,
+          startDate: reservation.startDate,
+          endDate: reservation.endDate,
+          totalPrice: reservation.totalPrice || 0,
+          isBulkBooking: reservation.isBulkBooking || false
+        });
+      }
+
+      // Update group total price
+      this.statements.updateReservationGroupPrice.run(totalGroupPrice, now, groupId);
+
+      return {
+        groupId,
+        bookings: createdBookings,
+        totalPrice: totalGroupPrice,
+        createdAt: now
+      };
+    });
+
+    return transaction();
+  }
+
+  /**
+   * Get a reservation group with all its bookings
+   * @param {string} groupId - The group ID
+   * @returns {Object|null} - Group with bookings or null
+   */
+  getBookingGroup(groupId) {
+    const group = this.statements.getReservationGroup.get(groupId);
+    if (!group) {
+      return null;
+    }
+
+    // Get all bookings in this group
+    const bookingRows = this.statements.getBookingsByGroupId.all(groupId);
+    const bookings = bookingRows.map(row => this.getBooking(row.id));
+
+    return {
+      groupId: group.group_id,
+      sessionId: group.session_id,
+      totalPrice: group.total_price,
+      createdAt: group.created_at,
+      updatedAt: group.updated_at,
+      bookings,
+      bookingCount: bookings.length
+    };
+  }
+
+  /**
+   * Get all bookings grouped by group_id
+   * Returns both grouped and ungrouped bookings
+   * @returns {Object} - { groups: [...], ungrouped: [...] }
+   */
+  getGroupedBookings() {
+    const allBookings = this.getAllBookings();
+    const groups = new Map();
+    const ungrouped = [];
+
+    for (const booking of allBookings) {
+      // Check if booking has group_id
+      const groupId = this.db.prepare('SELECT group_id FROM bookings WHERE id = ?').get(booking.id)?.group_id;
+
+      if (groupId) {
+        if (!groups.has(groupId)) {
+          const groupData = this.statements.getReservationGroup.get(groupId);
+          groups.set(groupId, {
+            groupId,
+            sessionId: groupData?.session_id,
+            totalPrice: groupData?.total_price || 0,
+            createdAt: groupData?.created_at,
+            updatedAt: groupData?.updated_at,
+            bookings: []
+          });
+        }
+        groups.get(groupId).bookings.push(booking);
+      } else {
+        ungrouped.push(booking);
+      }
+    }
+
+    // Convert Map to array and add computed fields
+    const groupsArray = Array.from(groups.values()).map(group => ({
+      ...group,
+      bookingCount: group.bookings.length,
+      // Compute date range across all bookings
+      startDate: group.bookings.reduce((min, b) => b.startDate < min ? b.startDate : min, group.bookings[0]?.startDate),
+      endDate: group.bookings.reduce((max, b) => b.endDate > max ? b.endDate : max, group.bookings[0]?.endDate),
+      // Compute room list
+      rooms: [...new Set(group.bookings.flatMap(b => b.rooms))],
+      // Use first booking's contact info (all should be same)
+      name: group.bookings[0]?.name,
+      email: group.bookings[0]?.email,
+      phone: group.bookings[0]?.phone,
+      // Check if any booking is paid
+      paid: group.bookings.every(b => b.paid),
+      // Check if any booking is bulk
+      hasBulkBooking: group.bookings.some(b => b.isBulkBooking)
+    }));
+
+    return {
+      groups: groupsArray.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+      ungrouped
+    };
+  }
+
+  /**
+   * Recalculate and update the total price for a group
+   * @param {string} groupId - The group ID
+   * @returns {number} - New total price
+   */
+  updateBookingGroupPrice(groupId) {
+    const bookingRows = this.statements.getBookingsByGroupId.all(groupId);
+    let totalPrice = 0;
+
+    for (const row of bookingRows) {
+      totalPrice += row.total_price || 0;
+    }
+
+    const now = new Date().toISOString();
+    this.statements.updateReservationGroupPrice.run(totalPrice, now, groupId);
+
+    return totalPrice;
+  }
+
+  /**
+   * Delete an empty reservation group
+   * @param {string} groupId - The group ID
+   */
+  deleteReservationGroup(groupId) {
+    // Check if group has any bookings
+    const bookings = this.statements.getBookingsByGroupId.all(groupId);
+    if (bookings.length > 0) {
+      throw new Error('Cannot delete group with existing bookings');
+    }
+
+    return this.statements.deleteReservationGroup.run(groupId);
+  }
+
   getAllBookings() {
     // NEW UNIFIED SCHEMA (2025-12-04): Simplified query, derive values from guest_names
+    // UPDATED 2025-12-09: Include group_id for grouped bookings
     const query = `
       SELECT
         b.*,
+        b.group_id,
         GROUP_CONCAT(
           br.room_id || ':' ||
           br.start_date || ':' ||
@@ -930,6 +1245,7 @@ class DatabaseManager {
         createdAt: booking.created_at,
         updatedAt: booking.updated_at,
         guestNames,
+        groupId: booking.group_id || null, // FIX 2025-12-09: Include group_id for grouped bookings
       };
     });
   }

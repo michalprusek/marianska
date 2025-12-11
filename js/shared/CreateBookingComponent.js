@@ -1,3 +1,4 @@
+/* global DOMUtils */
 /**
  * CreateBookingComponent - Manages the booking creation flow
  * Handles single room and bulk booking modals, temporary reservations, and final submission.
@@ -10,18 +11,9 @@ class CreateBookingComponent {
     this.isSubmitting = false;
   }
 
-  /**
-   * Escape HTML to prevent XSS attacks
-   * @param {string} text - Text to escape
-   * @returns {string} - Escaped text safe for innerHTML
-   */
+  // FIX 2025-12-08: Delegate to DOMUtils (SSOT for HTML escaping)
   escapeHtml(text) {
-    if (typeof text !== 'string') {
-      return String(text);
-    }
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    return DOMUtils.escapeHtml(text);
   }
 
   /**
@@ -339,27 +331,25 @@ class CreateBookingComponent {
       throw new Error('Žádné rezervace k vytvoření');
     }
 
-    // FIX 2025-12-06: Create SEPARATE bookings for each tempReservation
-    // Consolidation was causing guest count multiplication in bulk bookings
-    // Each tempReservation already contains its own complete guest/pricing data
-    const createdBookings = [];
-    for (const res of this.app.tempReservations) {
+    // FIX 2025-12-09: Use grouped booking API to create all reservations in one transaction
+    // This enables composite bookings where multiple intervals are linked together
+    const reservations = this.app.tempReservations.map(res => {
       const roomIds = res.isBulkBooking ? res.roomIds || [] : [res.roomId];
 
-      const roomGuestsMap = {};
-      const perRoomDatesMap = {};
+      const perRoomGuests = {};
+      const perRoomDates = {};
 
       roomIds.forEach((rid) => {
         if (!rid) return;
 
-        roomGuestsMap[rid] = {
+        perRoomGuests[rid] = {
           adults: res.guests?.adults || 0,
           children: res.guests?.children || 0,
           toddlers: res.guests?.toddlers || 0,
           guestType: res.guestType || 'utia',
         };
 
-        perRoomDatesMap[rid] = {
+        perRoomDates[rid] = {
           startDate: res.startDate,
           endDate: res.endDate,
         };
@@ -368,47 +358,68 @@ class CreateBookingComponent {
       // Collect guest names for this reservation
       const guestNames = [];
       if (res.guestNames && Array.isArray(res.guestNames)) {
-        const roomId = res.isBulkBooking ? null : res.roomId;
+        const defaultRoomId = res.isBulkBooking ? (roomIds[0] || null) : res.roomId;
         res.guestNames.forEach((guest) => {
           guestNames.push({
             ...guest,
-            roomId: guest.roomId || roomId,
+            roomId: guest.roomId || defaultRoomId,
           });
         });
       }
 
-      // Construct booking for this single reservation
-      const booking = {
-        ...formData,
-        sessionId: this.app.sessionId,
+      return {
+        rooms: roomIds,
         startDate: res.startDate,
         endDate: res.endDate,
-        rooms: roomIds,
-        guestType: res.guestType || 'utia',
-        adults: res.guests?.adults || 0,
-        children: res.guests?.children || 0,
-        toddlers: res.guests?.toddlers || 0,
         totalPrice: res.totalPrice || 0,
-        guestNames,
-        perRoomGuests: roomGuestsMap,
-        perRoomDates: perRoomDatesMap,
         isBulkBooking: res.isBulkBooking || false,
+        guestNames,
+        perRoomGuests,
+        perRoomDates,
       };
+    });
 
-      // Call API to create this individual booking
-      const result = await dataManager.createBooking(booking);
-      createdBookings.push(result);
-    }
+    // Build grouped payload
+    const groupedPayload = {
+      sessionId: this.app.sessionId,
+      reservations,
+      contact: {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        company: formData.company || '',
+        address: formData.address || '',
+        city: formData.city || '',
+        zip: formData.zip || '',
+        ico: formData.ico || '',
+        dic: formData.dic || '',
+        notes: formData.notes || '',
+      },
+      christmasCode: formData.christmasCode || null,
+    };
 
-    // Cleanup proposed bookings
+    // Call grouped booking API
+    const result = await dataManager.createGroupedBooking(groupedPayload);
+
+    // Cleanup proposed bookings client-side as a fallback
+    // (Server cleans up via deleteProposedBookingsBySession, but network issues may prevent that)
     for (const res of this.app.tempReservations) {
       if (res.proposalId) {
-        await dataManager.deleteProposedBooking(res.proposalId);
+        try {
+          await dataManager.deleteProposedBooking(res.proposalId);
+        } catch (cleanupError) {
+          // Log for debugging - server should have cleaned up, but track if it didn't
+          console.warn('[CreateBookingComponent] Failed to cleanup proposed booking:', {
+            proposalId: res.proposalId,
+            error: cleanupError.message,
+          });
+          // Don't throw - booking was successful, cleanup is best-effort
+        }
       }
     }
 
-    // Return created bookings for callers that need the result
-    return createdBookings.length === 1 ? createdBookings[0] : createdBookings;
+    // Return result from grouped API
+    return result;
   }
 }
 

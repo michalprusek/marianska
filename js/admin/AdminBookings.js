@@ -1,143 +1,54 @@
+/* global AdminBookingsSorting, AdminBookingsPricing, DOMUtils */
 /**
  * Admin Bookings Module
  * Handles loading, filtering, and rendering the bookings table.
+ *
+ * REFACTORED 2025-12-08: Extracted sorting and pricing logic to separate modules
+ * for better separation of concerns. Delegates to:
+ * - AdminBookingsSorting - handles column sorting and persistence
+ * - AdminBookingsPricing - handles price calculation from current settings
  */
 class AdminBookings {
   constructor(adminPanel) {
     this.adminPanel = adminPanel; // Reference to main AdminPanel for callbacks/delegation
     this.isLoadingBookings = false;
     this.selectedBookings = new Set();
+    this.selectedGroups = new Set(); // FIX 2025-12-09: Track selected groups separately
     this.editComponent = null;
 
-    // Sorting state - load from localStorage or use defaults
-    const savedSort = localStorage.getItem('adminBookingsSort');
-    if (savedSort) {
-      try {
-        const { column, direction } = JSON.parse(savedSort);
-        this.sortColumn = column || 'createdAt';
-        this.sortDirection = direction || 'desc';
-      } catch (error) {
-        console.warn('[AdminBookings] Failed to parse saved sort preferences, using defaults:', error.message);
-        this.sortColumn = 'createdAt';
-        this.sortDirection = 'desc';
-      }
-    } else {
-      this.sortColumn = 'createdAt';
-      this.sortDirection = 'desc';
-    }
+    // REFACTORED 2025-12-08: Use extracted modules
+    this.sorting = new AdminBookingsSorting(this);
+    this.pricing = new AdminBookingsPricing(this);
+
+    // Backwards compatibility: expose sortColumn/sortDirection from sorting module
+    Object.defineProperty(this, 'sortColumn', {
+      get: () => this.sorting.sortColumn,
+      set: (val) => {
+        this.sorting.sortColumn = val;
+      },
+    });
+    Object.defineProperty(this, 'sortDirection', {
+      get: () => this.sorting.sortDirection,
+      set: (val) => {
+        this.sorting.sortDirection = val;
+      },
+    });
   }
 
-  // Defense-in-depth: HTML escaping helper
+  // FIX 2025-12-08: Delegate to DOMUtils (SSOT for HTML escaping)
   escapeHtml(unsafe) {
-    if (!unsafe) {
-      return '';
-    }
-    return String(unsafe)
-      .replace(/&/gu, '&amp;')
-      .replace(/</gu, '&lt;')
-      .replace(/>/gu, '&gt;')
-      .replace(/"/gu, '&quot;')
-      .replace(/'/gu, '&#039;');
+    return DOMUtils.escapeHtml(unsafe);
   }
 
   // ========== SORTING METHODS ==========
+  // REFACTORED 2025-12-08: Delegate to AdminBookingsSorting module
 
-  /**
-   * Handle column header click for sorting
-   * @param {string} column - Column key to sort by
-   */
   handleSort(column) {
-    if (this.sortColumn === column) {
-      // Toggle direction if same column
-      this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
-    } else {
-      // New column - default to ascending
-      this.sortColumn = column;
-      this.sortDirection = 'asc';
-    }
-
-    // Persist to localStorage
-    localStorage.setItem(
-      'adminBookingsSort',
-      JSON.stringify({
-        column: this.sortColumn,
-        direction: this.sortDirection,
-      })
-    );
-
-    // Reload with new sort
-    this.loadBookings();
+    this.sorting.handleSort(column);
   }
 
-  /**
-   * Compare two bookings for sorting
-   * @param {Object} a - First booking
-   * @param {Object} b - Second booking
-   * @param {string} column - Column to sort by
-   * @param {string} direction - 'asc' or 'desc'
-   * @returns {number} - Comparison result
-   */
   compareBookings(a, b, column, direction) {
-    let valA;
-    let valB;
-
-    switch (column) {
-      case 'id':
-        valA = a.id || '';
-        valB = b.id || '';
-        break;
-      case 'name':
-        valA = (a.name || '').toLowerCase();
-        valB = (b.name || '').toLowerCase();
-        return direction === 'asc'
-          ? valA.localeCompare(valB, 'cs')
-          : valB.localeCompare(valA, 'cs');
-      case 'email':
-        valA = (a.email || '').toLowerCase();
-        valB = (b.email || '').toLowerCase();
-        return direction === 'asc'
-          ? valA.localeCompare(valB, 'cs')
-          : valB.localeCompare(valA, 'cs');
-      case 'payFromBenefit':
-        valA = a.payFromBenefit ? 1 : 0;
-        valB = b.payFromBenefit ? 1 : 0;
-        break;
-      case 'startDate': {
-        // Get earliest start date from perRoomDates or fallback to booking.startDate
-        const getStartDate = (booking) => {
-          if (booking.perRoomDates && Object.keys(booking.perRoomDates).length > 0) {
-            const dates = Object.values(booking.perRoomDates).map((d) => d.startDate);
-            return Math.min(...dates.map((d) => new Date(d).getTime()));
-          }
-          return new Date(booking.startDate || 0).getTime();
-        };
-        valA = getStartDate(a);
-        valB = getStartDate(b);
-        break;
-      }
-      case 'rooms':
-        // Sort by first room number
-        valA = parseInt(a.rooms?.[0], 10) || 0;
-        valB = parseInt(b.rooms?.[0], 10) || 0;
-        break;
-      case 'totalPrice':
-        valA = a.totalPrice || 0;
-        valB = b.totalPrice || 0;
-        break;
-      case 'paid':
-        valA = a.paid ? 1 : 0;
-        valB = b.paid ? 1 : 0;
-        break;
-      case 'createdAt':
-      default:
-        valA = new Date(a.createdAt || 0).getTime();
-        valB = new Date(b.createdAt || 0).getTime();
-        break;
-    }
-
-    if (valA < valB) return direction === 'asc' ? -1 : 1;
-    if (valA > valB) return direction === 'asc' ? 1 : -1;
-    return 0;
+    return this.sorting.compareBookings(a, b, column, direction);
   }
 
   /**
@@ -745,109 +656,93 @@ class AdminBookings {
 
       tbody.innerHTML = '';
 
-      // Dynamic sorting based on selected column and direction
-      bookings.sort((a, b) => this.compareBookings(a, b, this.sortColumn, this.sortDirection));
+      // FIX 2025-12-09: Group bookings by groupId for composite reservation display
+      const groups = new Map(); // groupId -> { bookings: [], totalPrice: 0, ... }
+      const ungrouped = [];
 
-      // SSOT FIX 2025-12-04: Always recalculate prices using current settings (SSOT)
-      // This ensures list view shows the same price as edit view
-      const bookingPrices = new Map();
-      bookings.forEach((booking) => {
-        bookingPrices.set(booking.id, this.getBookingPrice(booking, settings));
+      bookings.forEach(booking => {
+        if (booking.groupId) {
+          if (!groups.has(booking.groupId)) {
+            groups.set(booking.groupId, {
+              groupId: booking.groupId,
+              bookings: [],
+              // Use first booking's contact info
+              name: booking.name,
+              email: booking.email,
+              paid: true, // Will be set to false if any booking is unpaid
+              payFromBenefit: false,
+            });
+          }
+          const group = groups.get(booking.groupId);
+          group.bookings.push(booking);
+          if (!booking.paid) group.paid = false;
+          if (booking.payFromBenefit) group.payFromBenefit = true;
+        } else {
+          ungrouped.push(booking);
+        }
       });
 
-      // Process bookings to create table rows
-      for (const booking of bookings) {
-        // Format date range display
-        let dateRangeDisplay = '';
+      // Build display items: groups + ungrouped bookings
+      const displayItems = [];
 
-        if (booking.perRoomDates && Object.keys(booking.perRoomDates).length > 0) {
-          // Calculate overall range from per-room dates
-          let minStart = booking.startDate;
-          let maxEnd = booking.endDate;
+      // Add groups as display items
+      groups.forEach((group, groupId) => {
+        // Calculate group totals
+        let totalPrice = 0;
+        let minStart = null;
+        let maxEnd = null;
+        const allRooms = new Set();
 
-          Object.values(booking.perRoomDates).forEach((dates) => {
-            if (!minStart || dates.startDate < minStart) {
-              minStart = dates.startDate;
-            }
-            if (!maxEnd || dates.endDate > maxEnd) {
-              maxEnd = dates.endDate;
-            }
-          });
+        group.bookings.forEach(b => {
+          totalPrice += this.getBookingPrice(b, settings);
+          if (!minStart || b.startDate < minStart) minStart = b.startDate;
+          if (!maxEnd || b.endDate > maxEnd) maxEnd = b.endDate;
+          (b.rooms || []).forEach(r => allRooms.add(r));
+        });
 
-          dateRangeDisplay = `${new Date(minStart).toLocaleDateString('cs-CZ')} - ${new Date(maxEnd).toLocaleDateString('cs-CZ')}`;
+        displayItems.push({
+          isGroup: true,
+          groupId,
+          name: group.name,
+          email: group.email,
+          paid: group.paid,
+          payFromBenefit: group.payFromBenefit,
+          startDate: minStart,
+          endDate: maxEnd,
+          rooms: [...allRooms],
+          totalPrice,
+          bookings: group.bookings,
+          bookingCount: group.bookings.length,
+          createdAt: group.bookings[0]?.createdAt,
+        });
+      });
+
+      // Add ungrouped bookings
+      ungrouped.forEach(booking => {
+        displayItems.push({
+          isGroup: false,
+          ...booking,
+          totalPrice: this.getBookingPrice(booking, settings),
+        });
+      });
+
+      // Sort display items
+      displayItems.sort((a, b) => this.compareBookings(a, b, this.sortColumn, this.sortDirection));
+
+      // Render rows
+      for (const item of displayItems) {
+        if (item.isGroup) {
+          // Render group parent row
+          this.renderGroupRow(tbody, item, settings);
         } else {
-          // Fallback to booking-level dates
-          dateRangeDisplay = `${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}`;
+          // Render regular booking row
+          this.renderBookingRow(tbody, item, item.totalPrice);
         }
-
-        const row = document.createElement('tr');
-        row.setAttribute('data-booking-id', booking.id);
-        row.innerHTML = `
-                <td style="text-align: center;">
-                    <input
-                        type="checkbox"
-                        class="booking-checkbox"
-                        data-booking-id="${booking.id}"
-                        style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary-color);"
-                        onchange="adminPanel.toggleBookingSelection('${booking.id}', this.checked)"
-                    />
-                </td>
-                <td>${this.escapeHtml(booking.id)}</td>
-                <td>${this.escapeHtml(booking.name)}</td>
-                <td>${this.escapeHtml(booking.email)}</td>
-                <td style="text-align: center;">
-                    ${booking.payFromBenefit ? '<span style="display: inline-flex; align-items: center; justify-content: center; padding: 0.3rem 0.6rem; background: #17a2b8; color: white; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">💳 Ano</span>' : '<span style="color: #6b7280; font-size: 0.85rem;">Ne</span>'}
-                </td>
-                <td>${dateRangeDisplay}</td>
-                <td>${this.createRoomDisplay(booking, true)}</td>
-                <td>
-                    ${bookingPrices.get(booking.id).toLocaleString('cs-CZ')} Kč
-                </td>
-                <td style="text-align: center;">
-                    <label style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; cursor: pointer; user-select: none;">
-                        <input
-                            type="checkbox"
-                            ${booking.paid ? 'checked' : ''}
-                            onchange="adminPanel.togglePaidStatus('${booking.id}', this.checked)"
-                            style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--success-color);"
-                        />
-                        <span style="font-weight: 600; color: ${booking.paid ? '#10b981' : '#ef4444'}; font-size: 0.85rem;">
-                            ${booking.paid ? '✓ Ano' : '✗ Ne'}
-                        </span>
-                    </label>
-                </td>
-                <td>
-                    <div class="action-buttons">
-                        <button class="btn-modern btn-view" onclick="adminPanel.bookings.viewBookingDetails('${booking.id}')" title="Zobrazit detail">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                <circle cx="12" cy="12" r="3"/>
-                            </svg>
-                            Detail
-                        </button>
-                        <button class="btn-modern btn-edit" onclick="adminPanel.bookings.editBooking('${booking.id}')" title="Upravit rezervaci">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                            </svg>
-                            Upravit
-                        </button>
-                        <button class="btn-modern btn-delete" onclick="adminPanel.bookings.deleteBooking('${booking.id}')" title="Smazat rezervaci">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/>
-                                <line x1="10" y1="11" x2="10" y2="17"/>
-                                <line x1="14" y1="11" x2="14" y2="17"/>
-                            </svg>
-                            Smazat
-                        </button>
-                    </div>
-                </td>
-            `;
-        tbody.appendChild(row);
       }
 
       // Reset selection state
       this.selectedBookings.clear();
+      this.selectedGroups.clear();
       this.updateBulkActionsUI();
 
       // Update sort indicators in table headers
@@ -857,124 +752,422 @@ class AdminBookings {
     }
   }
 
-  /**
-   * FIXED 2025-12-04: Calculate price from current settings (SSOT).
-   *
-   * Admin panel should ALWAYS show prices calculated from current price settings.
-   * The stored booking.totalPrice is historical - what was charged at booking time.
-   *
-   * @param {Object} booking - Booking object
-   * @param {Object} settings - Current settings with prices
-   * @returns {number} Recalculated price from current settings
-   */
-  getBookingPrice(booking, settings) {
-    if (!settings || !settings.prices) {
-      // Fallback to stored price if settings not available
-      return booking.totalPrice || 0;
+  // FIX 2025-12-09: Render a group parent row with expand/collapse toggle
+  renderGroupRow(tbody, group, settings) {
+    const dateRangeDisplay = `${new Date(group.startDate).toLocaleDateString('cs-CZ')} - ${new Date(group.endDate).toLocaleDateString('cs-CZ')}`;
+
+    const row = document.createElement('tr');
+    row.setAttribute('data-group-id', group.groupId);
+    row.className = 'booking-row-parent';
+    row.style.cursor = 'pointer';
+    row.style.backgroundColor = 'var(--surface-2, #f8f9fa)';
+
+    row.innerHTML = `
+      <td style="text-align: center; width: 40px;">
+        <div style="display: flex; align-items: center; gap: 4px;">
+          <input
+            type="checkbox"
+            class="booking-checkbox group-checkbox"
+            data-group-id="${this.escapeHtml(group.groupId)}"
+            style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary-color);"
+            onclick="event.stopPropagation();"
+            onchange="adminPanel.bookings.toggleGroupSelection('${this.escapeHtml(group.groupId)}', this.checked)"
+          />
+          <button class="expand-toggle" onclick="event.stopPropagation(); adminPanel.bookings.toggleGroupExpand('${this.escapeHtml(group.groupId)}')" title="Rozbalit/Sbalit" style="background: none; border: none; cursor: pointer; padding: 4px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition: transform 0.2s;">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+        </div>
+      </td>
+      <td style="font-weight: 600; color: var(--primary-600);">
+        <span style="display: inline-flex; align-items: center; gap: 0.5rem;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          ${this.escapeHtml(group.groupId)}
+        </span>
+      </td>
+      <td>${this.escapeHtml(group.name)}</td>
+      <td>${this.escapeHtml(group.email)}</td>
+      <td style="text-align: center;">
+        ${group.payFromBenefit ? '<span style="display: inline-flex; align-items: center; justify-content: center; padding: 0.3rem 0.6rem; background: #17a2b8; color: white; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">💳 Ano</span>' : '<span style="color: #6b7280; font-size: 0.85rem;">Ne</span>'}
+      </td>
+      <td>
+        <span style="display: flex; align-items: center; gap: 0.5rem;">
+          ${dateRangeDisplay}
+          <span style="background: var(--primary-100); color: var(--primary-700); padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.75rem; font-weight: 600;">
+            ${group.bookingCount} int.
+          </span>
+        </span>
+      </td>
+      <td>
+        <span style="display: inline-flex; align-items: center; gap: 0.25rem; background: var(--gray-100); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.85rem;">
+          ${group.rooms.length} pokojů
+        </span>
+      </td>
+      <td style="font-weight: 600;">
+        ${group.totalPrice.toLocaleString('cs-CZ')} Kč
+      </td>
+      <td style="text-align: center;">
+        <span style="font-weight: 600; color: ${group.paid ? '#10b981' : '#ef4444'}; font-size: 0.85rem;">
+          ${group.paid ? '✓ Ano' : '✗ Ne'}
+        </span>
+      </td>
+      <td>
+        <div class="action-buttons">
+          <button class="btn-modern btn-view" onclick="event.stopPropagation(); adminPanel.bookings.viewGroupDetails('${this.escapeHtml(group.groupId)}')" title="Zobrazit detail skupiny">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            Detail
+          </button>
+          <button class="btn-modern btn-edit" onclick="event.stopPropagation(); adminPanel.bookings.editGroup('${this.escapeHtml(group.groupId)}')" title="Upravit skupinu">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+            Upravit
+          </button>
+        </div>
+      </td>
+    `;
+
+    // Store group data for later use
+    row._groupData = group;
+    tbody.appendChild(row);
+  }
+
+  // FIX 2025-12-09: Render a regular booking row (ungrouped or child)
+  renderBookingRow(tbody, booking, price, isChildRow = false, parentGroupId = null) {
+    const dateRangeDisplay = this.getDateRangeDisplay(booking);
+
+    const row = document.createElement('tr');
+    row.setAttribute('data-booking-id', booking.id);
+    if (isChildRow) {
+      row.setAttribute('data-parent-group', parentGroupId);
+      row.className = 'booking-row-child';
+      row.style.display = 'none';
+      row.style.backgroundColor = 'var(--surface-1, #ffffff)';
     }
 
-    try {
-      if (booking.isBulkBooking) {
-        // Bulk booking - use bulk pricing
-        // FIX 2025-12-06: Derive guestTypeBreakdown from guestNames (SSOT)
-        const guestNames = booking.guestNames || [];
-        const derivedBreakdown = {
-          utiaAdults: guestNames.filter(
-            (g) => g.personType === 'adult' && g.guestPriceType === 'utia'
-          ).length,
-          externalAdults: guestNames.filter(
-            (g) => g.personType === 'adult' && g.guestPriceType === 'external'
-          ).length,
-          utiaChildren: guestNames.filter(
-            (g) => g.personType === 'child' && g.guestPriceType === 'utia'
-          ).length,
-          externalChildren: guestNames.filter(
-            (g) => g.personType === 'child' && g.guestPriceType === 'external'
-          ).length,
-        };
+    row.innerHTML = `
+      <td style="text-align: center;">
+        ${isChildRow ? '<span style="color: var(--gray-400); padding-left: 1rem;">└</span>' : `
+        <input
+          type="checkbox"
+          class="booking-checkbox"
+          data-booking-id="${booking.id}"
+          style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary-color);"
+          onchange="adminPanel.toggleBookingSelection('${booking.id}', this.checked)"
+        />
+        `}
+      </td>
+      <td>${this.escapeHtml(booking.id)}</td>
+      <td>${isChildRow ? '' : this.escapeHtml(booking.name)}</td>
+      <td>${isChildRow ? '' : this.escapeHtml(booking.email)}</td>
+      <td style="text-align: center;">
+        ${isChildRow ? '' : (booking.payFromBenefit ? '<span style="display: inline-flex; align-items: center; justify-content: center; padding: 0.3rem 0.6rem; background: #17a2b8; color: white; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">💳 Ano</span>' : '<span style="color: #6b7280; font-size: 0.85rem;">Ne</span>')}
+      </td>
+      <td>${dateRangeDisplay}</td>
+      <td>${this.createRoomDisplay(booking, true)}</td>
+      <td>
+        ${price.toLocaleString('cs-CZ')} Kč
+      </td>
+      <td style="text-align: center;">
+        <label style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+          <input
+            type="checkbox"
+            ${booking.paid ? 'checked' : ''}
+            onchange="adminPanel.bookings.toggleIntervalPaid('${booking.id}', this.checked, '${parentGroupId || booking.id}')"
+            style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--success-color);"
+          />
+          <span style="font-weight: 600; color: ${booking.paid ? '#10b981' : '#ef4444'}; font-size: 0.85rem;">
+            ${booking.paid ? '✓ Ano' : '✗ Ne'}
+          </span>
+        </label>
+      </td>
+      <td>
+        <div class="action-buttons">
+          ${isChildRow ? `
+          <button class="btn-modern btn-delete" onclick="adminPanel.bookings.deleteInterval('${booking.id}', '${parentGroupId}')" title="Smazat interval">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/>
+              <line x1="10" y1="11" x2="10" y2="17"/>
+              <line x1="14" y1="11" x2="14" y2="17"/>
+            </svg>
+            Smazat
+          </button>
+          ` : `
+          <button class="btn-modern btn-view" onclick="adminPanel.bookings.viewBookingDetails('${booking.id}')" title="Zobrazit detail">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            Detail
+          </button>
+          <button class="btn-modern btn-edit" onclick="adminPanel.bookings.editBooking('${booking.id}')" title="Upravit rezervaci">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+            Upravit
+          </button>
+          <button class="btn-modern btn-delete" onclick="adminPanel.bookings.deleteBooking('${booking.id}')" title="Smazat rezervaci">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/>
+              <line x1="10" y1="11" x2="10" y2="17"/>
+              <line x1="14" y1="11" x2="14" y2="17"/>
+            </svg>
+            Smazat
+          </button>
+          `}
+        </div>
+      </td>
+    `;
 
-        return PriceCalculator.calculateMixedBulkPrice({
-          utiaAdults: derivedBreakdown.utiaAdults,
-          externalAdults: derivedBreakdown.externalAdults,
-          utiaChildren: derivedBreakdown.utiaChildren,
-          externalChildren: derivedBreakdown.externalChildren,
-          nights: this.calculateNights(booking),
-          settings,
-        });
-      }
+    tbody.appendChild(row);
+  }
 
-      // FIX 2025-12-05: For composite bookings, sum up prices of individual rooms
-      // Each room is calculated separately with its own dates and guest types
-      if (booking.rooms && booking.rooms.length > 1 && booking.perRoomDates) {
-        let totalPrice = 0;
-        for (const roomId of booking.rooms) {
-          const roomGuestNames = (booking.guestNames || []).filter(
-            (g) => String(g.roomId) === String(roomId)
-          );
-          const roomDates = booking.perRoomDates[roomId];
-          const nights = roomDates
-            ? Math.ceil(
-                (new Date(roomDates.endDate) - new Date(roomDates.startDate)) /
-                  (1000 * 60 * 60 * 24)
-              )
-            : this.calculateNights(booking);
+  // FIX 2025-12-09: Helper to get date range display
+  getDateRangeDisplay(booking) {
+    if (booking.perRoomDates && Object.keys(booking.perRoomDates).length > 0) {
+      let minStart = booking.startDate;
+      let maxEnd = booking.endDate;
 
-          // Determine guest type from guests in this room
-          const hasUtiaGuest = roomGuestNames.some(
-            (g) => g.guestPriceType === 'utia' && g.personType !== 'toddler'
-          );
-          const roomGuestType = hasUtiaGuest ? 'utia' : 'external';
-
-          const roomPrice = PriceCalculator.calculatePerGuestPrice({
-            rooms: [roomId],
-            guestNames: roomGuestNames,
-            nights,
-            settings,
-            fallbackGuestType: roomGuestType,
-          });
-          totalPrice += roomPrice;
-        }
-        return totalPrice;
-      }
-
-      // Single room booking - use per-guest pricing if available
-      if (booking.guestNames && booking.guestNames.length > 0) {
-        return PriceCalculator.calculatePerGuestPrice({
-          rooms: booking.rooms || [],
-          guestNames: booking.guestNames,
-          perRoomDates: booking.perRoomDates || null,
-          perRoomGuests: booking.perRoomGuests || {},
-          nights: this.calculateNights(booking),
-          settings,
-          fallbackGuestType: booking.guestType || 'external',
-        });
-      }
-      // Fallback to simple calculation
-      return PriceCalculator.calculatePrice({
-        guestType: booking.guestType || 'external',
-        adults: booking.adults || 0,
-        children: booking.children || 0,
-        toddlers: booking.toddlers || 0,
-        nights: this.calculateNights(booking),
-        rooms: booking.rooms || [],
-        settings,
+      Object.values(booking.perRoomDates).forEach((dates) => {
+        if (!minStart || dates.startDate < minStart) minStart = dates.startDate;
+        if (!maxEnd || dates.endDate > maxEnd) maxEnd = dates.endDate;
       });
-    } catch (error) {
-      console.error('[AdminBookings] Error calculating price:', error);
-      // Fallback to stored price on error
-      return booking.totalPrice || 0;
+
+      return `${new Date(minStart).toLocaleDateString('cs-CZ')} - ${new Date(maxEnd).toLocaleDateString('cs-CZ')}`;
+    }
+    return `${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}`;
+  }
+
+  // FIX 2025-12-09: Toggle group expand/collapse
+  async toggleGroupExpand(groupId) {
+    const parentRow = document.querySelector(`tr[data-group-id="${groupId}"]`);
+    if (!parentRow) return;
+
+    const isExpanded = parentRow.classList.contains('expanded');
+    const expandIcon = parentRow.querySelector('.expand-toggle svg');
+
+    if (isExpanded) {
+      // Collapse: hide child rows
+      parentRow.classList.remove('expanded');
+      if (expandIcon) expandIcon.style.transform = 'rotate(0deg)';
+
+      const childRows = document.querySelectorAll(`tr[data-parent-group="${groupId}"]`);
+      childRows.forEach(row => {
+        row.style.display = 'none';
+      });
+    } else {
+      // Expand: show/create child rows
+      parentRow.classList.add('expanded');
+      if (expandIcon) expandIcon.style.transform = 'rotate(90deg)';
+
+      let childRows = document.querySelectorAll(`tr[data-parent-group="${groupId}"]`);
+
+      if (childRows.length === 0) {
+        // First expand: generate child rows
+        const settings = await dataManager.getSettings();
+        const groupData = parentRow._groupData;
+
+        if (groupData && groupData.bookings) {
+          const tbody = document.getElementById('bookingsTableBody');
+          const parentIndex = Array.from(tbody.children).indexOf(parentRow);
+
+          // Insert child rows after parent
+          groupData.bookings.forEach((booking, idx) => {
+            const price = this.getBookingPrice(booking, settings);
+            const childRow = document.createElement('tr');
+            childRow.setAttribute('data-booking-id', booking.id);
+            childRow.setAttribute('data-parent-group', groupId);
+            childRow.className = 'booking-row-child';
+            childRow.style.backgroundColor = 'var(--surface-1, #ffffff)';
+
+            // FIX 2025-12-09: Child rows with payment checkbox and delete button
+            childRow.innerHTML = `
+              <td style="text-align: center;">
+                <span style="color: var(--gray-400); padding-left: 1rem;">└</span>
+              </td>
+              <td style="font-size: 0.9rem; color: var(--gray-600);">${this.escapeHtml(booking.id)}</td>
+              <td></td>
+              <td></td>
+              <td></td>
+              <td>${this.getDateRangeDisplay(booking)}</td>
+              <td>${this.createRoomDisplay(booking, true)}</td>
+              <td>${price.toLocaleString('cs-CZ')} Kč</td>
+              <td style="text-align: center;">
+                <label style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                  <input
+                    type="checkbox"
+                    ${booking.paid ? 'checked' : ''}
+                    onchange="adminPanel.bookings.toggleIntervalPaid('${this.escapeHtml(booking.id)}', this.checked, '${this.escapeHtml(groupId)}')"
+                    style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--success-color);"
+                  />
+                  <span style="font-weight: 600; color: ${booking.paid ? '#10b981' : '#ef4444'}; font-size: 0.85rem;">
+                    ${booking.paid ? '✓ Ano' : '✗ Ne'}
+                  </span>
+                </label>
+              </td>
+              <td>
+                <div class="action-buttons">
+                  <button class="btn-modern btn-delete btn-sm" onclick="adminPanel.bookings.deleteInterval('${this.escapeHtml(booking.id)}', '${this.escapeHtml(groupId)}')" title="Smazat interval">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/>
+                      <line x1="10" y1="11" x2="10" y2="17"/>
+                      <line x1="14" y1="11" x2="14" y2="17"/>
+                    </svg>
+                  </button>
+                </div>
+              </td>
+            `;
+
+            // Insert after parent row
+            const referenceRow = tbody.children[parentIndex + 1 + idx];
+            if (referenceRow) {
+              tbody.insertBefore(childRow, referenceRow);
+            } else {
+              tbody.appendChild(childRow);
+            }
+          });
+        }
+      } else {
+        // Show existing child rows
+        childRows.forEach(row => {
+          row.style.display = '';
+        });
+      }
     }
   }
 
-  /**
-   * Calculate number of nights for a booking
-   * @param {Object} booking - Booking object
-   * @returns {number} Number of nights
-   */
+  // FIX 2025-12-09: View group details
+  async viewGroupDetails(groupId) {
+    const parentRow = document.querySelector(`tr[data-group-id="${groupId}"]`);
+    const groupData = parentRow?._groupData;
+
+    if (!groupData) {
+      this.showNotification('Skupina nenalezena', 'error');
+      return;
+    }
+
+    // For now, show the first booking's detail with group info
+    // TODO: Implement dedicated group detail modal
+    if (groupData.bookings && groupData.bookings.length > 0) {
+      this.viewBookingDetails(groupData.bookings[0].id);
+    }
+  }
+
+  // FIX 2025-12-09: Edit group - show interval selector
+  async editGroup(groupId) {
+    const parentRow = document.querySelector(`tr[data-group-id="${groupId}"]`);
+    const groupData = parentRow?._groupData;
+
+    if (!groupData || !groupData.bookings || groupData.bookings.length === 0) {
+      this.showNotification('Skupina nenalezena', 'error');
+      return;
+    }
+
+    // Open interval selector modal
+    this.openIntervalSelectorModal(groupData);
+  }
+
+  // FIX 2025-12-09: Interval selector modal for editing grouped bookings
+  async openIntervalSelectorModal(groupData) {
+    const settings = await dataManager.getSettings();
+
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.id = 'intervalSelectorModal';
+
+    let intervalsHtml = '';
+    groupData.bookings.forEach((booking, idx) => {
+      const price = this.getBookingPrice(booking, settings);
+      const dateRange = this.getDateRangeDisplay(booking);
+      const roomsDisplay = booking.rooms?.map(r => `P${r}`).join(', ') || 'N/A';
+
+      intervalsHtml += `
+        <div class="interval-card" onclick="adminPanel.bookings.selectIntervalForEdit('${booking.id}')" style="
+          padding: 1rem;
+          margin-bottom: 0.75rem;
+          border: 2px solid var(--gray-200);
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.2s;
+          background: var(--surface-1);
+        " onmouseover="this.style.borderColor='var(--primary-400)'; this.style.background='var(--primary-50)';"
+           onmouseout="this.style.borderColor='var(--gray-200)'; this.style.background='var(--surface-1)';">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-weight: 600; color: var(--gray-800);">Interval ${idx + 1}</div>
+              <div style="font-size: 0.9rem; color: var(--gray-600); margin-top: 0.25rem;">
+                ${dateRange} • ${roomsDisplay}
+              </div>
+              <div style="font-size: 0.85rem; color: var(--gray-500); margin-top: 0.25rem;">
+                ${booking.adults || 0} dosp., ${booking.children || 0} dětí
+                ${booking.isBulkBooking ? '<span style="background: var(--purple-100); color: var(--purple-700); padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">Celá chata</span>' : ''}
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-weight: 600; color: var(--primary-600);">${price.toLocaleString('cs-CZ')} Kč</div>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" stroke-width="2" style="margin-top: 0.5rem;">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width: 500px;">
+        <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+        <h2 style="margin-bottom: 1rem;">Vyberte interval k úpravě</h2>
+        <p style="color: var(--gray-600); margin-bottom: 1.5rem;">
+          Tato rezervace obsahuje ${groupData.bookingCount} intervalů. Vyberte, který chcete upravit.
+        </p>
+        <div class="intervals-list">
+          ${intervalsHtml}
+        </div>
+        <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--gray-200);">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: var(--gray-600);">Celková cena skupiny:</span>
+            <span style="font-size: 1.25rem; font-weight: 700; color: var(--primary-600);">
+              ${groupData.totalPrice.toLocaleString('cs-CZ')} Kč
+            </span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+  }
+
+  // FIX 2025-12-09: Select interval and open edit modal
+  selectIntervalForEdit(bookingId) {
+    // Close interval selector
+    const selectorModal = document.getElementById('intervalSelectorModal');
+    if (selectorModal) selectorModal.remove();
+
+    // Open edit modal for selected booking
+    this.editBooking(bookingId);
+  }
+
+  // ========== PRICING METHODS ==========
+  // REFACTORED 2025-12-08: Delegate to AdminBookingsPricing module
+
+  getBookingPrice(booking, settings) {
+    return this.pricing.getBookingPrice(booking, settings);
+  }
+
   calculateNights(booking) {
-    const start = new Date(booking.startDate);
-    const end = new Date(booking.endDate);
-    return Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+    return this.pricing.calculateNights(booking);
   }
 
   filterBookings(searchTerm) {
@@ -993,6 +1186,16 @@ class AdminBookings {
     if (!booking) {
       return;
     }
+
+    // FIX 2025-12-09: Fetch all bookings in the group for grouped booking display
+    let groupBookings = [];
+    if (booking.groupId) {
+      groupBookings = dataManager.getBookingsByGroupId(booking.groupId);
+    }
+    const isGroupedBooking = groupBookings.length > 1;
+
+    // SSOT FIX 2025-12-09: Fetch settings for price calculation
+    const settings = await dataManager.getSettings();
 
     const modal = document.createElement('div');
     modal.className = 'modal active';
@@ -1042,9 +1245,33 @@ class AdminBookings {
                         <strong style="color: var(--gray-600); font-size: 0.9rem;">Termín a pokoje:</strong>
                         <div style="margin-top: 0.5rem;">
                             ${
-                              // FIX 2025-12-04: Only use explicit isBulkBooking flag
-                              booking.isBulkBooking === true
-                                ? `
+                              // FIX 2025-12-09: Display all intervals for grouped bookings (read-only in detail modal)
+                              isGroupedBooking
+                                ? groupBookings
+                                    .map((gb, idx) => {
+                                      const nights = Math.ceil(
+                                        (new Date(gb.endDate) - new Date(gb.startDate)) /
+                                          (1000 * 60 * 60 * 24)
+                                      );
+                                      return `
+                                    <div style="border-left: 3px solid #10b981; padding-left: 0.75rem; margin-bottom: 0.75rem; ${idx > 0 ? 'margin-top: 0.75rem;' : ''}">
+                                      <div style="font-weight: 600; color: #4b5563; font-size: 0.9rem; margin-bottom: 0.25rem;">
+                                        Interval ${idx + 1}
+                                      </div>
+                                      <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                                        ${this.createRoomDisplay(gb, true)}
+                                        <span style="color: #4b5563;">
+                                          ${new Date(gb.startDate).toLocaleDateString('cs-CZ')} - ${new Date(gb.endDate).toLocaleDateString('cs-CZ')}
+                                          <span style="color: #9ca3af;">(${nights} ${nights === 1 ? 'noc' : nights < 5 ? 'noci' : 'nocí'})</span>
+                                        </span>
+                                      </div>
+                                    </div>
+                                  `;
+                                    })
+                                    .join('')
+                                : // FIX 2025-12-04: Only use explicit isBulkBooking flag
+                                  booking.isBulkBooking === true
+                                  ? `
                             <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
                               <span style="color: #4b5563;">
                                 ${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}
@@ -1053,13 +1280,13 @@ class AdminBookings {
                               ${this.createRoomDisplay(booking, true)}
                             </div>
                           `
-                                : booking.perRoomDates &&
-                                    Object.keys(booking.perRoomDates).length > 0
-                                  ? booking.rooms
-                                      .map((roomId) => {
-                                        const dates = booking.perRoomDates[roomId];
-                                        if (dates) {
-                                          return `
+                                  : booking.perRoomDates &&
+                                      Object.keys(booking.perRoomDates).length > 0
+                                    ? booking.rooms
+                                        .map((roomId) => {
+                                          const dates = booking.perRoomDates[roomId];
+                                          if (dates) {
+                                            return `
                                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
                                       ${this.createRoomBadge(roomId, true)}
                                       <span style="color: #4b5563;">
@@ -1067,8 +1294,8 @@ class AdminBookings {
                                       </span>
                                     </div>
                                   `;
-                                        }
-                                        return `
+                                          }
+                                          return `
                                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
                                       ${this.createRoomBadge(roomId, true)}
                                       <span style="color: #4b5563;">
@@ -1076,9 +1303,9 @@ class AdminBookings {
                                       </span>
                                     </div>
                                   `;
-                                      })
-                                      .join('')
-                                  : `
+                                        })
+                                        .join('')
+                                    : `
                             <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
                               <span style="color: #4b5563;">
                                 ${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}
@@ -1095,9 +1322,31 @@ class AdminBookings {
                         <strong style="color: var(--gray-600); font-size: 0.9rem;">Hosté:</strong>
                         <div style="margin-top: 0.75rem;">
                             ${
-                              // FIX 2025-12-04: Only use explicit isBulkBooking flag
-                              booking.isBulkBooking === true
-                                ? `
+                              // FIX 2025-12-09: Display guests from all intervals for grouped bookings
+                              isGroupedBooking
+                                ? groupBookings
+                                    .map((gb, idx) => {
+                                      const guestType = gb.guestType || 'external';
+                                      return `
+                                    <div style="border-left: 3px solid #10b981; padding-left: 0.75rem; margin-bottom: 0.75rem; ${idx > 0 ? 'margin-top: 0.75rem;' : ''}">
+                                      <div style="font-weight: 600; color: #4b5563; font-size: 0.85rem; margin-bottom: 0.25rem;">
+                                        Interval ${idx + 1}
+                                      </div>
+                                      <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                                        ${this.createRoomDisplay(gb, true)}
+                                        <span style="color: #4b5563;">
+                                          ${gb.adults || 0} dosp., ${gb.children || 0} děti, ${gb.toddlers || 0} bat.
+                                          <span style="color: #9ca3af; margin: 0 0.5rem;">•</span>
+                                          ${guestType === 'utia' ? 'ÚTIA' : 'Externí'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  `;
+                                    })
+                                    .join('')
+                                : // FIX 2025-12-04: Only use explicit isBulkBooking flag
+                                  booking.isBulkBooking === true
+                                  ? `
                             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
                               ${this.createRoomDisplay(booking, true)}
                               <span style="color: #4b5563;">
@@ -1107,21 +1356,21 @@ class AdminBookings {
                               </span>
                             </div>
                           `
-                                : booking.perRoomGuests &&
-                                    Object.keys(booking.perRoomGuests).length > 0
-                                  ? booking.rooms
-                                      .map((roomId) => {
-                                        const guests = booking.perRoomGuests[roomId];
-                                        if (guests) {
-                                          // Skip rooms with no guests (0 adults AND 0 children)
-                                          const hasGuests =
-                                            guests.adults > 0 || guests.children > 0;
-                                          if (!hasGuests) {
-                                            return ''; // Don't display empty rooms
-                                          }
+                                  : booking.perRoomGuests &&
+                                      Object.keys(booking.perRoomGuests).length > 0
+                                    ? booking.rooms
+                                        .map((roomId) => {
+                                          const guests = booking.perRoomGuests[roomId];
+                                          if (guests) {
+                                            // Skip rooms with no guests (0 adults AND 0 children)
+                                            const hasGuests =
+                                              guests.adults > 0 || guests.children > 0;
+                                            if (!hasGuests) {
+                                              return ''; // Don't display empty rooms
+                                            }
 
-                                          const guestType = guests.guestType || booking.guestType;
-                                          return `
+                                            const guestType = guests.guestType || booking.guestType;
+                                            return `
                                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
                                       ${this.createRoomBadge(roomId, true)}
                                       <span style="color: #4b5563;">
@@ -1131,40 +1380,97 @@ class AdminBookings {
                                       </span>
                                     </div>
                                   `;
-                                        }
-                                        return `
+                                          }
+                                          return `
                                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
                                       ${this.createRoomBadge(roomId, true)}
                                       <span style="color: #9ca3af; font-size: 0.85rem;">Bez údajů</span>
                                     </div>
                                   `;
-                                      })
-                                      .join('')
-                                  : `
+                                        })
+                                        .join('')
+                                    : `
                             <div style="color: #ef4444; font-size: 0.85rem;">
                               ⚠️ Chybí údaje o hostech v pokojích (celkem: ${booking.adults} dosp., ${booking.children} děti, ${booking.toddlers} bat.)
                             </div>
                           `
                             }
-                            <!-- Show totals in gray for reference (only for non-bulk with perRoomGuests) -->
+                            <!-- Show totals in gray for reference -->
                             ${
-                              // FIX 2025-12-04: Only use explicit isBulkBooking flag
-                              booking.isBulkBooking !== true &&
-                              booking.perRoomGuests &&
-                              Object.keys(booking.perRoomGuests).length > 0
-                                ? `
+                              // FIX 2025-12-09: Show totals for grouped bookings too
+                              isGroupedBooking
+                                ? (() => {
+                                    const totals = groupBookings.reduce(
+                                      (acc, gb) => ({
+                                        adults: acc.adults + (gb.adults || 0),
+                                        children: acc.children + (gb.children || 0),
+                                        toddlers: acc.toddlers + (gb.toddlers || 0),
+                                      }),
+                                      { adults: 0, children: 0, toddlers: 0 }
+                                    );
+                                    return `
+                            <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 0.85rem;">
+                              Celkem: ${totals.adults} dosp., ${totals.children} děti, ${totals.toddlers} bat.
+                            </div>
+                          `;
+                                  })()
+                                : // FIX 2025-12-04: Only use explicit isBulkBooking flag
+                                  booking.isBulkBooking !== true &&
+                                    booking.perRoomGuests &&
+                                    Object.keys(booking.perRoomGuests).length > 0
+                                  ? `
                             <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 0.85rem;">
                               Celkem: ${booking.adults} dosp., ${booking.children} děti, ${booking.toddlers} bat.
                             </div>
                           `
-                                : ''
+                                  : ''
                             }
                         </div>
                     </div>
 
                     ${
-                      booking.guestNames && booking.guestNames.length > 0
-                        ? `
+                      // FIX 2025-12-09: Show guest names from all intervals for grouped bookings
+                      isGroupedBooking
+                        ? (() => {
+                            const allGuestNames = groupBookings.flatMap(
+                              (gb) => gb.guestNames || []
+                            );
+                            if (allGuestNames.length === 0) return '';
+                            return `
+                    <div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+                            <strong style="color: var(--gray-600); font-size: 0.9rem;">Jména hostů (podle intervalů):</strong>
+                            <button
+                                onclick="adminPanel.bookings.copyGuestNames('${booking.id}')"
+                                style="padding: 0.4rem 0.8rem; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: 500; display: flex; align-items: center; gap: 0.4rem;"
+                                onmouseover="this.style.background='#059669'"
+                                onmouseout="this.style.background='#10b981'"
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path>
+                                </svg>
+                                Kopírovat
+                            </button>
+                        </div>
+                        ${groupBookings
+                          .map((gb, idx) => {
+                            if (!gb.guestNames || gb.guestNames.length === 0) return '';
+                            return `
+                            <div style="border-left: 3px solid #f59e0b; padding-left: 0.75rem; margin-bottom: 0.75rem;">
+                              <div style="font-weight: 600; color: #4b5563; font-size: 0.85rem; margin-bottom: 0.5rem;">
+                                Interval ${idx + 1}
+                              </div>
+                              ${this.renderGuestNamesByRoom(gb)}
+                            </div>
+                          `;
+                          })
+                          .join('')}
+                    </div>
+                    `;
+                          })()
+                        : booking.guestNames && booking.guestNames.length > 0
+                          ? `
                     <div>
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
                             <strong style="color: var(--gray-600); font-size: 0.9rem;">Jména hostů (podle pokojů):</strong>
@@ -1184,12 +1490,39 @@ class AdminBookings {
                         ${this.renderGuestNamesByRoom(booking)}
                     </div>
                     `
-                        : ''
+                          : ''
                     }
 
                     <!-- FIXED 2025-12-04: Always show price breakdown with recalculated prices from current settings -->
+                    <!-- FIX 2025-12-09: Show price breakdown for all intervals in grouped bookings -->
                     <div style="margin-bottom: 1rem;">
-                        ${await this.generatePerRoomPriceBreakdown(booking)}
+                        ${
+                          isGroupedBooking
+                            ? await (async () => {
+                                let html = '';
+                                let groupTotal = 0;
+                                for (let i = 0; i < groupBookings.length; i++) {
+                                  const gb = groupBookings[i];
+                                  // SSOT FIX 2025-12-09: Use getBookingPrice instead of stored totalPrice
+                                  groupTotal += this.getBookingPrice(gb, settings);
+                                  html += `
+                                    <div style="border-left: 3px solid #8b5cf6; padding-left: 0.75rem; margin-bottom: 1rem;">
+                                      <div style="font-weight: 600; color: #4b5563; font-size: 0.85rem; margin-bottom: 0.5rem;">
+                                        Interval ${i + 1}
+                                      </div>
+                                      ${await this.generatePerRoomPriceBreakdown(gb)}
+                                    </div>
+                                  `;
+                                }
+                                html += `
+                                  <div style="margin-top: 1rem; padding: 0.75rem; background: #f3f4f6; border-radius: 8px; text-align: right;">
+                                    <strong style="font-size: 1.1rem;">Celková cena skupiny: <span style="color: var(--primary-color);">${groupTotal.toLocaleString('cs-CZ')} Kč</span></strong>
+                                  </div>
+                                `;
+                                return html;
+                              })()
+                            : await this.generatePerRoomPriceBreakdown(booking)
+                        }
                     </div>
 
                     ${
@@ -1225,7 +1558,6 @@ class AdminBookings {
 
                 <div class="modal-actions">
                     <button class="btn btn-secondary" onclick="this.closest('.modal').remove()">Zavřít</button>
-                    <button class="btn btn-primary" onclick="adminPanel.bookings.editBooking('${booking.id}'); this.closest('.modal').remove()">Upravit rezervaci</button>
                 </div>
             </div>
         `;
@@ -1893,24 +2225,52 @@ class AdminBookings {
 
   /**
    * Copy guest names to clipboard
+   * FIX 2025-12-10: For grouped bookings, copy all guests from all intervals
    * @param {string} bookingId - Booking ID to copy guest names from
    */
   async copyGuestNames(bookingId) {
     try {
       const booking = await dataManager.getBooking(bookingId);
-      if (!booking || !booking.guestNames || booking.guestNames.length === 0) {
+      if (!booking) {
+        this.adminPanel.showToast('Rezervace nenalezena', 'warning');
+        return;
+      }
+
+      // FIX 2025-12-10: Get all bookings in group for grouped reservations
+      let allBookings = [booking];
+      if (booking.groupId) {
+        const groupBookings = dataManager.getBookingsByGroupId(booking.groupId);
+        if (groupBookings.length > 1) {
+          allBookings = groupBookings;
+        }
+      }
+
+      // Collect all guest names from all intervals
+      const allGuestNames = [];
+      let totalGuests = 0;
+
+      allBookings.forEach((b, idx) => {
+        if (b.guestNames && b.guestNames.length > 0) {
+          // Add interval header if multiple intervals
+          if (allBookings.length > 1) {
+            allGuestNames.push(`--- Interval ${idx + 1} (${b.startDate} - ${b.endDate}) ---`);
+          }
+          b.guestNames.forEach((guest) => {
+            allGuestNames.push(`${guest.firstName} ${guest.lastName}`);
+            totalGuests++;
+          });
+        }
+      });
+
+      if (totalGuests === 0) {
         this.adminPanel.showToast('Žádná jména hostů k zkopírování', 'warning');
         return;
       }
 
-      // Format: "FirstName LastName\n" for each guest
-      const guestNamesText = booking.guestNames
-        .map((guest) => `${guest.firstName} ${guest.lastName}`)
-        .join('\n');
-
       // Copy to clipboard
-      await navigator.clipboard.writeText(guestNamesText);
-      this.adminPanel.showToast(`Zkopírováno ${booking.guestNames.length} jmen hostů`, 'success');
+      await navigator.clipboard.writeText(allGuestNames.join('\n'));
+      const intervalInfo = allBookings.length > 1 ? ` z ${allBookings.length} intervalů` : '';
+      this.adminPanel.showToast(`Zkopírováno ${totalGuests} jmen hostů${intervalInfo}`, 'success');
     } catch (error) {
       console.error('Chyba při kopírování jmen hostů:', error);
       this.adminPanel.showToast('Nepodařilo se zkopírovat jména hostů', 'error');
@@ -1929,6 +2289,8 @@ class AdminBookings {
     try {
       const settings = await dataManager.getSettings();
       if (!settings) {
+        // FIX 2025-12-11: Log when settings unavailable for price breakdown
+        console.warn('[AdminBookings] Settings not loaded for price breakdown, booking:', booking.id);
         return '';
       }
 
@@ -1939,10 +2301,13 @@ class AdminBookings {
 
       // Check if we have per-room guest data
       if (!booking.perRoomGuests || Object.keys(booking.perRoomGuests).length === 0) {
+        // This is expected for legacy bookings - no warning needed
         return '';
       }
 
       if (!settings.prices) {
+        // FIX 2025-12-11: Log when prices config missing
+        console.warn('[AdminBookings] Missing prices in settings for booking:', booking.id);
         return '';
       }
 
@@ -2282,15 +2647,57 @@ class AdminBookings {
     this.updateBulkActionsUI();
   }
 
-  toggleSelectAll(checked) {
+  // FIX 2025-12-09: Toggle selection for a group (mother booking) - selects all child bookings
+  toggleGroupSelection(groupId, checked) {
+    const parentRow = document.querySelector(`tr[data-group-id="${groupId}"]`);
+    if (!parentRow || !parentRow._groupData) {
+      console.error('[Admin] Group data not found for:', groupId);
+      return;
+    }
+
+    const groupData = parentRow._groupData;
+
+    if (checked) {
+      this.selectedGroups.add(groupId);
+      // Add all child booking IDs to selectedBookings
+      if (groupData.bookings) {
+        groupData.bookings.forEach(booking => {
+          this.selectedBookings.add(booking.id);
+        });
+      }
+    } else {
+      this.selectedGroups.delete(groupId);
+      // Remove all child booking IDs from selectedBookings
+      if (groupData.bookings) {
+        groupData.bookings.forEach(booking => {
+          this.selectedBookings.delete(booking.id);
+        });
+      }
+    }
+
+    this.updateBulkActionsUI();
+  }
+
+  // FIX 2025-12-09: Fixed toggle logic - ignore checked parameter, use actual state
+  toggleSelectAll() {
+    // Determine action: if any are selected, deselect all; otherwise select all
+    const shouldSelect = this.selectedBookings.size === 0 && this.selectedGroups.size === 0;
+
     const checkboxes = document.querySelectorAll('.booking-checkbox');
     checkboxes.forEach((checkbox) => {
       const bookingId = checkbox.getAttribute('data-booking-id');
-      checkbox.checked = checked;
-      if (checked) {
-        this.selectedBookings.add(bookingId);
-      } else {
-        this.selectedBookings.delete(bookingId);
+      const groupId = checkbox.getAttribute('data-group-id');
+      checkbox.checked = shouldSelect;
+
+      if (groupId) {
+        this.toggleGroupSelection(groupId, shouldSelect);
+      } else if (bookingId) {
+        // Regular booking checkbox
+        if (shouldSelect) {
+          this.selectedBookings.add(bookingId);
+        } else {
+          this.selectedBookings.delete(bookingId);
+        }
       }
     });
     this.updateBulkActionsUI();
@@ -2412,7 +2819,24 @@ class AdminBookings {
 
           // Clear selection
           this.selectedBookings.clear();
+          this.selectedGroups.clear();
           this.updateBulkActionsUI();
+
+          // FIX 2025-12-09: Remove group rows if all their children were deleted
+          document.querySelectorAll('tr[data-group-id]').forEach(groupRow => {
+            const groupId = groupRow.getAttribute('data-group-id');
+            const groupData = groupRow._groupData;
+            if (groupData && groupData.bookings) {
+              const remainingBookings = groupData.bookings.filter(b =>
+                !(result.deletedIds || bookingIds).includes(b.id)
+              );
+              if (remainingBookings.length === 0) {
+                groupRow.remove();
+                // Also remove any child rows
+                document.querySelectorAll(`tr[data-parent-group="${groupId}"]`).forEach(r => r.remove());
+              }
+            }
+          });
 
           // Sync with server in background (don't block UI)
           dataManager.syncWithServer(true).catch((error) => {
@@ -2460,32 +2884,55 @@ class AdminBookings {
   /**
    * Print selected bookings
    * Opens a print-friendly view of selected bookings
+   * FIX 2025-12-09: Enhanced to handle groups with all their intervals
    */
   async bulkPrintBookings() {
     const count = this.selectedBookings.size;
-    if (count === 0) {
+    if (count === 0 && this.selectedGroups.size === 0) {
       this.adminPanel.showToast('Vyberte alespoň jednu rezervaci k tisku', 'warning');
       return;
     }
 
     try {
       const settings = await dataManager.getSettings();
-      const bookingsToPrint = [];
 
-      for (const bookingId of this.selectedBookings) {
-        const booking = await dataManager.getBooking(bookingId);
-        if (booking) {
-          bookingsToPrint.push(booking);
+      // Collect groups with their bookings
+      const groupsToPrint = [];
+      const processedBookingIds = new Set();
+
+      for (const groupId of this.selectedGroups) {
+        const groupRow = document.querySelector(`tr[data-group-id="${groupId}"]`);
+        if (groupRow && groupRow._groupData) {
+          const groupData = groupRow._groupData;
+          groupsToPrint.push(groupData);
+          // Mark all child bookings as processed
+          if (groupData.bookings) {
+            groupData.bookings.forEach(b => processedBookingIds.add(b.id));
+          }
         }
       }
 
-      if (bookingsToPrint.length === 0) {
+      // Collect individual bookings not part of selected groups
+      const individualBookings = [];
+      for (const bookingId of this.selectedBookings) {
+        if (!processedBookingIds.has(bookingId)) {
+          const booking = await dataManager.getBooking(bookingId);
+          if (booking) {
+            individualBookings.push(booking);
+          }
+        }
+      }
+
+      if (groupsToPrint.length === 0 && individualBookings.length === 0) {
         this.adminPanel.showToast('Nepodařilo se načíst vybrané rezervace', 'error');
         return;
       }
 
-      // Sort by start date
-      bookingsToPrint.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+      // Sort individual bookings by start date
+      individualBookings.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+
+      // Sort groups by start date
+      groupsToPrint.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
 
       // Create print window
       const printWindow = window.open('', '_blank');
@@ -2496,89 +2943,172 @@ class AdminBookings {
 
       // Generate print content
       let printContent = `
-                <!DOCTYPE html>
-                <html lang="cs">
-                <head>
-                    <meta charset="UTF-8">
-                    <title>Tisk rezervací - Chata Mariánská</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; margin: 20px; font-size: 12px; }
-                        h1 { font-size: 18px; margin-bottom: 10px; }
-                        .booking { border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; page-break-inside: avoid; }
-                        .booking-header { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
-                        .booking-id { font-weight: bold; font-size: 14px; }
-                        .booking-dates { color: #666; }
-                        .booking-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-                        .booking-field { margin-bottom: 5px; }
-                        .field-label { font-weight: bold; color: #555; }
-                        .rooms { display: flex; gap: 5px; flex-wrap: wrap; }
-                        .room-badge { background: #28a745; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; }
-                        .paid { color: #10b981; font-weight: bold; }
-                        .unpaid { color: #ef4444; font-weight: bold; }
-                        .print-date { text-align: right; font-size: 10px; color: #999; margin-bottom: 20px; }
-                        @media print {
-                            .booking { page-break-inside: avoid; }
-                        }
-                    </style>
-                </head>
-                <body>
-                    <h1>Rezervace - Chata Mariánská</h1>
-                    <div class="print-date">Vytištěno: ${new Date().toLocaleString('cs-CZ')}</div>
-            `;
+        <!DOCTYPE html>
+        <html lang="cs">
+        <head>
+          <meta charset="UTF-8">
+          <title>Tisk rezervací - Chata Mariánská</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; font-size: 12px; }
+            h1 { font-size: 18px; margin-bottom: 10px; }
+            .booking, .group { border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; page-break-inside: avoid; }
+            .group { border-color: #4f46e5; border-width: 2px; }
+            .booking-header, .group-header { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
+            .booking-id, .group-id { font-weight: bold; font-size: 14px; }
+            .group-id { color: #4f46e5; }
+            .booking-dates, .group-dates { color: #666; }
+            .booking-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+            .booking-field { margin-bottom: 5px; }
+            .field-label { font-weight: bold; color: #555; }
+            .rooms { display: flex; gap: 5px; flex-wrap: wrap; }
+            .room-badge { background: #28a745; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; }
+            .paid { color: #10b981; font-weight: bold; }
+            .unpaid { color: #ef4444; font-weight: bold; }
+            .print-date { text-align: right; font-size: 10px; color: #999; margin-bottom: 20px; }
+            .intervals-section { margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px; }
+            .intervals-title { font-weight: bold; font-size: 13px; margin-bottom: 10px; color: #333; }
+            .interval { background: #f8f9fa; padding: 10px; margin-bottom: 8px; border-radius: 4px; border-left: 3px solid #4f46e5; }
+            .interval-header { display: flex; justify-content: space-between; margin-bottom: 5px; }
+            .interval-num { font-weight: 600; color: #4f46e5; }
+            .interval-price { font-weight: 600; }
+            .group-total { background: #e0e7ff; padding: 10px; margin-top: 10px; border-radius: 4px; display: flex; justify-content: space-between; font-weight: 600; }
+            @media print {
+              .booking, .group { page-break-inside: avoid; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Rezervace - Chata Mariánská</h1>
+          <div class="print-date">Vytištěno: ${new Date().toLocaleString('cs-CZ')}</div>
+      `;
 
-      for (const booking of bookingsToPrint) {
+      // Print groups with intervals
+      for (const group of groupsToPrint) {
+        const startDate = new Date(group.startDate).toLocaleDateString('cs-CZ');
+        const endDate = new Date(group.endDate).toLocaleDateString('cs-CZ');
+        const allPaid = group.bookings.every(b => b.paid);
+        const paidCount = group.bookings.filter(b => b.paid).length;
+
+        printContent += `
+          <div class="group">
+            <div class="group-header">
+              <span class="group-id">Skupinová rezervace: ${this.escapeHtml(group.groupId)}</span>
+              <span class="group-dates">${startDate} - ${endDate}</span>
+            </div>
+            <div class="booking-grid">
+              <div class="booking-field">
+                <span class="field-label">Jméno:</span> ${this.escapeHtml(group.name)}
+              </div>
+              <div class="booking-field">
+                <span class="field-label">Email:</span> ${this.escapeHtml(group.email)}
+              </div>
+              <div class="booking-field">
+                <span class="field-label">Telefon:</span> ${this.escapeHtml(group.phone || '-')}
+              </div>
+              <div class="booking-field">
+                <span class="field-label">Platba z benefitů:</span> ${group.payFromBenefit ? 'Ano' : 'Ne'}
+              </div>
+            </div>
+            <div class="intervals-section">
+              <div class="intervals-title">Intervaly (${group.bookings.length})</div>
+        `;
+
+        // Sort bookings by start date
+        const sortedBookings = [...group.bookings].sort((a, b) =>
+          new Date(a.startDate) - new Date(b.startDate)
+        );
+
+        sortedBookings.forEach((booking, idx) => {
+          const intervalStart = new Date(booking.startDate).toLocaleDateString('cs-CZ');
+          const intervalEnd = new Date(booking.endDate).toLocaleDateString('cs-CZ');
+          const price = this.getBookingPrice(booking, settings);
+          const nights = Math.ceil((new Date(booking.endDate) - new Date(booking.startDate)) / (1000 * 60 * 60 * 24));
+
+          printContent += `
+            <div class="interval">
+              <div class="interval-header">
+                <span class="interval-num">Interval ${idx + 1}</span>
+                <span class="interval-price">${price.toLocaleString('cs-CZ')} Kč</span>
+              </div>
+              <div style="font-size: 11px; color: #666;">
+                <strong>Datum:</strong> ${intervalStart} - ${intervalEnd} (${nights} ${nights === 1 ? 'noc' : nights <= 4 ? 'noci' : 'nocí'})
+                &nbsp;|&nbsp;
+                <strong>Pokoje:</strong> ${booking.rooms.map(r => `P${r}`).join(', ')}
+                &nbsp;|&nbsp;
+                <strong>Hosté:</strong> ${booking.adults} dosp., ${booking.children} dětí
+                &nbsp;|&nbsp;
+                <span class="${booking.paid ? 'paid' : 'unpaid'}">
+                  ${booking.paid ? '✓ Zaplaceno' : '✗ Nezaplaceno'}
+                </span>
+              </div>
+            </div>
+          `;
+        });
+
+        printContent += `
+            </div>
+            <div class="group-total">
+              <span>Celková cena skupiny:</span>
+              <span>${group.totalPrice.toLocaleString('cs-CZ')} Kč</span>
+            </div>
+            <div style="margin-top: 8px; font-size: 11px; ${allPaid ? 'color: #10b981;' : 'color: #ef4444;'}">
+              <strong>Stav platby:</strong>
+              ${allPaid ? '✓ Všechny intervaly zaplaceny' : `${paidCount}/${group.bookings.length} intervalů zaplaceno`}
+            </div>
+          </div>
+        `;
+      }
+
+      // Print individual bookings
+      for (const booking of individualBookings) {
         const price = this.getBookingPrice(booking, settings);
         const startDate = new Date(booking.startDate).toLocaleDateString('cs-CZ');
         const endDate = new Date(booking.endDate).toLocaleDateString('cs-CZ');
 
         printContent += `
-                    <div class="booking">
-                        <div class="booking-header">
-                            <span class="booking-id">${this.escapeHtml(booking.id)}</span>
-                            <span class="booking-dates">${startDate} - ${endDate}</span>
-                        </div>
-                        <div class="booking-grid">
-                            <div class="booking-field">
-                                <span class="field-label">Jméno:</span> ${this.escapeHtml(booking.name)}
-                            </div>
-                            <div class="booking-field">
-                                <span class="field-label">Email:</span> ${this.escapeHtml(booking.email)}
-                            </div>
-                            <div class="booking-field">
-                                <span class="field-label">Telefon:</span> ${this.escapeHtml(booking.phone)}
-                            </div>
-                            <div class="booking-field">
-                                <span class="field-label">Hosté:</span> ${booking.adults} dosp., ${booking.children} dětí, ${booking.toddlers || 0} bat.
-                            </div>
-                            <div class="booking-field">
-                                <span class="field-label">Pokoje:</span>
-                                <span class="rooms">${booking.rooms.map((r) => `<span class="room-badge">P${r}</span>`).join('')}</span>
-                            </div>
-                            <div class="booking-field">
-                                <span class="field-label">Cena:</span> ${price.toLocaleString('cs-CZ')} Kč
-                            </div>
-                            <div class="booking-field">
-                                <span class="field-label">Zaplaceno:</span>
-                                <span class="${booking.paid ? 'paid' : 'unpaid'}">${booking.paid ? 'Ano' : 'Ne'}</span>
-                            </div>
-                            ${
-                              booking.notes
-                                ? `
-                            <div class="booking-field" style="grid-column: 1 / -1;">
-                                <span class="field-label">Poznámky:</span> ${this.escapeHtml(booking.notes)}
-                            </div>
-                            `
-                                : ''
-                            }
-                        </div>
-                    </div>
-                `;
+          <div class="booking">
+            <div class="booking-header">
+              <span class="booking-id">${this.escapeHtml(booking.id)}</span>
+              <span class="booking-dates">${startDate} - ${endDate}</span>
+            </div>
+            <div class="booking-grid">
+              <div class="booking-field">
+                <span class="field-label">Jméno:</span> ${this.escapeHtml(booking.name)}
+              </div>
+              <div class="booking-field">
+                <span class="field-label">Email:</span> ${this.escapeHtml(booking.email)}
+              </div>
+              <div class="booking-field">
+                <span class="field-label">Telefon:</span> ${this.escapeHtml(booking.phone)}
+              </div>
+              <div class="booking-field">
+                <span class="field-label">Hosté:</span> ${booking.adults} dosp., ${booking.children} dětí, ${booking.toddlers || 0} bat.
+              </div>
+              <div class="booking-field">
+                <span class="field-label">Pokoje:</span>
+                <span class="rooms">${booking.rooms.map((r) => `<span class="room-badge">P${r}</span>`).join('')}</span>
+              </div>
+              <div class="booking-field">
+                <span class="field-label">Cena:</span> ${price.toLocaleString('cs-CZ')} Kč
+              </div>
+              <div class="booking-field">
+                <span class="field-label">Zaplaceno:</span>
+                <span class="${booking.paid ? 'paid' : 'unpaid'}">${booking.paid ? 'Ano' : 'Ne'}</span>
+              </div>
+              ${booking.notes ? `
+              <div class="booking-field" style="grid-column: 1 / -1;">
+                <span class="field-label">Poznámky:</span> ${this.escapeHtml(booking.notes)}
+              </div>
+              ` : ''}
+            </div>
+          </div>
+        `;
       }
 
       printContent += `
-                </body>
-                </html>
-            `;
+        </body>
+        </html>
+      `;
 
       printWindow.document.write(printContent);
       printWindow.document.close();
@@ -2588,7 +3118,9 @@ class AdminBookings {
         printWindow.print();
       };
 
-      this.adminPanel.showSuccessMessage(`Připraveno k tisku: ${bookingsToPrint.length} rezervací`);
+      this.adminPanel.showSuccessMessage(
+        `Připraveno k tisku: ${groupsToPrint.length > 0 ? `${groupsToPrint.length} skupin` : ''}${groupsToPrint.length > 0 && individualBookings.length > 0 ? ' a ' : ''}${individualBookings.length > 0 ? `${individualBookings.length} rezervací` : ''}`
+      );
     } catch (error) {
       console.error('Chyba při přípravě tisku:', error);
       this.adminPanel.showToast('Chyba při přípravě tisku', 'error');
@@ -2641,6 +3173,129 @@ class AdminBookings {
       this.adminPanel.showToast(`Chyba: ${error.message}`, 'error');
       // Revert checkbox state
       await this.loadBookings();
+    }
+  }
+
+  /**
+   * FIX 2025-12-09: Toggle paid status for a specific interval in a grouped booking
+   * After updating, refreshes the detail modal to show the new state
+   * @param {string} intervalBookingId - The booking ID of the interval to update
+   * @param {boolean} paid - New paid status
+   * @param {string} _originalBookingId - The booking ID used to open the modal (for refresh) - unused but kept for API compatibility
+   */
+  async toggleIntervalPaid(intervalBookingId, paid, _originalBookingId) {
+    // FIX 2025-12-11: validateSession is synchronous - removed unnecessary await
+    if (!this.adminPanel.validateSession()) {
+      return;
+    }
+
+    try {
+      // Get the interval booking data
+      const booking = await dataManager.getBooking(intervalBookingId);
+      if (!booking) {
+        this.adminPanel.showToast('Interval nenalezen', 'error');
+        return;
+      }
+
+      // FIX 2025-12-09: Only send paid field to avoid guestNames vs perRoomGuests validation mismatch
+      // Sending entire booking object caused validation error for bulk bookings where
+      // perRoomGuests (90 guests across 9 rooms) != guestNames.length (10 actual guests)
+      const sessionToken = sessionStorage.getItem('adminSessionToken');
+      const response = await fetch(`/api/booking/${intervalBookingId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-session-token': sessionToken,
+        },
+        body: JSON.stringify({ paid }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+
+      // Sync data and refresh bookings list
+      await dataManager.syncWithServer();
+      await this.loadBookings();
+
+      this.adminPanel.showSuccessMessage(
+        `Interval označen jako ${paid ? 'zaplacený' : 'nezaplacený'}`
+      );
+    } catch (error) {
+      console.error('Chyba při změně stavu platby intervalu:', error);
+      this.adminPanel.showToast(`Chyba: ${error.message}`, 'error');
+      // Refresh table to revert checkbox state
+      await this.loadBookings();
+    }
+  }
+
+  /**
+   * FIX 2025-12-09: Delete a single interval from a grouped booking (from table view)
+   * @param {string} intervalBookingId - The booking ID of the interval to delete
+   * @param {string} parentGroupId - The group ID (for determining if group should collapse)
+   */
+  async deleteInterval(intervalBookingId, parentGroupId) {
+    // FIX 2025-12-11: validateSession is synchronous - removed unnecessary await
+    if (!this.adminPanel.validateSession()) {
+      return;
+    }
+
+    // Confirm deletion
+    const booking = await dataManager.getBooking(intervalBookingId);
+    if (!booking) {
+      this.adminPanel.showToast('Interval nenalezen', 'error');
+      return;
+    }
+
+    const roomName = booking.rooms?.map((r) => `P${r}`).join(', ') || 'Neznámý pokoj';
+    const dateRange = `${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}`;
+
+    if (!confirm(`Opravdu chcete smazat tento interval?\n\n${roomName}\n${dateRange}\n\nTato akce je nevratná.`)) {
+      return;
+    }
+
+    try {
+      const sessionToken = sessionStorage.getItem('adminSessionToken');
+
+      // Delete the interval booking
+      const response = await fetch(`/api/booking/${intervalBookingId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-session-token': sessionToken,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+
+      // Remove the child row from DOM immediately for instant feedback
+      const childRow = document.querySelector(`tr[data-booking-id="${intervalBookingId}"]`);
+      if (childRow) {
+        childRow.remove();
+      }
+
+      // Sync data and refresh table (will update group row totals)
+      await dataManager.syncWithServer(true); // Force sync
+      await this.loadBookings();
+
+      // Re-expand the group if it still exists
+      if (parentGroupId) {
+        setTimeout(() => {
+          const parentRow = document.querySelector(`tr[data-group-id="${parentGroupId}"]`);
+          if (parentRow) {
+            this.toggleGroupExpand(parentGroupId);
+          }
+        }, 50);
+      }
+
+      this.adminPanel.showSuccessMessage('Interval byl smazán');
+    } catch (error) {
+      console.error('Chyba při mazání intervalu:', error);
+      this.adminPanel.showToast(`Chyba: ${error.message}`, 'error');
     }
   }
 }

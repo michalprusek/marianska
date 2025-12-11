@@ -263,7 +263,11 @@
 
   /**
    * Displays a notification toast message to the user.
-   * This is the SSOT (Single Source of Truth) implementation for notifications.
+   *
+   * NOTE 2025-12-08: For new code, prefer using NotificationManager:
+   *   window.notificationManager.show(message, type, duration)
+   * NotificationManager provides better animation and positioning.
+   * This function is kept for backwards compatibility.
    *
    * @param {string} message - The message to display
    * @param {string} [type='info'] - Notification type: 'success', 'error', 'warning', 'info'

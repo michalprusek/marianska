@@ -332,12 +332,10 @@ class BookingApp {
     }
   }
 
+  // FIX 2025-12-08: Delegate to DateUtils (SSOT for date calculations)
   calculateNights(startDate, endDate) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diffTime = Math.abs(end - start);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return Math.max(1, diffDays);
+    const nights = DateUtils.getDaysBetween(startDate, endDate);
+    return Math.max(1, nights); // Ensure minimum 1 night
   }
 
   setupEventListeners() {

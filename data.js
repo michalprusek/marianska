@@ -283,15 +283,15 @@ class DataManager {
           { id: '43', name: 'Pokoj 43', type: 'small', beds: 2 },
           { id: '44', name: 'Pokoj 44', type: 'large', beds: 4 },
         ],
-        // NEW (2025-10-17): Room-size-based pricing
+        // FIX 2025-12-10: Use 'empty' field (SSOT with PriceCalculator and database)
         prices: {
           utia: {
-            small: { base: 300, adult: 50, child: 25 },
-            large: { base: 400, adult: 50, child: 25 },
+            small: { empty: 250, adult: 50, child: 25 },
+            large: { empty: 350, adult: 50, child: 25 },
           },
           external: {
-            small: { base: 500, adult: 100, child: 50 },
-            large: { base: 600, adult: 100, child: 50 },
+            small: { empty: 400, adult: 100, child: 50 },
+            large: { empty: 500, adult: 100, child: 50 },
           },
         },
         bulkPrices: {
@@ -437,6 +437,70 @@ class DataManager {
     }
   }
 
+  // FIX 2025-12-09: Create grouped booking (multiple reservations in one transaction)
+  async createGroupedBooking(groupedPayload) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+      const response = await fetch(`${this.apiUrl}/booking/group`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(groupedPayload),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[DataManager] Grouped booking error:', {
+          error: errorData,
+          reservationCount: groupedPayload.reservations?.length,
+          timestamp: new Date().toISOString(),
+        });
+
+        if (response.status === 429) {
+          throw new Error(
+            errorData.error || 'Překročili jste limit. Zkuste to prosím později.'
+          );
+        }
+
+        if (response.status === 409) {
+          throw new Error(
+            errorData.error || 'Některý z termínů již není dostupný.'
+          );
+        }
+
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      // Force refresh from server to update local cache
+      await this.syncWithServer(true);
+
+      return result;
+    } catch (error) {
+      console.error('Error creating grouped booking:', error);
+
+      if (error.name === 'AbortError') {
+        throw new Error('Požadavek vypršel - zkuste to prosím znovu');
+      }
+
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        throw new Error(
+          'Server není dostupný. Rezervace nebyla vytvořena. ' +
+          'Zkontrolujte připojení k internetu a zkuste to znovu.'
+        );
+      }
+
+      throw error;
+    }
+  }
+
   async updateBooking(bookingId, updates) {
     const data = await this.getData();
     const index = data.bookings.findIndex((b) => b.id === bookingId);
@@ -514,6 +578,14 @@ class DataManager {
   async getBooking(bookingId) {
     const data = await this.getData();
     return data.bookings.find((b) => b.id === bookingId);
+  }
+
+  // FIX 2025-12-09: Get all bookings in a group for grouped booking detail display
+  getBookingsByGroupId(groupId) {
+    if (!groupId || !this.cachedData?.bookings) return [];
+    return this.cachedData.bookings
+      .filter((b) => b.groupId === groupId)
+      .sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
   }
 
   async getBookingByEditToken(token) {
@@ -1431,10 +1503,11 @@ class DataManager {
     }
 
     // Update local cache (outside try-catch - let programming errors bubble up)
-    if (this.data?.bookings) {
-      const index = this.data.bookings.findIndex((b) => b.id === bookingId);
+    // FIX 2025-12-08: Use cachedData (SSOT) instead of undefined this.data
+    if (this.cachedData?.bookings) {
+      const index = this.cachedData.bookings.findIndex((b) => b.id === bookingId);
       if (index !== -1) {
-        this.data.bookings[index] = result.booking;
+        this.cachedData.bookings[index] = result.booking;
       }
     }
 
@@ -1499,8 +1572,9 @@ class DataManager {
     }
 
     // Update local cache (outside try-catch)
-    if (this.data?.bookings) {
-      this.data.bookings = this.data.bookings.filter((b) => b.id !== bookingId);
+    // FIX 2025-12-08: Use cachedData (SSOT) instead of undefined this.data
+    if (this.cachedData?.bookings) {
+      this.cachedData.bookings = this.cachedData.bookings.filter((b) => b.id !== bookingId);
     }
 
     return true;

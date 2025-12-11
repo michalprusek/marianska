@@ -29,31 +29,22 @@ class BookingFormModule {
     return document.querySelector('#bookingForm button[type="submit"]');
   }
 
-  /**
-   * Sets the submit button to loading state
-   */
+  // FIX 2025-12-08: Delegate to FormSubmissionHelper (SSOT for button loading states)
   setSubmitButtonLoading(loading) {
     const button = this.getSubmitButton();
     if (!button) {
       return;
     }
 
-    if (loading) {
-      button.disabled = true;
-      button.dataset.originalText = button.textContent;
-      button.textContent =
-        this.app.currentLanguage === 'cs' ? '⏳ Zpracování...' : '⏳ Processing...';
-      button.style.opacity = '0.7';
-      button.style.cursor = 'not-allowed';
-    } else {
-      button.disabled = false;
-      if (button.dataset.originalText) {
-        button.textContent = button.dataset.originalText;
-        delete button.dataset.originalText;
-      }
-      button.style.opacity = '';
-      button.style.cursor = '';
+    // Create helper on demand with current button and language
+    if (!this._submitHelper || this._submitHelper.getButton() !== button) {
+      this._submitHelper = new FormSubmissionHelper({
+        button: button,
+        language: this.app.currentLanguage,
+      });
     }
+
+    this._submitHelper.setLoading(loading);
   }
 
   showBookingForm() {

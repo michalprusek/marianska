@@ -1151,22 +1151,25 @@ Pro odpověď použijte Reply nebo přímo email: ${contactData.senderEmail}
 
   /**
    * Generate plain text template for custom email to booker
+   * FIX 2025-12-10: Removed greeting, added edit link and reservation context
    * @param {Object} emailData - Email data
    * @returns {string} Plain text email content
    */
   generateCustomEmailToBookerText(emailData) {
     const timestamp = this.generateTimestamp();
+    const editUrl = emailData.editToken
+      ? `${this.config.appUrl}/edit.html?token=${emailData.editToken}`
+      : this.config.appUrl;
 
     return `CHATA MARIÁNSKÁ - Zpráva ohledně Vaší rezervace
 
-Píše Vám uživatel: ${emailData.senderEmail || 'neuvedeno'}
-
-Dobrý den ${emailData.bookingOwnerName || ''},
+Uživatel vám posílá zprávu v rámci rezervace ${emailData.bookingId || 'neuvedeno'}:
+${editUrl}
 
 ${emailData.message}
 
 ---
-Rezervace: ${emailData.bookingId || 'neuvedeno'}
+Od: ${emailData.senderEmail || 'neuvedeno'}
 Odesláno: ${timestamp}
 Web: ${this.config.appUrl}
     `.trim();

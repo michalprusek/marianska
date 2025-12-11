@@ -120,7 +120,6 @@ class AdminPanel {
         await this.settings.loadRoomConfig();
         await this.settings.loadPriceConfig();
         await this.settings.loadBulkPriceConfig();
-        await this.settings.loadBulkPriceConfig();
         // Christmas settings moved to separate tab
         break;
       case 'blocked':
@@ -202,8 +201,9 @@ class AdminPanel {
     return this.bookings.togglePaidStatus(bookingId, paid);
   }
 
-  toggleSelectAll(checked) {
-    return this.bookings.toggleSelectAll(checked);
+  // FIX 2025-12-11: Removed parameter - toggleSelectAll now determines state internally
+  toggleSelectAll() {
+    return this.bookings.toggleSelectAll();
   }
 
   toggleBookingSelection(bookingId, checked) {
