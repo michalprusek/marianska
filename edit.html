@@ -106,6 +106,39 @@
         </div>
       </div>
 
+      <!-- Interval Selector (for grouped bookings with multiple intervals) -->
+      <div id="intervalSelectorContainer" style="display: none;">
+        <div class="edit-card">
+          <div class="edit-card-header">
+            <h2 data-translate="selectIntervalToEdit">Vyberte interval k úpravě</h2>
+            <p class="edit-card-subtitle" data-translate="groupedBookingInfo">
+              Tato rezervace obsahuje více intervalů. Vyberte interval, který chcete upravit.
+            </p>
+          </div>
+
+          <!-- Group Info Summary -->
+          <div id="groupInfoSummary" class="booking-summary-card">
+            <!-- Will be populated by JS -->
+          </div>
+
+          <!-- Intervals Grid -->
+          <div id="intervalsGrid" class="intervals-grid">
+            <!-- Interval cards will be populated by JS -->
+          </div>
+
+          <!-- Total Price -->
+          <div class="group-total-section">
+            <span data-translate="totalGroupPrice">Celková cena skupiny:</span>
+            <span id="totalGroupPrice" class="total-price">0 Kč</span>
+          </div>
+
+          <!-- Actions -->
+          <div class="edit-card-actions">
+            <a href="/" class="btn btn-secondary" data-translate="close">Zavřít</a>
+          </div>
+        </div>
+      </div>
+
       <!-- Edit Form Container (for single room / bulk - uses modals) -->
       <div id="editFormContainer" style="display: none;">
         <!-- This will trigger the modal-based edit -->
@@ -822,6 +855,148 @@
       font-weight: 500;
     }
 
+    /* FIX 2025-12-11: Interval Selector Styles */
+    .intervals-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding: 1.5rem 2rem;
+    }
+
+    .interval-card {
+      background: white;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 1.25rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: grid;
+      grid-template-columns: auto 1fr auto auto;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .interval-card:hover:not(.interval-locked) {
+      border-color: var(--primary-color, #0d9488);
+      box-shadow: 0 4px 12px rgba(13, 148, 136, 0.15);
+      transform: translateY(-2px);
+    }
+
+    .interval-card.interval-locked {
+      opacity: 0.7;
+      cursor: not-allowed;
+      background: #f9fafb;
+    }
+
+    .interval-card.interval-locked:hover {
+      border-color: #e2e8f0;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .interval-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .interval-number {
+      background: var(--primary-color, #0d9488);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+
+    .interval-locked .interval-number {
+      background: #9ca3af;
+    }
+
+    .lock-icon {
+      font-size: 1rem;
+    }
+
+    .interval-details {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .interval-dates {
+      font-weight: 500;
+      color: #374151;
+    }
+
+    .interval-rooms {
+      font-size: 0.9rem;
+      color: #6b7280;
+    }
+
+    .interval-guests {
+      font-size: 0.85rem;
+      color: #9ca3af;
+    }
+
+    .bulk-badge {
+      display: inline-block;
+      background: #f3e8ff;
+      color: #7c3aed;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      margin-top: 0.25rem;
+    }
+
+    .interval-price {
+      font-weight: 600;
+      color: var(--primary-color, #0d9488);
+      font-size: 1rem;
+      min-width: 100px;
+      text-align: right;
+    }
+
+    .interval-arrow {
+      color: #9ca3af;
+      font-size: 1.25rem;
+      width: 24px;
+      text-align: center;
+      transition: transform 0.2s, color 0.2s;
+    }
+
+    .interval-card:hover:not(.interval-locked) .interval-arrow {
+      transform: translateX(4px);
+      color: var(--primary-color, #0d9488);
+    }
+
+    .group-total-section {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      background: #f0f9ff;
+      border-top: 1px solid #e2e8f0;
+      font-size: 1rem;
+    }
+
+    .group-total-section .total-price {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--primary-color, #0d9488);
+    }
+
+    .contact-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: #f1f5f9;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      color: #475569;
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       .room-cards-grid {
@@ -847,6 +1022,35 @@
 
       .booking-actions .btn {
         width: 100%;
+      }
+
+      /* Interval selector responsive */
+      .interval-card {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+      }
+
+      .interval-header {
+        justify-content: space-between;
+      }
+
+      .interval-price {
+        text-align: left;
+      }
+
+      .interval-arrow {
+        display: none;
+      }
+
+      .intervals-grid {
+        padding: 1rem;
+      }
+
+      .group-total-section {
+        padding: 1rem;
+        flex-direction: column;
+        gap: 0.5rem;
+        text-align: center;
       }
     }
   </style>

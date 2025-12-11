@@ -579,6 +579,15 @@ const translations = {
     // Edit page translations
     selectRoomToEdit: 'Vyberte pokoj k úpravě',
     multiRoomInfo: 'Tato rezervace obsahuje více pokojů. Vyberte pokoj, který chcete upravit.',
+    // FIX 2025-12-11: Grouped booking interval selector translations
+    selectIntervalToEdit: 'Vyberte interval k úpravě',
+    groupedBookingInfo: 'Tato rezervace obsahuje více intervalů. Vyberte interval, který chcete upravit.',
+    interval: 'Interval',
+    intervals: 'intervalů',
+    totalGroupPrice: 'Celková cena skupiny:',
+    wholeCottage: 'Celá chata',
+    intervalNotFound: 'Interval nebyl nalezen',
+    close: 'Zavřít',
     backToMain: 'Zpět na hlavní stránku',
     deleteEntireBooking: 'Smazat celou rezervaci',
     loadingBooking: 'Načítání rezervace...',
@@ -1239,6 +1248,15 @@ const translations = {
     // Edit page translations
     selectRoomToEdit: 'Select room to edit',
     multiRoomInfo: 'This reservation includes multiple rooms. Select the room you want to edit.',
+    // FIX 2025-12-11: Grouped booking interval selector translations
+    selectIntervalToEdit: 'Select interval to edit',
+    groupedBookingInfo: 'This reservation contains multiple intervals. Select the interval you want to edit.',
+    interval: 'Interval',
+    intervals: 'intervals',
+    totalGroupPrice: 'Total group price:',
+    wholeCottage: 'Whole cottage',
+    intervalNotFound: 'Interval not found',
+    close: 'Close',
     backToMain: 'Back to main page',
     deleteEntireBooking: 'Delete entire booking',
     loadingBooking: 'Loading reservation...',

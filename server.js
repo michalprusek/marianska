@@ -503,6 +503,17 @@ app.post('/api/data', writeLimiter, requireApiKeyOrSession, (req, res) => {
     // CRITICAL FIX: Remove nested transactions - each method has its own transaction
     // Just call methods sequentially instead of wrapping in outer transaction
 
+    // FIX 2025-12-11: Preserve group_id mappings before deletion
+    // The insertBooking statement doesn't include group_id, so we need to restore it after re-insert
+    const groupIdMap = new Map();
+    const existingBookings = db.getAllBookings();
+    existingBookings.forEach(b => {
+      if (b.groupId) {
+        groupIdMap.set(b.id, b.groupId);
+      }
+    });
+    logger.info('Preserved group_id mappings before data save', { count: groupIdMap.size });
+
     // Clear existing data
     db.db.exec('DELETE FROM bookings');
     db.db.exec('DELETE FROM booking_rooms');
@@ -513,6 +524,12 @@ app.post('/api/data', writeLimiter, requireApiKeyOrSession, (req, res) => {
     if (dataToSave.bookings && dataToSave.bookings.length > 0) {
       for (const booking of dataToSave.bookings) {
         db.createBooking(booking);
+
+        // FIX 2025-12-11: Restore group_id if it existed before deletion
+        const originalGroupId = groupIdMap.get(booking.id);
+        if (originalGroupId) {
+          db.statements.updateBookingGroupId.run(originalGroupId, new Date().toISOString(), booking.id);
+        }
       }
     }
 
@@ -1291,9 +1308,14 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       return res.status(404).json({ error: 'Rezervace nenalezena' });
     }
 
+    // FIX 2025-12-11: Extract skipOwnerEmail flag before merging (not a booking field)
+    // NOTE: This flag is only honored for admin requests (checked later after isAdmin is determined)
+    const skipOwnerEmailRequested = req.body.skipOwnerEmail === true;
+
     // Merge existing booking with incoming changes (partial update support)
     // This allows updating only specific fields like name, email, phone etc.
-    const bookingData = { ...existingBooking, ...req.body };
+    const { skipOwnerEmail: _, ...bodyWithoutSkipFlag } = req.body;
+    const bookingData = { ...existingBooking, ...bodyWithoutSkipFlag };
 
     // DRY: Use shared helper for admin session validation
     const { isAdmin, error: sessionError } = validateAdminSession(req);
@@ -1893,29 +1915,39 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
     }
 
     // Send notification emails
-    // 1. Send to user (booking owner) about the modification
+    // 1. Send to user (booking owner) about the modification (unless skipOwnerEmail is true)
     // 2. Send to admins and cabin managers based on change type
     try {
-      // Send modification email to the user (non-blocking)
-      emailService
-        .sendBookingModification(updatedBooking, changes, {
-          modifiedByAdmin: isAdmin,
-          settings,
-        })
-        .then((userEmailResult) => {
-          logger.info('User modification email sent', {
-            bookingId: updatedBooking.id,
-            email: updatedBooking.email,
-            messageId: userEmailResult?.messageId || 'unknown',
+      // FIX 2025-12-11: Allow admin to skip owner email notification
+      // Security: Only honor skipOwnerEmail if request is from admin
+      const skipOwnerEmail = isAdmin && skipOwnerEmailRequested;
+      if (!skipOwnerEmail) {
+        // Send modification email to the user (non-blocking)
+        emailService
+          .sendBookingModification(updatedBooking, changes, {
+            modifiedByAdmin: isAdmin,
+            settings,
+          })
+          .then((userEmailResult) => {
+            logger.info('User modification email sent', {
+              bookingId: updatedBooking.id,
+              email: updatedBooking.email,
+              messageId: userEmailResult?.messageId || 'unknown',
+            });
+          })
+          .catch((userEmailError) => {
+            logger.error('Failed to send user modification email', {
+              bookingId: updatedBooking.id,
+              email: updatedBooking.email,
+              error: userEmailError.message,
+            });
           });
-        })
-        .catch((userEmailError) => {
-          logger.error('Failed to send user modification email', {
-            bookingId: updatedBooking.id,
-            email: updatedBooking.email,
-            error: userEmailError.message,
-          });
+      } else {
+        logger.info('Owner email notification skipped by admin request', {
+          bookingId: updatedBooking.id,
+          email: updatedBooking.email,
         });
+      }
 
       // FIX 2025-12-02: Send to admins and cabin managers NON-BLOCKING
       // Previously, awaiting email caused delays when SMTP was slow/unreachable
@@ -2793,6 +2825,23 @@ app.delete('/api/admin/christmas-periods/:periodId', requireApiKeyOrSession, (re
   } catch (error) {
     logger.error('deleting Christmas period:', error);
     return res.status(500).json({ error: 'Chyba při mazání vánočního období' });
+  }
+});
+
+// FIX 2025-12-11: Migration endpoint to fix ungrouped bookings
+// Groups bookings by email + created_at timestamp (same moment = same booking session)
+app.post('/api/admin/migrate-ungrouped-bookings', requireSession, (req, res) => {
+  try {
+    const result = db.migrateUngroupedBookings();
+    logger.info('Migration completed', result);
+    return res.json({
+      success: true,
+      message: `Migrace dokončena: vytvořeno ${result.groupsCreated} skupin, migrováno ${result.bookingsMigrated} rezervací`,
+      ...result
+    });
+  } catch (error) {
+    logger.error('Migration failed:', error);
+    return res.status(500).json({ error: 'Chyba při migraci rezervací' });
   }
 });
 

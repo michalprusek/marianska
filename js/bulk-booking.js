@@ -222,6 +222,10 @@ class BulkBookingModule {
     // When CREATING new reservation: show ALL proposed bookings including user's own (warning about overlaps)
     this.bulkCalendar.config.sessionId = this.app.editingReservation ? this.app.sessionId : '';
 
+    // FIX 2025-12-11: Exclude current booking from availability check when editing
+    // This allows modifying dates without seeing the original booking as blocked (red)
+    this.bulkCalendar.config.currentEditingBookingId = this.adminEditContext?.booking?.id || null;
+
     // Render calendar
     await this.bulkCalendar.render();
   }

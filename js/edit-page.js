@@ -194,6 +194,7 @@ class EditPage {
     this.currentBooking = null;
     this.isEditLocked = false;
     this.settings = null;
+    this.groupContext = null; // FIX 2025-12-11: Context for grouped booking interval selection
 
     // Create UserModeApp stub for booking modules
     this.app = new UserModeApp(this);
@@ -321,6 +322,12 @@ class EditPage {
         contactEmailDisplay.textContent = contactEmail;
       }
 
+      // FIX 2025-12-11: Check if this is a grouped booking (mother with child intervals)
+      if (this.currentBooking.groupId) {
+        await this.handleGroupedBooking();
+        return;
+      }
+
       // Check if booking is paid - takes priority over deadline
       if (this.currentBooking.paid) {
         this.isEditLocked = true;
@@ -362,6 +369,334 @@ class EditPage {
     const daysUntilStart = this.calculateDaysUntilStart();
     return daysUntilStart < 3;
   }
+
+  // ============================================================
+  // FIX 2025-12-11: Grouped booking (interval selection) methods
+  // ============================================================
+
+  /**
+   * Handle grouped booking - show interval selector instead of direct edit
+   */
+  async handleGroupedBooking() {
+    // Hide loading state
+    const loadingState = document.getElementById('loadingState');
+    if (loadingState) {
+      loadingState.style.display = 'none';
+    }
+
+    // Fetch all bookings in the group
+    const groupBookings = dataManager.getBookingsByGroupId(this.currentBooking.groupId);
+
+    // FIX 2025-12-11: Distinguish between fetch failure and empty result
+    if (groupBookings === null || groupBookings === undefined) {
+      console.error('[EditPage] Failed to fetch group bookings - dataManager returned null', {
+        groupId: this.currentBooking.groupId,
+      });
+      this.showError(this.t('errorLoadingBooking'));
+      return;
+    }
+
+    if (groupBookings.length === 0) {
+      // This should never happen - a group with zero bookings is invalid data
+      console.error('[EditPage] Group has zero bookings - data integrity issue', {
+        groupId: this.currentBooking.groupId,
+      });
+      this.showError(this.t('errorLoadingBooking'));
+      return;
+    }
+
+    // Store group context for returning after edit
+    this.groupContext = {
+      editToken: this.editToken,
+      groupId: this.currentBooking.groupId,
+      bookings: groupBookings,
+      originalBookingId: this.currentBooking.id,
+    };
+
+    // Single interval in group? Skip selector, edit directly
+    if (groupBookings.length === 1) {
+      await this.continueWithSingleBooking();
+      return;
+    }
+
+    // Show interval selector
+    this.openIntervalSelectorModal(groupBookings);
+  }
+
+  /**
+   * Continue with single booking flow (after group check or for single-interval groups)
+   */
+  async continueWithSingleBooking() {
+    // Check if booking is paid - takes priority over deadline
+    if (this.currentBooking.paid) {
+      this.isEditLocked = true;
+      this.displayPaidBookingWarning();
+    } else {
+      // Check 3-day edit deadline
+      this.isEditLocked = this.checkEditDeadline();
+
+      if (this.isEditLocked) {
+        this.displayEditDeadlineWarning();
+      } else {
+        // Route to appropriate modal based on booking type
+        await this.routeToAppropriateModal();
+      }
+    }
+
+    // Hide loading
+    const loadingState = document.getElementById('loadingState');
+    if (loadingState) {
+      loadingState.style.display = 'none';
+    }
+  }
+
+  /**
+   * Open interval selector modal for grouped bookings
+   * Shows all intervals with their status (editable/locked)
+   */
+  openIntervalSelectorModal(groupBookings) {
+    // Calculate total group price
+    let totalGroupPrice = 0;
+
+    // Build intervals HTML
+    let intervalsHtml = '';
+
+    groupBookings.forEach((booking, idx) => {
+      // Use stored totalPrice or calculate
+      const price = booking.totalPrice || 0;
+      totalGroupPrice += price;
+
+      // Check if this interval is locked
+      const isLocked = this.checkIntervalLocked(booking);
+      const lockReason = this.getIntervalLockReason(booking);
+
+      // Format display
+      const dateRange = this.getDateRangeDisplay(booking);
+      const roomsDisplay = booking.rooms?.map((r) => `P${r}`).join(', ') || 'N/A';
+      const guestStr = this.getGuestSummary(booking);
+
+      const lockedClass = isLocked ? 'interval-locked' : '';
+      const lockedIcon = isLocked ? '<span class="lock-icon">🔒</span>' : '';
+      // FIX 2025-12-11: Use JSON.stringify for JavaScript string context to prevent XSS
+      // escapeHtml doesn't escape single quotes which could break out of JS string
+      const safeBookingId = JSON.stringify(booking.id || '').slice(1, -1);
+      const safeLockReason = JSON.stringify(lockReason || '').slice(1, -1);
+      const clickHandler = isLocked
+        ? `onclick="editPage.showLockedIntervalMessage('${safeLockReason}')"`
+        : `onclick="editPage.selectIntervalForEdit('${safeBookingId}')"`;
+
+      intervalsHtml += `
+        <div class="interval-card ${lockedClass}" ${clickHandler}>
+          <div class="interval-header">
+            <div class="interval-number">${this.t('interval')} ${idx + 1}</div>
+            ${lockedIcon}
+          </div>
+          <div class="interval-details">
+            <div class="interval-dates">${dateRange}</div>
+            <div class="interval-rooms">${roomsDisplay}</div>
+            <div class="interval-guests">${guestStr}</div>
+            ${booking.isBulkBooking ? '<span class="bulk-badge">' + this.t('wholeCottage') + '</span>' : ''}
+          </div>
+          <div class="interval-price">${price.toLocaleString('cs-CZ')} Kč</div>
+          <div class="interval-arrow">${isLocked ? '' : '→'}</div>
+        </div>
+      `;
+    });
+
+    // Get container elements
+    const container = document.getElementById('intervalSelectorContainer');
+    const intervalsGrid = document.getElementById('intervalsGrid');
+    const groupInfoSummary = document.getElementById('groupInfoSummary');
+    const totalPriceDisplay = document.getElementById('totalGroupPrice');
+
+    // Populate content
+    if (groupInfoSummary) {
+      const booking = groupBookings[0];
+      groupInfoSummary.innerHTML = `
+        <div class="contact-badge"><span>👤</span><span>${this.escapeHtml(booking.name || '')}</span></div>
+        <div class="contact-badge"><span>📧</span><span>${this.escapeHtml(booking.email || '')}</span></div>
+        <div class="contact-badge"><span>📅</span><span>${groupBookings.length} ${this.t('intervals')}</span></div>
+      `;
+    }
+
+    if (intervalsGrid) {
+      intervalsGrid.innerHTML = intervalsHtml;
+    }
+
+    if (totalPriceDisplay) {
+      totalPriceDisplay.textContent = `${totalGroupPrice.toLocaleString('cs-CZ')} Kč`;
+    }
+
+    // Show container
+    if (container) {
+      container.style.display = 'block';
+    }
+  }
+
+  /**
+   * Check if an interval is locked (paid or within 3-day deadline)
+   */
+  checkIntervalLocked(booking) {
+    // Paid bookings are always locked
+    if (booking.paid) {
+      return true;
+    }
+
+    // Check 3-day deadline
+    const daysUntilStart = DateUtils.calculateDaysUntilStart(booking.startDate);
+    return daysUntilStart < 3;
+  }
+
+  /**
+   * Get reason why interval is locked
+   */
+  getIntervalLockReason(booking) {
+    if (booking.paid) {
+      return 'paid';
+    }
+    return 'deadline';
+  }
+
+  /**
+   * Show message for locked interval
+   */
+  showLockedIntervalMessage(reason) {
+    const message =
+      reason === 'paid' ? this.t('bookingPaidMessage') : this.t('editDeadlineMessage');
+
+    this.showNotification(message, 'warning', 5000);
+  }
+
+  /**
+   * Get date range display for booking
+   */
+  getDateRangeDisplay(booking) {
+    const locale = this.app.currentLanguage === 'en' ? 'en-GB' : 'cs-CZ';
+    const startDate = new Date(booking.startDate);
+    const endDate = new Date(booking.endDate);
+    return `${startDate.toLocaleDateString(locale)} - ${endDate.toLocaleDateString(locale)}`;
+  }
+
+  /**
+   * Get guest summary string
+   */
+  getGuestSummary(booking) {
+    const parts = [];
+    if (booking.adults > 0) {
+      parts.push(`${booking.adults} ${this.t('adultsShort')}`);
+    }
+    if (booking.children > 0) {
+      parts.push(`${booking.children} ${this.t('childrenShort')}`);
+    }
+    if (booking.toddlers > 0) {
+      parts.push(`${booking.toddlers} ${this.t('toddlersShort')}`);
+    }
+    return parts.join(', ') || this.t('noGuests');
+  }
+
+  /**
+   * Select an interval for editing
+   */
+  async selectIntervalForEdit(bookingId) {
+    // FIX 2025-12-11: Add null check for groupContext
+    if (!this.groupContext || !this.groupContext.bookings) {
+      console.error('[EditPage] selectIntervalForEdit called without valid groupContext');
+      this.showError(this.t('intervalNotFound'));
+      return;
+    }
+
+    // Find the booking in group context
+    const booking = this.groupContext.bookings.find((b) => b.id === bookingId);
+
+    if (!booking) {
+      this.showError(this.t('intervalNotFound'));
+      return;
+    }
+
+    // Double-check lock status
+    if (this.checkIntervalLocked(booking)) {
+      this.showLockedIntervalMessage(this.getIntervalLockReason(booking));
+      return;
+    }
+
+    // Hide interval selector
+    this.hideIntervalSelector();
+
+    // Set current booking for edit
+    this.currentBooking = booking;
+    this.app.editingReservation = booking;
+    this.isEditLocked = false;
+
+    // Route to appropriate modal based on booking type
+    await this.routeToAppropriateModal();
+  }
+
+  /**
+   * Hide interval selector container
+   */
+  hideIntervalSelector() {
+    const container = document.getElementById('intervalSelectorContainer');
+    if (container) {
+      container.style.display = 'none';
+    }
+  }
+
+  /**
+   * Show interval selector container (return after edit)
+   */
+  async showIntervalSelector() {
+    // FIX 2025-12-11: Add try-catch for error handling
+    try {
+      // Refresh group data from server
+      if (this.groupContext) {
+        await dataManager.syncWithServer(true);
+        this.groupContext.bookings = dataManager.getBookingsByGroupId(this.groupContext.groupId);
+        this.openIntervalSelectorModal(this.groupContext.bookings);
+      }
+    } catch (error) {
+      console.error('[EditPage] Error showing interval selector:', error);
+      this.showError(this.t('errorLoadingBookingFallback'));
+    }
+  }
+
+  // NOTE: escapeHtml() method is defined below (delegates to DOMUtils for SSOT)
+
+  /**
+   * Show notification message
+   */
+  showNotification(message, type = 'info', duration = 3000) {
+    // Try to use existing notification system
+    if (window.showNotification) {
+      window.showNotification(message, type);
+      return;
+    }
+
+    // Fallback: create simple notification
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.textContent = message;
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 1rem 1.5rem;
+      background: ${type === 'warning' ? '#fef3c7' : type === 'error' ? '#fee2e2' : '#d1fae5'};
+      color: ${type === 'warning' ? '#92400e' : type === 'error' ? '#b91c1c' : '#065f46'};
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 10000;
+      animation: slideIn 0.3s ease;
+    `;
+    document.body.appendChild(notification);
+
+    setTimeout(() => {
+      notification.remove();
+    }, duration);
+  }
+
+  // ============================================================
+  // End of grouped booking methods
+  // ============================================================
 
   /**
    * Route to appropriate modal based on booking type
@@ -721,12 +1056,26 @@ class EditPage {
       // Update booking with token
       await dataManager.updateBookingWithToken(this.currentBooking.id, updateData, this.editToken);
 
-      this.showSuccess(this.t('bookingUpdatedRedirecting'));
+      this.showSuccess(this.t('bookingUpdatedSuccess'));
 
-      // Redirect after delay
-      setTimeout(() => {
-        window.location.href = '/';
-      }, 2000);
+      // FIX 2025-12-11: If editing a grouped booking, return to interval selector
+      if (this.groupContext && this.groupContext.bookings.length > 1) {
+        // Delay to show success message, then return to selector
+        setTimeout(async () => {
+          try {
+            await this.showIntervalSelector();
+          } catch (error) {
+            console.error('[EditPage] Failed to show interval selector after update:', error);
+            // Fallback: redirect home
+            window.location.href = '/';
+          }
+        }, 1500);
+      } else {
+        // Single booking or non-grouped: redirect to home
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 2000);
+      }
     } catch (error) {
       console.error('[EditPage] Error updating booking:', error.message);
       this.showError(this.getErrorMessage(error.message));
@@ -736,8 +1085,18 @@ class EditPage {
   /**
    * Handle modal cancel
    */
-  handleModalCancel() {
-    window.location.href = '/';
+  async handleModalCancel() {
+    // FIX 2025-12-11: If editing a grouped booking, return to interval selector
+    if (this.groupContext && this.groupContext.bookings.length > 1) {
+      try {
+        await this.showIntervalSelector();
+      } catch (error) {
+        console.error('[EditPage] Failed to return to interval selector:', error);
+        window.location.href = '/';
+      }
+    } else {
+      window.location.href = '/';
+    }
   }
 
   /**
