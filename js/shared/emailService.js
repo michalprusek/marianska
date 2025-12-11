@@ -1279,23 +1279,15 @@ Automatická zpráva - neodpovídejte
 
     const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent);
 
-    // Send to booking owner
+    // Send to booking owner only
+    // FIX 2025-12-11: Admin notifications are handled separately via sendBookingNotifications()
+    // to avoid duplicate emails (previously admins received the same email twice)
     const result = await this.sendEmailWithRetry(mailOptions, {
       type: 'booking_modification',
       bookingId: booking.id,
       modifiedByAdmin: options.modifiedByAdmin || false,
       changes: Object.keys(changes),
     });
-
-    // Send copies to admin emails (non-blocking)
-    this.sendAdminNotifications(booking, emailSubject, textContent, options.settings).catch(
-      (error) => {
-        logger.warn('Failed to send admin notification for booking modification', {
-          bookingId: booking.id,
-          error: error.message,
-        });
-      }
-    );
 
     return result;
   }

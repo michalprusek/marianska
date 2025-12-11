@@ -1291,9 +1291,13 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       return res.status(404).json({ error: 'Rezervace nenalezena' });
     }
 
+    // FIX 2025-12-11: Extract skipOwnerEmail flag before merging (not a booking field)
+    const skipOwnerEmail = req.body.skipOwnerEmail === true;
+
     // Merge existing booking with incoming changes (partial update support)
     // This allows updating only specific fields like name, email, phone etc.
-    const bookingData = { ...existingBooking, ...req.body };
+    const { skipOwnerEmail: _, ...bodyWithoutSkipFlag } = req.body;
+    const bookingData = { ...existingBooking, ...bodyWithoutSkipFlag };
 
     // DRY: Use shared helper for admin session validation
     const { isAdmin, error: sessionError } = validateAdminSession(req);
@@ -1893,29 +1897,37 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
     }
 
     // Send notification emails
-    // 1. Send to user (booking owner) about the modification
+    // 1. Send to user (booking owner) about the modification (unless skipOwnerEmail is true)
     // 2. Send to admins and cabin managers based on change type
     try {
-      // Send modification email to the user (non-blocking)
-      emailService
-        .sendBookingModification(updatedBooking, changes, {
-          modifiedByAdmin: isAdmin,
-          settings,
-        })
-        .then((userEmailResult) => {
-          logger.info('User modification email sent', {
-            bookingId: updatedBooking.id,
-            email: updatedBooking.email,
-            messageId: userEmailResult?.messageId || 'unknown',
+      // FIX 2025-12-11: Allow admin to skip owner email notification
+      if (!skipOwnerEmail) {
+        // Send modification email to the user (non-blocking)
+        emailService
+          .sendBookingModification(updatedBooking, changes, {
+            modifiedByAdmin: isAdmin,
+            settings,
+          })
+          .then((userEmailResult) => {
+            logger.info('User modification email sent', {
+              bookingId: updatedBooking.id,
+              email: updatedBooking.email,
+              messageId: userEmailResult?.messageId || 'unknown',
+            });
+          })
+          .catch((userEmailError) => {
+            logger.error('Failed to send user modification email', {
+              bookingId: updatedBooking.id,
+              email: updatedBooking.email,
+              error: userEmailError.message,
+            });
           });
-        })
-        .catch((userEmailError) => {
-          logger.error('Failed to send user modification email', {
-            bookingId: updatedBooking.id,
-            email: updatedBooking.email,
-            error: userEmailError.message,
-          });
+      } else {
+        logger.info('Owner email notification skipped by admin request', {
+          bookingId: updatedBooking.id,
+          email: updatedBooking.email,
         });
+      }
 
       // FIX 2025-12-02: Send to admins and cabin managers NON-BLOCKING
       // Previously, awaiting email caused delays when SMTP was slow/unreachable

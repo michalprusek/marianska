@@ -151,6 +151,38 @@ class AdminBookings {
   }
 
   /**
+   * Show dialog asking admin whether to send email notification to booking owner
+   * FIX 2025-12-11: Prevent spam by allowing admin to skip owner notification
+   * @param {string} ownerEmail - Email of the booking owner
+   * @returns {Promise<boolean>} - True if email should be skipped, false if email should be sent
+   */
+  askSkipOwnerEmail(ownerEmail) {
+    return new Promise((resolve) => {
+      const message = `Odeslat email o změně rezervace?\n\nVlastník rezervace (${ownerEmail}) obdrží notifikaci o provedené změně.`;
+
+      if (window.modalDialog) {
+        window.modalDialog
+          .confirm({
+            title: 'Notifikace vlastníka',
+            message,
+            type: 'info',
+            confirmText: 'Ano, odeslat',
+            cancelText: 'Ne, neposílat',
+          })
+          .then((sendEmail) => {
+            // sendEmail = true means "Ano, odeslat" was clicked
+            // skipOwnerEmail should be false in that case
+            resolve(!sendEmail);
+          });
+      } else {
+        // Fallback to native confirm
+        const sendEmail = confirm(message);
+        resolve(!sendEmail);
+      }
+    });
+  }
+
+  /**
    * Toggle a checkbox field and save to server
    * @param {string} bookingId - Booking ID
    * @param {string} fieldName - Field name
@@ -162,7 +194,12 @@ class AdminBookings {
     const originalValue = !newValue;
 
     try {
-      await this.saveInlineEdit(bookingId, fieldName, newValue);
+      // FIX 2025-12-11: Ask admin whether to send email notification
+      const booking = await dataManager.getBooking(bookingId);
+      const ownerEmail = booking?.email || 'neznámý email';
+      const skipOwnerEmail = await this.askSkipOwnerEmail(ownerEmail);
+
+      await this.saveInlineEdit(bookingId, fieldName, newValue, skipOwnerEmail);
 
       // Update badge appearance
       if (badge) {
@@ -274,7 +311,12 @@ class AdminBookings {
       input.disabled = true;
 
       try {
-        await this.saveInlineEdit(bookingId, fieldName, newValue);
+        // FIX 2025-12-11: Ask admin whether to send email notification
+        const booking = await dataManager.getBooking(bookingId);
+        const ownerEmail = booking?.email || 'neznámý email';
+        const skipOwnerEmail = await this.askSkipOwnerEmail(ownerEmail);
+
+        await this.saveInlineEdit(bookingId, fieldName, newValue, skipOwnerEmail);
 
         // Update display
         valueSpan.textContent = newValue || '-';
@@ -370,8 +412,9 @@ class AdminBookings {
    * @param {string} bookingId - Booking ID
    * @param {string} fieldName - Field name
    * @param {string} newValue - New value
+   * @param {boolean} skipOwnerEmail - If true, don't send email to booking owner
    */
-  async saveInlineEdit(bookingId, fieldName, newValue) {
+  async saveInlineEdit(bookingId, fieldName, newValue, skipOwnerEmail = false) {
     // SECURITY FIX: Client-side validation before sending to server
     const validation = this.validateFieldValue(fieldName, newValue);
     if (!validation.valid) {
@@ -393,6 +436,7 @@ class AdminBookings {
       credentials: 'include',
       body: JSON.stringify({
         [fieldName]: newValue,
+        skipOwnerEmail: skipOwnerEmail,
       }),
     });
 
@@ -2062,6 +2106,11 @@ class AdminBookings {
 
       // Check if we're creating new booking or updating existing
       if (bookingId) {
+        // FIX 2025-12-11: Ask admin whether to send email notification
+        const existingBooking = await dataManager.getBooking(bookingId);
+        const ownerEmail = existingBooking?.email || formData.email || 'neznámý email';
+        const skipOwnerEmail = await this.askSkipOwnerEmail(ownerEmail);
+
         // Update existing booking via API (triggers email notification)
         const sessionToken = sessionStorage.getItem('adminSessionToken');
         const response = await fetch(`/api/booking/${bookingId}`, {
@@ -2070,7 +2119,7 @@ class AdminBookings {
             'Content-Type': 'application/json',
             'x-session-token': sessionToken,
           },
-          body: JSON.stringify(formData),
+          body: JSON.stringify({ ...formData, skipOwnerEmail }),
         });
 
         if (!response.ok) {
@@ -3181,9 +3230,9 @@ class AdminBookings {
    * After updating, refreshes the detail modal to show the new state
    * @param {string} intervalBookingId - The booking ID of the interval to update
    * @param {boolean} paid - New paid status
-   * @param {string} _originalBookingId - The booking ID used to open the modal (for refresh) - unused but kept for API compatibility
+   * @param {string} parentGroupId - The group ID (for re-expanding the group after refresh)
    */
-  async toggleIntervalPaid(intervalBookingId, paid, _originalBookingId) {
+  async toggleIntervalPaid(intervalBookingId, paid, parentGroupId) {
     // FIX 2025-12-11: validateSession is synchronous - removed unnecessary await
     if (!this.adminPanel.validateSession()) {
       return;
@@ -3197,6 +3246,10 @@ class AdminBookings {
         return;
       }
 
+      // FIX 2025-12-11: Ask admin whether to send email notification
+      const ownerEmail = booking?.email || 'neznámý email';
+      const skipOwnerEmail = await this.askSkipOwnerEmail(ownerEmail);
+
       // FIX 2025-12-09: Only send paid field to avoid guestNames vs perRoomGuests validation mismatch
       // Sending entire booking object caused validation error for bulk bookings where
       // perRoomGuests (90 guests across 9 rooms) != guestNames.length (10 actual guests)
@@ -3207,7 +3260,7 @@ class AdminBookings {
           'Content-Type': 'application/json',
           'x-session-token': sessionToken,
         },
-        body: JSON.stringify({ paid }),
+        body: JSON.stringify({ paid, skipOwnerEmail }),
       });
 
       if (!response.ok) {
@@ -3218,6 +3271,16 @@ class AdminBookings {
       // Sync data and refresh bookings list
       await dataManager.syncWithServer();
       await this.loadBookings();
+
+      // FIX 2025-12-11: Re-expand the group after refresh to preserve UI state
+      if (parentGroupId) {
+        setTimeout(() => {
+          const parentRow = document.querySelector(`tr[data-group-id="${parentGroupId}"]`);
+          if (parentRow) {
+            this.toggleGroupExpand(parentGroupId);
+          }
+        }, 50);
+      }
 
       this.adminPanel.showSuccessMessage(
         `Interval označen jako ${paid ? 'zaplacený' : 'nezaplacený'}`
