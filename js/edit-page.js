@@ -495,7 +495,7 @@ class EditPage {
             <div class="interval-dates">${dateRange}</div>
             <div class="interval-rooms">${roomsDisplay}</div>
             <div class="interval-guests">${guestStr}</div>
-            ${booking.isBulkBooking ? '<span class="bulk-badge">' + this.t('wholeCottage') + '</span>' : ''}
+            ${booking.isBulkBooking ? `<span class="bulk-badge">${this.t('wholeCottage')}</span>` : ''}
           </div>
           <div class="interval-price">${price.toLocaleString('cs-CZ')} Kč</div>
           <div class="interval-arrow">${isLocked ? '' : '→'}</div>
@@ -1054,7 +1054,14 @@ class EditPage {
       }
 
       // Update booking with token
-      await dataManager.updateBookingWithToken(this.currentBooking.id, updateData, this.editToken);
+      // FIX 2025-12-19: Use currentBooking.editToken for grouped booking child intervals
+      // The URL token (this.editToken) belongs to the first booking in the group,
+      // but we need the specific child booking's token for server validation
+      await dataManager.updateBookingWithToken(
+        this.currentBooking.id,
+        updateData,
+        this.currentBooking.editToken
+      );
 
       this.showSuccess(this.t('bookingUpdatedSuccess'));
 
@@ -1112,7 +1119,11 @@ class EditPage {
   confirmDeleteBooking() {
     this.showConfirm(this.t('confirmDeleteBooking'), async () => {
       try {
-        await dataManager.deleteBookingWithToken(this.currentBooking.id, this.editToken);
+        // FIX 2025-12-19: Use currentBooking.editToken for grouped booking child intervals
+        await dataManager.deleteBookingWithToken(
+          this.currentBooking.id,
+          this.currentBooking.editToken
+        );
         this.showSuccess(this.t('bookingDeletedSuccess'));
 
         setTimeout(() => {
@@ -1221,7 +1232,12 @@ class EditPage {
         await dataManager.deleteProposedBookingsForSession(sessionId);
       }
 
-      await dataManager.updateBookingWithToken(this.currentBooking.id, formData, this.editToken);
+      // FIX 2025-12-19: Use currentBooking.editToken for grouped booking child intervals
+      await dataManager.updateBookingWithToken(
+        this.currentBooking.id,
+        formData,
+        this.currentBooking.editToken
+      );
       this.showSuccess(this.t('bookingUpdatedSuccess'));
 
       setTimeout(() => {
@@ -1235,7 +1251,8 @@ class EditPage {
 
   async handleEditBookingDelete(bookingId) {
     try {
-      await dataManager.deleteBookingWithToken(bookingId, this.editToken);
+      // FIX 2025-12-19: Use currentBooking.editToken for grouped booking child intervals
+      await dataManager.deleteBookingWithToken(bookingId, this.currentBooking.editToken);
       this.showSuccess(this.t('bookingDeletedSuccess'));
 
       setTimeout(() => {

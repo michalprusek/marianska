@@ -224,7 +224,7 @@ class AdminAuth {
             const maxRetries = 3;
             if (retryCount < maxRetries) {
               // Exponential: 5s, 15s, 45s + up to 5s jitter
-              const baseDelay = 5000 * Math.pow(3, retryCount);
+              const baseDelay = 5000 * 3 ** retryCount;
               const jitter = Math.random() * 5000;
               const delay = Math.min(baseDelay + jitter, 60000);
               const delaySeconds = Math.round(delay / 1000);

@@ -166,7 +166,10 @@ class EmailService {
     const totalAdults = booking.adults || 0;
     const totalChildren = booking.children || 0;
 
-    if (guestNames.length > 0 && (utiaAdults + externalAdults + utiaChildren + externalChildren > 0)) {
+    if (
+      guestNames.length > 0 &&
+      utiaAdults + externalAdults + utiaChildren + externalChildren > 0
+    ) {
       // Build breakdown parts
       const parts = [];
       if (utiaAdults > 0) {
@@ -927,9 +930,9 @@ ${perRoomPriceHtml}
     // Use allSettled to ensure all promises complete even if some fail
     const settledResults = await Promise.allSettled(sendPromises);
     return settledResults.map((r) =>
-      r.status === 'fulfilled'
+      (r.status === 'fulfilled'
         ? r.value
-        : { success: false, error: r.reason?.message || 'Unknown error' }
+        : { success: false, error: r.reason?.message || 'Unknown error' })
     );
   }
 
@@ -1629,9 +1632,9 @@ Automatická zpráva - neodpovídejte
     // Use allSettled to ensure all promises complete even if some fail
     const settledResults = await Promise.allSettled(sendPromises);
     const results = settledResults.map((r) =>
-      r.status === 'fulfilled'
+      (r.status === 'fulfilled'
         ? r.value
-        : { success: false, error: r.reason?.message || 'Unknown error' }
+        : { success: false, error: r.reason?.message || 'Unknown error' })
     );
 
     const successCount = results.filter((r) => r.success).length;

@@ -581,7 +581,8 @@ const translations = {
     multiRoomInfo: 'Tato rezervace obsahuje více pokojů. Vyberte pokoj, který chcete upravit.',
     // FIX 2025-12-11: Grouped booking interval selector translations
     selectIntervalToEdit: 'Vyberte interval k úpravě',
-    groupedBookingInfo: 'Tato rezervace obsahuje více intervalů. Vyberte interval, který chcete upravit.',
+    groupedBookingInfo:
+      'Tato rezervace obsahuje více intervalů. Vyberte interval, který chcete upravit.',
     interval: 'Interval',
     intervals: 'intervalů',
     totalGroupPrice: 'Celková cena skupiny:',
@@ -634,7 +635,8 @@ const translations = {
     // Edit page - network and token errors
     errorTimeout: 'Požadavek vypršel. Zkontrolujte připojení k internetu a zkuste to znovu.',
     errorNetworkFailure: 'Nepodařilo se spojit se serverem. Zkontrolujte připojení k internetu.',
-    errorTokenInvalid: 'Neplatný editační token. Prosím použijte aktuální odkaz z potvrzovacího emailu.',
+    errorTokenInvalid:
+      'Neplatný editační token. Prosím použijte aktuální odkaz z potvrzovacího emailu.',
     errorTokenExpired: 'Editační token vypršel. Kontaktujte administrátora pro nový odkaz.',
     errorServerResponse: 'Server vrátil neočekávanou odpověď. Zkuste to znovu později.',
     errorServerError: 'Chyba serveru',
@@ -1250,7 +1252,8 @@ const translations = {
     multiRoomInfo: 'This reservation includes multiple rooms. Select the room you want to edit.',
     // FIX 2025-12-11: Grouped booking interval selector translations
     selectIntervalToEdit: 'Select interval to edit',
-    groupedBookingInfo: 'This reservation contains multiple intervals. Select the interval you want to edit.',
+    groupedBookingInfo:
+      'This reservation contains multiple intervals. Select the interval you want to edit.',
     interval: 'Interval',
     intervals: 'intervals',
     totalGroupPrice: 'Total group price:',
@@ -1303,7 +1306,8 @@ const translations = {
     // Edit page - network and token errors
     errorTimeout: 'Request timed out. Check your internet connection and try again.',
     errorNetworkFailure: 'Failed to connect to server. Check your internet connection.',
-    errorTokenInvalid: 'Invalid edit token. Please use the current link from your confirmation email.',
+    errorTokenInvalid:
+      'Invalid edit token. Please use the current link from your confirmation email.',
     errorTokenExpired: 'Edit token has expired. Contact administrator for a new link.',
     errorServerResponse: 'Server returned an unexpected response. Please try again later.',
     errorServerError: 'Server error',

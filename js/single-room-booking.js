@@ -749,8 +749,8 @@ class SingleRoomBookingModule {
       const hasUtiaGuest =
         guestNames && guestNames.length > 0
           ? guestNames.some(
-            (guest) => guest.guestPriceType === 'utia' && guest.personType !== 'toddler'
-          )
+              (guest) => guest.guestPriceType === 'utia' && guest.personType !== 'toddler'
+            )
           : true; // FIX 2025-11-07: Default to ÚTIA when no guests yet (matches default radio selection)
       const actualGuestType = hasUtiaGuest ? 'utia' : 'external';
 
@@ -785,6 +785,67 @@ class SingleRoomBookingModule {
   }
 
   /**
+   * FIX 2025-12-19: Update capacity warning for currently selected room
+   * Shows warning and disables confirm button when guests exceed room capacity
+   * Called when user changes guest counts via adjustGuests()
+   */
+  async updateCapacityWarning() {
+    const roomId = this.app.currentBookingRoom;
+    if (!roomId) {
+      return;
+    }
+
+    try {
+      const settings = await dataManager.getSettings();
+      const room = settings.rooms?.find((r) => r.id === roomId);
+      const roomCapacity = room?.beds || 0;
+
+      // Get current guest counts (from app state)
+      const currentGuests = this.app.roomGuests?.get(roomId) || {
+        adults: 0,
+        children: 0,
+        toddlers: 0,
+      };
+      // Note: toddlers don't count toward capacity (can sleep with parents)
+      const totalGuests = (currentGuests.adults || 0) + (currentGuests.children || 0);
+
+      const capacityWarning = document.getElementById('capacityWarning');
+      const confirmBtn = document.getElementById('confirmSingleRoomBtn');
+
+      if (totalGuests > roomCapacity && roomCapacity > 0) {
+        // Show warning
+        if (capacityWarning) {
+          capacityWarning.style.display = 'block';
+          // Update text with room-specific info
+          const warningText = capacityWarning.querySelector('span');
+          if (warningText) {
+            const lang = this.app.currentLanguage || 'cs';
+            warningText.textContent =
+              lang === 'cs'
+                ? `⚠️ Překročena kapacita pokoje (max ${roomCapacity} lůžek, máte ${totalGuests} hostů)`
+                : `⚠️ Room capacity exceeded (max ${roomCapacity} beds, you have ${totalGuests} guests)`;
+          }
+        }
+        // Disable confirm button
+        if (confirmBtn) {
+          confirmBtn.disabled = true;
+        }
+      } else {
+        // Hide warning
+        if (capacityWarning) {
+          capacityWarning.style.display = 'none';
+        }
+        // Enable confirm button (if dates are selected)
+        if (confirmBtn && this.app.selectedDates?.size > 1) {
+          confirmBtn.disabled = false;
+        }
+      }
+    } catch (error) {
+      console.error('[SingleRoomBookingModule] Error updating capacity warning:', error);
+    }
+  }
+
+  /**
    * Update price summary display in the modal
    * @param {number} totalPrice - Total price in CZK
    * @param {number} nights - Number of nights
@@ -802,8 +863,8 @@ class SingleRoomBookingModule {
     const hasUtiaGuest =
       guestNames && guestNames.length > 0
         ? guestNames.some(
-          (guest) => guest.guestPriceType === 'utia' && guest.personType !== 'toddler'
-        )
+            (guest) => guest.guestPriceType === 'utia' && guest.personType !== 'toddler'
+          )
         : true; // FIX 2025-11-07: Default to ÚTIA when no guests yet (matches default radio selection)
     const actualGuestType = hasUtiaGuest ? 'utia' : 'external';
 
@@ -1095,6 +1156,9 @@ class SingleRoomBookingModule {
     // Update price
     await this.updatePriceForCurrentRoom();
 
+    // FIX 2025-12-19: Check capacity warning when opening modal with existing data
+    await this.updateCapacityWarning();
+
     // Update confirm button for edit mode
     const confirmBtn = document.getElementById('confirmSingleRoomBtn');
     if (confirmBtn) {
@@ -1128,6 +1192,31 @@ class SingleRoomBookingModule {
       return;
     }
 
+    // Get context
+    const { roomId, booking } = this.adminEditContext;
+
+    // FIX 2025-12-19: Validate capacity before submission
+    const settings = await dataManager.getSettings();
+    const editRoom = settings.rooms?.find((r) => r.id === roomId);
+    const roomCapacity = editRoom?.beds || 0;
+    const currentGuests = this.app.roomGuests?.get(roomId) || {
+      adults: 0,
+      children: 0,
+      toddlers: 0,
+    };
+    const totalGuests = (currentGuests.adults || 0) + (currentGuests.children || 0);
+
+    if (totalGuests > roomCapacity && roomCapacity > 0) {
+      const lang = this.app.currentLanguage || 'cs';
+      window.notificationManager?.show(
+        lang === 'cs'
+          ? `Překročena kapacita pokoje (max ${roomCapacity} lůžek)`
+          : `Room capacity exceeded (max ${roomCapacity} beds)`,
+        'error'
+      );
+      return;
+    }
+
     // Get dates
     const sortedDates = Array.from(this.app.selectedDates).sort();
     const startDate = sortedDates[0];
@@ -1135,7 +1224,6 @@ class SingleRoomBookingModule {
 
     // CRITICAL FIX 2025-12-05: Validate no conflicts with OTHER reservations
     // Exclude the current booking being edited from the check
-    const { roomId, booking } = this.adminEditContext;
     const currentBookingId = booking?.id || null;
 
     // Invalidate cache to ensure fresh availability data
@@ -1188,9 +1276,8 @@ class SingleRoomBookingModule {
     );
     const guestType = hasUtiaGuest ? 'utia' : 'external';
 
-    // Calculate price
+    // Calculate price (reuse settings from capacity validation above)
     const nights = sortedDates.length - 1;
-    const settings = await dataManager.getSettings();
     const price = PriceCalculator.calculatePerGuestPrice({
       rooms: [roomId],
       guestNames,
