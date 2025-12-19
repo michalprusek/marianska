@@ -2918,7 +2918,7 @@ class AdminBookings {
             const groupData = groupRow._groupData;
             if (groupData && groupData.bookings) {
               const remainingBookings = groupData.bookings.filter(
-                (b) => (b) => !(result.deletedIds || bookingIds).includes(b.id)
+                (b) => !(result.deletedIds || bookingIds).includes(b.id)
               );
               if (remainingBookings.length === 0) {
                 groupRow.remove();
