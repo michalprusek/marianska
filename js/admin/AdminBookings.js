@@ -442,7 +442,7 @@ class AdminBookings {
       credentials: 'include',
       body: JSON.stringify({
         [fieldName]: newValue,
-        skipOwnerEmail: skipOwnerEmail,
+        skipOwnerEmail,
       }),
     });
 
@@ -710,7 +710,7 @@ class AdminBookings {
       const groups = new Map(); // groupId -> { bookings: [], totalPrice: 0, ... }
       const ungrouped = [];
 
-      bookings.forEach(booking => {
+      bookings.forEach((booking) => {
         if (booking.groupId) {
           if (!groups.has(booking.groupId)) {
             groups.set(booking.groupId, {
@@ -725,8 +725,12 @@ class AdminBookings {
           }
           const group = groups.get(booking.groupId);
           group.bookings.push(booking);
-          if (!booking.paid) group.paid = false;
-          if (booking.payFromBenefit) group.payFromBenefit = true;
+          if (!booking.paid) {
+            group.paid = false;
+          }
+          if (booking.payFromBenefit) {
+            group.payFromBenefit = true;
+          }
         } else {
           ungrouped.push(booking);
         }
@@ -743,11 +747,15 @@ class AdminBookings {
         let maxEnd = null;
         const allRooms = new Set();
 
-        group.bookings.forEach(b => {
+        group.bookings.forEach((b) => {
           totalPrice += this.getBookingPrice(b, settings);
-          if (!minStart || b.startDate < minStart) minStart = b.startDate;
-          if (!maxEnd || b.endDate > maxEnd) maxEnd = b.endDate;
-          (b.rooms || []).forEach(r => allRooms.add(r));
+          if (!minStart || b.startDate < minStart) {
+            minStart = b.startDate;
+          }
+          if (!maxEnd || b.endDate > maxEnd) {
+            maxEnd = b.endDate;
+          }
+          (b.rooms || []).forEach((r) => allRooms.add(r));
         });
 
         displayItems.push({
@@ -768,7 +776,7 @@ class AdminBookings {
       });
 
       // Add ungrouped bookings
-      ungrouped.forEach(booking => {
+      ungrouped.forEach((booking) => {
         displayItems.push({
           isGroup: false,
           ...booking,
@@ -907,7 +915,10 @@ class AdminBookings {
 
     row.innerHTML = `
       <td style="text-align: center;">
-        ${isChildRow ? '<span style="color: var(--gray-400); padding-left: 1rem;">└</span>' : `
+        ${
+          isChildRow
+            ? '<span style="color: var(--gray-400); padding-left: 1rem;">└</span>'
+            : `
         <input
           type="checkbox"
           class="booking-checkbox"
@@ -915,13 +926,14 @@ class AdminBookings {
           style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary-color);"
           onchange="adminPanel.toggleBookingSelection('${booking.id}', this.checked)"
         />
-        `}
+        `
+        }
       </td>
       <td>${this.escapeHtml(booking.id)}</td>
       <td>${isChildRow ? '' : this.escapeHtml(booking.name)}</td>
       <td>${isChildRow ? '' : this.escapeHtml(booking.email)}</td>
       <td style="text-align: center;">
-        ${isChildRow ? '' : (booking.payFromBenefit ? '<span style="display: inline-flex; align-items: center; justify-content: center; padding: 0.3rem 0.6rem; background: #17a2b8; color: white; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">💳 Ano</span>' : '<span style="color: #6b7280; font-size: 0.85rem;">Ne</span>')}
+        ${isChildRow ? '' : booking.payFromBenefit ? '<span style="display: inline-flex; align-items: center; justify-content: center; padding: 0.3rem 0.6rem; background: #17a2b8; color: white; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">💳 Ano</span>' : '<span style="color: #6b7280; font-size: 0.85rem;">Ne</span>'}
       </td>
       <td>${dateRangeDisplay}</td>
       <td>${this.createRoomDisplay(booking, true)}</td>
@@ -943,7 +955,9 @@ class AdminBookings {
       </td>
       <td>
         <div class="action-buttons">
-          ${isChildRow ? `
+          ${
+            isChildRow
+              ? `
           <button class="btn-modern btn-delete" onclick="adminPanel.bookings.deleteInterval('${booking.id}', '${parentGroupId}')" title="Smazat interval">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/>
@@ -952,7 +966,8 @@ class AdminBookings {
             </svg>
             Smazat
           </button>
-          ` : `
+          `
+              : `
           <button class="btn-modern btn-view" onclick="adminPanel.bookings.viewBookingDetails('${booking.id}')" title="Zobrazit detail">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -975,7 +990,8 @@ class AdminBookings {
             </svg>
             Smazat
           </button>
-          `}
+          `
+          }
         </div>
       </td>
     `;
@@ -990,8 +1006,12 @@ class AdminBookings {
       let maxEnd = booking.endDate;
 
       Object.values(booking.perRoomDates).forEach((dates) => {
-        if (!minStart || dates.startDate < minStart) minStart = dates.startDate;
-        if (!maxEnd || dates.endDate > maxEnd) maxEnd = dates.endDate;
+        if (!minStart || dates.startDate < minStart) {
+          minStart = dates.startDate;
+        }
+        if (!maxEnd || dates.endDate > maxEnd) {
+          maxEnd = dates.endDate;
+        }
       });
 
       return `${new Date(minStart).toLocaleDateString('cs-CZ')} - ${new Date(maxEnd).toLocaleDateString('cs-CZ')}`;
@@ -1002,7 +1022,9 @@ class AdminBookings {
   // FIX 2025-12-09: Toggle group expand/collapse
   async toggleGroupExpand(groupId) {
     const parentRow = document.querySelector(`tr[data-group-id="${groupId}"]`);
-    if (!parentRow) return;
+    if (!parentRow) {
+      return;
+    }
 
     const isExpanded = parentRow.classList.contains('expanded');
     const expandIcon = parentRow.querySelector('.expand-toggle svg');
@@ -1010,18 +1032,22 @@ class AdminBookings {
     if (isExpanded) {
       // Collapse: hide child rows
       parentRow.classList.remove('expanded');
-      if (expandIcon) expandIcon.style.transform = 'rotate(0deg)';
+      if (expandIcon) {
+        expandIcon.style.transform = 'rotate(0deg)';
+      }
 
       const childRows = document.querySelectorAll(`tr[data-parent-group="${groupId}"]`);
-      childRows.forEach(row => {
+      childRows.forEach((row) => {
         row.style.display = 'none';
       });
     } else {
       // Expand: show/create child rows
       parentRow.classList.add('expanded');
-      if (expandIcon) expandIcon.style.transform = 'rotate(90deg)';
+      if (expandIcon) {
+        expandIcon.style.transform = 'rotate(90deg)';
+      }
 
-      let childRows = document.querySelectorAll(`tr[data-parent-group="${groupId}"]`);
+      const childRows = document.querySelectorAll(`tr[data-parent-group="${groupId}"]`);
 
       if (childRows.length === 0) {
         // First expand: generate child rows
@@ -1090,7 +1116,7 @@ class AdminBookings {
         }
       } else {
         // Show existing child rows
-        childRows.forEach(row => {
+        childRows.forEach((row) => {
           row.style.display = '';
         });
       }
@@ -1140,7 +1166,7 @@ class AdminBookings {
     groupData.bookings.forEach((booking, idx) => {
       const price = this.getBookingPrice(booking, settings);
       const dateRange = this.getDateRangeDisplay(booking);
-      const roomsDisplay = booking.rooms?.map(r => `P${r}`).join(', ') || 'N/A';
+      const roomsDisplay = booking.rooms?.map((r) => `P${r}`).join(', ') || 'N/A';
 
       intervalsHtml += `
         <div class="interval-card" onclick="adminPanel.bookings.selectIntervalForEdit('${booking.id}')" style="
@@ -1203,7 +1229,9 @@ class AdminBookings {
   selectIntervalForEdit(bookingId) {
     // Close interval selector
     const selectorModal = document.getElementById('intervalSelectorModal');
-    if (selectorModal) selectorModal.remove();
+    if (selectorModal) {
+      selectorModal.remove();
+    }
 
     // Open edit modal for selected booking
     this.editBooking(bookingId);
@@ -1485,7 +1513,9 @@ class AdminBookings {
                             const allGuestNames = groupBookings.flatMap(
                               (gb) => gb.guestNames || []
                             );
-                            if (allGuestNames.length === 0) return '';
+                            if (allGuestNames.length === 0) {
+                              return '';
+                            }
                             return `
                     <div>
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
@@ -1505,7 +1535,9 @@ class AdminBookings {
                         </div>
                         ${groupBookings
                           .map((gb, idx) => {
-                            if (!gb.guestNames || gb.guestNames.length === 0) return '';
+                            if (!gb.guestNames || gb.guestNames.length === 0) {
+                              return '';
+                            }
                             return `
                             <div style="border-left: 3px solid #f59e0b; padding-left: 0.75rem; margin-bottom: 0.75rem;">
                               <div style="font-weight: 600; color: #4b5563; font-size: 0.85rem; margin-bottom: 0.5rem;">
@@ -2345,7 +2377,10 @@ class AdminBookings {
       const settings = await dataManager.getSettings();
       if (!settings) {
         // FIX 2025-12-11: Log when settings unavailable for price breakdown
-        console.warn('[AdminBookings] Settings not loaded for price breakdown, booking:', booking.id);
+        console.warn(
+          '[AdminBookings] Settings not loaded for price breakdown, booking:',
+          booking.id
+        );
         return '';
       }
 
@@ -2716,7 +2751,7 @@ class AdminBookings {
       this.selectedGroups.add(groupId);
       // Add all child booking IDs to selectedBookings
       if (groupData.bookings) {
-        groupData.bookings.forEach(booking => {
+        groupData.bookings.forEach((booking) => {
           this.selectedBookings.add(booking.id);
         });
       }
@@ -2724,7 +2759,7 @@ class AdminBookings {
       this.selectedGroups.delete(groupId);
       // Remove all child booking IDs from selectedBookings
       if (groupData.bookings) {
-        groupData.bookings.forEach(booking => {
+        groupData.bookings.forEach((booking) => {
           this.selectedBookings.delete(booking.id);
         });
       }
@@ -2878,17 +2913,19 @@ class AdminBookings {
           this.updateBulkActionsUI();
 
           // FIX 2025-12-09: Remove group rows if all their children were deleted
-          document.querySelectorAll('tr[data-group-id]').forEach(groupRow => {
+          document.querySelectorAll('tr[data-group-id]').forEach((groupRow) => {
             const groupId = groupRow.getAttribute('data-group-id');
             const groupData = groupRow._groupData;
             if (groupData && groupData.bookings) {
-              const remainingBookings = groupData.bookings.filter(b =>
-                !(result.deletedIds || bookingIds).includes(b.id)
+              const remainingBookings = groupData.bookings.filter(
+                (b) => (b) => !(result.deletedIds || bookingIds).includes(b.id)
               );
               if (remainingBookings.length === 0) {
                 groupRow.remove();
                 // Also remove any child rows
-                document.querySelectorAll(`tr[data-parent-group="${groupId}"]`).forEach(r => r.remove());
+                document
+                  .querySelectorAll(`tr[data-parent-group="${groupId}"]`)
+                  .forEach((r) => r.remove());
               }
             }
           });
@@ -2965,7 +3002,7 @@ class AdminBookings {
           groupsToPrint.push(groupData);
           // Mark all child bookings as processed
           if (groupData.bookings) {
-            groupData.bookings.forEach(b => processedBookingIds.add(b.id));
+            groupData.bookings.forEach((b) => processedBookingIds.add(b.id));
           }
         }
       }
@@ -3044,8 +3081,8 @@ class AdminBookings {
       for (const group of groupsToPrint) {
         const startDate = new Date(group.startDate).toLocaleDateString('cs-CZ');
         const endDate = new Date(group.endDate).toLocaleDateString('cs-CZ');
-        const allPaid = group.bookings.every(b => b.paid);
-        const paidCount = group.bookings.filter(b => b.paid).length;
+        const allPaid = group.bookings.every((b) => b.paid);
+        const paidCount = group.bookings.filter((b) => b.paid).length;
 
         printContent += `
           <div class="group">
@@ -3072,15 +3109,17 @@ class AdminBookings {
         `;
 
         // Sort bookings by start date
-        const sortedBookings = [...group.bookings].sort((a, b) =>
-          new Date(a.startDate) - new Date(b.startDate)
+        const sortedBookings = [...group.bookings].sort(
+          (a, b) => new Date(a.startDate) - new Date(b.startDate)
         );
 
         sortedBookings.forEach((booking, idx) => {
           const intervalStart = new Date(booking.startDate).toLocaleDateString('cs-CZ');
           const intervalEnd = new Date(booking.endDate).toLocaleDateString('cs-CZ');
           const price = this.getBookingPrice(booking, settings);
-          const nights = Math.ceil((new Date(booking.endDate) - new Date(booking.startDate)) / (1000 * 60 * 60 * 24));
+          const nights = Math.ceil(
+            (new Date(booking.endDate) - new Date(booking.startDate)) / (1000 * 60 * 60 * 24)
+          );
 
           printContent += `
             <div class="interval">
@@ -3091,7 +3130,7 @@ class AdminBookings {
               <div style="font-size: 11px; color: #666;">
                 <strong>Datum:</strong> ${intervalStart} - ${intervalEnd} (${nights} ${nights === 1 ? 'noc' : nights <= 4 ? 'noci' : 'nocí'})
                 &nbsp;|&nbsp;
-                <strong>Pokoje:</strong> ${booking.rooms.map(r => `P${r}`).join(', ')}
+                <strong>Pokoje:</strong> ${booking.rooms.map((r) => `P${r}`).join(', ')}
                 &nbsp;|&nbsp;
                 <strong>Hosté:</strong> ${booking.adults} dosp., ${booking.children} dětí
                 &nbsp;|&nbsp;
@@ -3153,11 +3192,15 @@ class AdminBookings {
                 <span class="field-label">Zaplaceno:</span>
                 <span class="${booking.paid ? 'paid' : 'unpaid'}">${booking.paid ? 'Ano' : 'Ne'}</span>
               </div>
-              ${booking.notes ? `
+              ${
+                booking.notes
+                  ? `
               <div class="booking-field" style="grid-column: 1 / -1;">
                 <span class="field-label">Poznámky:</span> ${this.escapeHtml(booking.notes)}
               </div>
-              ` : ''}
+              `
+                  : ''
+              }
             </div>
           </div>
         `;
@@ -3323,7 +3366,11 @@ class AdminBookings {
     const roomName = booking.rooms?.map((r) => `P${r}`).join(', ') || 'Neznámý pokoj';
     const dateRange = `${new Date(booking.startDate).toLocaleDateString('cs-CZ')} - ${new Date(booking.endDate).toLocaleDateString('cs-CZ')}`;
 
-    if (!confirm(`Opravdu chcete smazat tento interval?\n\n${roomName}\n${dateRange}\n\nTato akce je nevratná.`)) {
+    if (
+      !confirm(
+        `Opravdu chcete smazat tento interval?\n\n${roomName}\n${dateRange}\n\nTato akce je nevratná.`
+      )
+    ) {
       return;
     }
 

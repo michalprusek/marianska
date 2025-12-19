@@ -463,15 +463,11 @@ class DataManager {
         });
 
         if (response.status === 429) {
-          throw new Error(
-            errorData.error || 'Překročili jste limit. Zkuste to prosím později.'
-          );
+          throw new Error(errorData.error || 'Překročili jste limit. Zkuste to prosím později.');
         }
 
         if (response.status === 409) {
-          throw new Error(
-            errorData.error || 'Některý z termínů již není dostupný.'
-          );
+          throw new Error(errorData.error || 'Některý z termínů již není dostupný.');
         }
 
         throw new Error(errorData.error || `Server error: ${response.status}`);
@@ -493,7 +489,7 @@ class DataManager {
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
         throw new Error(
           'Server není dostupný. Rezervace nebyla vytvořena. ' +
-          'Zkontrolujte připojení k internetu a zkuste to znovu.'
+            'Zkontrolujte připojení k internetu a zkuste to znovu.'
         );
       }
 
@@ -582,7 +578,9 @@ class DataManager {
 
   // FIX 2025-12-09: Get all bookings in a group for grouped booking detail display
   getBookingsByGroupId(groupId) {
-    if (!groupId || !this.cachedData?.bookings) return [];
+    if (!groupId || !this.cachedData?.bookings) {
+      return [];
+    }
     return this.cachedData.bookings
       .filter((b) => b.groupId === groupId)
       .sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
@@ -1472,7 +1470,7 @@ class DataManager {
     // Handle error responses with specific status codes
     if (!response.ok) {
       let errorMessage;
-      const status = response.status;
+      const { status } = response;
 
       // Safe JSON parsing - server might return non-JSON error
       const data = await response.json().catch(() => ({}));
@@ -1548,7 +1546,7 @@ class DataManager {
 
     // Handle error responses with specific status codes
     if (!response.ok) {
-      const status = response.status;
+      const { status } = response;
       let errorMessage;
 
       // Safe JSON parsing

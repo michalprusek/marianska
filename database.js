@@ -258,7 +258,9 @@ class DatabaseManager {
     // Add group_id column to bookings table if it doesn't exist
     // This links bookings to their parent group
     try {
-      this.db.exec(`ALTER TABLE bookings ADD COLUMN group_id TEXT REFERENCES reservation_groups(group_id) ON DELETE SET NULL`);
+      this.db.exec(
+        `ALTER TABLE bookings ADD COLUMN group_id TEXT REFERENCES reservation_groups(group_id) ON DELETE SET NULL`
+      );
       this.db.exec(`CREATE INDEX IF NOT EXISTS idx_bookings_group ON bookings(group_id)`);
     } catch (e) {
       // Column already exists, ignore error
@@ -619,9 +621,10 @@ class DatabaseManager {
 
       // Insert room associations with per-room dates and guest counts
       // FIX 2025-12-06: Deduplicate rooms to prevent UNIQUE constraint violation
-      const uniqueRooms = data.rooms && data.rooms.length > 0
-        ? [...new Set(data.rooms.filter(r => r != null && r !== ''))]
-        : [];
+      const uniqueRooms =
+        data.rooms && data.rooms.length > 0
+          ? [...new Set(data.rooms.filter((r) => r != null && r !== ''))]
+          : [];
 
       for (const roomId of uniqueRooms) {
         // Use per-room dates if available, otherwise use booking-level dates
@@ -707,9 +710,10 @@ class DatabaseManager {
       // Update rooms (delete and re-insert) - no guest_type
       // FIX 2025-12-06: Deduplicate rooms to prevent UNIQUE constraint violation
       this.statements.deleteBookingRooms.run(bookingId);
-      const uniqueRooms = data.rooms && data.rooms.length > 0
-        ? [...new Set(data.rooms.filter(r => r != null && r !== ''))]
-        : [];
+      const uniqueRooms =
+        data.rooms && data.rooms.length > 0
+          ? [...new Set(data.rooms.filter((r) => r != null && r !== ''))]
+          : [];
 
       for (const roomId of uniqueRooms) {
         let roomStartDate = data.startDate;
@@ -914,47 +918,53 @@ class DatabaseManager {
         const editToken = IdGenerator.generateToken(12);
 
         // Insert booking with group link
-        this.db.prepare(`
+        this.db
+          .prepare(
+            `
           INSERT INTO bookings (
             id, name, email, phone, company, address, city, zip, ico, dic,
             start_date, end_date, total_price, notes, is_bulk_booking,
             paid, pay_from_benefit, edit_token, created_at, updated_at, group_id
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          bookingId,
-          contact.name,
-          contact.email,
-          contact.phone,
-          contact.company || null,
-          contact.address || null,
-          contact.city || null,
-          contact.zip || null,
-          contact.ico || null,
-          contact.dic || null,
-          reservation.startDate,
-          reservation.endDate,
-          reservation.totalPrice || 0,
-          contact.notes || null,
-          reservation.isBulkBooking ? 1 : 0,
-          0, // paid
-          0, // pay_from_benefit
-          editToken,
-          now,
-          now,
-          groupId
-        );
+        `
+          )
+          .run(
+            bookingId,
+            contact.name,
+            contact.email,
+            contact.phone,
+            contact.company || null,
+            contact.address || null,
+            contact.city || null,
+            contact.zip || null,
+            contact.ico || null,
+            contact.dic || null,
+            reservation.startDate,
+            reservation.endDate,
+            reservation.totalPrice || 0,
+            contact.notes || null,
+            reservation.isBulkBooking ? 1 : 0,
+            0, // paid
+            0, // pay_from_benefit
+            editToken,
+            now,
+            now,
+            groupId
+          );
 
         // Insert room associations
         const rooms = reservation.rooms || [];
-        const uniqueRooms = [...new Set(rooms.filter(r => r != null && r !== ''))];
+        const uniqueRooms = [...new Set(rooms.filter((r) => r != null && r !== ''))];
 
         for (const roomId of uniqueRooms) {
           const roomDates = reservation.perRoomDates?.[roomId] || {
             startDate: reservation.startDate,
-            endDate: reservation.endDate
+            endDate: reservation.endDate,
           };
           const roomGuests = reservation.perRoomGuests?.[roomId] || {
-            adults: 0, children: 0, toddlers: 0
+            adults: 0,
+            children: 0,
+            toddlers: 0,
           };
 
           this.statements.insertBookingRoom.run(
@@ -995,7 +1005,7 @@ class DatabaseManager {
           startDate: reservation.startDate,
           endDate: reservation.endDate,
           totalPrice: reservation.totalPrice || 0,
-          isBulkBooking: reservation.isBulkBooking || false
+          isBulkBooking: reservation.isBulkBooking || false,
         });
       }
 
@@ -1006,7 +1016,7 @@ class DatabaseManager {
         groupId,
         bookings: createdBookings,
         totalPrice: totalGroupPrice,
-        createdAt: now
+        createdAt: now,
       };
     });
 
@@ -1026,7 +1036,7 @@ class DatabaseManager {
 
     // Get all bookings in this group
     const bookingRows = this.statements.getBookingsByGroupId.all(groupId);
-    const bookings = bookingRows.map(row => this.getBooking(row.id));
+    const bookings = bookingRows.map((row) => this.getBooking(row.id));
 
     return {
       groupId: group.group_id,
@@ -1035,7 +1045,7 @@ class DatabaseManager {
       createdAt: group.created_at,
       updatedAt: group.updated_at,
       bookings,
-      bookingCount: bookings.length
+      bookingCount: bookings.length,
     };
   }
 
@@ -1051,7 +1061,9 @@ class DatabaseManager {
 
     for (const booking of allBookings) {
       // Check if booking has group_id
-      const groupId = this.db.prepare('SELECT group_id FROM bookings WHERE id = ?').get(booking.id)?.group_id;
+      const groupId = this.db
+        .prepare('SELECT group_id FROM bookings WHERE id = ?')
+        .get(booking.id)?.group_id;
 
       if (groupId) {
         if (!groups.has(groupId)) {
@@ -1062,7 +1074,7 @@ class DatabaseManager {
             totalPrice: groupData?.total_price || 0,
             createdAt: groupData?.created_at,
             updatedAt: groupData?.updated_at,
-            bookings: []
+            bookings: [],
           });
         }
         groups.get(groupId).bookings.push(booking);
@@ -1072,27 +1084,33 @@ class DatabaseManager {
     }
 
     // Convert Map to array and add computed fields
-    const groupsArray = Array.from(groups.values()).map(group => ({
+    const groupsArray = Array.from(groups.values()).map((group) => ({
       ...group,
       bookingCount: group.bookings.length,
       // Compute date range across all bookings
-      startDate: group.bookings.reduce((min, b) => b.startDate < min ? b.startDate : min, group.bookings[0]?.startDate),
-      endDate: group.bookings.reduce((max, b) => b.endDate > max ? b.endDate : max, group.bookings[0]?.endDate),
+      startDate: group.bookings.reduce(
+        (min, b) => (b.startDate < min ? b.startDate : min),
+        group.bookings[0]?.startDate
+      ),
+      endDate: group.bookings.reduce(
+        (max, b) => (b.endDate > max ? b.endDate : max),
+        group.bookings[0]?.endDate
+      ),
       // Compute room list
-      rooms: [...new Set(group.bookings.flatMap(b => b.rooms))],
+      rooms: [...new Set(group.bookings.flatMap((b) => b.rooms))],
       // Use first booking's contact info (all should be same)
       name: group.bookings[0]?.name,
       email: group.bookings[0]?.email,
       phone: group.bookings[0]?.phone,
       // Check if any booking is paid
-      paid: group.bookings.every(b => b.paid),
+      paid: group.bookings.every((b) => b.paid),
       // Check if any booking is bulk
-      hasBulkBooking: group.bookings.some(b => b.isBulkBooking)
+      hasBulkBooking: group.bookings.some((b) => b.isBulkBooking),
     }));
 
     return {
       groups: groupsArray.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
-      ungrouped
+      ungrouped,
     };
   }
 
@@ -1463,27 +1481,27 @@ class DatabaseManager {
     settings.prices = pricesJson
       ? JSON.parse(pricesJson)
       : {
-        utia: {
-          small: { empty: 250, adult: 50, child: 25 },
-          large: { empty: 350, adult: 50, child: 25 },
-        },
-        external: {
-          small: { empty: 400, adult: 100, child: 50 },
-          large: { empty: 500, adult: 100, child: 50 },
-        },
-      };
+          utia: {
+            small: { empty: 250, adult: 50, child: 25 },
+            large: { empty: 350, adult: 50, child: 25 },
+          },
+          external: {
+            small: { empty: 400, adult: 100, child: 50 },
+            large: { empty: 500, adult: 100, child: 50 },
+          },
+        };
 
     // Get bulk prices
     const bulkPricesJson = this.getSetting('bulkPrices');
     settings.bulkPrices = bulkPricesJson
       ? JSON.parse(bulkPricesJson)
       : {
-        basePrice: 2000,
-        utiaAdult: 100,
-        utiaChild: 0,
-        externalAdult: 250,
-        externalChild: 50,
-      };
+          basePrice: 2000,
+          utiaAdult: 100,
+          utiaChild: 0,
+          externalAdult: 250,
+          externalChild: 50,
+        };
 
     // Get rooms
     settings.rooms = this.statements.getAllRooms.all();
@@ -2215,13 +2233,17 @@ class DatabaseManager {
   migrateUngroupedBookings() {
     const transaction = this.db.transaction(() => {
       // Find ungrouped bookings that were created at the same time with same email
-      const ungroupedGroups = this.db.prepare(`
+      const ungroupedGroups = this.db
+        .prepare(
+          `
         SELECT email, created_at, GROUP_CONCAT(id) as booking_ids, COUNT(*) as cnt
         FROM bookings
         WHERE group_id IS NULL
         GROUP BY email, created_at
         HAVING cnt > 1
-      `).all();
+      `
+        )
+        .all();
 
       let migratedCount = 0;
 
@@ -2237,7 +2259,9 @@ class DatabaseManager {
         let totalPrice = 0;
         for (const bookingId of bookingIds) {
           // Get booking price
-          const booking = this.db.prepare('SELECT total_price FROM bookings WHERE id = ?').get(bookingId);
+          const booking = this.db
+            .prepare('SELECT total_price FROM bookings WHERE id = ?')
+            .get(bookingId);
           if (booking) {
             totalPrice += booking.total_price || 0;
           }

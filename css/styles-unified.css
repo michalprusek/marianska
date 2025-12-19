@@ -4406,3 +4406,28 @@ input:checked + .slider:before {
     border-width: 1.5px;
   }
 }
+
+/* Footer / Copyright */
+.site-footer {
+  text-align: center;
+  padding: var(--space-4) var(--space-3);
+  margin-top: var(--space-6);
+  border-top: 1px solid var(--border-color);
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.site-footer .sp-copyright {
+  display: inline-block;
+}
+
+.site-footer a {
+  color: var(--primary-color);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.site-footer a:hover {
+  color: var(--primary-dark);
+  text-decoration: underline;
+}

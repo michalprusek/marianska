@@ -216,7 +216,9 @@ class CreateBookingComponent {
         roomName = roomName.replace('Pokoj', 'Room');
       }
       const safeRoomName = this.escapeHtml(roomName);
-      const safeStartDate = this.escapeHtml(DateUtils.formatDateDisplay(new Date(res.startDate), lang));
+      const safeStartDate = this.escapeHtml(
+        DateUtils.formatDateDisplay(new Date(res.startDate), lang)
+      );
       const safeEndDate = this.escapeHtml(DateUtils.formatDateDisplay(new Date(res.endDate), lang));
       const adults = parseInt(res.guests?.adults, 10) || 0;
       const children = parseInt(res.guests?.children, 10) || 0;
@@ -333,14 +335,16 @@ class CreateBookingComponent {
 
     // FIX 2025-12-09: Use grouped booking API to create all reservations in one transaction
     // This enables composite bookings where multiple intervals are linked together
-    const reservations = this.app.tempReservations.map(res => {
+    const reservations = this.app.tempReservations.map((res) => {
       const roomIds = res.isBulkBooking ? res.roomIds || [] : [res.roomId];
 
       const perRoomGuests = {};
       const perRoomDates = {};
 
       roomIds.forEach((rid) => {
-        if (!rid) return;
+        if (!rid) {
+          return;
+        }
 
         perRoomGuests[rid] = {
           adults: res.guests?.adults || 0,
@@ -358,7 +362,7 @@ class CreateBookingComponent {
       // Collect guest names for this reservation
       const guestNames = [];
       if (res.guestNames && Array.isArray(res.guestNames)) {
-        const defaultRoomId = res.isBulkBooking ? (roomIds[0] || null) : res.roomId;
+        const defaultRoomId = res.isBulkBooking ? roomIds[0] || null : res.roomId;
         res.guestNames.forEach((guest) => {
           guestNames.push({
             ...guest,

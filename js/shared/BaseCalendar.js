@@ -174,11 +174,11 @@ class BaseCalendar {
       </div>
       <div class="calendar-weekdays" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.25rem; margin-bottom: 0.5rem;">
         ${CalendarUtils.getWeekdayHeaders(language)
-        .map(
-          (day) =>
-            `<div class="weekday-header" style="text-align: center; font-weight: 600; color: #666; font-size: 0.875rem; padding: 0.75rem; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${day}</div>`
-        )
-        .join('')}
+          .map(
+            (day) =>
+              `<div class="weekday-header" style="text-align: center; font-weight: 600; color: #666; font-size: 0.875rem; padding: 0.75rem; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${day}</div>`
+          )
+          .join('')}
       </div>
     `;
   }

@@ -92,9 +92,9 @@ function countGuestsByType(guestNames) {
     return { adults: 0, children: 0, toddlers: 0 };
   }
   return {
-    adults: guestNames.filter(g => g.personType === 'adult').length,
-    children: guestNames.filter(g => g.personType === 'child').length,
-    toddlers: guestNames.filter(g => g.personType === 'toddler').length,
+    adults: guestNames.filter((g) => g.personType === 'adult').length,
+    children: guestNames.filter((g) => g.personType === 'child').length,
+    toddlers: guestNames.filter((g) => g.personType === 'toddler').length,
   };
 }
 
@@ -507,7 +507,7 @@ app.post('/api/data', writeLimiter, requireApiKeyOrSession, (req, res) => {
     // The insertBooking statement doesn't include group_id, so we need to restore it after re-insert
     const groupIdMap = new Map();
     const existingBookings = db.getAllBookings();
-    existingBookings.forEach(b => {
+    existingBookings.forEach((b) => {
       if (b.groupId) {
         groupIdMap.set(b.id, b.groupId);
       }
@@ -528,7 +528,11 @@ app.post('/api/data', writeLimiter, requireApiKeyOrSession, (req, res) => {
         // FIX 2025-12-11: Restore group_id if it existed before deletion
         const originalGroupId = groupIdMap.get(booking.id);
         if (originalGroupId) {
-          db.statements.updateBookingGroupId.run(originalGroupId, new Date().toISOString(), booking.id);
+          db.statements.updateBookingGroupId.run(
+            originalGroupId,
+            new Date().toISOString(),
+            booking.id
+          );
         }
       }
     }
@@ -933,11 +937,14 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
             nights,
             settings,
           });
-          logger.info('Bulk booking price calculated with mixed guest types (derived from guestNames)', {
-            guestTypeBreakdown: derivedBreakdown,
-            nights,
-            totalPrice: bookingData.totalPrice,
-          });
+          logger.info(
+            'Bulk booking price calculated with mixed guest types (derived from guestNames)',
+            {
+              guestTypeBreakdown: derivedBreakdown,
+              nights,
+              totalPrice: bookingData.totalPrice,
+            }
+          );
         } else {
           // Fallback: Use single guestType pricing
           bookingData.totalPrice = PriceCalculator.calculateBulkPrice({
@@ -1065,7 +1072,9 @@ app.post('/api/booking/group', bookingLimiter, async (req, res) => {
     // FIX 2025-12-09: Limit maximum number of reservations per group to prevent DoS
     const MAX_RESERVATIONS_PER_GROUP = 50;
     if (reservations.length > MAX_RESERVATIONS_PER_GROUP) {
-      return res.status(400).json({ error: `Příliš mnoho rezervací v jedné skupině (max ${MAX_RESERVATIONS_PER_GROUP})` });
+      return res.status(400).json({
+        error: `Příliš mnoho rezervací v jedné skupině (max ${MAX_RESERVATIONS_PER_GROUP})`,
+      });
     }
 
     if (!contact || !contact.name || !contact.email || !contact.phone) {
@@ -1074,23 +1083,27 @@ app.post('/api/booking/group', bookingLimiter, async (req, res) => {
 
     // Validate field lengths
     if (contact.name && contact.name.length > MAX_LENGTHS.name) {
-      return res.status(400).json({ error: `Jméno je příliš dlouhé (max ${MAX_LENGTHS.name} znaků)` });
+      return res
+        .status(400)
+        .json({ error: `Jméno je příliš dlouhé (max ${MAX_LENGTHS.name} znaků)` });
     }
     if (contact.email && contact.email.length > MAX_LENGTHS.email) {
-      return res.status(400).json({ error: `Email je příliš dlouhý (max ${MAX_LENGTHS.email} znaků)` });
+      return res
+        .status(400)
+        .json({ error: `Email je příliš dlouhý (max ${MAX_LENGTHS.email} znaků)` });
     }
 
     // Validate email format
     if (!ValidationUtils.validateEmail(contact.email)) {
       return res.status(400).json({
-        error: ValidationUtils.getValidationError('email', contact.email, 'cs')
+        error: ValidationUtils.getValidationError('email', contact.email, 'cs'),
       });
     }
 
     // Validate phone format
     if (!ValidationUtils.validatePhone(contact.phone)) {
       return res.status(400).json({
-        error: ValidationUtils.getValidationError('phone', contact.phone, 'cs')
+        error: ValidationUtils.getValidationError('phone', contact.phone, 'cs'),
       });
     }
 
@@ -1114,7 +1127,11 @@ app.post('/api/booking/group', bookingLimiter, async (req, res) => {
       }
 
       // Validate rooms
-      if (!reservation.rooms || !Array.isArray(reservation.rooms) || reservation.rooms.length === 0) {
+      if (
+        !reservation.rooms ||
+        !Array.isArray(reservation.rooms) ||
+        reservation.rooms.length === 0
+      ) {
         return res.status(400).json({ error: `Rezervace ${i + 1}: Chybí pokoje` });
       }
 
@@ -1127,12 +1144,14 @@ app.post('/api/booking/group', bookingLimiter, async (req, res) => {
         const christmasPeriodStart = settings.christmasPeriod?.start;
         const today = new Date();
         const { codeRequired, bulkBlocked } = ChristmasUtils.checkChristmasAccessRequirement(
-          today, christmasPeriodStart, reservation.isBulkBooking
+          today,
+          christmasPeriodStart,
+          reservation.isBulkBooking
         );
 
         if (bulkBlocked && reservation.isBulkBooking) {
           return res.status(403).json({
-            error: 'Hromadné rezervace celé chaty nejsou po 1. října povoleny pro vánoční období.'
+            error: 'Hromadné rezervace celé chaty nejsou po 1. října povoleny pro vánoční období.',
           });
         }
 
@@ -1142,16 +1161,20 @@ app.post('/api/booking/group', bookingLimiter, async (req, res) => {
       }
 
       // Check guest counts
-      const totalGuests = (reservation.guestNames || []).filter(g => g.personType === 'adult').length;
+      const totalGuests = (reservation.guestNames || []).filter(
+        (g) => g.personType === 'adult'
+      ).length;
       if (totalGuests < 1) {
-        return res.status(400).json({ error: `Rezervace ${i + 1}: Je vyžadován alespoň 1 dospělý` });
+        return res
+          .status(400)
+          .json({ error: `Rezervace ${i + 1}: Je vyžadován alespoň 1 dospělý` });
       }
 
       // Validate room availability for each room in this reservation
       for (const roomId of reservation.rooms) {
         const roomDates = reservation.perRoomDates?.[roomId] || {
           startDate: reservation.startDate,
-          endDate: reservation.endDate
+          endDate: reservation.endDate,
         };
 
         // Check availability
@@ -1163,13 +1186,15 @@ app.post('/api/booking/group', bookingLimiter, async (req, res) => {
           const availability = db.getRoomAvailability(roomId, dateStr, sessionId);
 
           // Skip edge days - they are available for booking
-          if (availability.status === 'edge') continue;
+          if (availability.status === 'edge') {
+            continue;
+          }
 
           if (!availability.available) {
             return res.status(409).json({
               error: `Pokoj ${roomId} není dostupný v termínu ${roomDates.startDate} - ${roomDates.endDate}`,
               room: roomId,
-              date: dateStr
+              date: dateStr,
             });
           }
         }
@@ -1180,14 +1205,14 @@ app.post('/api/booking/group', bookingLimiter, async (req, res) => {
     const result = db.createGroupedBooking({
       sessionId,
       reservations,
-      contact
+      contact,
     });
 
     logger.info('Grouped booking created', {
       groupId: result.groupId,
       bookingCount: result.bookings.length,
       totalPrice: result.totalPrice,
-      email: contact.email
+      email: contact.email,
     });
 
     // FIX 2025-12-09: Use pre-initialized emailService instance instead of non-existent require
@@ -1195,10 +1220,16 @@ app.post('/api/booking/group', bookingLimiter, async (req, res) => {
 
     // FIX 2025-12-10: Aggregate guest data from all reservations for email template
     // FIX 2025-12-11: Use countGuestsByType utility function
-    const allGuestNames = reservations.flatMap(r => r.guestNames || []);
-    const { adults: aggregatedAdults, children: aggregatedChildren, toddlers: aggregatedToddlers } = countGuestsByType(allGuestNames);
+    const allGuestNames = reservations.flatMap((r) => r.guestNames || []);
+    const {
+      adults: aggregatedAdults,
+      children: aggregatedChildren,
+      toddlers: aggregatedToddlers,
+    } = countGuestsByType(allGuestNames);
     // Determine guestType: if any ÚTIA guest exists, mark as utia
-    const hasUtiaGuest = allGuestNames.some(g => g.guestPriceType === 'utia' && g.personType !== 'toddler');
+    const hasUtiaGuest = allGuestNames.some(
+      (g) => g.guestPriceType === 'utia' && g.personType !== 'toddler'
+    );
     const aggregatedGuestType = hasUtiaGuest ? 'utia' : 'external';
     // Merge perRoomDates and perRoomGuests from all reservations
     const mergedPerRoomDates = {};
@@ -1215,11 +1246,17 @@ app.post('/api/booking/group', bookingLimiter, async (req, res) => {
       phone: contact.phone,
       // FIX 2025-12-10: Add editToken from first booking - required for sendBookingConfirmation
       editToken: result.bookings[0]?.editToken,
-      startDate: reservations.reduce((min, r) => r.startDate < min ? r.startDate : min, reservations[0].startDate),
-      endDate: reservations.reduce((max, r) => r.endDate > max ? r.endDate : max, reservations[0].endDate),
-      rooms: [...new Set(reservations.flatMap(r => r.rooms))],
+      startDate: reservations.reduce(
+        (min, r) => (r.startDate < min ? r.startDate : min),
+        reservations[0].startDate
+      ),
+      endDate: reservations.reduce(
+        (max, r) => (r.endDate > max ? r.endDate : max),
+        reservations[0].endDate
+      ),
+      rooms: [...new Set(reservations.flatMap((r) => r.rooms))],
       totalPrice: result.totalPrice,
-      isBulkBooking: reservations.some(r => r.isBulkBooking),
+      isBulkBooking: reservations.some((r) => r.isBulkBooking),
       isGroupedBooking: true,
       bookingCount: result.bookings.length,
       // FIX 2025-12-10: Add guest data for email template
@@ -1230,18 +1267,18 @@ app.post('/api/booking/group', bookingLimiter, async (req, res) => {
       guestNames: allGuestNames,
       perRoomDates: mergedPerRoomDates,
       perRoomGuests: mergedPerRoomGuests,
-      intervals: reservations.map(r => ({
+      intervals: reservations.map((r) => ({
         rooms: r.rooms,
         startDate: r.startDate,
         endDate: r.endDate,
-        price: r.totalPrice
-      }))
+        price: r.totalPrice,
+      })),
     };
 
-    emailService.sendBookingConfirmation(combinedBooking, { settings }).catch(emailErr => {
+    emailService.sendBookingConfirmation(combinedBooking, { settings }).catch((emailErr) => {
       logger.error('Failed to send grouped booking confirmation', {
         error: emailErr.message,
-        groupId: result.groupId
+        groupId: result.groupId,
       });
     });
 
@@ -1252,13 +1289,12 @@ app.post('/api/booking/group', bookingLimiter, async (req, res) => {
       success: true,
       groupId: result.groupId,
       bookings: result.bookings,
-      totalPrice: result.totalPrice
+      totalPrice: result.totalPrice,
     });
-
   } catch (error) {
     logger.error('Error creating grouped booking', {
       error: error.message,
-      stack: error.stack
+      stack: error.stack,
     });
 
     const errorMessage = error.message.includes('není dostupný')
@@ -1376,6 +1412,43 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
           error: 'Hromadná rezervace vyžaduje minimálně 10 osob (dospělí + děti).',
           minimumGuestsRequired: 10,
           actualGuests: totalGuestsEdit,
+        });
+      }
+    }
+
+    // FIX 2025-12-19: Add capacity validation to PUT endpoint (mirror of POST logic)
+    // Prevents bypassing client-side capacity checks via direct API calls
+    const settings = db.getSettings();
+    const totalGuestsForCapacity =
+      (bookingData.adults || existingBooking.adults || 0) +
+      (bookingData.children || existingBooking.children || 0);
+    // Note: toddlers don't count toward capacity (can sleep with parents)
+
+    if (isBulkBookingEdit) {
+      // Bulk booking: Check against total cottage capacity (26 beds)
+      if (totalGuestsForCapacity > 26) {
+        return res.status(400).json({
+          error: `Překročena kapacita chaty (26 lůžek). Máte ${totalGuestsForCapacity} hostů.`,
+          capacityExceeded: true,
+        });
+      }
+    } else {
+      // Individual rooms: Check capacity of selected rooms
+      const roomsToCheck = bookingData.rooms || existingBooking.rooms || [];
+      let totalCapacity = 0;
+      for (const roomId of roomsToCheck) {
+        const room = settings.rooms?.find((r) => r.id === roomId);
+        if (room) {
+          totalCapacity += room.beds || 0;
+        }
+      }
+
+      if (totalGuestsForCapacity > totalCapacity) {
+        return res.status(400).json({
+          error: `Počet hostů (${totalGuestsForCapacity}) překračuje kapacitu vybraných pokojů (${totalCapacity} lůžek). Poznámka: Batolata (0-3 roky) se nepočítají.`,
+          capacityExceeded: true,
+          totalGuests: totalGuestsForCapacity,
+          totalCapacity,
         });
       }
     }
@@ -1596,7 +1669,7 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
     }
 
     // Check Christmas period access with date-based rules using shared ChristmasUtils
-    const settings = db.getSettings();
+    // Note: settings already loaded above for capacity validation
     const isChristmas =
       ChristmasUtils.isChristmasPeriod(bookingData.startDate, settings) ||
       ChristmasUtils.isChristmasPeriod(bookingData.endDate, settings);
@@ -1678,7 +1751,7 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       bookingData.startDate !== existingBooking.startDate ||
       bookingData.endDate !== existingBooking.endDate ||
       JSON.stringify((bookingData.rooms || []).sort()) !==
-      JSON.stringify((existingBooking.rooms || []).sort());
+        JSON.stringify((existingBooking.rooms || []).sort());
 
     if (datesOrRoomsChanged) {
       // Check room availability using unified BookingLogic (excluding current booking)
@@ -1699,7 +1772,6 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
         });
       }
     }
-
 
     // Detect if only payment-related fields are changing
     const priceAffectingFieldsChanged =
@@ -1761,11 +1833,14 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
             nights,
             settings,
           });
-          logger.info('Bulk booking update price calculated with mixed guest types (derived from guestNames)', {
-            guestTypeBreakdown: derivedBreakdown,
-            nights,
-            totalPrice: bookingData.totalPrice,
-          });
+          logger.info(
+            'Bulk booking update price calculated with mixed guest types (derived from guestNames)',
+            {
+              guestTypeBreakdown: derivedBreakdown,
+              nights,
+              totalPrice: bookingData.totalPrice,
+            }
+          );
         } else {
           // Fallback: Use single guestType pricing
           bookingData.totalPrice = PriceCalculator.calculateBulkPrice({
@@ -1910,7 +1985,7 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
       logger.info('Group price recalculated after booking update', {
         bookingId,
         groupId: updatedBooking.groupId,
-        newGroupTotal
+        newGroupTotal,
       });
     }
 
@@ -2837,7 +2912,7 @@ app.post('/api/admin/migrate-ungrouped-bookings', requireSession, (req, res) => 
     return res.json({
       success: true,
       message: `Migrace dokončena: vytvořeno ${result.groupsCreated} skupin, migrováno ${result.bookingsMigrated} rezervací`,
-      ...result
+      ...result,
     });
   } catch (error) {
     logger.error('Migration failed:', error);

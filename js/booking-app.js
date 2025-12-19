@@ -250,8 +250,8 @@ class BookingApp {
                   adults: bulkAdults,
                   children: bulkChildren,
                   nights: bulkNights,
-                  rooms: rooms,
-                  settings: settings,
+                  rooms,
+                  settings,
                 });
               } catch (e) {
                 console.warn('Failed to calculate bulk price:', e);
@@ -299,7 +299,7 @@ class BookingApp {
                       children: roomChildren,
                       nights: roomNights,
                       rooms: [roomId],
-                      settings: settings,
+                      settings,
                     });
                   } catch (e) {
                     console.warn('Failed to calculate room price:', e);
