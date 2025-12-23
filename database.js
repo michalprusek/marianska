@@ -2281,6 +2281,28 @@ class DatabaseManager {
     return transaction();
   }
 
+  /**
+   * Creates a synchronous backup of the database.
+   * Uses better-sqlite3's backup API for safe online backups.
+   *
+   * @param {string} backupPath - Absolute path for the backup file
+   * @throws {Error} If backup fails (disk full, permissions, database locked, etc.)
+   * @note This operation blocks the event loop until complete.
+   * @since 2025-12-23 Added for automatic daily backups
+   */
+  backup(backupPath) {
+    let backupHandle = null;
+    try {
+      backupHandle = this.db.backup(backupPath);
+      // step(-1) copies all pages at once (synchronous, blocks event loop)
+      backupHandle.step(-1);
+    } finally {
+      if (backupHandle) {
+        backupHandle.close();
+      }
+    }
+  }
+
   // Close database connection
   close() {
     this.db.close();
