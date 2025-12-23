@@ -2291,16 +2291,9 @@ class DatabaseManager {
    * @since 2025-12-23 Added for automatic daily backups
    */
   backup(backupPath) {
-    let backupHandle = null;
-    try {
-      backupHandle = this.db.backup(backupPath);
-      // step(-1) copies all pages at once (synchronous, blocks event loop)
-      backupHandle.step(-1);
-    } finally {
-      if (backupHandle) {
-        backupHandle.close();
-      }
-    }
+    // step(-1) copies all pages at once and auto-finalizes the backup
+    // No explicit close() needed - it's handled internally by better-sqlite3
+    this.db.backup(backupPath).step(-1);
   }
 
   // Close database connection
