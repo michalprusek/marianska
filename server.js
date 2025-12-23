@@ -3197,6 +3197,18 @@ setInterval(() => {
         throw new Error('Backup file is empty');
       }
 
+      // Step 3: Verify backup integrity (quick check)
+      const Database = require('better-sqlite3');
+      const testDb = new Database(backupPath, { readonly: true });
+      try {
+        const result = testDb.pragma('integrity_check', { simple: true });
+        if (result !== 'ok') {
+          throw new Error(`Backup integrity check failed: ${result}`);
+        }
+      } finally {
+        testDb.close();
+      }
+
       logger.info(`✅ Database backup created: ${backupPath} (${Math.round(stats.size / 1024)} KB)`);
     } catch (backupError) {
       logger.error('Database backup failed', {
