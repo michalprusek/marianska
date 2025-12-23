@@ -2290,10 +2290,9 @@ class DatabaseManager {
    * @note This operation blocks the event loop until complete.
    * @since 2025-12-23 Added for automatic daily backups
    */
-  backup(backupPath) {
-    // step(-1) copies all pages at once and auto-finalizes the backup
-    // No explicit close() needed - it's handled internally by better-sqlite3
-    this.db.backup(backupPath).step(-1);
+  async backup(backupPath) {
+    // better-sqlite3 backup() returns a Promise
+    await this.db.backup(backupPath);
   }
 
   // Close database connection

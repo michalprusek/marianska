@@ -3183,13 +3183,13 @@ setInterval(() => {
     fsSync.mkdirSync(backupDir, { recursive: true });
   }
 
-  const runBackup = () => {
+  const runBackup = async () => {
     const timestamp = new Date().toISOString().split('T')[0];
     const backupPath = path.join(backupDir, `bookings-${timestamp}.db`);
 
-    // Step 1: Create backup
+    // Step 1: Create backup (async)
     try {
-      db.backup(backupPath);
+      await db.backup(backupPath);
 
       // Step 2: Verify backup was created and is not empty
       const stats = fsSync.statSync(backupPath);
