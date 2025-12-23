@@ -745,8 +745,9 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
     // P0 FIX: Validate guest counts
     const totalGuests = (bookingData.adults || 0) + (bookingData.children || 0);
 
-    // FIX 2025-12-23: Removed adults < 1 check - rooms can have children only
-    // Validation for totalGuests === 0 below already ensures at least 1 guest
+    // FIX 2025-12-23: Removed adults < 1 check - business rule changed to allow
+    // rooms with children only (e.g., grandparents booking for grandchildren).
+    // totalGuests === 0 check below still ensures at least 1 paying guest exists.
 
     if (bookingData.adults < 0 || bookingData.children < 0 || bookingData.toddlers < 0) {
       return res.status(400).json({ error: 'Počet hostů nemůže být záporný' });
@@ -1159,7 +1160,8 @@ app.post('/api/booking/group', bookingLimiter, async (req, res) => {
         }
       }
 
-      // FIX 2025-12-23: Check that at least 1 guest exists (adult OR child)
+      // FIX 2025-12-23: At least 1 paying guest required (adult OR child).
+      // Toddlers excluded - they don't pay and don't count toward room capacity.
       const totalGuests = (reservation.guestNames || []).filter(
         (g) => g.personType === 'adult' || g.personType === 'child'
       ).length;
@@ -3167,7 +3169,11 @@ setInterval(() => {
   }
 }, 60000); // Run every minute
 
-// FIX 2025-12-23: Database backup - every day at midnight
+// FIX 2025-12-23: Automatic daily database backup system
+// - Creates backup file: bookings-YYYY-MM-DD.db in ./backups/
+// - Retains last 3 backups (older ones deleted automatically)
+// - Runs initial backup on startup, then every day at midnight
+// - Verifies backup file was created successfully
 (function scheduleBackup() {
   const fsSync = require('fs');
   const backupDir = path.join(__dirname, 'backups');
@@ -3178,27 +3184,62 @@ setInterval(() => {
   }
 
   const runBackup = () => {
-    const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const timestamp = new Date().toISOString().split('T')[0];
     const backupPath = path.join(backupDir, `bookings-${timestamp}.db`);
 
+    // Step 1: Create backup
     try {
       db.backup(backupPath);
-      logger.info(`✅ Database backup created: ${backupPath}`);
 
-      // Rotate - keep only 3 newest backups
+      // Step 2: Verify backup was created and is not empty
+      const stats = fsSync.statSync(backupPath);
+      if (stats.size === 0) {
+        throw new Error('Backup file is empty');
+      }
+
+      logger.info(`✅ Database backup created: ${backupPath} (${Math.round(stats.size / 1024)} KB)`);
+    } catch (backupError) {
+      logger.error('Database backup failed', {
+        backupPath,
+        errorMessage: backupError.message,
+        errorCode: backupError.code,
+      });
+      // Don't proceed to rotation if backup failed
+      return;
+    }
+
+    // Step 3: Rotate old backups (separate error handling)
+    try {
       const files = fsSync.readdirSync(backupDir)
         .filter(f => f.startsWith('bookings-') && f.endsWith('.db'))
         .sort()
         .reverse();
 
       for (const file of files.slice(3)) {
-        fsSync.unlinkSync(path.join(backupDir, file));
-        logger.info(`🗑️ Old backup deleted: ${file}`);
+        const filePath = path.join(backupDir, file);
+        try {
+          fsSync.unlinkSync(filePath);
+          logger.info(`🗑️ Old backup deleted: ${file}`);
+        } catch (deleteError) {
+          // Log individual file deletion failures but continue
+          logger.warn('Failed to delete old backup file', {
+            file,
+            errorMessage: deleteError.message,
+          });
+        }
       }
-    } catch (error) {
-      logger.error('Database backup failed:', error);
+    } catch (rotationError) {
+      // Backup succeeded, rotation failed - less critical
+      logger.warn('Backup rotation failed (backup was created successfully)', {
+        backupDir,
+        errorMessage: rotationError.message,
+      });
     }
   };
+
+  // Run initial backup on startup (ensures we have a recent backup)
+  logger.info('📦 Running initial database backup on startup...');
+  runBackup();
 
   // Calculate ms until next midnight
   const now = new Date();
@@ -3206,13 +3247,13 @@ setInterval(() => {
   midnight.setHours(24, 0, 0, 0);
   const msUntilMidnight = midnight - now;
 
-  // Schedule first backup at midnight, then every 24h
+  // Schedule daily backup at midnight
   setTimeout(() => {
     runBackup();
     setInterval(runBackup, 24 * 60 * 60 * 1000);
   }, msUntilMidnight);
 
-  logger.info(`📅 Backup scheduled for midnight (in ${Math.round(msUntilMidnight / 1000 / 60)} minutes)`);
+  logger.info(`📅 Daily backup scheduled for midnight (in ${Math.round(msUntilMidnight / 1000 / 60)} minutes)`);
 })();
 
 // Error handling middleware
