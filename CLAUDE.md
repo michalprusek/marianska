@@ -59,9 +59,15 @@ price = empty_room_rate + (adult_rate * adults) + (child_rate * children)
 
 ## Docker Build Instructions
 
-**IMPORTANT:** Before each Docker build, clean up unused images to prevent storage issues:
+**⚠️ POZOR: Aplikace běží v PRODUKCI!**
+
+Při rebuildu NIKDY nemazat data:
+- Databáze je v Docker volume `marianska_db-data`
+- **NEPOUŽÍVAT** `--volumes` flag při prune (smaže produkční data!)
+
+Bezpečný rebuild:
 ```bash
-docker system prune -af --volumes
+docker system prune -af
 docker-compose build --no-cache web && docker-compose up -d web
 ```
 

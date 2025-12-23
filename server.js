@@ -745,9 +745,8 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
     // P0 FIX: Validate guest counts
     const totalGuests = (bookingData.adults || 0) + (bookingData.children || 0);
 
-    if (bookingData.adults < 1) {
-      return res.status(400).json({ error: 'Rezervace musí obsahovat alespoň 1 dospělého' });
-    }
+    // FIX 2025-12-23: Removed adults < 1 check - rooms can have children only
+    // Validation for totalGuests === 0 below already ensures at least 1 guest
 
     if (bookingData.adults < 0 || bookingData.children < 0 || bookingData.toddlers < 0) {
       return res.status(400).json({ error: 'Počet hostů nemůže být záporný' });
@@ -1160,14 +1159,14 @@ app.post('/api/booking/group', bookingLimiter, async (req, res) => {
         }
       }
 
-      // Check guest counts
+      // FIX 2025-12-23: Check that at least 1 guest exists (adult OR child)
       const totalGuests = (reservation.guestNames || []).filter(
-        (g) => g.personType === 'adult'
+        (g) => g.personType === 'adult' || g.personType === 'child'
       ).length;
       if (totalGuests < 1) {
         return res
           .status(400)
-          .json({ error: `Rezervace ${i + 1}: Je vyžadován alespoň 1 dospělý` });
+          .json({ error: `Rezervace ${i + 1}: Je vyžadován alespoň 1 host (dospělý nebo dítě)` });
       }
 
       // Validate room availability for each room in this reservation
@@ -3167,6 +3166,54 @@ setInterval(() => {
     logger.error('cleaning up expired proposed bookings:', error);
   }
 }, 60000); // Run every minute
+
+// FIX 2025-12-23: Database backup - every day at midnight
+(function scheduleBackup() {
+  const fsSync = require('fs');
+  const backupDir = path.join(__dirname, 'backups');
+
+  // Create backup directory if not exists
+  if (!fsSync.existsSync(backupDir)) {
+    fsSync.mkdirSync(backupDir, { recursive: true });
+  }
+
+  const runBackup = () => {
+    const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const backupPath = path.join(backupDir, `bookings-${timestamp}.db`);
+
+    try {
+      db.backup(backupPath);
+      logger.info(`✅ Database backup created: ${backupPath}`);
+
+      // Rotate - keep only 3 newest backups
+      const files = fsSync.readdirSync(backupDir)
+        .filter(f => f.startsWith('bookings-') && f.endsWith('.db'))
+        .sort()
+        .reverse();
+
+      for (const file of files.slice(3)) {
+        fsSync.unlinkSync(path.join(backupDir, file));
+        logger.info(`🗑️ Old backup deleted: ${file}`);
+      }
+    } catch (error) {
+      logger.error('Database backup failed:', error);
+    }
+  };
+
+  // Calculate ms until next midnight
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  const msUntilMidnight = midnight - now;
+
+  // Schedule first backup at midnight, then every 24h
+  setTimeout(() => {
+    runBackup();
+    setInterval(runBackup, 24 * 60 * 60 * 1000);
+  }, msUntilMidnight);
+
+  logger.info(`📅 Backup scheduled for midnight (in ${Math.round(msUntilMidnight / 1000 / 60)} minutes)`);
+})();
 
 // Error handling middleware
 // eslint-disable-next-line no-unused-vars

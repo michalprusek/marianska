@@ -2281,6 +2281,14 @@ class DatabaseManager {
     return transaction();
   }
 
+  // Create database backup
+  // FIX 2025-12-23: Added for automatic daily backups
+  backup(backupPath) {
+    const backup = this.db.backup(backupPath);
+    backup.step(-1); // -1 = copy all pages at once
+    backup.close();
+  }
+
   // Close database connection
   close() {
     this.db.close();
