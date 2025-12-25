@@ -1,5 +1,9 @@
 {
-  "*.{js,mjs}": ["eslint --fix", "prettier --write", "jscpd --config .jscpd.json"],
+  "*.{js,mjs}": [
+    "eslint --fix --no-warn-ignored",
+    "prettier --write",
+    "jscpd --config .jscpd.json"
+  ],
   "!scripts/**/*.{js,mjs}": [],
   "*.{html,css}": ["prettier --write"],
   "*.json": ["jsonlint", "prettier --write"],
