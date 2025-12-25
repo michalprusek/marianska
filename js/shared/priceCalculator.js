@@ -858,9 +858,20 @@ class PriceCalculator {
         // Use per-room guest type if available (NEW logic)
         roomGuestType = normalizedPerRoomGuests[roomId].guestType;
       } else {
-        // FIX 2025-12-05: Check guestNames for THIS ROOM ONLY, not all guests
-        // Filter guests by roomId first, then check for ÚTIA
-        const roomGuestNames = guestNames.filter((g) => String(g.roomId) === String(roomId));
+        // FIX 2025-12-23: Backward-compatible guest type detection
+        // If guests have roomId, filter by it; otherwise check ALL guests (legacy behavior)
+        const guestsHaveRoomId = guestNames.some((g) => g.roomId !== undefined);
+        let roomGuestNames;
+
+        if (guestsHaveRoomId) {
+          // NEW behavior: Only check guests assigned to THIS room
+          roomGuestNames = guestNames.filter((g) => String(g.roomId) === String(roomId));
+        } else {
+          // LEGACY behavior: When no roomId provided, treat all guests as belonging to this room
+          // This maintains backward compatibility with tests and older API calls
+          roomGuestNames = guestNames;
+        }
+
         const hasUtiaGuest = roomGuestNames.some(
           (g) => g.guestPriceType === 'utia' && g.personType !== 'toddler'
         );

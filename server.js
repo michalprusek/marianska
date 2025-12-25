@@ -303,17 +303,20 @@ function resetChristmasCodeAttempts(ip) {
 }
 
 // Cleanup expired entries every 5 minutes
-setInterval(
-  () => {
-    const now = Date.now();
-    for (const [ip, record] of christmasCodeAttempts.entries()) {
-      if (now >= record.resetAt) {
-        christmasCodeAttempts.delete(ip);
+// FIX 2025-12-24: Only run when server is started directly (not during testing)
+if (require.main === module) {
+  setInterval(
+    () => {
+      const now = Date.now();
+      for (const [ip, record] of christmasCodeAttempts.entries()) {
+        if (now >= record.resetAt) {
+          christmasCodeAttempts.delete(ip);
+        }
       }
-    }
-  },
-  5 * 60 * 1000
-);
+    },
+    5 * 60 * 1000
+  );
+}
 
 // Request logging middleware for debugging
 if (process.env.NODE_ENV === 'development') {
@@ -768,11 +771,9 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
     const MAX_NAME_LENGTH = 50;
     bookingData.guestNames.forEach((guest) => {
       if (guest.firstName) {
-        // eslint-disable-next-line no-param-reassign -- sanitizing in place is intentional
         guest.firstName = sanitizeInput(guest.firstName.trim(), MAX_NAME_LENGTH);
       }
       if (guest.lastName) {
-        // eslint-disable-next-line no-param-reassign -- sanitizing in place is intentional
         guest.lastName = sanitizeInput(guest.lastName.trim(), MAX_NAME_LENGTH);
       }
     });
@@ -785,7 +786,6 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
       const singleRoomId = bookingData.rooms[0];
       bookingData.guestNames.forEach((guest) => {
         if (!guest.roomId) {
-          // eslint-disable-next-line no-param-reassign
           guest.roomId = singleRoomId;
         }
       });
@@ -795,7 +795,6 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
       const firstRoomId = bookingData.rooms[0];
       bookingData.guestNames.forEach((guest) => {
         if (!guest.roomId) {
-          // eslint-disable-next-line no-param-reassign
           guest.roomId = firstRoomId;
         }
       });
@@ -1636,7 +1635,6 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
         const singleRoomId = rooms[0];
         bookingData.guestNames.forEach((guest) => {
           if (!guest.roomId) {
-            // eslint-disable-next-line no-param-reassign
             guest.roomId = singleRoomId;
           }
         });
@@ -1646,7 +1644,6 @@ app.put('/api/booking/:id', writeLimiter, async (req, res) => {
         const firstRoomId = rooms[0];
         bookingData.guestNames.forEach((guest) => {
           if (!guest.roomId) {
-            // eslint-disable-next-line no-param-reassign
             guest.roomId = firstRoomId;
           }
         });
@@ -2092,7 +2089,9 @@ app.delete('/api/booking/:id', writeLimiter, async (req, res) => {
     }
 
     // DRY: Use shared helper for admin session validation
-    let { isAdmin, error: sessionError } = validateAdminSession(req);
+    const { isAdmin: initialIsAdmin, error: initialSessionError } = validateAdminSession(req);
+    let isAdmin = initialIsAdmin;
+    const sessionError = initialSessionError;
     if (sessionError) {
       return res.status(sessionError.status).json({ error: sessionError.message });
     }
@@ -2263,15 +2262,18 @@ app.post('/api/bookings/bulk-delete', writeLimiter, async (req, res) => {
 // SECURITY FIX: Use database-backed session storage instead of in-memory Map
 // This ensures sessions persist across server restarts
 // Cleanup expired sessions every 5 minutes
-setInterval(
-  () => {
-    const deletedCount = db.deleteExpiredAdminSessions();
-    if (deletedCount > 0) {
-      logger.info(`🗑️  Cleaned up ${deletedCount} expired admin session(s)`);
-    }
-  },
-  5 * 60 * 1000
-);
+// FIX 2025-12-24: Only run when server is started directly (not during testing)
+if (require.main === module) {
+  setInterval(
+    () => {
+      const deletedCount = db.deleteExpiredAdminSessions();
+      if (deletedCount > 0) {
+        logger.info(`🗑️  Cleaned up ${deletedCount} expired admin session(s)`);
+      }
+    },
+    5 * 60 * 1000
+  );
+}
 
 // Admin login endpoint
 app.post('/api/admin/login', adminLoginLimiter, async (req, res) => {
@@ -3157,116 +3159,127 @@ app.get('/api/audit-logs', requireSession, (req, res) => {
   }
 });
 
-// Cleanup expired proposed bookings (run every minute)
-setInterval(() => {
-  try {
-    const result = db.deleteExpiredProposedBookings();
-    if (result.changes > 0) {
-      logger.info(`Cleaned up ${result.changes} expired proposed bookings`);
+// FIX 2025-12-24: Only run intervals when server is started directly (not during testing)
+if (require.main === module) {
+  // Cleanup expired proposed bookings (run every minute)
+  setInterval(() => {
+    try {
+      const result = db.deleteExpiredProposedBookings();
+      if (result.changes > 0) {
+        logger.info(`Cleaned up ${result.changes} expired proposed bookings`);
+      }
+    } catch (error) {
+      logger.error('cleaning up expired proposed bookings:', error);
     }
-  } catch (error) {
-    logger.error('cleaning up expired proposed bookings:', error);
-  }
-}, 60000); // Run every minute
+  }, 60000); // Run every minute
+}
 
 // FIX 2025-12-23: Automatic daily database backup system
 // - Creates backup file: bookings-YYYY-MM-DD.db in ./backups/
 // - Retains last 3 backups (older ones deleted automatically)
 // - Runs initial backup on startup, then every day at midnight
 // - Verifies backup file was created successfully
-(function scheduleBackup() {
-  const fsSync = require('fs');
-  const backupDir = path.join(__dirname, 'backups');
+// FIX 2025-12-24: Only run when server is started directly (not during testing)
+if (require.main === module) {
+  (function scheduleBackup() {
+    const fsSync = require('fs');
+    const backupDir = path.join(__dirname, 'backups');
 
-  // Create backup directory if not exists
-  if (!fsSync.existsSync(backupDir)) {
-    fsSync.mkdirSync(backupDir, { recursive: true });
-  }
+    // Create backup directory if not exists
+    if (!fsSync.existsSync(backupDir)) {
+      fsSync.mkdirSync(backupDir, { recursive: true });
+    }
 
-  const runBackup = async () => {
-    const timestamp = new Date().toISOString().split('T')[0];
-    const backupPath = path.join(backupDir, `bookings-${timestamp}.db`);
+    const runBackup = async () => {
+      const timestamp = new Date().toISOString().split('T')[0];
+      const backupPath = path.join(backupDir, `bookings-${timestamp}.db`);
 
-    // Step 1: Create backup (async)
-    try {
-      await db.backup(backupPath);
-
-      // Step 2: Verify backup was created and is not empty
-      const stats = fsSync.statSync(backupPath);
-      if (stats.size === 0) {
-        throw new Error('Backup file is empty');
-      }
-
-      // Step 3: Verify backup integrity (quick check)
-      const Database = require('better-sqlite3');
-      const testDb = new Database(backupPath, { readonly: true });
+      // Step 1: Create backup (async)
       try {
-        const result = testDb.pragma('integrity_check', { simple: true });
-        if (result !== 'ok') {
-          throw new Error(`Backup integrity check failed: ${result}`);
+        await db.backup(backupPath);
+
+        // Step 2: Verify backup was created and is not empty
+        const stats = fsSync.statSync(backupPath);
+        if (stats.size === 0) {
+          throw new Error('Backup file is empty');
         }
-      } finally {
-        testDb.close();
-      }
 
-      logger.info(`✅ Database backup created: ${backupPath} (${Math.round(stats.size / 1024)} KB)`);
-    } catch (backupError) {
-      logger.error('Database backup failed', {
-        backupPath,
-        errorMessage: backupError.message,
-        errorCode: backupError.code,
-      });
-      // Don't proceed to rotation if backup failed
-      return;
-    }
-
-    // Step 3: Rotate old backups (separate error handling)
-    try {
-      const files = fsSync.readdirSync(backupDir)
-        .filter(f => f.startsWith('bookings-') && f.endsWith('.db'))
-        .sort()
-        .reverse();
-
-      for (const file of files.slice(3)) {
-        const filePath = path.join(backupDir, file);
+        // Step 3: Verify backup integrity (quick check)
+        const Database = require('better-sqlite3');
+        const testDb = new Database(backupPath, { readonly: true });
         try {
-          fsSync.unlinkSync(filePath);
-          logger.info(`🗑️ Old backup deleted: ${file}`);
-        } catch (deleteError) {
-          // Log individual file deletion failures but continue
-          logger.warn('Failed to delete old backup file', {
-            file,
-            errorMessage: deleteError.message,
-          });
+          const result = testDb.pragma('integrity_check', { simple: true });
+          if (result !== 'ok') {
+            throw new Error(`Backup integrity check failed: ${result}`);
+          }
+        } finally {
+          testDb.close();
         }
+
+        logger.info(
+          `✅ Database backup created: ${backupPath} (${Math.round(stats.size / 1024)} KB)`
+        );
+      } catch (backupError) {
+        logger.error('Database backup failed', {
+          backupPath,
+          errorMessage: backupError.message,
+          errorCode: backupError.code,
+        });
+        // Don't proceed to rotation if backup failed
+        return;
       }
-    } catch (rotationError) {
-      // Backup succeeded, rotation failed - less critical
-      logger.warn('Backup rotation failed (backup was created successfully)', {
-        backupDir,
-        errorMessage: rotationError.message,
-      });
-    }
-  };
 
-  // Run initial backup on startup (ensures we have a recent backup)
-  logger.info('📦 Running initial database backup on startup...');
-  runBackup();
+      // Step 3: Rotate old backups (separate error handling)
+      try {
+        const files = fsSync
+          .readdirSync(backupDir)
+          .filter((f) => f.startsWith('bookings-') && f.endsWith('.db'))
+          .sort()
+          .reverse();
 
-  // Calculate ms until next midnight
-  const now = new Date();
-  const midnight = new Date(now);
-  midnight.setHours(24, 0, 0, 0);
-  const msUntilMidnight = midnight - now;
+        for (const file of files.slice(3)) {
+          const filePath = path.join(backupDir, file);
+          try {
+            fsSync.unlinkSync(filePath);
+            logger.info(`🗑️ Old backup deleted: ${file}`);
+          } catch (deleteError) {
+            // Log individual file deletion failures but continue
+            logger.warn('Failed to delete old backup file', {
+              file,
+              errorMessage: deleteError.message,
+            });
+          }
+        }
+      } catch (rotationError) {
+        // Backup succeeded, rotation failed - less critical
+        logger.warn('Backup rotation failed (backup was created successfully)', {
+          backupDir,
+          errorMessage: rotationError.message,
+        });
+      }
+    };
 
-  // Schedule daily backup at midnight
-  setTimeout(() => {
+    // Run initial backup on startup (ensures we have a recent backup)
+    logger.info('📦 Running initial database backup on startup...');
     runBackup();
-    setInterval(runBackup, 24 * 60 * 60 * 1000);
-  }, msUntilMidnight);
 
-  logger.info(`📅 Daily backup scheduled for midnight (in ${Math.round(msUntilMidnight / 1000 / 60)} minutes)`);
-})();
+    // Calculate ms until next midnight
+    const now = new Date();
+    const midnight = new Date(now);
+    midnight.setHours(24, 0, 0, 0);
+    const msUntilMidnight = midnight - now;
+
+    // Schedule daily backup at midnight
+    setTimeout(() => {
+      runBackup();
+      setInterval(runBackup, 24 * 60 * 60 * 1000);
+    }, msUntilMidnight);
+
+    logger.info(
+      `📅 Daily backup scheduled for midnight (in ${Math.round(msUntilMidnight / 1000 / 60)} minutes)`
+    );
+  })();
+}
 
 // Error handling middleware
 // eslint-disable-next-line no-unused-vars
@@ -3278,26 +3291,29 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
-const server = app.listen(PORT, '0.0.0.0', () => {
-  logger.info(`Server běží na http://localhost:${PORT}`);
-  logger.info(`Prostředí: ${process.env.NODE_ENV || 'development'}`);
-  logger.info('Database: SQLite (bookings.db)');
-  if (process.env.NODE_ENV !== 'production') {
-    logger.warn(
-      '⚠️  VAROVÁNÍ: Server běží v development módu. Pro produkci nastavte NODE_ENV=production'
-    );
-  }
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM signal received: closing HTTP server');
-  server.close(() => {
-    logger.info('HTTP server closed');
-    db.close();
-    process.exit(0);
+// FIX 2025-12-24: Only start server when run directly (not when required for testing)
+if (require.main === module) {
+  // Start server
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    logger.info(`Server běží na http://localhost:${PORT}`);
+    logger.info(`Prostředí: ${process.env.NODE_ENV || 'development'}`);
+    logger.info('Database: SQLite (bookings.db)');
+    if (process.env.NODE_ENV !== 'production') {
+      logger.warn(
+        '⚠️  VAROVÁNÍ: Server běží v development módu. Pro produkci nastavte NODE_ENV=production'
+      );
+    }
   });
-});
+
+  // Graceful shutdown
+  process.on('SIGTERM', () => {
+    logger.info('SIGTERM signal received: closing HTTP server');
+    server.close(() => {
+      logger.info('HTTP server closed');
+      db.close();
+      process.exit(0);
+    });
+  });
+}
 
 module.exports = app;
