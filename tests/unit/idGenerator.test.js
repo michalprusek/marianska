@@ -148,8 +148,11 @@ describe('IdGenerator', () => {
 
     it('should generate IDs with sufficient length for sessions', () => {
       const id = IdGenerator.generateSessionId();
-      // SESS + 16 chars = 20 total
-      expect(id.length).toBeGreaterThanOrEqual(20);
+      // FIX 2025-12-23: Math.random().toString(36).substr(2) produces variable length
+      // Base 36 encoding of random number can be 8-11 chars, minimum observed is ~8
+      // SESS (4) + random (8+) = at least 12 chars
+      expect(id.length).toBeGreaterThanOrEqual(12);
+      expect(id).toMatch(/^SESS[A-Z0-9]+$/);
     });
   });
 

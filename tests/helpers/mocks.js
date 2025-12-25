@@ -148,7 +148,7 @@ class MockDataManager {
     return token;
   }
 
-  getRoomAvailability(date, roomId) {
+  async getRoomAvailability(date, roomId) {
     // Check blocked dates
     const blocked = this.data.blockedDates.find((bd) => bd.date === date && bd.roomId === roomId);
     if (blocked) {
@@ -167,10 +167,29 @@ class MockDataManager {
       return { status: 'booked', email: booking.email };
     }
 
+    // FIX 2025-12-23: Check proposed bookings (with EXCLUSIVE end date logic)
+    const proposedBookings = this.data.proposedBookings || [];
+    const now = Date.now();
+    const checkDate = new Date(date);
+
+    for (const pb of proposedBookings) {
+      // Skip expired proposals
+      if (pb.expires_at && pb.expires_at < now) continue;
+
+      // Check if room matches
+      if (!pb.rooms || !pb.rooms.includes(roomId)) continue;
+
+      // EXCLUSIVE end date logic: date must be >= start AND < end
+      const start = new Date(pb.start_date);
+      const end = new Date(pb.end_date);
+
+      if (checkDate >= start && checkDate < end) {
+        return { status: 'proposed', email: null, proposalId: pb.proposal_id };
+      }
+    }
+
     return { status: 'available', email: null };
   }
-
-
 
   isChristmasPeriod(date) {
     const dateStr = typeof date === 'string' ? date : date.toISOString().split('T')[0];
