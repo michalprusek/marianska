@@ -2375,8 +2375,17 @@ class DatabaseManager {
    * @param {string} emailData.htmlContent - HTML content
    * @param {string} emailData.textContent - Plain text content
    * @returns {Object} Result with id, isNew, and wasUpdated flags
+   * @throws {Error} If required fields are missing
    */
   queueEmail(emailData) {
+    // FIX 2026-01-06: Input validation for required fields
+    const requiredFields = ['hash', 'emailType', 'recipient', 'subject', 'htmlContent'];
+    for (const field of requiredFields) {
+      if (!emailData[field]) {
+        throw new Error(`queueEmail: missing required field '${field}'`);
+      }
+    }
+
     const now = new Date().toISOString();
     const id = IdGenerator.generateEmailQueueId();
 
@@ -2439,10 +2448,13 @@ class DatabaseManager {
    * Mark an email as successfully sent.
    *
    * @param {string} id - Email queue ID
+   * @returns {boolean} True if email was found and updated
    */
   markEmailSent(id) {
     const now = new Date().toISOString();
-    this.statements.markEmailSent.run(now, id);
+    const result = this.statements.markEmailSent.run(now, id);
+    // FIX 2026-01-06: Verify rows affected
+    return result.changes > 0;
   }
 
   /**
@@ -2450,27 +2462,39 @@ class DatabaseManager {
    *
    * @param {string} id - Email queue ID
    * @param {string} error - Error message
+   * @returns {boolean} True if email was found and updated
    */
   markEmailFailed(id, error) {
     const now = new Date().toISOString();
-    this.statements.markEmailFailed.run(error, now, id);
+    const result = this.statements.markEmailFailed.run(error, now, id);
+    // FIX 2026-01-06: Verify rows affected
+    return result.changes > 0;
   }
 
   /**
    * Update email attempt count and schedule next retry.
-   * Uses exponential backoff: 1min, 5min, 15min, 30min
+   * Uses progressive backoff delays: 1min, 5min, 15min, 30min
    *
    * @param {string} id - Email queue ID
    * @param {string} error - Error message from failed attempt
    * @param {number} currentAttempts - Current number of attempts
+   * @returns {boolean} True if email was found and updated
    */
   updateEmailAttempt(id, error, currentAttempts) {
     const now = new Date();
-    const backoffMinutes = [1, 5, 15, 30]; // Exponential backoff
+    // Progressive backoff delays (not exponential - values are manually chosen)
+    const backoffMinutes = [1, 5, 15, 30];
     const delayMinutes = backoffMinutes[Math.min(currentAttempts, backoffMinutes.length - 1)];
     const nextAttempt = new Date(now.getTime() + delayMinutes * 60 * 1000).toISOString();
 
-    this.statements.updateEmailAttempt.run(nextAttempt, error, now.toISOString(), id);
+    const result = this.statements.updateEmailAttempt.run(
+      nextAttempt,
+      error,
+      now.toISOString(),
+      id
+    );
+    // FIX 2026-01-06: Verify rows affected
+    return result.changes > 0;
   }
 
   /**
@@ -2499,12 +2523,12 @@ class DatabaseManager {
   }
 
   /**
-   * Creates a synchronous backup of the database.
+   * Creates an asynchronous backup of the database.
    * Uses better-sqlite3's backup API for safe online backups.
    *
    * @param {string} backupPath - Absolute path for the backup file
    * @throws {Error} If backup fails (disk full, permissions, database locked, etc.)
-   * @note This operation blocks the event loop until complete.
+   * @note This is an asynchronous operation using better-sqlite3's backup API.
    * @since 2025-12-23 Added for automatic daily backups
    */
   async backup(backupPath) {

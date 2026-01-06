@@ -6,6 +6,7 @@
  */
 
 const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 // Server-side require - not a redeclaration (client-side uses global DateUtils)
 // eslint-disable-next-line no-redeclare
 const DateUtils = require('./dateUtils');
@@ -105,7 +106,6 @@ class EmailService {
    * @private
    */
   generateEmailHash(bookingId, emailType, recipient) {
-    const crypto = require('crypto');
     const today = new Date().toISOString().slice(0, 10);
     const data = `${bookingId || 'none'}:${emailType}:${recipient}:${today}`;
     return crypto.createHash('sha256').update(data).digest('hex');
@@ -123,52 +123,66 @@ class EmailService {
    * @param {Object} context - Context for logging and deduplication
    * @param {string} context.bookingId - Booking ID (optional)
    * @param {string} context.type - Email type for deduplication
-   * @returns {Object} Queue result
+   * @returns {Object} Queue result - { queued: true, id, isNew, wasUpdated, skipped } on success
+   * @throws {Error} If database is not connected or queue operation fails
    */
   queueEmailForSending(options, context = {}) {
     if (!this.db) {
-      logger.warn('Database not connected, falling back to direct send', {
+      const error = new Error('Database not connected, cannot queue email');
+      logger.error('Email queue failed - database not connected', {
         type: context.type,
         to: options.to,
+        error: error.message,
       });
-      return { queued: false, fallback: true };
+      throw error;
     }
 
     const hash = this.generateEmailHash(context.bookingId, context.type, options.to);
 
-    const result = this.db.queueEmail({
-      hash,
-      bookingId: context.bookingId || null,
-      emailType: context.type || 'unknown',
-      recipient: options.to,
-      subject: options.subject,
-      htmlContent: options.html,
-      textContent: options.text,
-    });
+    try {
+      const result = this.db.queueEmail({
+        hash,
+        bookingId: context.bookingId || null,
+        emailType: context.type || 'unknown',
+        recipient: options.to,
+        subject: options.subject,
+        htmlContent: options.html,
+        textContent: options.text,
+      });
 
-    if (result.skipped) {
-      logger.info('Email already sent, skipping duplicate', {
+      if (result.skipped) {
+        logger.info('Email already sent, skipping duplicate', {
+          type: context.type,
+          bookingId: context.bookingId,
+          recipient: options.to,
+        });
+      } else if (result.wasUpdated) {
+        logger.info('Email updated in queue (retry scheduled)', {
+          type: context.type,
+          bookingId: context.bookingId,
+          recipient: options.to,
+          emailId: result.id,
+        });
+      } else {
+        logger.info('Email queued for sending', {
+          type: context.type,
+          bookingId: context.bookingId,
+          recipient: options.to,
+          emailId: result.id,
+        });
+      }
+
+      return { queued: true, ...result };
+    } catch (dbError) {
+      logger.error('Failed to queue email', {
         type: context.type,
         bookingId: context.bookingId,
         recipient: options.to,
+        error: dbError.message,
+        stack: dbError.stack,
       });
-    } else if (result.wasUpdated) {
-      logger.info('Email updated in queue (retry scheduled)', {
-        type: context.type,
-        bookingId: context.bookingId,
-        recipient: options.to,
-        emailId: result.id,
-      });
-    } else {
-      logger.info('Email queued for sending', {
-        type: context.type,
-        bookingId: context.bookingId,
-        recipient: options.to,
-        emailId: result.id,
-      });
+      throw dbError;
     }
-
-    return { queued: true, ...result };
   }
 
   /**
@@ -176,7 +190,7 @@ class EmailService {
    * This method should be called periodically by a background worker.
    *
    * @param {number} limit - Maximum emails to process per cycle
-   * @returns {Object} Processing results
+   * @returns {Promise<Object>} Processing results { processed: number, sent: number, failed: number, retried: number }
    */
   async processEmailQueue(limit = 10) {
     if (!this.db) {
@@ -211,7 +225,7 @@ class EmailService {
 
         // Success - mark as sent
         this.db.markEmailSent(email.id);
-        sent++;
+        sent += 1;
 
         logger.info('Email sent successfully from queue', {
           emailId: email.id,
@@ -226,7 +240,7 @@ class EmailService {
         if (newAttempts >= email.max_attempts) {
           // Max attempts reached - mark as failed
           this.db.markEmailFailed(email.id, error.message);
-          failed++;
+          failed += 1;
 
           logger.error('Email permanently failed after max attempts', {
             emailId: email.id,
@@ -237,9 +251,9 @@ class EmailService {
             error: error.message,
           });
         } else {
-          // Schedule retry with exponential backoff
+          // Schedule retry with progressive backoff delays
           this.db.updateEmailAttempt(email.id, error.message, email.attempts);
-          retried++;
+          retried += 1;
 
           const backoffMinutes = [1, 5, 15, 30];
           const nextDelay = backoffMinutes[Math.min(email.attempts, backoffMinutes.length - 1)];
@@ -257,10 +271,17 @@ class EmailService {
       }
     }
 
-    // Cleanup old emails (older than 7 days)
-    const cleaned = this.db.cleanupOldEmails();
-    if (cleaned > 0) {
-      logger.info('Cleaned up old emails from queue', { count: cleaned });
+    // FIX 2026-01-06: Wrap cleanup in try-catch to prevent losing processing results on cleanup failure
+    try {
+      const cleaned = this.db.cleanupOldEmails();
+      if (cleaned > 0) {
+        logger.info('Cleaned up old emails from queue', { count: cleaned });
+      }
+    } catch (cleanupError) {
+      logger.warn('Failed to cleanup old emails, will retry next cycle', {
+        error: cleanupError.message,
+      });
+      // Don't throw - cleanup failure should not affect processing result
     }
 
     return { processed: pendingEmails.length, sent, failed, retried };

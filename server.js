@@ -112,7 +112,8 @@ const emailQueueWorker = setInterval(async () => {
       logger.info('Email queue processed', result);
     }
   } catch (error) {
-    logger.error('Email queue worker error', { error: error.message });
+    // FIX 2026-01-06: Include stack trace for debugging
+    logger.error('Email queue worker error', { error: error.message, stack: error.stack });
   }
 }, 30000);
 
@@ -124,7 +125,8 @@ setTimeout(async () => {
       logger.info('Startup email queue processed', result);
     }
   } catch (error) {
-    logger.error('Startup email queue error', { error: error.message });
+    // FIX 2026-01-06: Include stack trace for debugging
+    logger.error('Startup email queue error', { error: error.message, stack: error.stack });
   }
 }, 5000);
 

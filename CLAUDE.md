@@ -72,7 +72,7 @@ price = empty_room_rate + (adult_rate * adults) + (child_rate * children)
 - **Deduplikace**: Stejný email (booking + typ + příjemce + den) = 1 záznam
 - **Při rebuildu se NEposílají duplicitní emaily** - už odeslané mají status 'sent'
 - Background worker zpracovává frontu každých 30s
-- 5 pokusů s exponenciálním backoff (1, 5, 15, 30 min)
+- 5 pokusů s progresivním backoff (zpoždění: 1, 5, 15, 30 min)
 
 ### Bezpečný Deploy Postup
 
