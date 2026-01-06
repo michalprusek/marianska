@@ -253,6 +253,12 @@ class PriceCalculator {
    * @private
    */
   static countGuestsByTypeForRoom(roomGuestNames, fallbackGuestType) {
+    // FIX 2026-01-06: Add input validation
+    if (!roomGuestNames || !Array.isArray(roomGuestNames)) {
+      console.warn('[PriceCalculator] countGuestsByTypeForRoom called with invalid input');
+      return { utiaAdults: 0, utiaChildren: 0, externalAdults: 0, externalChildren: 0 };
+    }
+
     let utiaAdults = 0;
     let utiaChildren = 0;
     let externalAdults = 0;
@@ -279,6 +285,16 @@ class PriceCalculator {
           utiaChildren += 1;
         } else {
           externalChildren += 1;
+        }
+      } else {
+        // FIX 2026-01-06: Handle unexpected personType - treat as adult to avoid free stay
+        console.warn(
+          `[PriceCalculator] Unexpected personType "${personType}" for guest. Treating as adult.`
+        );
+        if (isUtia) {
+          utiaAdults += 1;
+        } else {
+          externalAdults += 1;
         }
       }
     }
@@ -912,8 +928,12 @@ class PriceCalculator {
           roomGuestNames = guestNames.filter((g) => String(g.roomId) === String(roomId));
         } else {
           // LEGACY behavior: When not all guests have roomId, treat all guests as belonging to this room
-          // This maintains backward compatibility with tests and older API calls
-          // and prevents silent data loss in mixed scenarios
+          // FIX 2026-01-06: Add warning for legacy mode to help debug data issues
+          const guestsWithoutRoomId = guestNames.filter((g) => g.roomId === undefined).length;
+          console.warn(
+            `[PriceCalculator] LEGACY MODE: ${guestsWithoutRoomId}/${guestNames.length} guests missing roomId. ` +
+              `Treating all guests as belonging to room ${roomId}.`
+          );
           roomGuestNames = guestNames;
         }
 
@@ -987,16 +1007,30 @@ class PriceCalculator {
           const counts = this.countGuestsByTypeForRoom(roomGuestNames, fallbackGuestType);
 
           // Get price configs for both guest types
-          const utiaPrices = prices.utia?.[roomType] || {};
-          const externalPrices = prices.external?.[roomType] || {};
+          const utiaPrices = prices.utia?.[roomType];
+          const externalPrices = prices.external?.[roomType];
+
+          // FIX 2026-01-06: Warn when price config is missing (Issue #4)
+          if ((counts.utiaAdults > 0 || counts.utiaChildren > 0) && !utiaPrices) {
+            console.warn(
+              `[PriceCalculator] Missing UTIA price config for room type ${roomType}. ` +
+                `${counts.utiaAdults} adults and ${counts.utiaChildren} children will be charged 0.`
+            );
+          }
+          if ((counts.externalAdults > 0 || counts.externalChildren > 0) && !externalPrices) {
+            console.warn(
+              `[PriceCalculator] Missing external price config for room type ${roomType}. ` +
+                `${counts.externalAdults} adults and ${counts.externalChildren} children will be charged 0.`
+            );
+          }
 
           // Add ÚTIA guest surcharges
-          totalPrice += counts.utiaAdults * (utiaPrices.adult || 0) * roomNights;
-          totalPrice += counts.utiaChildren * (utiaPrices.child || 0) * roomNights;
+          totalPrice += counts.utiaAdults * (utiaPrices?.adult || 0) * roomNights;
+          totalPrice += counts.utiaChildren * (utiaPrices?.child || 0) * roomNights;
 
           // Add External guest surcharges
-          totalPrice += counts.externalAdults * (externalPrices.adult || 0) * roomNights;
-          totalPrice += counts.externalChildren * (externalPrices.child || 0) * roomNights;
+          totalPrice += counts.externalAdults * (externalPrices?.adult || 0) * roomNights;
+          totalPrice += counts.externalChildren * (externalPrices?.child || 0) * roomNights;
         } else {
           // Fallback: use perRoomGuests counts with single guest type (backward compat)
           const roomGuests = normalizedPerRoomGuests[roomId] || {};
@@ -1005,11 +1039,13 @@ class PriceCalculator {
           const roomGuestType = roomGuests.guestType || fallbackGuestType;
 
           const roomPriceConfig = prices[roomGuestType]?.[roomType];
+          // FIX 2026-01-06: Throw error instead of silent continue (Issue #3)
           if (!roomPriceConfig) {
-            console.warn(
-              `[PriceCalculator] Missing price config for room ${roomId} (${roomGuestType}/${roomType})`
+            const error = new Error(
+              `Chybějící cenová konfigurace pro typ pokoje: ${roomType} (host: ${roomGuestType}, pokoj: ${roomId})`
             );
-            continue;
+            console.error('[PriceCalculator]', error);
+            throw error;
           }
 
           totalPrice += roomAdults * roomPriceConfig.adult * roomNights;

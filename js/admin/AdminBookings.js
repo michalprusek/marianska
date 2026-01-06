@@ -54,15 +54,35 @@ class AdminBookings {
 
     // Group guests by room
     const guestsByRoom = {};
+    let guestsWithoutRoom = 0;
+    let guestsWithEmptyName = 0;
+
     for (const guest of guestNames) {
       const roomId = guest.roomId || 'unknown';
+      if (!guest.roomId) {
+        guestsWithoutRoom += 1;
+      }
       if (!guestsByRoom[roomId]) {
         guestsByRoom[roomId] = [];
       }
       const fullName = `${guest.firstName || ''} ${guest.lastName || ''}`.trim();
       if (fullName) {
         guestsByRoom[roomId].push(this.escapeHtml(fullName));
+      } else {
+        guestsWithEmptyName += 1;
       }
+    }
+
+    // FIX 2026-01-06: Log data quality issues for debugging (Issue #5)
+    if (guestsWithoutRoom > 0) {
+      console.warn(
+        `[AdminBookings] ${guestsWithoutRoom}/${guestNames.length} guests missing roomId in print output`
+      );
+    }
+    if (guestsWithEmptyName > 0) {
+      console.warn(
+        `[AdminBookings] ${guestsWithEmptyName}/${guestNames.length} guests have empty names in print output`
+      );
     }
 
     // Sort rooms to match the booking's room order
