@@ -78,6 +78,194 @@ class EmailService {
     }
   }
 
+  // ============================================================
+  // EMAIL QUEUE SYSTEM (2026-01-06)
+  // Persistent queue with deduplication and exponential backoff
+  // ============================================================
+
+  /**
+   * Set database manager for email queue operations.
+   * Must be called before using queue-based email sending.
+   *
+   * @param {Object} db - DatabaseManager instance
+   */
+  setDatabase(db) {
+    this.db = db;
+    logger.info('Database connected to EmailService for queue operations');
+  }
+
+  /**
+   * Generate a hash for email deduplication.
+   * Same booking + type + recipient + day = same hash
+   *
+   * @param {string} bookingId - Booking ID (can be null for non-booking emails)
+   * @param {string} emailType - Type of email
+   * @param {string} recipient - Email recipient
+   * @returns {string} Hash string
+   * @private
+   */
+  generateEmailHash(bookingId, emailType, recipient) {
+    const crypto = require('crypto');
+    const today = new Date().toISOString().slice(0, 10);
+    const data = `${bookingId || 'none'}:${emailType}:${recipient}:${today}`;
+    return crypto.createHash('sha256').update(data).digest('hex');
+  }
+
+  /**
+   * Queue an email for sending via the persistent queue.
+   * This method replaces direct sending for better reliability.
+   *
+   * @param {Object} options - Email options
+   * @param {string} options.to - Recipient email
+   * @param {string} options.subject - Email subject
+   * @param {string} options.html - HTML content
+   * @param {string} options.text - Plain text content
+   * @param {Object} context - Context for logging and deduplication
+   * @param {string} context.bookingId - Booking ID (optional)
+   * @param {string} context.type - Email type for deduplication
+   * @returns {Object} Queue result
+   */
+  queueEmailForSending(options, context = {}) {
+    if (!this.db) {
+      logger.warn('Database not connected, falling back to direct send', {
+        type: context.type,
+        to: options.to,
+      });
+      return { queued: false, fallback: true };
+    }
+
+    const hash = this.generateEmailHash(context.bookingId, context.type, options.to);
+
+    const result = this.db.queueEmail({
+      hash,
+      bookingId: context.bookingId || null,
+      emailType: context.type || 'unknown',
+      recipient: options.to,
+      subject: options.subject,
+      htmlContent: options.html,
+      textContent: options.text,
+    });
+
+    if (result.skipped) {
+      logger.info('Email already sent, skipping duplicate', {
+        type: context.type,
+        bookingId: context.bookingId,
+        recipient: options.to,
+      });
+    } else if (result.wasUpdated) {
+      logger.info('Email updated in queue (retry scheduled)', {
+        type: context.type,
+        bookingId: context.bookingId,
+        recipient: options.to,
+        emailId: result.id,
+      });
+    } else {
+      logger.info('Email queued for sending', {
+        type: context.type,
+        bookingId: context.bookingId,
+        recipient: options.to,
+        emailId: result.id,
+      });
+    }
+
+    return { queued: true, ...result };
+  }
+
+  /**
+   * Process the email queue - sends pending emails.
+   * This method should be called periodically by a background worker.
+   *
+   * @param {number} limit - Maximum emails to process per cycle
+   * @returns {Object} Processing results
+   */
+  async processEmailQueue(limit = 10) {
+    if (!this.db) {
+      logger.warn('Database not connected, cannot process email queue');
+      return { processed: 0, sent: 0, failed: 0, retried: 0 };
+    }
+
+    const pendingEmails = this.db.getPendingEmails(limit);
+
+    if (pendingEmails.length === 0) {
+      return { processed: 0, sent: 0, failed: 0, retried: 0 };
+    }
+
+    logger.info('Processing email queue', { count: pendingEmails.length });
+
+    let sent = 0;
+    let failed = 0;
+    let retried = 0;
+
+    for (const email of pendingEmails) {
+      try {
+        // Attempt to send email
+        const mailOptions = {
+          from: this.config.from,
+          to: email.recipient,
+          subject: email.subject,
+          html: email.html_content,
+          text: email.text_content,
+        };
+
+        await this.transporter.sendMail(mailOptions);
+
+        // Success - mark as sent
+        this.db.markEmailSent(email.id);
+        sent++;
+
+        logger.info('Email sent successfully from queue', {
+          emailId: email.id,
+          type: email.email_type,
+          bookingId: email.booking_id,
+          recipient: email.recipient,
+          attempts: email.attempts + 1,
+        });
+      } catch (error) {
+        const newAttempts = email.attempts + 1;
+
+        if (newAttempts >= email.max_attempts) {
+          // Max attempts reached - mark as failed
+          this.db.markEmailFailed(email.id, error.message);
+          failed++;
+
+          logger.error('Email permanently failed after max attempts', {
+            emailId: email.id,
+            type: email.email_type,
+            bookingId: email.booking_id,
+            recipient: email.recipient,
+            attempts: newAttempts,
+            error: error.message,
+          });
+        } else {
+          // Schedule retry with exponential backoff
+          this.db.updateEmailAttempt(email.id, error.message, email.attempts);
+          retried++;
+
+          const backoffMinutes = [1, 5, 15, 30];
+          const nextDelay = backoffMinutes[Math.min(email.attempts, backoffMinutes.length - 1)];
+
+          logger.warn('Email send failed, scheduled for retry', {
+            emailId: email.id,
+            type: email.email_type,
+            bookingId: email.booking_id,
+            recipient: email.recipient,
+            attempts: newAttempts,
+            nextRetryInMinutes: nextDelay,
+            error: error.message,
+          });
+        }
+      }
+    }
+
+    // Cleanup old emails (older than 7 days)
+    const cleaned = this.db.cleanupOldEmails();
+    if (cleaned > 0) {
+      logger.info('Cleaned up old emails from queue', { count: cleaned });
+    }
+
+    return { processed: pendingEmails.length, sent, failed, retried };
+  }
+
   /**
    * Format room list for email display
    * @param {Array<string>} rooms - Room IDs
@@ -722,14 +910,47 @@ class EmailService {
   }
 
   /**
-   * Send email with retry on failure (1 retry after 1 minute)
+   * Send email with retry on failure - NOW USES PERSISTENT QUEUE
+   * If database is connected, email is queued for reliable delivery.
+   * Falls back to direct send with simple retry if database not available.
+   *
    * @param {Object} mailOptions - nodemailer mail options
-   * @param {Object} logContext - Logging context (bookingId, etc.)
-   * @returns {Promise<Object>} Email sending result
-   * @throws {Error} If email sending fails after retry
+   * @param {Object} logContext - Logging context (bookingId, type, etc.)
+   * @returns {Promise<Object>} Email sending/queue result
+   * @throws {Error} If email sending fails (only in fallback mode)
    * @private
    */
   async sendEmailWithRetry(mailOptions, logContext = {}) {
+    // 2026-01-06: Use persistent queue if database is connected
+    if (this.db) {
+      const queueResult = this.queueEmailForSending(
+        {
+          to: mailOptions.to,
+          subject: mailOptions.subject,
+          html: mailOptions.html,
+          text: mailOptions.text,
+        },
+        {
+          bookingId: logContext.bookingId,
+          type: logContext.type,
+        }
+      );
+
+      // Return success - email will be sent by background worker
+      return {
+        success: true,
+        queued: true,
+        emailId: queueResult.id,
+        skipped: queueResult.skipped || false,
+      };
+    }
+
+    // Fallback: Direct send with simple retry (no database)
+    logger.warn('Database not connected, using fallback direct send', {
+      type: logContext.type,
+      to: mailOptions.to,
+    });
+
     try {
       // First attempt
       return await this.sendEmail(mailOptions, logContext);

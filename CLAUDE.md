@@ -57,19 +57,61 @@ price = empty_room_rate + (adult_rate * adults) + (child_rate * children)
 - `prices.utia.emptyRoom` - UTIA empty room base rate
 - `prices.external.*` - Same structure for external guests
 
-## Docker Build Instructions
+## ⚠️ KRITICKÉ: PRODUKČNÍ PROSTŘEDÍ
 
-**⚠️ POZOR: Aplikace běží v PRODUKCI!**
+**APLIKACE BĚŽÍ V PRODUKCI S REÁLNÝMI DATY UŽIVATELŮ!**
 
-Při rebuildu NIKDY nemazat data:
-- Databáze je v Docker volume `marianska_db-data`
-- **NEPOUŽÍVAT** `--volumes` flag při prune (smaže produkční data!)
+### Ochrana dat - ABSOLUTNÍ PRIORITA
+1. **NIKDY nemazat Docker volumes** - databáze je v `marianska_db-data`
+2. **NIKDY nepoužívat** `--volumes` flag při prune
+3. **VŽDY vytvořit backup před deploy** (viz níže)
+4. **NIKDY nepouštět destruktivní SQL** bez WHERE klauzule
 
-Bezpečný rebuild:
+### Email Queue System (2026-01-06)
+- Emaily se ukládají do perzistentní fronty (`email_queue` tabulka)
+- **Deduplikace**: Stejný email (booking + typ + příjemce + den) = 1 záznam
+- **Při rebuildu se NEposílají duplicitní emaily** - už odeslané mají status 'sent'
+- Background worker zpracovává frontu každých 30s
+- 5 pokusů s exponenciálním backoff (1, 5, 15, 30 min)
+
+### Bezpečný Deploy Postup
+
 ```bash
-docker system prune -af
-docker-compose build --no-cache web && docker-compose up -d web
+# 1. VŽDY nejprve backup databáze
+docker exec marianska-chata node -e "
+const Database = require('better-sqlite3');
+const db = new Database('/app/data/bookings.db', { readonly: true });
+console.log('Integrity:', db.pragma('integrity_check'));
+const bookings = db.prepare('SELECT COUNT(*) as count FROM bookings').get();
+console.log('Bookings:', bookings.count);
+db.close();
+"
+
+# 2. Stáhnout backup lokálně (pro jistotu)
+docker cp marianska-chata:/app/data/bookings.db ./backup-$(date +%Y%m%d-%H%M%S).db
+
+# 3. Build bez mazání volumes
+docker-compose build --no-cache web
+
+# 4. Deploy s minimálním downtime
+docker-compose up -d web
+
+# 5. Ověřit že aplikace běží
+docker-compose ps
+docker-compose logs --tail=20 web
 ```
+
+### Co NIKDY nedělat
+- `docker-compose down -v` (smaže volumes!)
+- `docker system prune --volumes` (smaže DB!)
+- Mazat soubory v `/app/data/` uvnitř kontejneru
+- Spouštět DELETE bez WHERE
+- Ručně měnit databázi bez backupu
+
+### Automatické zálohy
+- Denní backup v 00:00 do `/app/backups/`
+- Uchovává se posledních 3 dny
+- Při startu se ověřuje integrita databáze
 
 ## Booking Structure
 

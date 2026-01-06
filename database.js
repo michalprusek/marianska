@@ -269,6 +269,37 @@ class DatabaseManager {
       }
     }
 
+    // ============================================================
+    // EMAIL QUEUE TABLE (2026-01-06)
+    // Persistent queue for reliable email delivery with deduplication
+    // ============================================================
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS email_queue (
+        id TEXT PRIMARY KEY,
+        hash TEXT UNIQUE NOT NULL,
+        booking_id TEXT,
+        email_type TEXT NOT NULL,
+        recipient TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        html_content TEXT NOT NULL,
+        text_content TEXT,
+        attempts INTEGER DEFAULT 0,
+        max_attempts INTEGER DEFAULT 5,
+        next_attempt_at TEXT NOT NULL,
+        last_error TEXT,
+        status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'sent', 'failed')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `);
+
+    // Indexes for email queue
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_email_queue_status ON email_queue(status, next_attempt_at);
+      CREATE INDEX IF NOT EXISTS idx_email_queue_hash ON email_queue(hash);
+      CREATE INDEX IF NOT EXISTS idx_email_queue_booking ON email_queue(booking_id);
+    `);
+
     // Create all indexes for performance - AFTER all tables are created
     this.db.exec(`
             CREATE INDEX IF NOT EXISTS idx_bookings_dates ON bookings(start_date, end_date);
@@ -587,6 +618,51 @@ class DatabaseManager {
 
       updateBookingGroupId: this.db.prepare(`
         UPDATE bookings SET group_id = ?, updated_at = ? WHERE id = ?
+      `),
+
+      // Email queue statements
+      insertEmailQueue: this.db.prepare(`
+        INSERT INTO email_queue (id, hash, booking_id, email_type, recipient, subject, html_content, text_content, attempts, max_attempts, next_attempt_at, last_error, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `),
+
+      updateEmailQueueByHash: this.db.prepare(`
+        UPDATE email_queue SET
+          subject = ?, html_content = ?, text_content = ?,
+          attempts = 0, next_attempt_at = ?, last_error = NULL,
+          status = 'pending', updated_at = ?
+        WHERE hash = ? AND status != 'sent'
+      `),
+
+      getEmailQueueByHash: this.db.prepare(`
+        SELECT * FROM email_queue WHERE hash = ?
+      `),
+
+      getPendingEmails: this.db.prepare(`
+        SELECT * FROM email_queue
+        WHERE status = 'pending' AND next_attempt_at <= ?
+        ORDER BY next_attempt_at ASC
+        LIMIT ?
+      `),
+
+      markEmailSent: this.db.prepare(`
+        UPDATE email_queue SET status = 'sent', last_error = NULL, updated_at = ? WHERE id = ?
+      `),
+
+      markEmailFailed: this.db.prepare(`
+        UPDATE email_queue SET status = 'failed', last_error = ?, updated_at = ? WHERE id = ?
+      `),
+
+      updateEmailAttempt: this.db.prepare(`
+        UPDATE email_queue SET attempts = attempts + 1, next_attempt_at = ?, last_error = ?, updated_at = ? WHERE id = ?
+      `),
+
+      getEmailQueueStats: this.db.prepare(`
+        SELECT status, COUNT(*) as count FROM email_queue GROUP BY status
+      `),
+
+      cleanupOldEmails: this.db.prepare(`
+        DELETE FROM email_queue WHERE status IN ('sent', 'failed') AND updated_at < ?
       `),
     };
   }
@@ -2279,6 +2355,147 @@ class DatabaseManager {
     });
 
     return transaction();
+  }
+
+  // ============================================================
+  // EMAIL QUEUE METHODS (2026-01-06)
+  // ============================================================
+
+  /**
+   * Queue an email for sending with deduplication.
+   * If an email with the same hash exists and is not sent, it will be updated.
+   * If it's already sent, a new entry will NOT be created (dedup).
+   *
+   * @param {Object} emailData - Email data
+   * @param {string} emailData.hash - Unique hash for deduplication
+   * @param {string} emailData.bookingId - Optional booking ID
+   * @param {string} emailData.emailType - Type of email (booking_confirmation, etc.)
+   * @param {string} emailData.recipient - Email recipient
+   * @param {string} emailData.subject - Email subject
+   * @param {string} emailData.htmlContent - HTML content
+   * @param {string} emailData.textContent - Plain text content
+   * @returns {Object} Result with id, isNew, and wasUpdated flags
+   */
+  queueEmail(emailData) {
+    const now = new Date().toISOString();
+    const id = IdGenerator.generateEmailQueueId();
+
+    // Check if email with this hash already exists
+    const existing = this.statements.getEmailQueueByHash.get(emailData.hash);
+
+    if (existing) {
+      // If already sent, skip (deduplication)
+      if (existing.status === 'sent') {
+        return { id: existing.id, isNew: false, wasUpdated: false, skipped: true };
+      }
+
+      // Update existing pending/failed email
+      this.statements.updateEmailQueueByHash.run(
+        emailData.subject,
+        emailData.htmlContent,
+        emailData.textContent || null,
+        now, // next_attempt_at = now (retry immediately)
+        now, // updated_at
+        emailData.hash
+      );
+
+      return { id: existing.id, isNew: false, wasUpdated: true, skipped: false };
+    }
+
+    // Insert new email
+    this.statements.insertEmailQueue.run(
+      id,
+      emailData.hash,
+      emailData.bookingId || null,
+      emailData.emailType,
+      emailData.recipient,
+      emailData.subject,
+      emailData.htmlContent,
+      emailData.textContent || null,
+      0, // attempts
+      5, // max_attempts
+      now, // next_attempt_at
+      null, // last_error
+      'pending', // status
+      now, // created_at
+      now // updated_at
+    );
+
+    return { id, isNew: true, wasUpdated: false, skipped: false };
+  }
+
+  /**
+   * Get pending emails ready to be sent.
+   *
+   * @param {number} limit - Maximum number of emails to return
+   * @returns {Array} Array of pending email records
+   */
+  getPendingEmails(limit = 10) {
+    const now = new Date().toISOString();
+    return this.statements.getPendingEmails.all(now, limit);
+  }
+
+  /**
+   * Mark an email as successfully sent.
+   *
+   * @param {string} id - Email queue ID
+   */
+  markEmailSent(id) {
+    const now = new Date().toISOString();
+    this.statements.markEmailSent.run(now, id);
+  }
+
+  /**
+   * Mark an email as permanently failed (max attempts reached).
+   *
+   * @param {string} id - Email queue ID
+   * @param {string} error - Error message
+   */
+  markEmailFailed(id, error) {
+    const now = new Date().toISOString();
+    this.statements.markEmailFailed.run(error, now, id);
+  }
+
+  /**
+   * Update email attempt count and schedule next retry.
+   * Uses exponential backoff: 1min, 5min, 15min, 30min
+   *
+   * @param {string} id - Email queue ID
+   * @param {string} error - Error message from failed attempt
+   * @param {number} currentAttempts - Current number of attempts
+   */
+  updateEmailAttempt(id, error, currentAttempts) {
+    const now = new Date();
+    const backoffMinutes = [1, 5, 15, 30]; // Exponential backoff
+    const delayMinutes = backoffMinutes[Math.min(currentAttempts, backoffMinutes.length - 1)];
+    const nextAttempt = new Date(now.getTime() + delayMinutes * 60 * 1000).toISOString();
+
+    this.statements.updateEmailAttempt.run(nextAttempt, error, now.toISOString(), id);
+  }
+
+  /**
+   * Get email queue statistics.
+   *
+   * @returns {Object} Stats by status {pending: n, sent: n, failed: n}
+   */
+  getEmailQueueStats() {
+    const rows = this.statements.getEmailQueueStats.all();
+    const stats = { pending: 0, sent: 0, failed: 0 };
+    for (const row of rows) {
+      stats[row.status] = row.count;
+    }
+    return stats;
+  }
+
+  /**
+   * Cleanup old sent/failed emails (older than 7 days).
+   *
+   * @returns {number} Number of deleted records
+   */
+  cleanupOldEmails() {
+    const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const result = this.statements.cleanupOldEmails.run(cutoff);
+    return result.changes;
   }
 
   /**

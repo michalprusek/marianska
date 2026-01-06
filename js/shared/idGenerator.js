@@ -82,6 +82,19 @@ class IdGenerator {
     }
     return token;
   }
+
+  /**
+   * Generate an email queue ID (format: EQ + random string)
+   * @returns {string} Email queue ID (e.g., "EQ1A2B3C4D5E6F7")
+   */
+  static generateEmailQueueId() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let id = 'EQ';
+    for (let i = 0; i < 13; i++) {
+      id += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return id;
+  }
 }
 
 // Export for both Node.js and browser

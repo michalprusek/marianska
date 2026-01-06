@@ -101,6 +101,33 @@ function countGuestsByType(guestNames) {
 // Initialize SQLite database
 const db = new DatabaseManager();
 
+// Connect email service to database for persistent queue
+emailService.setDatabase(db);
+
+// Start email queue background worker (every 30 seconds)
+const emailQueueWorker = setInterval(async () => {
+  try {
+    const result = await emailService.processEmailQueue(10);
+    if (result.processed > 0) {
+      logger.info('Email queue processed', result);
+    }
+  } catch (error) {
+    logger.error('Email queue worker error', { error: error.message });
+  }
+}, 30000);
+
+// Process queue immediately on startup (after 5 second delay for SMTP to be ready)
+setTimeout(async () => {
+  try {
+    const result = await emailService.processEmailQueue(10);
+    if (result.processed > 0) {
+      logger.info('Startup email queue processed', result);
+    }
+  } catch (error) {
+    logger.error('Startup email queue error', { error: error.message });
+  }
+}, 5000);
+
 // Migrate from JSON if exists
 const DATA_FILE = path.join(__dirname, 'data', 'bookings.json');
 fs.access(DATA_FILE)
@@ -3308,6 +3335,9 @@ if (require.main === module) {
   // Graceful shutdown
   process.on('SIGTERM', () => {
     logger.info('SIGTERM signal received: closing HTTP server');
+    // Stop email queue worker
+    clearInterval(emailQueueWorker);
+    logger.info('Email queue worker stopped');
     server.close(() => {
       logger.info('HTTP server closed');
       db.close();
