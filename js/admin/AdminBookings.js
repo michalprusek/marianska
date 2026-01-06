@@ -40,6 +40,70 @@ class AdminBookings {
     return DOMUtils.escapeHtml(unsafe);
   }
 
+  /**
+   * Format guest names grouped by room for print output
+   * FIX 2026-01-06: Added for print feature
+   * @param {Array} guestNames - Array of guest name objects
+   * @param {Array} rooms - Array of room IDs
+   * @returns {string} HTML string with guest names by room
+   */
+  formatGuestNamesByRoomForPrint(guestNames, rooms) {
+    if (!guestNames || guestNames.length === 0) {
+      return '';
+    }
+
+    // Group guests by room
+    const guestsByRoom = {};
+    let guestsWithoutRoom = 0;
+    let guestsWithEmptyName = 0;
+
+    for (const guest of guestNames) {
+      const roomId = guest.roomId || 'unknown';
+      if (!guest.roomId) {
+        guestsWithoutRoom += 1;
+      }
+      if (!guestsByRoom[roomId]) {
+        guestsByRoom[roomId] = [];
+      }
+      const fullName = `${guest.firstName || ''} ${guest.lastName || ''}`.trim();
+      if (fullName) {
+        guestsByRoom[roomId].push(this.escapeHtml(fullName));
+      } else {
+        guestsWithEmptyName += 1;
+      }
+    }
+
+    // FIX 2026-01-06: Log data quality issues for debugging (Issue #5)
+    if (guestsWithoutRoom > 0) {
+      console.warn(
+        `[AdminBookings] ${guestsWithoutRoom}/${guestNames.length} guests missing roomId in print output`
+      );
+    }
+    if (guestsWithEmptyName > 0) {
+      console.warn(
+        `[AdminBookings] ${guestsWithEmptyName}/${guestNames.length} guests have empty names in print output`
+      );
+    }
+
+    // Sort rooms to match the booking's room order
+    const sortedRoomIds = rooms ? rooms.filter((r) => guestsByRoom[r]) : Object.keys(guestsByRoom);
+
+    if (sortedRoomIds.length === 0) {
+      return '';
+    }
+
+    let html = '<div class="guest-list">';
+    for (const roomId of sortedRoomIds) {
+      const guests = guestsByRoom[roomId];
+      if (guests && guests.length > 0) {
+        html += `<div class="guest-room"><span class="guest-room-label">Pokoj P${roomId}:</span> <span class="guest-names">${guests.join(', ')}</span></div>`;
+      }
+    }
+    html += '</div>';
+
+    return html;
+  }
+
   // ========== SORTING METHODS ==========
   // REFACTORED 2025-12-08: Delegate to AdminBookingsSorting module
 
@@ -3067,6 +3131,10 @@ class AdminBookings {
             .interval-num { font-weight: 600; color: #4f46e5; }
             .interval-price { font-weight: 600; }
             .group-total { background: #e0e7ff; padding: 10px; margin-top: 10px; border-radius: 4px; display: flex; justify-content: space-between; font-weight: 600; }
+            .guest-list { margin-top: 8px; font-size: 10px; color: #333; }
+            .guest-room { margin-bottom: 4px; }
+            .guest-room-label { font-weight: 600; color: #4f46e5; }
+            .guest-names { color: #555; }
             @media print {
               .booking, .group { page-break-inside: avoid; }
             }
@@ -3121,6 +3189,9 @@ class AdminBookings {
             (new Date(booking.endDate) - new Date(booking.startDate)) / (1000 * 60 * 60 * 24)
           );
 
+          // FIX 2026-01-06: Add guest names by room to print output
+          const guestListHtml = this.formatGuestNamesByRoomForPrint(booking.guestNames, booking.rooms);
+
           printContent += `
             <div class="interval">
               <div class="interval-header">
@@ -3138,6 +3209,7 @@ class AdminBookings {
                   ${booking.paid ? '✓ Zaplaceno' : '✗ Nezaplaceno'}
                 </span>
               </div>
+              ${guestListHtml}
             </div>
           `;
         });
@@ -3161,6 +3233,9 @@ class AdminBookings {
         const price = this.getBookingPrice(booking, settings);
         const startDate = new Date(booking.startDate).toLocaleDateString('cs-CZ');
         const endDate = new Date(booking.endDate).toLocaleDateString('cs-CZ');
+
+        // FIX 2026-01-06: Add guest names by room to print output
+        const guestListHtml = this.formatGuestNamesByRoomForPrint(booking.guestNames, booking.rooms);
 
         printContent += `
           <div class="booking">
@@ -3201,6 +3276,7 @@ class AdminBookings {
               `
                   : ''
               }
+              ${guestListHtml ? `<div class="booking-field" style="grid-column: 1 / -1;">${guestListHtml}</div>` : ''}
             </div>
           </div>
         `;
