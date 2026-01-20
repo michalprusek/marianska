@@ -331,6 +331,25 @@ class EmailService {
   }
 
   /**
+   * Escape HTML entities for safe insertion into HTML templates
+   * FIX 2026-01-20: Added to prevent XSS in HTML email templates
+   * @param {string} text - Text to escape
+   * @returns {string} HTML-escaped text
+   * @private
+   */
+  escapeHtml(text) {
+    if (!text || typeof text !== 'string') {
+      return text || '';
+    }
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;');
+  }
+
+  /**
    * Format booking details (dates, guests, price, rooms) - helper for email templates
    * @param {Object} booking - Booking data
    * @param {Object} settings - System settings
@@ -1023,7 +1042,7 @@ class EmailService {
   generateBookingConfirmationHtml(booking, editUrl, settings = {}) {
     const details = this.formatBookingDetails(booking, settings);
 
-    // FIX 2026-01-20: Use custom template if exists (convert to HTML)
+    // FIX 2026-01-20: Render custom template as HTML (escape entities, convert newlines, linkify URLs)
     if (settings.emailTemplate && settings.emailTemplate.template) {
       // Get substituted content from custom template
       let customContent = this.substituteVariables(
@@ -1033,8 +1052,8 @@ class EmailService {
         settings
       );
 
-      // Escape HTML entities in custom content (but preserve our substituted values)
-      // Convert newlines to <br> for HTML display
+      // Escape HTML entities after variable substitution for XSS protection
+      // Then convert newlines to <br> for proper HTML display
       customContent = customContent
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -1305,7 +1324,7 @@ Automatická zpráva - neodpovídejte
 
     const editUrl = `${this.config.appUrl}/edit.html?token=${booking.editToken}`;
     const textContent = this.generateBookingConfirmationText(booking, editUrl, options.settings);
-    // FIX 2026-01-20: Generate HTML content for email queue (required since 2026-01-06)
+    // FIX 2026-01-20: Email queue (added 2026-01-06) requires htmlContent field
     const htmlContent = this.generateBookingConfirmationHtml(booking, editUrl, options.settings);
     const emailSubject =
       options.settings?.emailTemplate?.subject ||
@@ -1508,6 +1527,10 @@ Web: ${this.config.appUrl}
     if (changes.notes) {
       changeSummary += '\n- Aktualizace poznámky';
     }
+    // FIX 2026-01-20: Add guestNames for consistency with HTML version
+    if (changes.guestNames) {
+      changeSummary += '\n- Změna jmen hostů';
+    }
     if (changes.other) {
       changeSummary += '\n- Další změny v údajích';
     }
@@ -1569,7 +1592,7 @@ Automatická zpráva - neodpovídejte
       changeSummaryHtml += '<li>Změna vybraných pokojů</li>';
     }
     if (changes.status) {
-      changeSummaryHtml += `<li>Změna stavu: ${changes.status}</li>`;
+      changeSummaryHtml += `<li>Změna stavu: ${this.escapeHtml(changes.status)}</li>`;
     }
     if (changes.payment) {
       const paymentStatus = booking.paid ? 'ZAPLACENO ✓' : 'NEZAPLACENO';
@@ -1605,7 +1628,7 @@ body{font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;mar
 .f{color:#777;font-size:12px;margin-top:20px;border-top:1px solid #eee;padding-top:15px}
 </style></head><body>
 <div class="h"><h2>Chata Mariánská - Změna rezervace</h2></div>
-<p>Dobrý den <b>${details.name}</b>,</p>
+<p>Dobrý den <b>${this.escapeHtml(details.name)}</b>,</p>
 <p>Vaše rezervace byla aktualizována.</p>
 ${modifiedByHtml}
 <div class="c">
@@ -1619,7 +1642,7 @@ Odjezd: ${details.endDateFormatted} (${details.endDate})<br>
 Nocí: ${details.nights} | Pokoje: ${details.roomList}<br>
 Typ: ${details.guestTypeText}<br>
 Osob: ${details.guestCountText}<br>
-Cena: ${details.priceFormatted}${details.notes ? `<br>Poznámka: ${details.notes}` : ''}</p>
+Cena: ${details.priceFormatted}${details.notes ? `<br>Poznámka: ${this.escapeHtml(details.notes)}` : ''}</p>
 </div>
 <div class="e">
 <p><b>Editace nebo zrušení rezervace:</b></p>
@@ -1661,7 +1684,7 @@ Cena: ${details.priceFormatted}${details.notes ? `<br>Poznámka: ${details.notes
       options.settings,
       options.modifiedByAdmin || false
     );
-    // FIX 2026-01-20: Generate HTML content for email queue (required since 2026-01-06)
+    // FIX 2026-01-20: Email queue (added 2026-01-06) requires htmlContent field
     const htmlContent = this.generateBookingModificationHtml(
       booking,
       changes,
@@ -1749,7 +1772,7 @@ body{font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;mar
 .f{color:#777;font-size:12px;margin-top:20px;border-top:1px solid #eee;padding-top:15px}
 </style></head><body>
 <div class="h"><h2>Chata Mariánská - Zrušení rezervace</h2></div>
-<p>Dobrý den <b>${details.name}</b>,</p>
+<p>Dobrý den <b>${this.escapeHtml(details.name)}</b>,</p>
 ${deletedByHtml}
 <div class="d">
 <p><b>Zrušená rezervace ${booking.id}</b></p>
@@ -1758,7 +1781,7 @@ Odjezd: ${details.endDateFormatted} (${details.endDate})<br>
 Nocí: ${details.nights} | Pokoje: ${details.roomList}<br>
 Typ: ${details.guestTypeText}<br>
 Osob: ${details.guestCountText}<br>
-Cena: ${details.priceFormatted}${details.notes ? `<br>Poznámka: ${details.notes}` : ''}</p>
+Cena: ${details.priceFormatted}${details.notes ? `<br>Poznámka: ${this.escapeHtml(details.notes)}` : ''}</p>
 <p><b>Čas zrušení:</b> ${timestamp}</p>
 </div>
 <p>Pokud máte jakékoliv dotazy, neváhejte nás kontaktovat.</p>
@@ -1790,7 +1813,7 @@ Cena: ${details.priceFormatted}${details.notes ? `<br>Poznámka: ${details.notes
       options.settings,
       options.deletedByAdmin || false
     );
-    // FIX 2026-01-20: Generate HTML content for email queue (required since 2026-01-06)
+    // FIX 2026-01-20: Email queue (added 2026-01-06) requires htmlContent field
     const htmlContent = this.generateBookingDeletionHtml(
       booking,
       options.settings,
