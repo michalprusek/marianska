@@ -21,14 +21,7 @@ const ChristmasUtils = require('./js/shared/christmasUtils');
 const EmailService = require('./js/shared/emailService');
 const { createLogger } = require('./js/shared/logger');
 const { createAccessLogger } = require('./js/shared/accessLogger');
-const {
-  ValidationError: _ValidationError,
-  AuthenticationError: _AuthenticationError,
-  NotFoundError: _NotFoundError,
-  ConflictError: _ConflictError,
-  SessionExpiredError: _SessionExpiredError,
-  DatabaseError: _DatabaseError,
-} = require('./js/shared/errors');
+// Error classes available in ./js/shared/errors if needed
 
 // Initialize logger - DEBUG level in development
 const logger = createLogger(

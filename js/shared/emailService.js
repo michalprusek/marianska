@@ -512,51 +512,9 @@ class EmailService {
     }
 
     // Handle single-date bookings (all rooms same dates)
-    // Count guests by type from guestNames array (matches frontend logic)
-    let utiaAdults = 0;
-    let utiaChildren = 0;
-    let externalAdults = 0;
-    let externalChildren = 0;
-    let toddlers = 0;
-
-    const guestNames = booking.guestNames || [];
-    for (const guest of guestNames) {
-      const priceType = guest.guestPriceType || 'external';
-      const personType = guest.personType || 'adult';
-
-      if (personType === 'toddler') {
-        toddlers++;
-        continue; // Toddlers are free
-      }
-
-      if (priceType === 'utia') {
-        if (personType === 'adult') {
-          utiaAdults++;
-        } else if (personType === 'child') {
-          utiaChildren++;
-        }
-      } else {
-        // External
-        if (personType === 'adult') {
-          externalAdults++;
-        } else if (personType === 'child') {
-          externalChildren++;
-        }
-      }
-    }
-
-    // Fallback if no guestNames: use booking counts with default type
-    if (guestNames.length === 0) {
-      const defaultType = booking.guestType || 'external';
-      if (defaultType === 'utia') {
-        utiaAdults = booking.adults || 0;
-        utiaChildren = booking.children || 0;
-      } else {
-        externalAdults = booking.adults || 0;
-        externalChildren = booking.children || 0;
-      }
-      toddlers = booking.toddlers || 0;
-    }
+    // Count guests by type from guestNames array (fallback handled in helper)
+    const { utiaAdults, utiaChildren, externalAdults, externalChildren } =
+      this._countGuestsByType(booking);
 
     const totalAdults = utiaAdults + externalAdults;
     const totalChildren = utiaChildren + externalChildren;
@@ -694,51 +652,9 @@ class EmailService {
 
     const prices = { ...defaultBulkPrices, ...bulkPrices };
 
-    // Count guests by type (ÚTIA vs External) from guestNames array
-    let utiaAdults = 0;
-    let utiaChildren = 0;
-    let externalAdults = 0;
-    let externalChildren = 0;
-    let toddlers = 0;
-
-    const guestNames = booking.guestNames || [];
-    for (const guest of guestNames) {
-      const priceType = guest.guestPriceType || 'external';
-      const personType = guest.personType || 'adult';
-
-      if (personType === 'toddler') {
-        toddlers++;
-        continue; // Toddlers are free
-      }
-
-      if (priceType === 'utia') {
-        if (personType === 'adult') {
-          utiaAdults++;
-        } else if (personType === 'child') {
-          utiaChildren++;
-        }
-      } else {
-        // External
-        if (personType === 'adult') {
-          externalAdults++;
-        } else if (personType === 'child') {
-          externalChildren++;
-        }
-      }
-    }
-
-    // If no guestNames, fall back to total counts with default type
-    if (guestNames.length === 0) {
-      const defaultType = booking.guestType || 'external';
-      if (defaultType === 'utia') {
-        utiaAdults = booking.adults || 0;
-        utiaChildren = booking.children || 0;
-      } else {
-        externalAdults = booking.adults || 0;
-        externalChildren = booking.children || 0;
-      }
-      toddlers = booking.toddlers || 0;
-    }
+    // Count guests by type (fallback handled in helper)
+    const { utiaAdults, utiaChildren, externalAdults, externalChildren, toddlers } =
+      this._countGuestsByType(booking);
 
     const lines = [];
 
@@ -838,6 +754,54 @@ class EmailService {
       return `${count} děti`;
     }
     return `${count} dětí`;
+  }
+
+  /**
+   * Count guests by type from guestNames array
+   * @param {Object} booking - Booking object with guestNames
+   * @returns {Object} Guest counts { utiaAdults, utiaChildren, externalAdults, externalChildren, toddlers }
+   * @private
+   */
+  _countGuestsByType(booking) {
+    let utiaAdults = 0;
+    let utiaChildren = 0;
+    let externalAdults = 0;
+    let externalChildren = 0;
+    let toddlers = 0;
+
+    const guestNames = booking.guestNames || [];
+    for (const guest of guestNames) {
+      const priceType = guest.guestPriceType || 'external';
+      const personType = guest.personType || 'adult';
+
+      if (personType === 'toddler') {
+        toddlers++;
+        continue;
+      }
+
+      if (priceType === 'utia') {
+        if (personType === 'adult') utiaAdults++;
+        else if (personType === 'child') utiaChildren++;
+      } else {
+        if (personType === 'adult') externalAdults++;
+        else if (personType === 'child') externalChildren++;
+      }
+    }
+
+    // Fallback if no guestNames
+    if (guestNames.length === 0) {
+      const defaultType = booking.guestType || 'external';
+      if (defaultType === 'utia') {
+        utiaAdults = booking.adults || 0;
+        utiaChildren = booking.children || 0;
+      } else {
+        externalAdults = booking.adults || 0;
+        externalChildren = booking.children || 0;
+      }
+      toddlers = booking.toddlers || 0;
+    }
+
+    return { utiaAdults, utiaChildren, externalAdults, externalChildren, toddlers };
   }
 
   /**
