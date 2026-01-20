@@ -77,6 +77,11 @@ price = empty_room_rate + (adult_rate * adults) + (child_rate * children)
 ### Bezpečný Deploy Postup
 
 ```bash
+# 0. PŘED BUILDEM - zkontrolovat místo na disku a případně promazat staré images
+df -h /
+docker images --filter "dangling=true" -q | xargs -r docker rmi
+docker builder prune -f
+
 # 1. VŽDY nejprve backup databáze
 docker exec marianska-chata node -e "
 const Database = require('better-sqlite3');

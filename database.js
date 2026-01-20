@@ -1606,6 +1606,18 @@ class DatabaseManager {
       settings.adminEmails = [];
     }
 
+    // Get cabin manager emails for notifications
+    const cabinManagerEmailsJson = this.getSetting('cabinManagerEmails');
+    if (cabinManagerEmailsJson) {
+      try {
+        settings.cabinManagerEmails = JSON.parse(cabinManagerEmailsJson);
+      } catch (error) {
+        settings.cabinManagerEmails = [];
+      }
+    } else {
+      settings.cabinManagerEmails = [];
+    }
+
     return settings;
   }
 
@@ -1687,6 +1699,14 @@ class DatabaseManager {
         // Validate that it's an array
         if (Array.isArray(updatedSettings.adminEmails)) {
           this.setSetting('adminEmails', JSON.stringify(updatedSettings.adminEmails));
+        }
+      }
+
+      // Handle cabin manager emails updates
+      if (updatedSettings.cabinManagerEmails !== undefined) {
+        // Validate that it's an array
+        if (Array.isArray(updatedSettings.cabinManagerEmails)) {
+          this.setSetting('cabinManagerEmails', JSON.stringify(updatedSettings.cabinManagerEmails));
         }
       }
     });
