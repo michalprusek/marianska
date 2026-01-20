@@ -1109,7 +1109,7 @@ body{font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;mar
 .f{color:#777;font-size:12px;margin-top:20px;border-top:1px solid #eee;padding-top:15px}
 </style></head><body>
 <div class="h"><h2>Chata Mariánská - Potvrzení rezervace</h2></div>
-<p>Dobrý den <b>${details.name}</b>,</p>
+<p>Dobrý den <b>${this.escapeHtml(details.name)}</b>,</p>
 <p>Děkujeme za Vaši rezervaci!</p>
 <div class="d">
 <p><b>Rezervace ${booking.id}</b></p>
@@ -1117,7 +1117,7 @@ body{font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;mar
 Odjezd: ${details.endDateFormatted} (${details.endDate})<br>
 Nocí: ${details.nights} | Pokoje: ${details.roomList}<br>
 Typ: ${details.guestTypeText}<br>
-Osob: ${details.guestCountText}${details.notes ? `<br>Poznámka: ${details.notes}` : ''}</p>
+Osob: ${details.guestCountText}${details.notes ? `<br>Poznámka: ${this.escapeHtml(details.notes)}` : ''}</p>
 </div>
 ${perRoomPriceHtml}
 <div class="p">Celková cena: ${details.priceFormatted}</div>
