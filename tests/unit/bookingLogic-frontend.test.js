@@ -1,9 +1,11 @@
 /**
  * Tests for js/shared/bookingLogic.js - Unified booking business logic
  * FIX 2025-12-23: Rewritten to test actual BookingLogic API
+ * FIX 2026-01-20: Removed deprecated formatDate/calculateNights tests (use DateUtils)
  */
 
 const BookingLogic = require('../../js/shared/bookingLogic.js');
+const DateUtils = require('../../js/shared/dateUtils.js');
 
 describe('BookingLogic', () => {
   describe('checkDateOverlap()', () => {
@@ -116,56 +118,56 @@ describe('BookingLogic', () => {
     });
   });
 
-  describe('formatDate()', () => {
+  describe('DateUtils.formatDate()', () => {
     it('should format Date object to YYYY-MM-DD', () => {
-      const formatted = BookingLogic.formatDate(new Date('2025-07-15T12:00:00'));
+      const formatted = DateUtils.formatDate(new Date('2025-07-15T12:00:00'));
       expect(formatted).toBe('2025-07-15');
     });
 
     it('should return string date as-is if already formatted', () => {
-      const formatted = BookingLogic.formatDate('2025-07-15');
+      const formatted = DateUtils.formatDate('2025-07-15');
       expect(formatted).toBe('2025-07-15');
     });
 
     it('should handle single digit month and day', () => {
-      const formatted = BookingLogic.formatDate(new Date('2025-01-05T12:00:00'));
+      const formatted = DateUtils.formatDate(new Date('2025-01-05T12:00:00'));
       expect(formatted).toBe('2025-01-05');
     });
   });
 
-  describe('calculateNights()', () => {
+  describe('DateUtils.getDaysBetween()', () => {
     it('should calculate number of nights', () => {
-      const nights = BookingLogic.calculateNights('2025-07-01', '2025-07-05');
+      const nights = DateUtils.getDaysBetween('2025-07-01', '2025-07-05');
       expect(nights).toBe(4);
     });
 
     it('should return 0 for same day', () => {
-      const nights = BookingLogic.calculateNights('2025-07-01', '2025-07-01');
+      const nights = DateUtils.getDaysBetween('2025-07-01', '2025-07-01');
       expect(nights).toBe(0);
     });
 
     it('should handle single night', () => {
-      const nights = BookingLogic.calculateNights('2025-07-01', '2025-07-02');
+      const nights = DateUtils.getDaysBetween('2025-07-01', '2025-07-02');
       expect(nights).toBe(1);
     });
 
     it('should handle multi-week stays', () => {
-      const nights = BookingLogic.calculateNights('2025-07-01', '2025-07-15');
+      const nights = DateUtils.getDaysBetween('2025-07-01', '2025-07-15');
       expect(nights).toBe(14);
     });
 
     it('should handle Date objects', () => {
-      const nights = BookingLogic.calculateNights(new Date('2025-07-01'), new Date('2025-07-05'));
+      const nights = DateUtils.getDaysBetween(new Date('2025-07-01'), new Date('2025-07-05'));
       expect(nights).toBe(4);
     });
 
     it('should handle month boundary', () => {
-      const nights = BookingLogic.calculateNights('2025-07-30', '2025-08-02');
+      const nights = DateUtils.getDaysBetween('2025-07-30', '2025-08-02');
       expect(nights).toBe(3);
     });
 
     it('should handle year boundary', () => {
-      const nights = BookingLogic.calculateNights('2025-12-30', '2026-01-02');
+      const nights = DateUtils.getDaysBetween('2025-12-30', '2026-01-02');
       expect(nights).toBe(3);
     });
   });

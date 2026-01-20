@@ -331,6 +331,25 @@ class EmailService {
   }
 
   /**
+   * Escape HTML entities for safe insertion into HTML templates
+   * FIX 2026-01-20: Added to prevent XSS in HTML email templates
+   * @param {string} text - Text to escape
+   * @returns {string} HTML-escaped text
+   * @private
+   */
+  escapeHtml(text) {
+    if (!text || typeof text !== 'string') {
+      return text || '';
+    }
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;');
+  }
+
+  /**
    * Format booking details (dates, guests, price, rooms) - helper for email templates
    * @param {Object} booking - Booking data
    * @param {Object} settings - System settings
@@ -493,51 +512,9 @@ class EmailService {
     }
 
     // Handle single-date bookings (all rooms same dates)
-    // Count guests by type from guestNames array (matches frontend logic)
-    let utiaAdults = 0;
-    let utiaChildren = 0;
-    let externalAdults = 0;
-    let externalChildren = 0;
-    let toddlers = 0;
-
-    const guestNames = booking.guestNames || [];
-    for (const guest of guestNames) {
-      const priceType = guest.guestPriceType || 'external';
-      const personType = guest.personType || 'adult';
-
-      if (personType === 'toddler') {
-        toddlers++;
-        continue; // Toddlers are free
-      }
-
-      if (priceType === 'utia') {
-        if (personType === 'adult') {
-          utiaAdults++;
-        } else if (personType === 'child') {
-          utiaChildren++;
-        }
-      } else {
-        // External
-        if (personType === 'adult') {
-          externalAdults++;
-        } else if (personType === 'child') {
-          externalChildren++;
-        }
-      }
-    }
-
-    // Fallback if no guestNames: use booking counts with default type
-    if (guestNames.length === 0) {
-      const defaultType = booking.guestType || 'external';
-      if (defaultType === 'utia') {
-        utiaAdults = booking.adults || 0;
-        utiaChildren = booking.children || 0;
-      } else {
-        externalAdults = booking.adults || 0;
-        externalChildren = booking.children || 0;
-      }
-      toddlers = booking.toddlers || 0;
-    }
+    // Count guests by type from guestNames array (fallback handled in helper)
+    const { utiaAdults, utiaChildren, externalAdults, externalChildren } =
+      this._countGuestsByType(booking);
 
     const totalAdults = utiaAdults + externalAdults;
     const totalChildren = utiaChildren + externalChildren;
@@ -675,51 +652,9 @@ class EmailService {
 
     const prices = { ...defaultBulkPrices, ...bulkPrices };
 
-    // Count guests by type (ÚTIA vs External) from guestNames array
-    let utiaAdults = 0;
-    let utiaChildren = 0;
-    let externalAdults = 0;
-    let externalChildren = 0;
-    let toddlers = 0;
-
-    const guestNames = booking.guestNames || [];
-    for (const guest of guestNames) {
-      const priceType = guest.guestPriceType || 'external';
-      const personType = guest.personType || 'adult';
-
-      if (personType === 'toddler') {
-        toddlers++;
-        continue; // Toddlers are free
-      }
-
-      if (priceType === 'utia') {
-        if (personType === 'adult') {
-          utiaAdults++;
-        } else if (personType === 'child') {
-          utiaChildren++;
-        }
-      } else {
-        // External
-        if (personType === 'adult') {
-          externalAdults++;
-        } else if (personType === 'child') {
-          externalChildren++;
-        }
-      }
-    }
-
-    // If no guestNames, fall back to total counts with default type
-    if (guestNames.length === 0) {
-      const defaultType = booking.guestType || 'external';
-      if (defaultType === 'utia') {
-        utiaAdults = booking.adults || 0;
-        utiaChildren = booking.children || 0;
-      } else {
-        externalAdults = booking.adults || 0;
-        externalChildren = booking.children || 0;
-      }
-      toddlers = booking.toddlers || 0;
-    }
+    // Count guests by type (fallback handled in helper)
+    const { utiaAdults, utiaChildren, externalAdults, externalChildren, toddlers } =
+      this._countGuestsByType(booking);
 
     const lines = [];
 
@@ -819,6 +754,54 @@ class EmailService {
       return `${count} děti`;
     }
     return `${count} dětí`;
+  }
+
+  /**
+   * Count guests by type from guestNames array
+   * @param {Object} booking - Booking object with guestNames
+   * @returns {Object} Guest counts { utiaAdults, utiaChildren, externalAdults, externalChildren, toddlers }
+   * @private
+   */
+  _countGuestsByType(booking) {
+    let utiaAdults = 0;
+    let utiaChildren = 0;
+    let externalAdults = 0;
+    let externalChildren = 0;
+    let toddlers = 0;
+
+    const guestNames = booking.guestNames || [];
+    for (const guest of guestNames) {
+      const priceType = guest.guestPriceType || 'external';
+      const personType = guest.personType || 'adult';
+
+      if (personType === 'toddler') {
+        toddlers++;
+        continue;
+      }
+
+      if (priceType === 'utia') {
+        if (personType === 'adult') utiaAdults++;
+        else if (personType === 'child') utiaChildren++;
+      } else {
+        if (personType === 'adult') externalAdults++;
+        else if (personType === 'child') externalChildren++;
+      }
+    }
+
+    // Fallback if no guestNames
+    if (guestNames.length === 0) {
+      const defaultType = booking.guestType || 'external';
+      if (defaultType === 'utia') {
+        utiaAdults = booking.adults || 0;
+        utiaChildren = booking.children || 0;
+      } else {
+        externalAdults = booking.adults || 0;
+        externalChildren = booking.children || 0;
+      }
+      toddlers = booking.toddlers || 0;
+    }
+
+    return { utiaAdults, utiaChildren, externalAdults, externalChildren, toddlers };
   }
 
   /**
@@ -1023,13 +1006,62 @@ class EmailService {
   generateBookingConfirmationHtml(booking, editUrl, settings = {}) {
     const details = this.formatBookingDetails(booking, settings);
 
-    // Generate price breakdown
+    // FIX 2026-01-20: Render custom template as HTML (escape entities, convert newlines, linkify URLs)
+    if (settings.emailTemplate && settings.emailTemplate.template) {
+      // Get substituted content from custom template
+      let customContent = this.substituteVariables(
+        settings.emailTemplate.template,
+        booking,
+        editUrl,
+        settings
+      );
+
+      // Escape HTML entities after variable substitution for XSS protection
+      // Then convert newlines to <br> for proper HTML display
+      customContent = customContent
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br>\n');
+
+      // Make edit_url clickable if present
+      if (customContent.includes(editUrl)) {
+        customContent = customContent.replace(
+          new RegExp(editUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+          `<a href="${editUrl}" style="color:#2d5016;font-weight:bold">${editUrl}</a>`
+        );
+      }
+
+      // Auto-append edit link if not already in template
+      if (!settings.emailTemplate.template.includes('{edit_url}')) {
+        customContent += `<br><br><b>EDITACE/ZRUŠENÍ REZERVACE:</b><br><a href="${editUrl}" style="color:#2d5016;font-weight:bold">${editUrl}</a>`;
+      }
+
+      // Wrap in minimal HTML structure
+      return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><style>
+body{font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:20px}
+.h{background:#2d5016;color:#fff;padding:15px;text-align:center;margin-bottom:20px}
+.c{background:#f9f9f9;padding:20px;margin:15px 0;border-left:4px solid #2d5016}
+.f{color:#777;font-size:12px;margin-top:20px;border-top:1px solid #eee;padding-top:15px}
+</style></head><body>
+<div class="h"><h2>Chata Mariánská - Potvrzení rezervace</h2></div>
+<div class="c">
+${customContent}
+</div>
+<div class="f">
+<p>Kontakt: ${details.contactEmail} | ${this.config.appUrl}<br>
+---<br>Automatická zpráva</p>
+</div>
+</body></html>`.trim();
+    }
+
+    // Fallback to default template
     const priceBreakdown = this.generatePriceBreakdown(booking, settings);
     const perRoomPriceHtml = priceBreakdown
       ? `<div class="d" style="margin-bottom:10px"><p><b>Rozpis ceny:</b></p><pre style="margin:0;font-family:monospace;font-size:12px;white-space:pre-wrap">${priceBreakdown}</pre></div>`
       : '';
 
-    // Simplified HTML for SMTP size limit (hermes.utia.cas.cz has ~1KB limit)
     return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><style>
 body{font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:20px}
@@ -1041,7 +1073,7 @@ body{font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;mar
 .f{color:#777;font-size:12px;margin-top:20px;border-top:1px solid #eee;padding-top:15px}
 </style></head><body>
 <div class="h"><h2>Chata Mariánská - Potvrzení rezervace</h2></div>
-<p>Dobrý den <b>${details.name}</b>,</p>
+<p>Dobrý den <b>${this.escapeHtml(details.name)}</b>,</p>
 <p>Děkujeme za Vaši rezervaci!</p>
 <div class="d">
 <p><b>Rezervace ${booking.id}</b></p>
@@ -1049,7 +1081,7 @@ body{font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;mar
 Odjezd: ${details.endDateFormatted} (${details.endDate})<br>
 Nocí: ${details.nights} | Pokoje: ${details.roomList}<br>
 Typ: ${details.guestTypeText}<br>
-Osob: ${details.guestCountText}${details.notes ? `<br>Poznámka: ${details.notes}` : ''}</p>
+Osob: ${details.guestCountText}${details.notes ? `<br>Poznámka: ${this.escapeHtml(details.notes)}` : ''}</p>
 </div>
 ${perRoomPriceHtml}
 <div class="p">Celková cena: ${details.priceFormatted}</div>
@@ -1256,11 +1288,13 @@ Automatická zpráva - neodpovídejte
 
     const editUrl = `${this.config.appUrl}/edit.html?token=${booking.editToken}`;
     const textContent = this.generateBookingConfirmationText(booking, editUrl, options.settings);
+    // FIX 2026-01-20: Email queue (added 2026-01-06) requires htmlContent field
+    const htmlContent = this.generateBookingConfirmationHtml(booking, editUrl, options.settings);
     const emailSubject =
       options.settings?.emailTemplate?.subject ||
       `Potvrzení rezervace - Chata Mariánská (${booking.id})`;
 
-    const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent);
+    const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent, { html: htmlContent });
 
     // Send to booking owner
     const result = await this.sendEmailWithRetry(mailOptions, {
@@ -1457,6 +1491,10 @@ Web: ${this.config.appUrl}
     if (changes.notes) {
       changeSummary += '\n- Aktualizace poznámky';
     }
+    // FIX 2026-01-20: Add guestNames for consistency with HTML version
+    if (changes.guestNames) {
+      changeSummary += '\n- Změna jmen hostů';
+    }
     if (changes.other) {
       changeSummary += '\n- Další změny v údajích';
     }
@@ -1494,6 +1532,96 @@ Automatická zpráva - neodpovídejte
   }
 
   /**
+   * Generate HTML template for booking modification email
+   * FIX 2026-01-20: Added for email queue htmlContent requirement
+   * @param {Object} booking - Updated booking data
+   * @param {Object} changes - Object describing what changed
+   * @param {Object} settings - System settings
+   * @param {boolean} modifiedByAdmin - Whether change was made by admin
+   * @returns {string} HTML email content
+   */
+  generateBookingModificationHtml(booking, changes, settings = {}, modifiedByAdmin = false) {
+    const details = this.formatBookingDetails(booking, settings);
+    const editUrl = `${this.config.appUrl}/edit.html?token=${booking.editToken}`;
+
+    // Build change summary as HTML list
+    let changeSummaryHtml = '<ul style="margin:10px 0;padding-left:20px">';
+    if (changes.dates) {
+      changeSummaryHtml += '<li>Změna termínu rezervace</li>';
+    }
+    if (changes.guests) {
+      changeSummaryHtml += '<li>Změna počtu hostů</li>';
+    }
+    if (changes.rooms) {
+      changeSummaryHtml += '<li>Změna vybraných pokojů</li>';
+    }
+    if (changes.status) {
+      changeSummaryHtml += `<li>Změna stavu: ${this.escapeHtml(changes.status)}</li>`;
+    }
+    if (changes.payment) {
+      const paymentStatus = booking.paid ? 'ZAPLACENO ✓' : 'NEZAPLACENO';
+      changeSummaryHtml += `<li>Platba: ${paymentStatus}</li>`;
+    }
+    if (changes.paymentMethod) {
+      const paymentMethod = booking.payFromBenefit ? 'Z benefitů' : 'Standardní';
+      changeSummaryHtml += `<li>Způsob platby: ${paymentMethod}</li>`;
+    }
+    if (changes.notes) {
+      changeSummaryHtml += '<li>Aktualizace poznámky</li>';
+    }
+    if (changes.guestNames) {
+      changeSummaryHtml += '<li>Změna jmen hostů</li>';
+    }
+    if (changes.other) {
+      changeSummaryHtml += '<li>Další změny v údajích</li>';
+    }
+    changeSummaryHtml += '</ul>';
+
+    const modifiedByHtml = modifiedByAdmin
+      ? '<p style="background:#fff3cd;padding:10px;margin:10px 0;border-left:4px solid #ffc107"><b>⚠️ Tato rezervace byla změněna administrátorem systému.</b></p>'
+      : '';
+
+    return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><style>
+body{font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:20px}
+.h{background:#2d5016;color:#fff;padding:15px;text-align:center;margin-bottom:20px}
+.d{background:#f9f9f9;padding:15px;margin:15px 0;border-left:4px solid #2d5016}
+.c{background:#e8f5e9;padding:15px;margin:15px 0;border-left:4px solid #4caf50}
+.e{background:#fff3cd;padding:15px;margin:15px 0;text-align:center}
+.b{display:inline-block;padding:10px 20px;background:#2d5016;color:#fff!important;text-decoration:none;border-radius:4px}
+.f{color:#777;font-size:12px;margin-top:20px;border-top:1px solid #eee;padding-top:15px}
+</style></head><body>
+<div class="h"><h2>Chata Mariánská - Změna rezervace</h2></div>
+<p>Dobrý den <b>${this.escapeHtml(details.name)}</b>,</p>
+<p>Vaše rezervace byla aktualizována.</p>
+${modifiedByHtml}
+<div class="c">
+<p><b>Provedené změny:</b></p>
+${changeSummaryHtml}
+</div>
+<div class="d">
+<p><b>Aktuální stav rezervace ${booking.id}</b></p>
+<p>Příjezd: ${details.startDateFormatted} (${details.startDate})<br>
+Odjezd: ${details.endDateFormatted} (${details.endDate})<br>
+Nocí: ${details.nights} | Pokoje: ${details.roomList}<br>
+Typ: ${details.guestTypeText}<br>
+Osob: ${details.guestCountText}<br>
+Cena: ${details.priceFormatted}${details.notes ? `<br>Poznámka: ${this.escapeHtml(details.notes)}` : ''}</p>
+</div>
+<div class="e">
+<p><b>Editace nebo zrušení rezervace:</b></p>
+<a href="${editUrl}" class="b">Upravit rezervaci</a>
+<p style="font-size:11px;margin-top:10px;word-break:break-all">${editUrl}</p>
+<p><b>Důležité:</b> Uschovejte si tento odkaz!</p>
+</div>
+<div class="f">
+<p>Kontakt: ${details.contactEmail} | ${this.config.appUrl}<br>
+---<br>Automatická zpráva</p>
+</div>
+</body></html>`.trim();
+  }
+
+  /**
    * Send booking modification notification email
    * @param {Object} booking - Updated booking data
    * @param {Object} changes - Object describing what changed
@@ -1520,9 +1648,16 @@ Automatická zpráva - neodpovídejte
       options.settings,
       options.modifiedByAdmin || false
     );
+    // FIX 2026-01-20: Email queue (added 2026-01-06) requires htmlContent field
+    const htmlContent = this.generateBookingModificationHtml(
+      booking,
+      changes,
+      options.settings,
+      options.modifiedByAdmin || false
+    );
     const emailSubject = `Změna rezervace - Chata Mariánská (${booking.id})`;
 
-    const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent);
+    const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent, { html: htmlContent });
 
     // Send to booking owner only
     // FIX 2025-12-11: Admin notifications are handled separately via sendBookingNotifications()
@@ -1578,6 +1713,50 @@ Automatická zpráva - neodpovídejte
   }
 
   /**
+   * Generate HTML template for booking deletion email
+   * FIX 2026-01-20: Added for email queue htmlContent requirement
+   * @param {Object} booking - Deleted booking data
+   * @param {Object} settings - System settings
+   * @param {boolean} deletedByAdmin - Whether deletion was performed by admin
+   * @returns {string} HTML email content
+   */
+  generateBookingDeletionHtml(booking, settings = {}, deletedByAdmin = false) {
+    const details = this.formatBookingDetails(booking, settings);
+    const timestamp = this.generateTimestamp();
+
+    const deletedByHtml = deletedByAdmin
+      ? '<p style="background:#fff3cd;padding:10px;margin:10px 0;border-left:4px solid #ffc107"><b>⚠️ Tato rezervace byla zrušena administrátorem systému.</b></p>'
+      : '<p>Vaše rezervace byla úspěšně zrušena na Vaši žádost.</p>';
+
+    return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><style>
+body{font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:20px}
+.h{background:#c62828;color:#fff;padding:15px;text-align:center;margin-bottom:20px}
+.d{background:#ffebee;padding:15px;margin:15px 0;border-left:4px solid #c62828}
+.f{color:#777;font-size:12px;margin-top:20px;border-top:1px solid #eee;padding-top:15px}
+</style></head><body>
+<div class="h"><h2>Chata Mariánská - Zrušení rezervace</h2></div>
+<p>Dobrý den <b>${this.escapeHtml(details.name)}</b>,</p>
+${deletedByHtml}
+<div class="d">
+<p><b>Zrušená rezervace ${booking.id}</b></p>
+<p>Příjezd: ${details.startDateFormatted} (${details.startDate})<br>
+Odjezd: ${details.endDateFormatted} (${details.endDate})<br>
+Nocí: ${details.nights} | Pokoje: ${details.roomList}<br>
+Typ: ${details.guestTypeText}<br>
+Osob: ${details.guestCountText}<br>
+Cena: ${details.priceFormatted}${details.notes ? `<br>Poznámka: ${this.escapeHtml(details.notes)}` : ''}</p>
+<p><b>Čas zrušení:</b> ${timestamp}</p>
+</div>
+<p>Pokud máte jakékoliv dotazy, neváhejte nás kontaktovat.</p>
+<div class="f">
+<p>Kontakt: ${details.contactEmail} | ${this.config.appUrl}<br>
+---<br>Automatická zpráva</p>
+</div>
+</body></html>`.trim();
+  }
+
+  /**
    * Send booking deletion notification email
    * @param {Object} booking - Deleted booking data
    * @param {Object} options - Additional options
@@ -1598,9 +1777,15 @@ Automatická zpráva - neodpovídejte
       options.settings,
       options.deletedByAdmin || false
     );
+    // FIX 2026-01-20: Email queue (added 2026-01-06) requires htmlContent field
+    const htmlContent = this.generateBookingDeletionHtml(
+      booking,
+      options.settings,
+      options.deletedByAdmin || false
+    );
     const emailSubject = `Zrušení rezervace - Chata Mariánská (${booking.id})`;
 
-    const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent);
+    const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent, { html: htmlContent });
 
     // Send to booking owner
     const result = await this.sendEmailWithRetry(mailOptions, {

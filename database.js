@@ -1599,11 +1599,33 @@ class DatabaseManager {
     if (adminEmailsJson) {
       try {
         settings.adminEmails = JSON.parse(adminEmailsJson);
-      } catch (error) {
+      } catch (parseError) {
+        // FIX 2026-01-20: Log parse errors to help debug corrupt settings
+        console.error('[DatabaseManager] Failed to parse adminEmails JSON', {
+          value: adminEmailsJson.substring(0, 100),
+          error: parseError.message,
+        });
         settings.adminEmails = [];
       }
     } else {
       settings.adminEmails = [];
+    }
+
+    // Get cabin manager emails for notifications
+    const cabinManagerEmailsJson = this.getSetting('cabinManagerEmails');
+    if (cabinManagerEmailsJson) {
+      try {
+        settings.cabinManagerEmails = JSON.parse(cabinManagerEmailsJson);
+      } catch (parseError) {
+        // FIX 2026-01-20: Log parse errors to help debug corrupt settings
+        console.error('[DatabaseManager] Failed to parse cabinManagerEmails JSON', {
+          value: cabinManagerEmailsJson.substring(0, 100),
+          error: parseError.message,
+        });
+        settings.cabinManagerEmails = [];
+      }
+    } else {
+      settings.cabinManagerEmails = [];
     }
 
     return settings;
@@ -1687,6 +1709,24 @@ class DatabaseManager {
         // Validate that it's an array
         if (Array.isArray(updatedSettings.adminEmails)) {
           this.setSetting('adminEmails', JSON.stringify(updatedSettings.adminEmails));
+        } else {
+          // FIX 2026-01-20: Log validation failures
+          console.warn('[DatabaseManager] adminEmails must be an array, ignoring update', {
+            receivedType: typeof updatedSettings.adminEmails,
+          });
+        }
+      }
+
+      // Handle cabin manager emails updates
+      if (updatedSettings.cabinManagerEmails !== undefined) {
+        // Validate that it's an array
+        if (Array.isArray(updatedSettings.cabinManagerEmails)) {
+          this.setSetting('cabinManagerEmails', JSON.stringify(updatedSettings.cabinManagerEmails));
+        } else {
+          // FIX 2026-01-20: Log validation failures
+          console.warn('[DatabaseManager] cabinManagerEmails must be an array, ignoring update', {
+            receivedType: typeof updatedSettings.cabinManagerEmails,
+          });
         }
       }
     });

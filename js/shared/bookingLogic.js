@@ -9,6 +9,10 @@
  * This ensures consistent behavior across frontend, backend, and admin panel.
  */
 
+// Import DateUtils for Node.js (server-side) - browser uses global
+const DateUtils =
+  typeof window === 'undefined' ? require('./dateUtils') : window.DateUtils;
+
 class BookingLogic {
   /**
    * Check if two date ranges overlap (share any nights)
@@ -69,49 +73,8 @@ class BookingLogic {
     return check >= start && check <= end;
   }
 
-  /**
-   * Format date to YYYY-MM-DD string
-   * @deprecated Use DateUtils.formatDate() instead
-   * @param {Date|string} date - Date to format
-   * @returns {string} - Formatted date string
-   */
-  static formatDate(date) {
-    // Delegate to DateUtils for SSOT
-    if (typeof DateUtils === 'undefined') {
-      // If string in YYYY-MM-DD format, return as is
-      if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/u)) {
-        return date;
-      }
-      const d = typeof date === 'string' ? new Date(`${date}T12:00:00`) : new Date(date);
-      // Use local date components instead of UTC to avoid timezone issues
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    }
-    return DateUtils.formatDate(date);
-  }
-
-  /**
-   * Calculate number of nights between two dates
-   * @deprecated Use DateUtils.getDaysBetween() instead
-   * @param {string|Date} startDate - Check-in date
-   * @param {string|Date} endDate - Check-out date
-   * @returns {number} - Number of nights
-   */
-  static calculateNights(startDate, endDate) {
-    // Delegate to DateUtils for SSOT
-    if (typeof DateUtils === 'undefined') {
-      return Math.ceil(
-        Math.abs(
-          (typeof endDate === 'string' ? new Date(endDate) : endDate) -
-            (typeof startDate === 'string' ? new Date(startDate) : startDate)
-        ) /
-          (1000 * 60 * 60 * 24)
-      );
-    }
-    return DateUtils.getDaysBetween(startDate, endDate);
-  }
+  // FIX 2026-01-20: Removed deprecated formatDate() and calculateNights()
+  // Use DateUtils.formatDate() and DateUtils.getDaysBetween() directly
 
   /**
    * Validate booking date range
@@ -171,7 +134,7 @@ class BookingLogic {
         };
       }
 
-      const nights = this.calculateNights(start, end);
+      const nights = DateUtils.getDaysBetween(start, end);
       if (nights < 1) {
         return {
           valid: false,

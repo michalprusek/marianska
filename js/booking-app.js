@@ -16,10 +16,9 @@ class BookingApp {
     this.editingReservation = null; // Tracks reservation being edited (null = new reservation)
 
     // Generate or retrieve session ID for proposed bookings
-    // FIX 2025-12-05: Changed from sessionStorage to localStorage for persistence across page refreshes
     this.sessionId = localStorage.getItem('bookingSessionId');
     if (!this.sessionId) {
-      this.sessionId = this.generateSessionId();
+      this.sessionId = IdGenerator.generateSessionId();
       localStorage.setItem('bookingSessionId', this.sessionId);
     }
 
@@ -56,14 +55,6 @@ class BookingApp {
     this.bookingForm = new BookingFormModule(this);
     this.createBookingComponent = new CreateBookingComponent(this);
     this.utils = new UtilsModule(this);
-  }
-
-  /**
-   * @deprecated Use IdGenerator.generateSessionId() directly instead.
-   * This wrapper exists for backward compatibility only.
-   */
-  generateSessionId() {
-    return IdGenerator.generateSessionId();
   }
 
   async init() {
@@ -201,134 +192,120 @@ class BookingApp {
       const response = await fetch(
         `${dataManager.apiUrl}/proposed-bookings/session/${this.sessionId}`
       );
-      if (response.ok) {
-        const proposedBookings = await response.json();
+      if (!response.ok) return;
 
-        // Get all rooms and settings once for efficiency
-        const allRooms = await dataManager.getRooms();
-        const settings = await dataManager.getSettings();
+      const proposedBookings = await response.json();
+      const allRooms = await dataManager.getRooms();
+      const settings = await dataManager.getSettings();
 
-        // Convert proposed bookings to tempReservations format
-        for (const proposed of proposedBookings) {
-          // Rooms is already an array from database.js
-          const rooms = Array.isArray(proposed.rooms) ? proposed.rooms : [];
-          if (rooms.length === 0) {
-            continue;
-          }
-
-          // FIX 2025-12-05: Database returns perRoomDates, NOT start_date/end_date
-          // Extract dates from perRoomDates - use first room's dates as overall dates
-          const firstRoomId = rooms[0];
-          const firstRoomDates = proposed.perRoomDates?.[firstRoomId] || {};
-          const { startDate } = firstRoomDates;
-          const { endDate } = firstRoomDates;
-
-          // Skip if no valid dates
-          if (!startDate || !endDate) {
-            console.warn('Proposed booking missing dates:', proposed.proposalId);
-            continue;
-          }
-
-          // FIX 2025-12-04: Check explicit isBulkBooking flag from database, NOT room count
-          // A booking with all 9 rooms is NOT necessarily a bulk booking
-          const isBulkBooking =
-            proposed.is_bulk_booking === true || proposed.isBulkBooking === true;
-
-          if (isBulkBooking) {
-            // Bulk booking format - only for explicitly marked bulk bookings
-            const bulkNights = this.calculateNights(startDate, endDate);
-            const bulkAdults = proposed.adults || 1;
-            const bulkChildren = proposed.children || 0;
-            const bulkGuestType = proposed.guest_type || proposed.guestType || 'external';
-
-            // Calculate price if not stored (after page refresh)
-            let bulkPrice = proposed.total_price || proposed.totalPrice || 0;
-            if (bulkPrice === 0 && typeof PriceCalculator !== 'undefined' && settings) {
-              try {
-                bulkPrice = PriceCalculator.calculatePrice({
-                  guestType: bulkGuestType,
-                  adults: bulkAdults,
-                  children: bulkChildren,
-                  nights: bulkNights,
-                  rooms,
-                  settings,
-                });
-              } catch (e) {
-                console.warn('Failed to calculate bulk price:', e);
-              }
-            }
-
-            this.tempReservations.push({
-              id: proposed.proposalId,
-              isBulkBooking: true,
-              roomIds: rooms,
-              roomNames: allRooms.map((r) => r.name).join(', '),
-              startDate,
-              endDate,
-              nights: bulkNights,
-              proposalId: proposed.proposalId,
-              guests: {
-                adults: bulkAdults,
-                children: bulkChildren,
-                toddlers: proposed.toddlers || 0,
-              },
-              guestType: bulkGuestType,
-              totalPrice: bulkPrice,
-            });
-          } else {
-            // Single room booking format
-            // eslint-disable-next-line max-depth -- Deep nesting required for nested booking data structure
-            for (const roomId of rooms) {
-              const room = allRooms.find((r) => r.id === roomId);
-              // FIX 2025-12-05: Get per-room dates from perRoomDates
-              const roomDates = proposed.perRoomDates?.[roomId] || { startDate, endDate };
-              // eslint-disable-next-line max-depth -- Deep nesting required for nested booking data structure
-              if (room && roomDates.startDate && roomDates.endDate) {
-                const roomNights = this.calculateNights(roomDates.startDate, roomDates.endDate);
-                const roomAdults = proposed.adults || 1;
-                const roomChildren = proposed.children || 0;
-                const roomGuestType = proposed.guest_type || proposed.guestType || 'external';
-
-                // FIX 2025-12-06: Calculate price if not stored (after page refresh)
-                let roomPrice = proposed.total_price || proposed.totalPrice || 0;
-                if (roomPrice === 0 && typeof PriceCalculator !== 'undefined' && settings) {
-                  try {
-                    roomPrice = PriceCalculator.calculatePrice({
-                      guestType: roomGuestType,
-                      adults: roomAdults,
-                      children: roomChildren,
-                      nights: roomNights,
-                      rooms: [roomId],
-                      settings,
-                    });
-                  } catch (e) {
-                    console.warn('Failed to calculate room price:', e);
-                  }
-                }
-
-                this.tempReservations.push({
-                  id: `${proposed.proposalId}-${roomId}`,
-                  roomId,
-                  roomName: room.name,
-                  startDate: roomDates.startDate,
-                  endDate: roomDates.endDate,
-                  nights: roomNights,
-                  proposalId: proposed.proposalId,
-                  guests: {
-                    adults: roomAdults,
-                    children: roomChildren,
-                    toddlers: proposed.toddlers || 0,
-                  },
-                  guestType: roomGuestType,
-                  totalPrice: roomPrice,
-                });
-              }
-            }
-          }
-        }
+      for (const proposed of proposedBookings) {
+        this._processProposedBooking(proposed, allRooms, settings);
       }
     } catch (error) {
       console.error('Failed to load session proposed bookings:', error);
+    }
+  }
+
+  /**
+   * Process a single proposed booking and add to tempReservations
+   */
+  _processProposedBooking(proposed, allRooms, settings) {
+    const rooms = Array.isArray(proposed.rooms) ? proposed.rooms : [];
+    if (rooms.length === 0) return;
+
+    // Extract dates from perRoomDates
+    const firstRoomDates = proposed.perRoomDates?.[rooms[0]] || {};
+    const { startDate, endDate } = firstRoomDates;
+    if (!startDate || !endDate) {
+      console.warn('Proposed booking missing dates:', proposed.proposalId);
+      return;
+    }
+
+    const isBulkBooking = proposed.is_bulk_booking === true || proposed.isBulkBooking === true;
+
+    if (isBulkBooking) {
+      this._addBulkReservation(proposed, rooms, startDate, endDate, allRooms, settings);
+    } else {
+      this._addRoomReservations(proposed, rooms, startDate, endDate, allRooms, settings);
+    }
+  }
+
+  /**
+   * Add a bulk booking to tempReservations
+   */
+  _addBulkReservation(proposed, rooms, startDate, endDate, allRooms, settings) {
+    const nights = this.calculateNights(startDate, endDate);
+    const adults = proposed.adults || 1;
+    const children = proposed.children || 0;
+    const guestType = proposed.guest_type || proposed.guestType || 'external';
+
+    let totalPrice = proposed.total_price || proposed.totalPrice || 0;
+    if (totalPrice === 0 && typeof PriceCalculator !== 'undefined' && settings) {
+      try {
+        totalPrice = PriceCalculator.calculatePrice({
+          guestType, adults, children, nights, rooms, settings,
+        });
+      } catch (e) {
+        console.warn('Failed to calculate bulk price:', e);
+      }
+    }
+
+    this.tempReservations.push({
+      id: proposed.proposalId,
+      isBulkBooking: true,
+      roomIds: rooms,
+      roomNames: allRooms.map((r) => r.name).join(', '),
+      startDate,
+      endDate,
+      nights,
+      proposalId: proposed.proposalId,
+      guests: { adults, children, toddlers: proposed.toddlers || 0 },
+      guestType,
+      totalPrice,
+    });
+  }
+
+  /**
+   * Add single room reservations to tempReservations
+   */
+  _addRoomReservations(proposed, rooms, defaultStartDate, defaultEndDate, allRooms, settings) {
+    for (const roomId of rooms) {
+      const room = allRooms.find((r) => r.id === roomId);
+      const roomDates = proposed.perRoomDates?.[roomId] || {
+        startDate: defaultStartDate,
+        endDate: defaultEndDate,
+      };
+
+      if (!room || !roomDates.startDate || !roomDates.endDate) continue;
+
+      const nights = this.calculateNights(roomDates.startDate, roomDates.endDate);
+      const adults = proposed.adults || 1;
+      const children = proposed.children || 0;
+      const guestType = proposed.guest_type || proposed.guestType || 'external';
+
+      let totalPrice = proposed.total_price || proposed.totalPrice || 0;
+      if (totalPrice === 0 && typeof PriceCalculator !== 'undefined' && settings) {
+        try {
+          totalPrice = PriceCalculator.calculatePrice({
+            guestType, adults, children, nights, rooms: [roomId], settings,
+          });
+        } catch (e) {
+          console.warn('Failed to calculate room price:', e);
+        }
+      }
+
+      this.tempReservations.push({
+        id: `${proposed.proposalId}-${roomId}`,
+        roomId,
+        roomName: room.name,
+        startDate: roomDates.startDate,
+        endDate: roomDates.endDate,
+        nights,
+        proposalId: proposed.proposalId,
+        guests: { adults, children, toddlers: proposed.toddlers || 0 },
+        guestType,
+        totalPrice,
+      });
     }
   }
 
