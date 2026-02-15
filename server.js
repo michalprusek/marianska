@@ -3199,7 +3199,7 @@ if (require.main === module) {
 
 // FIX 2025-12-23: Automatic daily database backup system
 // - Creates backup file: bookings-YYYY-MM-DD.db in ./backups/
-// - Deletes backups older than 3 days (including .db-shm and .db-wal companion files)
+// - Deletes backups older than 3 days based on date in filename (including .db-shm and .db-wal companion files)
 // - Runs initial backup on startup, then every day at midnight
 // - Verifies backup file was created successfully
 // FIX 2025-12-24: Only run when server is started directly (not during testing)
@@ -3252,22 +3252,43 @@ if (require.main === module) {
         return;
       }
 
-      // Step 3: Rotate old backups - delete files older than 3 days (separate error handling)
+      // Step 4: Rotate old backups - delete files older than 3 days (separate error handling)
       // FIX 2026-02-15: Time-based cleanup (3 days) + clean up .db-shm and .db-wal companion files
       try {
         const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
         const cutoffDate = new Date(Date.now() - THREE_DAYS_MS);
         const allFiles = fsSync.readdirSync(backupDir).filter((f) => f.startsWith('bookings-'));
 
+        // Categorize files: old (to delete) vs recent (to keep)
+        const filesToDelete = [];
+        const filesToKeep = [];
+
         for (const file of allFiles) {
-          // Parse date from filename (bookings-YYYY-MM-DD.db*)
+          // Parse date from filename (bookings-YYYY-MM-DD.*)
           const dateMatch = file.match(/^bookings-(\d{4}-\d{2}-\d{2})\./);
           if (!dateMatch) {
+            logger.debug(`Skipping non-standard backup file during rotation: ${file}`);
             continue;
           }
 
-          const fileDate = new Date(`${dateMatch[1]}T00:00:00`);
+          const fileDate = new Date(`${dateMatch[1]}T00:00:00Z`);
+          if (isNaN(fileDate.getTime())) {
+            logger.warn(`Backup file has unparseable date in filename, skipping: ${file}`);
+            continue;
+          }
+
           if (fileDate < cutoffDate) {
+            filesToDelete.push(file);
+          } else {
+            filesToKeep.push(file);
+          }
+        }
+
+        // Safety: never delete all backups - always keep at least one
+        if (filesToKeep.length === 0 && filesToDelete.length > 0) {
+          logger.warn('Skipping backup rotation: would delete all backups. Keeping all files.');
+        } else {
+          for (const file of filesToDelete) {
             const filePath = path.join(backupDir, file);
             try {
               fsSync.unlinkSync(filePath);
@@ -3281,6 +3302,7 @@ if (require.main === module) {
           }
         }
       } catch (rotationError) {
+        // Backup succeeded, rotation failed - non-fatal
         logger.warn('Backup rotation failed (backup was created successfully)', {
           backupDir,
           errorMessage: rotationError.message,
