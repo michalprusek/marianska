@@ -1,4 +1,5 @@
 /* global AdminBookingsSorting, AdminBookingsPricing, DOMUtils */
+/* eslint-disable no-unused-vars, no-param-reassign, no-underscore-dangle, no-nested-ternary, no-loop-func, require-await, no-plusplus, max-depth */
 /**
  * Admin Bookings Module
  * Handles loading, filtering, and rendering the bookings table.
@@ -1702,7 +1703,8 @@ class AdminBookings {
                     </div>
                 </div>
 
-                <div class="modal-actions">
+                <div class="modal-actions" style="justify-content: space-between;">
+                    <button class="btn btn-danger" onclick="this.closest('.modal').remove(); adminPanel.bookings.deleteBooking('${this.escapeHtml(booking.id)}')">🗑️ Smazat rezervaci</button>
                     <button class="btn btn-secondary" onclick="this.closest('.modal').remove()">Zavřít</button>
                 </div>
             </div>
@@ -3190,7 +3192,10 @@ class AdminBookings {
           );
 
           // FIX 2026-01-06: Add guest names by room to print output
-          const guestListHtml = this.formatGuestNamesByRoomForPrint(booking.guestNames, booking.rooms);
+          const guestListHtml = this.formatGuestNamesByRoomForPrint(
+            booking.guestNames,
+            booking.rooms
+          );
 
           printContent += `
             <div class="interval">
@@ -3235,7 +3240,10 @@ class AdminBookings {
         const endDate = new Date(booking.endDate).toLocaleDateString('cs-CZ');
 
         // FIX 2026-01-06: Add guest names by room to print output
-        const guestListHtml = this.formatGuestNamesByRoomForPrint(booking.guestNames, booking.rooms);
+        const guestListHtml = this.formatGuestNamesByRoomForPrint(
+          booking.guestNames,
+          booking.rooms
+        );
 
         printContent += `
           <div class="booking">

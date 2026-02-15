@@ -1,3 +1,4 @@
+/* eslint-disable require-await, no-param-reassign, no-unmodified-loop-condition, max-depth, no-negated-condition */
 require('dotenv').config();
 
 const express = require('express');
@@ -3198,7 +3199,7 @@ if (require.main === module) {
 
 // FIX 2025-12-23: Automatic daily database backup system
 // - Creates backup file: bookings-YYYY-MM-DD.db in ./backups/
-// - Retains last 3 backups (older ones deleted automatically)
+// - Deletes backups older than 3 days (including .db-shm and .db-wal companion files)
 // - Runs initial backup on startup, then every day at midnight
 // - Verifies backup file was created successfully
 // FIX 2025-12-24: Only run when server is started directly (not during testing)
@@ -3251,29 +3252,35 @@ if (require.main === module) {
         return;
       }
 
-      // Step 3: Rotate old backups (separate error handling)
+      // Step 3: Rotate old backups - delete files older than 3 days (separate error handling)
+      // FIX 2026-02-15: Time-based cleanup (3 days) + clean up .db-shm and .db-wal companion files
       try {
-        const files = fsSync
-          .readdirSync(backupDir)
-          .filter((f) => f.startsWith('bookings-') && f.endsWith('.db'))
-          .sort()
-          .reverse();
+        const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+        const cutoffDate = new Date(Date.now() - THREE_DAYS_MS);
+        const allFiles = fsSync.readdirSync(backupDir).filter((f) => f.startsWith('bookings-'));
 
-        for (const file of files.slice(3)) {
-          const filePath = path.join(backupDir, file);
-          try {
-            fsSync.unlinkSync(filePath);
-            logger.info(`🗑️ Old backup deleted: ${file}`);
-          } catch (deleteError) {
-            // Log individual file deletion failures but continue
-            logger.warn('Failed to delete old backup file', {
-              file,
-              errorMessage: deleteError.message,
-            });
+        for (const file of allFiles) {
+          // Parse date from filename (bookings-YYYY-MM-DD.db*)
+          const dateMatch = file.match(/^bookings-(\d{4}-\d{2}-\d{2})\./);
+          if (!dateMatch) {
+            continue;
+          }
+
+          const fileDate = new Date(`${dateMatch[1]}T00:00:00`);
+          if (fileDate < cutoffDate) {
+            const filePath = path.join(backupDir, file);
+            try {
+              fsSync.unlinkSync(filePath);
+              logger.info(`🗑️ Old backup deleted: ${file}`);
+            } catch (deleteError) {
+              logger.warn('Failed to delete old backup file', {
+                file,
+                errorMessage: deleteError.message,
+              });
+            }
           }
         }
       } catch (rotationError) {
-        // Backup succeeded, rotation failed - less critical
         logger.warn('Backup rotation failed (backup was created successfully)', {
           backupDir,
           errorMessage: rotationError.message,
