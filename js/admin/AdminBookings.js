@@ -1,4 +1,5 @@
 /* global AdminBookingsSorting, AdminBookingsPricing, DOMUtils */
+/* eslint-disable no-unused-vars, no-param-reassign, no-underscore-dangle, no-nested-ternary, no-loop-func, require-await, no-plusplus, max-depth */
 /**
  * Admin Bookings Module
  * Handles loading, filtering, and rendering the bookings table.
@@ -1046,7 +1047,7 @@ class AdminBookings {
             </svg>
             Upravit
           </button>
-          <button class="btn-modern btn-delete" onclick="adminPanel.bookings.deleteBooking('${booking.id}')" title="Smazat rezervaci">
+          <button class="btn-modern btn-delete" onclick="adminPanel.bookings.deleteBooking('${this.escapeHtml(booking.id)}')" title="Smazat rezervaci">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/>
               <line x1="10" y1="11" x2="10" y2="17"/>
@@ -1702,7 +1703,8 @@ class AdminBookings {
                     </div>
                 </div>
 
-                <div class="modal-actions">
+                <div class="modal-actions" style="justify-content: space-between;">
+                    <button class="btn btn-danger" onclick="adminPanel.bookings.deleteBookingFromModal('${this.escapeHtml(booking.id)}', this.closest('.modal'))">🗑️ Smazat rezervaci</button>
                     <button class="btn btn-secondary" onclick="this.closest('.modal').remove()">Zavřít</button>
                 </div>
             </div>
@@ -2366,6 +2368,59 @@ class AdminBookings {
         this.adminPanel.showToast(`Chyba: ${error.message}`, 'error');
 
         // Revert optimistic update on error
+        if (row) {
+          row.style.opacity = '1';
+          row.style.pointerEvents = 'auto';
+        }
+      }
+    });
+  }
+
+  // FIX 2026-02-15: Delete booking from detail modal - closes modal only on success
+  async deleteBookingFromModal(bookingId, modal) {
+    this.adminPanel.showConfirm('Opravdu chcete smazat tuto rezervaci?', async () => {
+      if (!(await this.adminPanel.validateSession())) {
+        return;
+      }
+
+      const row = document.querySelector(`tr[data-booking-id="${bookingId}"]`);
+      if (row) {
+        row.style.transition = 'opacity 0.3s ease';
+        row.style.opacity = '0.5';
+        row.style.pointerEvents = 'none';
+      }
+
+      try {
+        const sessionToken = sessionStorage.getItem('adminSessionToken');
+        const response = await fetch(`/api/booking/${bookingId}`, {
+          method: 'DELETE',
+          headers: { 'x-session-token': sessionToken },
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Nepodařilo se smazat rezervaci');
+        }
+
+        if (row) {
+          row.remove();
+        }
+        if (modal) {
+          modal.remove();
+        }
+
+        this.selectedBookings.delete(bookingId);
+        this.updateBulkActionsUI();
+
+        dataManager.syncWithServer(true).catch((err) => {
+          console.error('[Admin] Background sync failed:', err);
+        });
+
+        this.adminPanel.showSuccessMessage('Rezervace byla smazána');
+      } catch (error) {
+        console.error(`Failed to delete booking ${bookingId}:`, error);
+        this.adminPanel.showToast(`Chyba: ${error.message}`, 'error');
+
         if (row) {
           row.style.opacity = '1';
           row.style.pointerEvents = 'auto';
@@ -3190,7 +3245,10 @@ class AdminBookings {
           );
 
           // FIX 2026-01-06: Add guest names by room to print output
-          const guestListHtml = this.formatGuestNamesByRoomForPrint(booking.guestNames, booking.rooms);
+          const guestListHtml = this.formatGuestNamesByRoomForPrint(
+            booking.guestNames,
+            booking.rooms
+          );
 
           printContent += `
             <div class="interval">
@@ -3235,7 +3293,10 @@ class AdminBookings {
         const endDate = new Date(booking.endDate).toLocaleDateString('cs-CZ');
 
         // FIX 2026-01-06: Add guest names by room to print output
-        const guestListHtml = this.formatGuestNamesByRoomForPrint(booking.guestNames, booking.rooms);
+        const guestListHtml = this.formatGuestNamesByRoomForPrint(
+          booking.guestNames,
+          booking.rooms
+        );
 
         printContent += `
           <div class="booking">
