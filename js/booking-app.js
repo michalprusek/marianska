@@ -1560,19 +1560,21 @@ class BookingApp {
     // Display floor plan images
     const capacityGrid = document.getElementById('roomCapacityGrid');
     if (capacityGrid) {
-      const totalBeds = rooms.reduce((sum, room) => sum + room.beds, 0);
-      const capacityText =
-        this.currentLanguage === 'cs'
-          ? `Celková kapacita: ${totalBeds} lůžek`
-          : `Total capacity: ${totalBeds} beds`;
-
       capacityGrid.innerHTML = `
         <div style="display: flex; flex-direction: column; gap: 1rem; align-items: center;">
-          <img src="images/marianska0floor.jpg" alt="Přízemí / Ground floor" style="width: 100%; max-width: 800px; border-radius: var(--radius-md); box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />
-          <img src="images/marianska1floor.jpg" alt="První patro / First floor" style="width: 100%; max-width: 800px; border-radius: var(--radius-md); box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />
-          <p style="text-align: center; font-weight: 600; color: var(--gray-700); margin: 0.5rem 0 0;">${capacityText}</p>
+          <img src="/images/marianska0floor.jpg" alt="Přízemí / Ground floor" style="width: 100%; max-width: 800px; border-radius: var(--radius-md); box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />
+          <img src="/images/marianska1floor.jpg" alt="První patro / First floor" style="width: 100%; max-width: 800px; border-radius: var(--radius-md); box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />
         </div>
       `;
+
+      const totalBeds = rooms.reduce((sum, room) => sum + room.beds, 0);
+      const totalCapacityText = document.getElementById('totalCapacityText');
+      if (totalCapacityText) {
+        totalCapacityText.textContent =
+          this.currentLanguage === 'cs'
+            ? `Celková kapacita: ${totalBeds} lůžek`
+            : `Total capacity: ${totalBeds} beds`;
+      }
     }
 
     // Update price list - NEW (2025-10-17): Room-size-based pricing display
