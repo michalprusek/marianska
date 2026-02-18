@@ -45,6 +45,7 @@ COPY migrations/ ./migrations/
 COPY *.html ./
 COPY admin.js ./
 COPY favicon.* ./
+COPY images/ ./images/
 
 # Create directories for runtime data
 RUN mkdir -p /app/data /app/logs && \
