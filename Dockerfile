@@ -37,15 +37,11 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY package*.json ./
 COPY server.js ./
 COPY database.js ./
-COPY data.js ./
-COPY translations.js ./
 COPY js/ ./js/
-COPY css/ ./css/
 COPY migrations/ ./migrations/
-COPY *.html ./
-COPY admin.js ./
-COPY favicon.* ./
-COPY images/ ./images/
+
+# Copy frontend assets to public/
+COPY public/ ./public/
 
 # Create directories for runtime data
 RUN mkdir -p /app/data /app/logs && \

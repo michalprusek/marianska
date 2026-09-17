@@ -10,6 +10,8 @@ const crypto = require('crypto');
 // Server-side require - not a redeclaration (client-side uses global DateUtils)
 // eslint-disable-next-line no-redeclare
 const DateUtils = require('./dateUtils');
+// eslint-disable-next-line no-redeclare
+const PriceCalculator = require('./priceCalculator');
 const { createLogger } = require('./logger');
 
 const logger = createLogger('EmailService');
@@ -441,6 +443,189 @@ class EmailService {
   }
 
   /**
+   * Determine the guest type used for a room's empty-room rate
+   * Business rule (same as database.js and PriceCalculator): a room is priced as ÚTIA
+   * when at least one paying (non-toddler) guest in that room is ÚTIA.
+   *
+   * @param {Array<Object>} roomGuestNames - Guests assigned to the room
+   * @param {string} fallbackGuestType - Type used when the room has no paying guests
+   * @returns {string} 'utia' or 'external'
+   * @private
+   */
+  _resolveRoomGuestType(roomGuestNames, fallbackGuestType) {
+    const payingGuests = roomGuestNames.filter((g) => g.personType !== 'toddler');
+
+    if (payingGuests.length === 0) {
+      return fallbackGuestType === 'utia' ? 'utia' : 'external';
+    }
+
+    return payingGuests.some((g) => g.guestPriceType === 'utia') ? 'utia' : 'external';
+  }
+
+  /**
+   * Build the per-room guest breakdown consumed by PriceCalculator.calculatePerRoomPrices()
+   * Guest types come from guestNames (SSOT). When a room has no guest names (legacy data),
+   * fall back to the aggregated per-room counts with the room's / booking's guest type.
+   *
+   * @param {Object} booking - Booking data
+   * @returns {Array<Object>} Per-room guest breakdown with ÚTIA/external counts
+   * @private
+   */
+  _buildPerRoomGuestBreakdown(booking) {
+    const guestNames = Array.isArray(booking.guestNames) ? booking.guestNames : [];
+
+    return (booking.rooms || []).map((roomId) => {
+      const roomGuests = booking.perRoomGuests?.[roomId] || {};
+      const fallbackGuestType = roomGuests.guestType || booking.guestType || 'external';
+      const roomGuestNames = guestNames.filter((g) => String(g.roomId) === String(roomId));
+
+      if (roomGuestNames.length === 0) {
+        // Legacy fallback: no per-guest data, price everybody with the room's guest type
+        const adults = roomGuests.adults || 0;
+        const children = roomGuests.children || 0;
+        const isUtia = fallbackGuestType === 'utia';
+
+        return {
+          roomId,
+          guestType: isUtia ? 'utia' : 'external',
+          adults,
+          children,
+          toddlers: roomGuests.toddlers || 0,
+          utiaAdults: isUtia ? adults : 0,
+          externalAdults: isUtia ? 0 : adults,
+          utiaChildren: isUtia ? children : 0,
+          externalChildren: isUtia ? 0 : children,
+        };
+      }
+
+      const counts = PriceCalculator.countGuestsByTypeForRoom(roomGuestNames, fallbackGuestType);
+
+      return {
+        roomId,
+        guestType: this._resolveRoomGuestType(roomGuestNames, fallbackGuestType),
+        adults: counts.utiaAdults + counts.externalAdults,
+        children: counts.utiaChildren + counts.externalChildren,
+        toddlers: roomGuestNames.filter((g) => g.personType === 'toddler').length,
+        ...counts,
+      };
+    });
+  }
+
+  /**
+   * Format a single guest surcharge line (e.g. "Dospělí (EXT): 1 × 100 Kč/noc × 7 nocí = 700 Kč")
+   *
+   * @param {string} label - 'Dospělí' or 'Děti'
+   * @param {string} typeLabel - 'ÚTIA' or 'EXT'
+   * @param {number} count - Number of guests
+   * @param {number} rate - Rate per guest per night
+   * @param {number} roomNights - Nights for this room
+   * @returns {string} Formatted line (empty string when there are no such guests)
+   * @private
+   */
+  _formatGuestLine(label, typeLabel, count, rate, roomNights) {
+    if (count <= 0) {
+      return '';
+    }
+    return `  ${label} (${typeLabel}): ${count} × ${rate} Kč/noc × ${roomNights} nocí = ${count * rate * roomNights} Kč\n`;
+  }
+
+  /**
+   * Generate per-room price breakdown using PriceCalculator (SSOT)
+   * Each guest is priced with their own ÚTIA/external rate, so the breakdown matches
+   * both the edit page and the stored total price.
+   *
+   * @param {Object} booking - Booking data
+   * @param {Object} settings - System settings
+   * @param {number} nights - Booking-level number of nights (fallback for rooms without dates)
+   * @returns {string} Formatted price breakdown
+   * @private
+   */
+  generatePerRoomPriceBreakdown(booking, settings, nights) {
+    const perRoomGuests = this._buildPerRoomGuestBreakdown(booking);
+
+    let priceBreakdown;
+    try {
+      priceBreakdown = PriceCalculator.calculatePerRoomPrices({
+        nights,
+        settings,
+        perRoomGuests,
+        perRoomDates: booking.perRoomDates,
+      });
+    } catch (error) {
+      // Never block an e-mail because of a pricing config problem - show the total only
+      logger.error('Failed to build per-room price breakdown', {
+        bookingId: booking.id,
+        error: error.message,
+      });
+      return `CELKOVÁ CENA: ${booking.totalPrice || 0} Kč`;
+    }
+
+    let breakdown = '';
+
+    for (const roomPrice of priceBreakdown.rooms) {
+      const roomGuests = perRoomGuests.find((r) => r.roomId === roomPrice.roomId);
+      const room = settings.rooms.find((r) => r.id === roomPrice.roomId);
+      const roomBeds = room?.beds || '?';
+      const roomNights = roomPrice.nights;
+      const roomTypeLabel = roomGuests.guestType === 'utia' ? 'ÚTIA' : 'EXT';
+
+      const utiaPrices = settings.prices.utia?.[roomPrice.roomType] || {};
+      const externalPrices = settings.prices.external?.[roomPrice.roomType] || {};
+
+      breakdown += `Pokoj ${roomPrice.roomId} (${roomBeds} lůžka)\n`;
+      breakdown += `  Základní cena (${roomTypeLabel}): ${roomPrice.emptyRoomPrice} Kč/noc × ${roomNights} nocí = ${roomPrice.emptyRoomPrice * roomNights} Kč\n`;
+      breakdown += this._formatGuestLine(
+        'Dospělí',
+        'ÚTIA',
+        roomPrice.utiaAdults,
+        utiaPrices.adult || 0,
+        roomNights
+      );
+      breakdown += this._formatGuestLine(
+        'Dospělí',
+        'EXT',
+        roomPrice.externalAdults,
+        externalPrices.adult || 0,
+        roomNights
+      );
+      breakdown += this._formatGuestLine(
+        'Děti',
+        'ÚTIA',
+        roomPrice.utiaChildren,
+        utiaPrices.child || 0,
+        roomNights
+      );
+      breakdown += this._formatGuestLine(
+        'Děti',
+        'EXT',
+        roomPrice.externalChildren,
+        externalPrices.child || 0,
+        roomNights
+      );
+      if (roomPrice.toddlers > 0) {
+        breakdown += `  Batolata (zdarma): ${roomPrice.toddlers} × 0 Kč\n`;
+      }
+      breakdown += `  Celkem za pokoj: ${roomPrice.total} Kč\n\n`;
+    }
+
+    // CRITICAL: Use booking.totalPrice from database (SSOT), not the recalculated value -
+    // price settings may have changed since the booking was created.
+    const finalPrice = booking.totalPrice || priceBreakdown.grandTotal;
+
+    // The per-room lines must add up to the price the guest is charged. They only differ
+    // when price settings changed after the booking was made - log it so it can be checked.
+    if (booking.totalPrice && booking.totalPrice !== priceBreakdown.grandTotal) {
+      logger.warn('Price breakdown does not match stored total price', {
+        bookingId: booking.id,
+        storedTotal: booking.totalPrice,
+        calculatedTotal: priceBreakdown.grandTotal,
+      });
+    }
+    breakdown += `CELKOVÁ CENA: ${finalPrice} Kč`;
+    return breakdown.trim();
+  }
+
+  /**
    * Generate detailed price breakdown per room
    * @param {Object} booking - Booking data
    * @param {Object} settings - System settings
@@ -457,58 +642,14 @@ class EmailService {
       return this.generateBulkPriceBreakdown(booking, settings);
     }
 
-    const guestKey = booking.guestType === 'utia' ? 'utia' : 'external';
-    const priceConfig = settings.prices[guestKey];
     const nights = DateUtils.getDaysBetween(booking.startDate, booking.endDate);
 
     // Handle per-room bookings
+    // FIX 2026-09-17: Delegate to PriceCalculator (SSOT) instead of pricing every guest
+    // with the booking-level guest type. Rooms with mixed ÚTIA/external guests were shown
+    // with ÚTIA rates for everyone, so the per-room lines did not add up to the total price.
     if (booking.perRoomDates && booking.perRoomGuests) {
-      let breakdown = '';
-      let totalPrice = 0;
-
-      for (const roomId of booking.rooms || []) {
-        const room = settings.rooms.find((r) => r.id === roomId);
-        const roomType = room?.type || 'small';
-        const roomBeds = room?.beds || '?';
-        const roomPriceConfig = priceConfig?.[roomType];
-
-        if (!roomPriceConfig) {
-          continue;
-        }
-
-        const roomDates = booking.perRoomDates[roomId];
-        const roomGuests = booking.perRoomGuests[roomId] || {};
-        const roomNights = roomDates
-          ? DateUtils.getDaysBetween(roomDates.startDate, roomDates.endDate)
-          : nights;
-        const roomAdults = roomGuests.adults || 0;
-        const roomChildren = roomGuests.children || 0;
-
-        // Calculate room price
-        // NEW MODEL 2025-11-10: Only 'empty' field (room-size based pricing)
-        const emptyRoomPrice = roomPriceConfig.empty || 0;
-        const basePrice = emptyRoomPrice * roomNights;
-        const adultsPrice = roomAdults * (roomPriceConfig.adult || 0) * roomNights;
-        const childrenPrice = roomChildren * (roomPriceConfig.child || 0) * roomNights;
-        const roomTotal = basePrice + adultsPrice + childrenPrice;
-
-        breakdown += `Pokoj ${roomId} (${roomBeds} lůžka)\n`;
-        breakdown += `  Základní cena: ${emptyRoomPrice} Kč/noc × ${roomNights} nocí = ${basePrice} Kč\n`;
-        if (roomAdults > 0) {
-          breakdown += `  Dospělí: ${roomAdults} × ${roomPriceConfig.adult} Kč/noc × ${roomNights} nocí = ${adultsPrice} Kč\n`;
-        }
-        if (roomChildren > 0) {
-          breakdown += `  Děti: ${roomChildren} × ${roomPriceConfig.child} Kč/noc × ${roomNights} nocí = ${childrenPrice} Kč\n`;
-        }
-        breakdown += `  Celkem za pokoj: ${roomTotal} Kč\n\n`;
-        totalPrice += roomTotal;
-      }
-
-      // CRITICAL FIX: Use booking.totalPrice from database, not recalculated value
-      // The recalculated value might differ due to rounding or pricing model changes
-      const finalPrice = booking.totalPrice || totalPrice;
-      breakdown += `CELKOVÁ CENA: ${finalPrice} Kč`;
-      return breakdown.trim();
+      return this.generatePerRoomPriceBreakdown(booking, settings, nights);
     }
 
     // Handle single-date bookings (all rooms same dates)

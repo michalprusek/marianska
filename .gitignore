@@ -89,3 +89,4 @@ data/*.migrated*
 # Sensitive files - NEVER COMMIT
 .sudo-password
 backups/
+backup-*.db

@@ -354,7 +354,33 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 app.use(bodyParser.json({ limit: '10mb' }));
-app.use(express.static('.'));
+
+// FIX 2026-03-31: Security - serve only frontend assets, not entire project root
+// Block access to sensitive paths (safety net)
+app.use(
+  ['/data', '/backups', '/node_modules', '/migrations', '/.env'],
+  (req, res) => {
+    res.status(404).send('Not found');
+  }
+);
+
+// Block backend-only JS files from being served
+app.use(
+  [
+    '/js/shared/emailService.js',
+    '/js/shared/logger.js',
+    '/js/shared/accessLogger.js',
+  ],
+  (req, res) => {
+    res.status(404).send('Not found');
+  }
+);
+
+// Serve frontend assets from public/ (HTML, CSS, images, favicons, data.js, admin.js, translations.js)
+app.use(express.static('public'));
+
+// Serve frontend JS files from js/ (shared utilities used by both frontend and backend)
+app.use('/js', express.static('js'));
 
 // Access logging middleware - log all HTTP requests
 app.use(accessLogger.middleware());

@@ -1,4 +1,4 @@
-version: '3.3'
+version: '2.4'
 
 services:
   web:
@@ -15,16 +15,14 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - NODE_OPTIONS=--max-old-space-size=256
     command: npm start
     restart: unless-stopped
     networks:
       - marianska-net
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-        reservations:
-          memory: 256M
+    mem_limit: 512m
+    memswap_limit: 768m
+    mem_reservation: 256m
 
   nginx:
     image: nginx:alpine
@@ -40,6 +38,8 @@ services:
     restart: unless-stopped
     networks:
       - marianska-net
+    mem_limit: 128m
+    memswap_limit: 256m
 
 networks:
   marianska-net:

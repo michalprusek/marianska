@@ -19,6 +19,11 @@ package-lock.json.bak
 .env
 .env.*
 ssl/
+.sudo-password
+
+# Backups (mounted as volume, not baked into image)
+backups/
+backup-*.db
 
 # Test files and documentation (not needed in production)
 tests/
