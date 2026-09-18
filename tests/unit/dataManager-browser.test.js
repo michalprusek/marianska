@@ -83,7 +83,7 @@ describe('DataManager Browser Implementation', () => {
     // Load the actual data.js file
     const fs = require('fs');
     const path = require('path');
-    const dataJsPath = path.join(__dirname, '../../data.js');
+    const dataJsPath = path.join(__dirname, '../../public/data.js');
     let dataJsContent = fs.readFileSync(dataJsPath, 'utf8');
 
     // FIX 2025-12-23: Wrap the file content to expose DataManager

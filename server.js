@@ -357,20 +357,13 @@ app.use(bodyParser.json({ limit: '10mb' }));
 
 // FIX 2026-03-31: Security - serve only frontend assets, not entire project root
 // Block access to sensitive paths (safety net)
-app.use(
-  ['/data', '/backups', '/node_modules', '/migrations', '/.env'],
-  (req, res) => {
-    res.status(404).send('Not found');
-  }
-);
+app.use(['/data', '/backups', '/node_modules', '/migrations', '/.env'], (req, res) => {
+  res.status(404).send('Not found');
+});
 
 // Block backend-only JS files from being served
 app.use(
-  [
-    '/js/shared/emailService.js',
-    '/js/shared/logger.js',
-    '/js/shared/accessLogger.js',
-  ],
+  ['/js/shared/emailService.js', '/js/shared/logger.js', '/js/shared/accessLogger.js'],
   (req, res) => {
     res.status(404).send('Not found');
   }

@@ -5,15 +5,18 @@ module.exports = {
   // Test file patterns
   testMatch: ['**/tests/**/*.test.js', '**/__tests__/**/*.js', '**/?(*.)+(spec|test).js'],
 
+  // Skip Claude Code worktrees (full repo copies) - otherwise every suite runs twice
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/.claude/'],
+
   // Coverage configuration
   collectCoverage: true,
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   collectCoverageFrom: [
     'server.js',
-    'data.js',
+    'public/data.js',
     'database.js',
-    'admin.js',
+    'public/admin.js',
     'js/**/*.js',
     '!js/**/*.test.js',
     '!node_modules/**',
