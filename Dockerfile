@@ -27,8 +27,8 @@ WORKDIR /app
 # Install only runtime dependencies for native modules
 RUN apk add --no-cache libstdc++
 
-# Limit Node.js memory for low-RAM servers
-ENV NODE_OPTIONS="--max-old-space-size=512"
+# Runtime heap limit is set in docker-compose.yml (NODE_OPTIONS), next to the container's
+# mem_limit it has to fit in - a value here was silently overridden by compose.
 
 # Copy node_modules from builder
 COPY --from=builder /app/node_modules ./node_modules

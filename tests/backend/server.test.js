@@ -156,6 +156,93 @@ describe('Server Integration Tests', () => {
     jest.useRealTimers();
   });
 
+  // FIX 2026-09-18: Same room booked for two date ranges in one grouped request.
+  // The e-mail used to itemise only the last range but print the total for both.
+  describe('POST /api/booking/group - confirmation e-mail price breakdown', () => {
+    it('itemises every reservation when the same room is booked twice', async () => {
+      const EmailService = require('../../js/shared/emailService');
+      const sendSpy = jest
+        .spyOn(EmailService.prototype, 'sendBookingConfirmation')
+        .mockResolvedValue({ success: true });
+
+      // Room 12 (small): 2 nights for 1 ÚTIA adult = (250 + 50) × 2 = 600
+      //                  3 nights for 2 external adults = (400 + 2×100) × 3 = 1800
+      const reservations = [
+        {
+          rooms: ['12'],
+          startDate: '2027-03-01',
+          endDate: '2027-03-03',
+          perRoomDates: { 12: { startDate: '2027-03-01', endDate: '2027-03-03' } },
+          perRoomGuests: { 12: { adults: 1, children: 0, toddlers: 0, guestType: 'utia' } },
+          guestNames: [
+            {
+              roomId: '12',
+              personType: 'adult',
+              firstName: 'Jana',
+              lastName: 'Nová',
+              guestPriceType: 'utia',
+            },
+          ],
+          totalPrice: 600,
+        },
+        {
+          rooms: ['12'],
+          startDate: '2027-03-05',
+          endDate: '2027-03-08',
+          perRoomDates: { 12: { startDate: '2027-03-05', endDate: '2027-03-08' } },
+          perRoomGuests: { 12: { adults: 2, children: 0, toddlers: 0, guestType: 'external' } },
+          guestNames: [
+            {
+              roomId: '12',
+              personType: 'adult',
+              firstName: 'Petr',
+              lastName: 'Malý',
+              guestPriceType: 'external',
+            },
+            {
+              roomId: '12',
+              personType: 'adult',
+              firstName: 'Eva',
+              lastName: 'Malá',
+              guestPriceType: 'external',
+            },
+          ],
+          totalPrice: 1800,
+        },
+      ];
+      db.createGroupedBooking = jest.fn(() => ({
+        groupId: 'GRP-TEST',
+        bookings: [
+          { id: 'B1', editToken: 'token1', rooms: ['12'] },
+          { id: 'B2', editToken: 'token2', rooms: ['12'] },
+        ],
+        totalPrice: 2400,
+      }));
+
+      const response = await request(app)
+        .post('/api/booking/group')
+        .send({
+          sessionId: 'test-session',
+          reservations,
+          contact: { name: 'Jana Nová', email: 'jana@example.com', phone: '+420123456789' },
+        });
+
+      expect(response.status).toBe(201);
+      expect(sendSpy).toHaveBeenCalledTimes(1);
+
+      const [emailedBooking] = sendSpy.mock.calls[0];
+      const breakdown = new EmailService().generatePriceBreakdown(emailedBooking, db.getSettings());
+      const roomTotals = [...breakdown.matchAll(/Celkem za pokoj: (\d+) Kč/g)].map((m) =>
+        Number(m[1])
+      );
+
+      expect(breakdown).toContain('Pokoj 12 (2 lůžka), 2027-03-01 – 2027-03-03');
+      expect(breakdown).toContain('Pokoj 12 (2 lůžka), 2027-03-05 – 2027-03-08');
+      expect(roomTotals).toEqual([600, 1800]);
+      expect(breakdown).toContain('CELKOVÁ CENA: 2400 Kč');
+    });
+  });
+
   describe('Static File Serving', () => {
     it('should serve index.html', async () => {
       const response = await request(app).get('/');

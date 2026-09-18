@@ -24,7 +24,8 @@
 
 - `server.js` - Express API server, all endpoints
 - `database.js` - SQLite database operations
-- `data.js` - Client-side data manager with caching
+- `public/data.js` - Client-side data manager with caching
+- `public/` - Frontend assets (HTML, CSS, images) served statically; shared JS is served from `js/`, except backend-only files blocked in `server.js`
 - `js/admin/AdminBookings.js` - Admin panel booking management
 - `js/booking-app.js` - Main booking flow application
 - `js/shared/priceCalculator.js` - Price calculation logic (SSOT)
@@ -93,7 +94,7 @@ df -h /
 docker images --filter "dangling=true" -q | xargs -r docker rmi
 docker builder prune -f
 
-# 1. VŽDY nejprve backup databáze
+# 1. Zkontrolovat integritu databáze
 docker exec marianska-chata node -e "
 const Database = require('better-sqlite3');
 const db = new Database('/app/data/bookings.db', { readonly: true });
@@ -103,8 +104,26 @@ console.log('Bookings:', bookings.count);
 db.close();
 "
 
-# 2. Stáhnout backup lokálně (pro jistotu)
-docker cp marianska-chata:/app/data/bookings.db ./backup-$(date +%Y%m%d-%H%M%S).db
+# 2. VŽDY konzistentní backup přes SQLite online backup API
+#    Soubor vznikne v ./backups/ na hostiteli (bind mount /app/backups).
+#    NEPOUŽÍVAT `docker cp .../bookings.db` - DB běží v režimu WAL a kopie samotného
+#    .db souboru postrádá zápisy, které jsou zatím jen v bookings.db-wal.
+#    Soubory manual-* automatická rotace nemaže (maže jen bookings-YYYY-MM-DD.db) - uklízet ručně.
+TS=$(date +%Y%m%d-%H%M%S)
+docker exec marianska-chata node -e "
+const Database = require('better-sqlite3');
+const db = new Database('/app/data/bookings.db', { readonly: true });
+db.backup('/app/backups/manual-$TS.db')
+  .then(() => {
+    db.close();
+    const b = new Database('/app/backups/manual-$TS.db', { readonly: true });
+    console.log('Backup integrity:', b.pragma('integrity_check'));
+    console.log('Backup bookings:', b.prepare('SELECT COUNT(*) as count FROM bookings').get().count);
+    b.close();
+  })
+  .catch((e) => { console.error('BACKUP FAILED:', e.message); process.exit(1); });
+"
+ls -l ./backups/manual-$TS.db
 
 # 3. Build bez mazání volumes
 docker-compose build --no-cache web
@@ -124,12 +143,13 @@ docker-compose logs --tail=20 web
 - Mazat soubory v `/app/data/` uvnitř kontejneru
 - Mazat nebo měnit `./data/` na hostiteli - je to TATÁŽ produkční databáze
 - Spouštět testy nebo skripty s `DatabaseManager` bez `DB_PATH` - `./data/bookings.db` je produkce (jest nastavuje `DB_PATH=':memory:'` v `tests/helpers/setup.js`; při `NODE_ENV=test` bez `DB_PATH` `database.js` odmítne DB otevřít)
+- Zálohovat přes `docker cp` samotného `bookings.db` (chybí obsah WAL - viz krok 2 deploye)
 - Spouštět DELETE bez WHERE
 - Ručně měnit databázi bez backupu
 
 ### Automatické zálohy
 
-- Denní backup v 00:00 do `/app/backups/`
+- Denní backup v 00:00 do `/app/backups/` (= `./backups/` na hostiteli), přes `db.backup()` - obsahuje i WAL
 - Mazání záloh starších než 3 dny (podle data v názvu souboru, vždy zůstane alespoň 1 záloha)
 - Při startu se ověřuje integrita databáze
 

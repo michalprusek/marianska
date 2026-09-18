@@ -277,6 +277,24 @@ describe('EmailService.generatePriceBreakdown - mixed guest types per room', () 
   });
 });
 
+describe('EmailService.generatePriceBreakdown - grouped and bulk bookings', () => {
+  test('rooms sharing one date range keep headers without dates', () => {
+    const breakdown = new EmailService().generatePriceBreakdown(MIXED_BOOKING, SETTINGS);
+
+    expect(breakdown).toContain('Pokoj 23 (3 lůžka)\n');
+    expect(breakdown).toContain('Pokoj 24 (4 lůžka)\n');
+  });
+
+  test('bulk booking without bulkPrices shows the total, never a per-room split', () => {
+    const bulkBooking = { ...MIXED_BOOKING, isBulkBooking: true, totalPrice: 20000 };
+
+    const breakdown = new EmailService().generatePriceBreakdown(bulkBooking, SETTINGS);
+
+    expect(breakdown).toContain('CELKOVÁ CENA: 20000 Kč');
+    expect(breakdown).not.toContain('Pokoj');
+  });
+});
+
 describe('EmailService.generatePriceBreakdown - bookings without per-room data', () => {
   test('does not throw for a booking with toddlers', () => {
     const emailService = new EmailService();

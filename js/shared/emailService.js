@@ -558,29 +558,167 @@ class EmailService {
   }
 
   /**
+   * Text used when the price cannot be itemised: the stored total with a note, never a made-up 0 Kč
+   *
+   * @param {Object} booking - Booking data
+   * @returns {string} Total-only price text
+   * @private
+   */
+  _totalOnlyBreakdown(booking) {
+    const hasStoredTotal = typeof booking.totalPrice === 'number' && booking.totalPrice > 0;
+    return hasStoredTotal
+      ? `CELKOVÁ CENA: ${booking.totalPrice} Kč\n(Podrobný rozpis ceny není k dispozici - v případě dotazu kontaktujte správce chaty.)`
+      : 'Rozpis ceny není k dispozici - kontaktujte prosím správce chaty.';
+  }
+
+  /**
+   * Split a booking into separately priced segments
+   * FIX 2026-09-18: A grouped booking created in one request can hold the same room in two
+   * date ranges. Its merged perRoomDates/perRoomGuests keep only the last range, so the e-mail
+   * itemised one stay but printed the total for both. When the booking carries per-reservation
+   * data (intervals, see POST /api/booking/group), each reservation is priced on its own.
+   *
+   * @param {Object} booking - Booking data
+   * @returns {Array<Object>} Booking-shaped segments (just the booking when it has no intervals)
+   * @private
+   */
+  _getPriceSegments(booking) {
+    const intervals = Array.isArray(booking.intervals) ? booking.intervals : [];
+    const hasIntervalData =
+      intervals.length > 1 && intervals.every((i) => Array.isArray(i.rooms) && i.perRoomGuests);
+
+    if (!hasIntervalData) {
+      return [booking];
+    }
+
+    return intervals.map((interval, index) => ({
+      id: `${booking.id}#${index + 1}`,
+      startDate: interval.startDate,
+      endDate: interval.endDate,
+      rooms: interval.rooms,
+      perRoomDates: interval.perRoomDates || {},
+      perRoomGuests: interval.perRoomGuests,
+      guestNames: interval.guestNames || [],
+      guestType: interval.guestType || booking.guestType,
+    }));
+  }
+
+  /**
+   * Price the rooms of one segment and format their lines
+   *
+   * @param {Object} segment - Booking-shaped segment (see _getPriceSegments)
+   * @param {Object} settings - System settings
+   * @param {boolean} showDates - Append each room's date range to its header
+   * @returns {{text: string, total: number, roomTotals: Array<Object>}} Lines and calculated total
+   * @throws {Error} When PriceCalculator cannot price a room (missing price configuration)
+   * @private
+   */
+  _formatRoomLines(segment, settings, showDates) {
+    const nights = DateUtils.getDaysBetween(segment.startDate, segment.endDate);
+    const perRoomGuests = this._buildPerRoomGuestBreakdown(segment);
+    const priceBreakdown = PriceCalculator.calculatePerRoomPrices({
+      nights,
+      settings,
+      perRoomGuests,
+      perRoomDates: segment.perRoomDates,
+    });
+
+    let text = '';
+
+    for (const roomPrice of priceBreakdown.rooms) {
+      const roomGuests = perRoomGuests.find((r) => r.roomId === roomPrice.roomId);
+      const room = settings.rooms.find((r) => String(r.id) === String(roomPrice.roomId));
+      const roomBeds = room?.beds ?? '?';
+      const roomNights = roomPrice.nights;
+      const roomTypeLabel = roomGuests.guestType === 'utia' ? 'ÚTIA' : 'EXT';
+      const roomDates = segment.perRoomDates?.[roomPrice.roomId] || segment;
+      const datesLabel = showDates ? `, ${roomDates.startDate} – ${roomDates.endDate}` : '';
+
+      if (!room) {
+        logger.warn('Room missing from settings - priced as small room', {
+          bookingId: segment.id,
+          roomId: roomPrice.roomId,
+        });
+      }
+
+      text += `Pokoj ${roomPrice.roomId} (${roomBeds} lůžka)${datesLabel}\n`;
+      text += `  Základní cena (${roomTypeLabel}): ${roomPrice.emptyRoomPrice} Kč/noc × ${roomNights} nocí = ${roomPrice.emptyRoomPrice * roomNights} Kč\n`;
+      text += this._formatGuestLine(
+        'Dospělí',
+        'ÚTIA',
+        roomPrice.utiaAdults,
+        roomPrice.utiaAdultsPrice,
+        roomNights
+      );
+      text += this._formatGuestLine(
+        'Dospělí',
+        'EXT',
+        roomPrice.externalAdults,
+        roomPrice.externalAdultsPrice,
+        roomNights
+      );
+      text += this._formatGuestLine(
+        'Děti',
+        'ÚTIA',
+        roomPrice.utiaChildren,
+        roomPrice.utiaChildrenPrice,
+        roomNights
+      );
+      text += this._formatGuestLine(
+        'Děti',
+        'EXT',
+        roomPrice.externalChildren,
+        roomPrice.externalChildrenPrice,
+        roomNights
+      );
+      if (roomPrice.toddlers > 0) {
+        text += `  Batolata (zdarma): ${roomPrice.toddlers} × 0 Kč\n`;
+      }
+      text += `  Celkem za pokoj: ${roomPrice.total} Kč\n\n`;
+    }
+
+    return {
+      text,
+      total: priceBreakdown.grandTotal,
+      roomTotals: priceBreakdown.rooms.map((r) => ({ roomId: r.roomId, total: r.total })),
+    };
+  }
+
+  /**
    * Generate per-room price breakdown using PriceCalculator
    * Each guest is priced with their own ÚTIA/external rate, using the same per-room rule as the
    * charging path, so for unchanged price settings the room lines add up to the stored total.
    *
    * @param {Object} booking - Booking data
    * @param {Object} settings - System settings
-   * @param {number} nights - Booking-level number of nights (fallback for rooms without dates)
    * @returns {string} Formatted price breakdown, or a total-only text when it cannot be built
    * @private
    */
-  generatePerRoomPriceBreakdown(booking, settings, nights) {
-    const hasStoredTotal = typeof booking.totalPrice === 'number' && booking.totalPrice > 0;
+  generatePerRoomPriceBreakdown(booking, settings) {
+    const segments = this._getPriceSegments(booking);
 
-    let perRoomGuests;
-    let priceBreakdown;
+    // Show dates in room headers when the stays do not all share one date range,
+    // so a room booked for two ranges (or rooms with different dates) stays readable
+    const dateRanges = new Set(
+      segments.flatMap((segment) =>
+        (segment.rooms || []).map((roomId) => {
+          const dates = segment.perRoomDates?.[roomId] || segment;
+          return `${dates.startDate}|${dates.endDate}`;
+        })
+      )
+    );
+    const showDates = dateRanges.size > 1;
+
+    let breakdown = '';
+    let calculatedTotal = 0;
+    const roomTotals = [];
     try {
-      perRoomGuests = this._buildPerRoomGuestBreakdown(booking);
-      priceBreakdown = PriceCalculator.calculatePerRoomPrices({
-        nights,
-        settings,
-        perRoomGuests,
-        perRoomDates: booking.perRoomDates,
-      });
+      for (const segment of segments) {
+        const lines = this._formatRoomLines(segment, settings, showDates);
+        breakdown += lines.text;
+        calculatedTotal += lines.total;
+        roomTotals.push(...lines.roomTotals);
+      }
     } catch (error) {
       // Never block a confirmation e-mail because of a pricing error (usually a missing rate
       // in price settings, but any throw lands here) - send the total without itemisation.
@@ -589,83 +727,30 @@ class EmailService {
         bookingId: booking.id,
         rooms: booking.rooms,
       });
-      return hasStoredTotal
-        ? `CELKOVÁ CENA: ${booking.totalPrice} Kč\n(Podrobný rozpis ceny není k dispozici - v případě dotazu kontaktujte správce chaty.)`
-        : 'Rozpis ceny není k dispozici - kontaktujte prosím správce chaty.';
-    }
-
-    let breakdown = '';
-
-    for (const roomPrice of priceBreakdown.rooms) {
-      const roomGuests = perRoomGuests.find((r) => r.roomId === roomPrice.roomId);
-      const room = settings.rooms.find((r) => String(r.id) === String(roomPrice.roomId));
-      const roomBeds = room?.beds ?? '?';
-      const roomNights = roomPrice.nights;
-      const roomTypeLabel = roomGuests.guestType === 'utia' ? 'ÚTIA' : 'EXT';
-
-      if (!room) {
-        logger.warn('Room missing from settings - priced as small room', {
-          bookingId: booking.id,
-          roomId: roomPrice.roomId,
-        });
-      }
-
-      breakdown += `Pokoj ${roomPrice.roomId} (${roomBeds} lůžka)\n`;
-      breakdown += `  Základní cena (${roomTypeLabel}): ${roomPrice.emptyRoomPrice} Kč/noc × ${roomNights} nocí = ${roomPrice.emptyRoomPrice * roomNights} Kč\n`;
-      breakdown += this._formatGuestLine(
-        'Dospělí',
-        'ÚTIA',
-        roomPrice.utiaAdults,
-        roomPrice.utiaAdultsPrice,
-        roomNights
-      );
-      breakdown += this._formatGuestLine(
-        'Dospělí',
-        'EXT',
-        roomPrice.externalAdults,
-        roomPrice.externalAdultsPrice,
-        roomNights
-      );
-      breakdown += this._formatGuestLine(
-        'Děti',
-        'ÚTIA',
-        roomPrice.utiaChildren,
-        roomPrice.utiaChildrenPrice,
-        roomNights
-      );
-      breakdown += this._formatGuestLine(
-        'Děti',
-        'EXT',
-        roomPrice.externalChildren,
-        roomPrice.externalChildrenPrice,
-        roomNights
-      );
-      if (roomPrice.toddlers > 0) {
-        breakdown += `  Batolata (zdarma): ${roomPrice.toddlers} × 0 Kč\n`;
-      }
-      breakdown += `  Celkem za pokoj: ${roomPrice.total} Kč\n\n`;
+      return this._totalOnlyBreakdown(booking);
     }
 
     // The displayed total is the stored price the guest was quoted, not the recalculated one.
     // The two differ when price settings changed after booking, or when the stored price was
     // computed with different data (e.g. guests missing a roomId) - log it so it can be checked.
+    const hasStoredTotal = typeof booking.totalPrice === 'number' && booking.totalPrice > 0;
     if (!hasStoredTotal) {
       logger.error('Booking has no stored total price - showing recalculated total', {
         bookingId: booking.id,
         storedTotal: booking.totalPrice,
-        calculatedTotal: priceBreakdown.grandTotal,
+        calculatedTotal,
       });
-    } else if (Math.abs(booking.totalPrice - priceBreakdown.grandTotal) >= 1) {
+    } else if (Math.abs(booking.totalPrice - calculatedTotal) >= 1) {
       logger.warn('Price breakdown does not match stored total price', {
         bookingId: booking.id,
         storedTotal: booking.totalPrice,
-        calculatedTotal: priceBreakdown.grandTotal,
-        difference: priceBreakdown.grandTotal - booking.totalPrice,
-        roomTotals: priceBreakdown.rooms.map((r) => ({ roomId: r.roomId, total: r.total })),
+        calculatedTotal,
+        difference: calculatedTotal - booking.totalPrice,
+        roomTotals,
       });
     }
 
-    const finalPrice = hasStoredTotal ? booking.totalPrice : priceBreakdown.grandTotal;
+    const finalPrice = hasStoredTotal ? booking.totalPrice : calculatedTotal;
     breakdown += `CELKOVÁ CENA: ${finalPrice} Kč`;
     return breakdown.trim();
   }
@@ -689,8 +774,17 @@ class EmailService {
     }
 
     // CRITICAL: Bulk bookings have special unified format (not per-room)
-    if (booking.isBulkBooking && settings.bulkPrices) {
-      return this.generateBulkPriceBreakdown(booking, settings);
+    if (booking.isBulkBooking) {
+      if (settings.bulkPrices) {
+        return this.generateBulkPriceBreakdown(booking, settings);
+      }
+      // FIX 2026-09-18: Without bulkPrices a bulk booking fell through to the per-room
+      // breakdown - all guests in the first room, the other rooms at base price only.
+      // Bulk bookings are charged the whole-cottage rate, so never itemise them per room.
+      logger.error('Bulk booking but bulkPrices missing in settings - cannot itemise price', {
+        bookingId: booking.id,
+      });
+      return this._totalOnlyBreakdown(booking);
     }
 
     const nights = DateUtils.getDaysBetween(booking.startDate, booking.endDate);
@@ -699,7 +793,7 @@ class EmailService {
     // with the booking-level guest type. Rooms with mixed ÚTIA/external guests were shown
     // with ÚTIA rates for everyone, so the per-room lines did not add up to the total price.
     if (booking.perRoomDates && booking.perRoomGuests) {
-      return this.generatePerRoomPriceBreakdown(booking, settings, nights);
+      return this.generatePerRoomPriceBreakdown(booking, settings);
     }
 
     // Handle single-date bookings (all rooms same dates)
