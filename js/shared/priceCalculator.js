@@ -937,10 +937,18 @@ class PriceCalculator {
           roomGuestNames = guestNames;
         }
 
-        const hasUtiaGuest = roomGuestNames.some(
-          (g) => g.guestPriceType === 'utia' && g.personType !== 'toddler'
-        );
-        roomGuestType = hasUtiaGuest ? 'utia' : fallbackGuestType || 'external';
+        // FIX 2026-09-18: Per-room rule - a room whose paying guests are all external is priced
+        // external, even when another room in the booking has an ÚTIA guest. Previously it fell
+        // back to the booking-level type (ÚTIA), so editing such a booking charged the ÚTIA
+        // empty-room rate while creating it charged the external one.
+        // The booking-level fallback now applies only to rooms without paying guests.
+        const payingRoomGuests = roomGuestNames.filter((g) => g.personType !== 'toddler');
+        if (payingRoomGuests.length === 0) {
+          roomGuestType = fallbackGuestType || 'external';
+        } else {
+          const hasUtiaGuest = payingRoomGuests.some((g) => g.guestPriceType === 'utia');
+          roomGuestType = hasUtiaGuest ? 'utia' : 'external';
+        }
       }
 
       // CRITICAL: Validate price configuration exists for this guest type and room type

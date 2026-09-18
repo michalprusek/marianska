@@ -7,12 +7,25 @@ const { logger } = require('./js/shared/logger');
 
 class DatabaseManager {
   constructor() {
-    const dbDir = path.join(__dirname, 'data');
-    if (!fs.existsSync(dbDir)) {
-      fs.mkdirSync(dbDir, { recursive: true });
+    // FIX 2026-09-18: Honour DB_PATH. It was ignored, so test suites (which set
+    // DB_PATH=':memory:') wrote into data/bookings.db - and ./data is bind-mounted
+    // into the production container, so tests created bookings in production.
+    if (process.env.DB_PATH) {
+      this.dbPath = process.env.DB_PATH;
+    } else {
+      // Safety net: never let a test run open the real database file
+      if (process.env.NODE_ENV === 'test') {
+        throw new Error(
+          'DatabaseManager: DB_PATH must be set when NODE_ENV=test (e.g. ":memory:") - ' +
+            'refusing to open data/bookings.db'
+        );
+      }
+      const dbDir = path.join(__dirname, 'data');
+      if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true });
+      }
+      this.dbPath = path.join(dbDir, 'bookings.db');
     }
-
-    this.dbPath = path.join(dbDir, 'bookings.db');
     this.db = new Database(this.dbPath);
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('foreign_keys = ON');

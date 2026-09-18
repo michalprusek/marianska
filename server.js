@@ -354,7 +354,26 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 app.use(bodyParser.json({ limit: '10mb' }));
-app.use(express.static('.'));
+
+// FIX 2026-03-31: Security - serve only frontend assets, not entire project root
+// Block access to sensitive paths (safety net)
+app.use(['/data', '/backups', '/node_modules', '/migrations', '/.env'], (req, res) => {
+  res.status(404).send('Not found');
+});
+
+// Block backend-only JS files from being served
+app.use(
+  ['/js/shared/emailService.js', '/js/shared/logger.js', '/js/shared/accessLogger.js'],
+  (req, res) => {
+    res.status(404).send('Not found');
+  }
+);
+
+// Serve frontend assets from public/ (HTML, CSS, images, favicons, data.js, admin.js, translations.js)
+app.use(express.static('public'));
+
+// Serve frontend JS files from js/ (shared utilities used by both frontend and backend)
+app.use('/js', express.static('js'));
 
 // Access logging middleware - log all HTTP requests
 app.use(accessLogger.middleware());
@@ -1290,12 +1309,25 @@ app.post('/api/booking/group', bookingLimiter, async (req, res) => {
       guestNames: allGuestNames,
       perRoomDates: mergedPerRoomDates,
       perRoomGuests: mergedPerRoomGuests,
-      intervals: reservations.map((r) => ({
-        rooms: r.rooms,
-        startDate: r.startDate,
-        endDate: r.endDate,
-        price: r.totalPrice,
-      })),
+      // FIX 2026-09-18: Carry each reservation's own dates and guests. The merged
+      // perRoomDates/perRoomGuests above keep only the last range when a room is booked
+      // twice, so the e-mail prices every reservation from its interval instead.
+      intervals: reservations.map((r) => {
+        const intervalGuestNames = r.guestNames || [];
+        const hasUtiaInInterval = intervalGuestNames.some(
+          (g) => g.guestPriceType === 'utia' && g.personType !== 'toddler'
+        );
+        return {
+          rooms: r.rooms,
+          startDate: r.startDate,
+          endDate: r.endDate,
+          price: r.totalPrice,
+          perRoomDates: r.perRoomDates || {},
+          perRoomGuests: r.perRoomGuests || {},
+          guestNames: intervalGuestNames,
+          guestType: hasUtiaInInterval ? 'utia' : 'external',
+        };
+      }),
     };
 
     emailService.sendBookingConfirmation(combinedBooking, { settings }).catch((emailErr) => {

@@ -10,6 +10,8 @@ const crypto = require('crypto');
 // Server-side require - not a redeclaration (client-side uses global DateUtils)
 // eslint-disable-next-line no-redeclare
 const DateUtils = require('./dateUtils');
+// eslint-disable-next-line no-redeclare
+const PriceCalculator = require('./priceCalculator');
 const { createLogger } = require('./logger');
 
 const logger = createLogger('EmailService');
@@ -441,6 +443,319 @@ class EmailService {
   }
 
   /**
+   * Determine the guest type used for a room's empty-room rate
+   * Mirrors PriceCalculator.calculatePerGuestPrice(), which computes the charged total, so the
+   * e-mail itemises exactly what the guest pays:
+   *   1. an explicit per-room guestType (sent by the browser) wins,
+   *   2. otherwise the room is ÚTIA when at least one of its paying (non-toddler) guests is ÚTIA
+   *      and external when they are all external,
+   *   3. only a room without paying guests falls back to the booking-level type.
+   *
+   * @param {Object} roomGuests - perRoomGuests entry for the room (may be empty)
+   * @param {Array<Object>} roomGuestNames - Guests assigned to the room
+   * @param {string} fallbackGuestType - Booking-level guest type
+   * @returns {string} 'utia' or 'external'
+   * @private
+   */
+  _resolveRoomGuestType(roomGuests, roomGuestNames, fallbackGuestType) {
+    if (roomGuests.guestType) {
+      return roomGuests.guestType === 'utia' ? 'utia' : 'external';
+    }
+
+    const payingGuests = roomGuestNames.filter((g) => g.personType !== 'toddler');
+    if (payingGuests.length === 0) {
+      return fallbackGuestType === 'utia' ? 'utia' : 'external';
+    }
+
+    return payingGuests.some((g) => g.guestPriceType === 'utia') ? 'utia' : 'external';
+  }
+
+  /**
+   * Build the per-room guest breakdown consumed by PriceCalculator.calculatePerRoomPrices()
+   * Guest types come from guestNames. A room without guest names (bookings created before
+   * guest names were stored) falls back to its aggregated counts, all priced with one type.
+   *
+   * @param {Object} booking - Booking data
+   * @returns {Array<Object>} Per-room guest breakdown with ÚTIA/external counts
+   * @private
+   */
+  _buildPerRoomGuestBreakdown(booking) {
+    const guestNames = Array.isArray(booking.guestNames) ? booking.guestNames : [];
+    const bookingGuestType = booking.guestType === 'utia' ? 'utia' : 'external';
+
+    const guestsWithoutRoom = guestNames.filter((g) => g.roomId === undefined || g.roomId === null);
+    if (guestsWithoutRoom.length > 0) {
+      logger.warn('Guests without roomId - price breakdown may not match charged price', {
+        bookingId: booking.id,
+        guestsWithoutRoom: guestsWithoutRoom.length,
+        totalGuests: guestNames.length,
+      });
+    }
+
+    return (booking.rooms || []).map((roomId) => {
+      const roomGuests = booking.perRoomGuests?.[roomId] || {};
+      const roomGuestNames = guestNames.filter((g) => String(g.roomId) === String(roomId));
+      const guestType = this._resolveRoomGuestType(roomGuests, roomGuestNames, bookingGuestType);
+
+      if (roomGuestNames.length === 0) {
+        if (guestNames.length > 0) {
+          // Guest names exist, just none for this room - a data problem, not a legacy booking
+          logger.warn('Room has no guest names - using aggregated guest counts', {
+            bookingId: booking.id,
+            roomId,
+            guestNameRoomIds: [...new Set(guestNames.map((g) => g.roomId))],
+          });
+        }
+
+        const adults = roomGuests.adults || 0;
+        const children = roomGuests.children || 0;
+        const isUtia = guestType === 'utia';
+
+        return {
+          roomId,
+          guestType,
+          adults,
+          children,
+          toddlers: roomGuests.toddlers || 0,
+          utiaAdults: isUtia ? adults : 0,
+          externalAdults: isUtia ? 0 : adults,
+          utiaChildren: isUtia ? children : 0,
+          externalChildren: isUtia ? 0 : children,
+        };
+      }
+
+      // Same helper and fallback type the charging path uses for per-guest surcharges
+      const counts = PriceCalculator.countGuestsByTypeForRoom(roomGuestNames, bookingGuestType);
+
+      return {
+        roomId,
+        guestType,
+        adults: counts.utiaAdults + counts.externalAdults,
+        children: counts.utiaChildren + counts.externalChildren,
+        toddlers: roomGuestNames.filter((g) => g.personType === 'toddler').length,
+        ...counts,
+      };
+    });
+  }
+
+  /**
+   * Format a single guest surcharge line, e.g. "Dospělí (EXT): 2 × 80 Kč/noc × 3 nocí = 480 Kč"
+   *
+   * @param {string} label - Guest category label
+   * @param {string} typeLabel - Guest type label
+   * @param {number} count - Number of guests
+   * @param {number} pricePerNight - Surcharge for all these guests for one night (from PriceCalculator)
+   * @param {number} roomNights - Nights for this room
+   * @returns {string} Formatted line (empty string when there are no such guests)
+   * @private
+   */
+  _formatGuestLine(label, typeLabel, count, pricePerNight, roomNights) {
+    if (count <= 0) {
+      return '';
+    }
+    const rate = pricePerNight / count;
+    return `  ${label} (${typeLabel}): ${count} × ${rate} Kč/noc × ${roomNights} nocí = ${pricePerNight * roomNights} Kč\n`;
+  }
+
+  /**
+   * Text used when the price cannot be itemised: the stored total with a note, never a made-up 0 Kč
+   *
+   * @param {Object} booking - Booking data
+   * @returns {string} Total-only price text
+   * @private
+   */
+  _totalOnlyBreakdown(booking) {
+    const hasStoredTotal = typeof booking.totalPrice === 'number' && booking.totalPrice > 0;
+    return hasStoredTotal
+      ? `CELKOVÁ CENA: ${booking.totalPrice} Kč\n(Podrobný rozpis ceny není k dispozici - v případě dotazu kontaktujte správce chaty.)`
+      : 'Rozpis ceny není k dispozici - kontaktujte prosím správce chaty.';
+  }
+
+  /**
+   * Split a booking into separately priced segments
+   * FIX 2026-09-18: A grouped booking created in one request can hold the same room in two
+   * date ranges. Its merged perRoomDates/perRoomGuests keep only the last range, so the e-mail
+   * itemised one stay but printed the total for both. When the booking carries per-reservation
+   * data (intervals, see POST /api/booking/group), each reservation is priced on its own.
+   *
+   * @param {Object} booking - Booking data
+   * @returns {Array<Object>} Booking-shaped segments (just the booking when it has no intervals)
+   * @private
+   */
+  _getPriceSegments(booking) {
+    const intervals = Array.isArray(booking.intervals) ? booking.intervals : [];
+    const hasIntervalData =
+      intervals.length > 1 && intervals.every((i) => Array.isArray(i.rooms) && i.perRoomGuests);
+
+    if (!hasIntervalData) {
+      return [booking];
+    }
+
+    return intervals.map((interval, index) => ({
+      id: `${booking.id}#${index + 1}`,
+      startDate: interval.startDate,
+      endDate: interval.endDate,
+      rooms: interval.rooms,
+      perRoomDates: interval.perRoomDates || {},
+      perRoomGuests: interval.perRoomGuests,
+      guestNames: interval.guestNames || [],
+      guestType: interval.guestType || booking.guestType,
+    }));
+  }
+
+  /**
+   * Price the rooms of one segment and format their lines
+   *
+   * @param {Object} segment - Booking-shaped segment (see _getPriceSegments)
+   * @param {Object} settings - System settings
+   * @param {boolean} showDates - Append each room's date range to its header
+   * @returns {{text: string, total: number, roomTotals: Array<Object>}} Lines and calculated total
+   * @throws {Error} When PriceCalculator cannot price a room (missing price configuration)
+   * @private
+   */
+  _formatRoomLines(segment, settings, showDates) {
+    const nights = DateUtils.getDaysBetween(segment.startDate, segment.endDate);
+    const perRoomGuests = this._buildPerRoomGuestBreakdown(segment);
+    const priceBreakdown = PriceCalculator.calculatePerRoomPrices({
+      nights,
+      settings,
+      perRoomGuests,
+      perRoomDates: segment.perRoomDates,
+    });
+
+    let text = '';
+
+    for (const roomPrice of priceBreakdown.rooms) {
+      const roomGuests = perRoomGuests.find((r) => r.roomId === roomPrice.roomId);
+      const room = settings.rooms.find((r) => String(r.id) === String(roomPrice.roomId));
+      const roomBeds = room?.beds ?? '?';
+      const roomNights = roomPrice.nights;
+      const roomTypeLabel = roomGuests.guestType === 'utia' ? 'ÚTIA' : 'EXT';
+      const roomDates = segment.perRoomDates?.[roomPrice.roomId] || segment;
+      const datesLabel = showDates ? `, ${roomDates.startDate} – ${roomDates.endDate}` : '';
+
+      if (!room) {
+        logger.warn('Room missing from settings - priced as small room', {
+          bookingId: segment.id,
+          roomId: roomPrice.roomId,
+        });
+      }
+
+      text += `Pokoj ${roomPrice.roomId} (${roomBeds} lůžka)${datesLabel}\n`;
+      text += `  Základní cena (${roomTypeLabel}): ${roomPrice.emptyRoomPrice} Kč/noc × ${roomNights} nocí = ${roomPrice.emptyRoomPrice * roomNights} Kč\n`;
+      text += this._formatGuestLine(
+        'Dospělí',
+        'ÚTIA',
+        roomPrice.utiaAdults,
+        roomPrice.utiaAdultsPrice,
+        roomNights
+      );
+      text += this._formatGuestLine(
+        'Dospělí',
+        'EXT',
+        roomPrice.externalAdults,
+        roomPrice.externalAdultsPrice,
+        roomNights
+      );
+      text += this._formatGuestLine(
+        'Děti',
+        'ÚTIA',
+        roomPrice.utiaChildren,
+        roomPrice.utiaChildrenPrice,
+        roomNights
+      );
+      text += this._formatGuestLine(
+        'Děti',
+        'EXT',
+        roomPrice.externalChildren,
+        roomPrice.externalChildrenPrice,
+        roomNights
+      );
+      if (roomPrice.toddlers > 0) {
+        text += `  Batolata (zdarma): ${roomPrice.toddlers} × 0 Kč\n`;
+      }
+      text += `  Celkem za pokoj: ${roomPrice.total} Kč\n\n`;
+    }
+
+    return {
+      text,
+      total: priceBreakdown.grandTotal,
+      roomTotals: priceBreakdown.rooms.map((r) => ({ roomId: r.roomId, total: r.total })),
+    };
+  }
+
+  /**
+   * Generate per-room price breakdown using PriceCalculator
+   * Each guest is priced with their own ÚTIA/external rate, using the same per-room rule as the
+   * charging path, so for unchanged price settings the room lines add up to the stored total.
+   *
+   * @param {Object} booking - Booking data
+   * @param {Object} settings - System settings
+   * @returns {string} Formatted price breakdown, or a total-only text when it cannot be built
+   * @private
+   */
+  generatePerRoomPriceBreakdown(booking, settings) {
+    const segments = this._getPriceSegments(booking);
+
+    // Show dates in room headers when the stays do not all share one date range,
+    // so a room booked for two ranges (or rooms with different dates) stays readable
+    const dateRanges = new Set(
+      segments.flatMap((segment) =>
+        (segment.rooms || []).map((roomId) => {
+          const dates = segment.perRoomDates?.[roomId] || segment;
+          return `${dates.startDate}|${dates.endDate}`;
+        })
+      )
+    );
+    const showDates = dateRanges.size > 1;
+
+    let breakdown = '';
+    let calculatedTotal = 0;
+    const roomTotals = [];
+    try {
+      for (const segment of segments) {
+        const lines = this._formatRoomLines(segment, settings, showDates);
+        breakdown += lines.text;
+        calculatedTotal += lines.total;
+        roomTotals.push(...lines.roomTotals);
+      }
+    } catch (error) {
+      // Never block a confirmation e-mail because of a pricing error (usually a missing rate
+      // in price settings, but any throw lands here) - send the total without itemisation.
+      logger.logError(error, {
+        operation: 'generatePerRoomPriceBreakdown',
+        bookingId: booking.id,
+        rooms: booking.rooms,
+      });
+      return this._totalOnlyBreakdown(booking);
+    }
+
+    // The displayed total is the stored price the guest was quoted, not the recalculated one.
+    // The two differ when price settings changed after booking, or when the stored price was
+    // computed with different data (e.g. guests missing a roomId) - log it so it can be checked.
+    const hasStoredTotal = typeof booking.totalPrice === 'number' && booking.totalPrice > 0;
+    if (!hasStoredTotal) {
+      logger.error('Booking has no stored total price - showing recalculated total', {
+        bookingId: booking.id,
+        storedTotal: booking.totalPrice,
+        calculatedTotal,
+      });
+    } else if (Math.abs(booking.totalPrice - calculatedTotal) >= 1) {
+      logger.warn('Price breakdown does not match stored total price', {
+        bookingId: booking.id,
+        storedTotal: booking.totalPrice,
+        calculatedTotal,
+        difference: calculatedTotal - booking.totalPrice,
+        roomTotals,
+      });
+    }
+
+    const finalPrice = hasStoredTotal ? booking.totalPrice : calculatedTotal;
+    breakdown += `CELKOVÁ CENA: ${finalPrice} Kč`;
+    return breakdown.trim();
+  }
+
+  /**
    * Generate detailed price breakdown per room
    * @param {Object} booking - Booking data
    * @param {Object} settings - System settings
@@ -449,71 +764,43 @@ class EmailService {
    */
   generatePriceBreakdown(booking, settings = {}) {
     if (!booking || !settings || !settings.prices || !settings.rooms) {
+      logger.error('Cannot build price breakdown - missing booking or price settings', {
+        bookingId: booking?.id,
+        hasSettings: Boolean(settings),
+        hasPrices: Boolean(settings?.prices),
+        hasRooms: Boolean(settings?.rooms),
+      });
       return 'Rozpis ceny není k dispozici';
     }
 
     // CRITICAL: Bulk bookings have special unified format (not per-room)
-    if (booking.isBulkBooking && settings.bulkPrices) {
-      return this.generateBulkPriceBreakdown(booking, settings);
+    if (booking.isBulkBooking) {
+      if (settings.bulkPrices) {
+        return this.generateBulkPriceBreakdown(booking, settings);
+      }
+      // FIX 2026-09-18: Without bulkPrices a bulk booking fell through to the per-room
+      // breakdown - all guests in the first room, the other rooms at base price only.
+      // Bulk bookings are charged the whole-cottage rate, so never itemise them per room.
+      logger.error('Bulk booking but bulkPrices missing in settings - cannot itemise price', {
+        bookingId: booking.id,
+      });
+      return this._totalOnlyBreakdown(booking);
     }
 
-    const guestKey = booking.guestType === 'utia' ? 'utia' : 'external';
-    const priceConfig = settings.prices[guestKey];
     const nights = DateUtils.getDaysBetween(booking.startDate, booking.endDate);
 
-    // Handle per-room bookings
+    // FIX 2026-09-17: Delegate to PriceCalculator (SSOT) instead of pricing every guest
+    // with the booking-level guest type. Rooms with mixed ÚTIA/external guests were shown
+    // with ÚTIA rates for everyone, so the per-room lines did not add up to the total price.
     if (booking.perRoomDates && booking.perRoomGuests) {
-      let breakdown = '';
-      let totalPrice = 0;
-
-      for (const roomId of booking.rooms || []) {
-        const room = settings.rooms.find((r) => r.id === roomId);
-        const roomType = room?.type || 'small';
-        const roomBeds = room?.beds || '?';
-        const roomPriceConfig = priceConfig?.[roomType];
-
-        if (!roomPriceConfig) {
-          continue;
-        }
-
-        const roomDates = booking.perRoomDates[roomId];
-        const roomGuests = booking.perRoomGuests[roomId] || {};
-        const roomNights = roomDates
-          ? DateUtils.getDaysBetween(roomDates.startDate, roomDates.endDate)
-          : nights;
-        const roomAdults = roomGuests.adults || 0;
-        const roomChildren = roomGuests.children || 0;
-
-        // Calculate room price
-        // NEW MODEL 2025-11-10: Only 'empty' field (room-size based pricing)
-        const emptyRoomPrice = roomPriceConfig.empty || 0;
-        const basePrice = emptyRoomPrice * roomNights;
-        const adultsPrice = roomAdults * (roomPriceConfig.adult || 0) * roomNights;
-        const childrenPrice = roomChildren * (roomPriceConfig.child || 0) * roomNights;
-        const roomTotal = basePrice + adultsPrice + childrenPrice;
-
-        breakdown += `Pokoj ${roomId} (${roomBeds} lůžka)\n`;
-        breakdown += `  Základní cena: ${emptyRoomPrice} Kč/noc × ${roomNights} nocí = ${basePrice} Kč\n`;
-        if (roomAdults > 0) {
-          breakdown += `  Dospělí: ${roomAdults} × ${roomPriceConfig.adult} Kč/noc × ${roomNights} nocí = ${adultsPrice} Kč\n`;
-        }
-        if (roomChildren > 0) {
-          breakdown += `  Děti: ${roomChildren} × ${roomPriceConfig.child} Kč/noc × ${roomNights} nocí = ${childrenPrice} Kč\n`;
-        }
-        breakdown += `  Celkem za pokoj: ${roomTotal} Kč\n\n`;
-        totalPrice += roomTotal;
-      }
-
-      // CRITICAL FIX: Use booking.totalPrice from database, not recalculated value
-      // The recalculated value might differ due to rounding or pricing model changes
-      const finalPrice = booking.totalPrice || totalPrice;
-      breakdown += `CELKOVÁ CENA: ${finalPrice} Kč`;
-      return breakdown.trim();
+      return this.generatePerRoomPriceBreakdown(booking, settings);
     }
 
     // Handle single-date bookings (all rooms same dates)
     // Count guests by type from guestNames array (fallback handled in helper)
-    const { utiaAdults, utiaChildren, externalAdults, externalChildren } =
+    // FIX 2026-09-18: Destructure toddlers too - it is read below and threw a ReferenceError,
+    // which silently dropped the confirmation e-mail for bookings without per-room data.
+    const { utiaAdults, utiaChildren, externalAdults, externalChildren, toddlers } =
       this._countGuestsByType(booking);
 
     const totalAdults = utiaAdults + externalAdults;
@@ -1294,7 +1581,9 @@ Automatická zpráva - neodpovídejte
       options.settings?.emailTemplate?.subject ||
       `Potvrzení rezervace - Chata Mariánská (${booking.id})`;
 
-    const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent, { html: htmlContent });
+    const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent, {
+      html: htmlContent,
+    });
 
     // Send to booking owner
     const result = await this.sendEmailWithRetry(mailOptions, {
@@ -1657,7 +1946,9 @@ Cena: ${details.priceFormatted}${details.notes ? `<br>Poznámka: ${this.escapeHt
     );
     const emailSubject = `Změna rezervace - Chata Mariánská (${booking.id})`;
 
-    const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent, { html: htmlContent });
+    const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent, {
+      html: htmlContent,
+    });
 
     // Send to booking owner only
     // FIX 2025-12-11: Admin notifications are handled separately via sendBookingNotifications()
@@ -1785,7 +2076,9 @@ Cena: ${details.priceFormatted}${details.notes ? `<br>Poznámka: ${this.escapeHt
     );
     const emailSubject = `Zrušení rezervace - Chata Mariánská (${booking.id})`;
 
-    const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent, { html: htmlContent });
+    const mailOptions = this.createMailOptions(booking.email, emailSubject, textContent, {
+      html: htmlContent,
+    });
 
     // Send to booking owner
     const result = await this.sendEmailWithRetry(mailOptions, {
