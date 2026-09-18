@@ -72,7 +72,7 @@ price = empty_room_rate + (adult_rate * adults) + (child_rate * children)
 
 ### Ochrana dat - ABSOLUTNÍ PRIORITA
 
-1. **NIKDY nemazat Docker volumes** - databáze je v `marianska_db-data`
+1. **NIKDY nemazat Docker volumes** - databáze je na hostiteli v `./data/bookings.db`, do kontejneru namapovaná jako bind mount `./data:/app/data` (viz `docker-compose.yml`)
 2. **NIKDY nepoužívat** `--volumes` flag při prune
 3. **VŽDY vytvořit backup před deploy** (viz níže)
 4. **NIKDY nepouštět destruktivní SQL** bez WHERE klauzule
@@ -122,6 +122,8 @@ docker-compose logs --tail=20 web
 - `docker-compose down -v` (smaže volumes!)
 - `docker system prune --volumes` (smaže DB!)
 - Mazat soubory v `/app/data/` uvnitř kontejneru
+- Mazat nebo měnit `./data/` na hostiteli - je to TATÁŽ produkční databáze
+- Spouštět testy nebo skripty s `DatabaseManager` bez `DB_PATH` - `./data/bookings.db` je produkce (jest nastavuje `DB_PATH=':memory:'` v `tests/helpers/setup.js`; při `NODE_ENV=test` bez `DB_PATH` `database.js` odmítne DB otevřít)
 - Spouštět DELETE bez WHERE
 - Ručně měnit databázi bez backupu
 
