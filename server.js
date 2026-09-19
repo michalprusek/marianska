@@ -646,6 +646,117 @@ app.post('/api/data', writeLimiter, requireApiKeyOrSession, (req, res) => {
 });
 
 // Public endpoint for creating bookings with rate limiting
+/**
+ * Calculate the price of a new booking on the server - never trust a totalPrice from the client.
+ * FIX 2026-09-19: Extracted from POST /api/booking so POST /api/booking/group uses the same
+ * calculation; the group endpoint used to store the totalPrice sent by the browser.
+ *
+ * @param {Object} bookingData - Booking/reservation payload (dates, rooms, guestNames, ...)
+ * @param {Object} settings - System settings with prices
+ * @returns {{totalPrice: number, guestType: string}} Server price and derived guest type
+ */
+function calculateNewBookingPrice(bookingData, settings) {
+  // NEW 2025-11-14: Use booking-level nights only as fallback (for bulk or non-composite bookings)
+  const nights = DateUtils.getDaysBetween(bookingData.startDate, bookingData.endDate);
+  let totalPrice;
+
+  // CRITICAL FIX: Determine correct guestType based on actual guest names
+  // If at least ONE guest has guestPriceType 'utia', use ÚTIA pricing for empty room
+  // Otherwise (all external), use external pricing
+  const hasUtiaGuest =
+    bookingData.guestNames && Array.isArray(bookingData.guestNames)
+      ? bookingData.guestNames.some((guest) => guest.guestPriceType === 'utia')
+      : false;
+  const actualGuestType = hasUtiaGuest ? 'utia' : 'external';
+
+  // CRITICAL FIX: Use correct price calculation based on booking type
+  if (bookingData.isBulkBooking) {
+    // Bulk booking: Use bulk pricing structure (flat base + per-person charges)
+    // FIX 2025-12-06: Derive guestTypeBreakdown from guestNames (SSOT) instead of trusting frontend
+    const guestNames = bookingData.guestNames || [];
+    const derivedBreakdown = {
+      utiaAdults: guestNames.filter((g) => g.personType === 'adult' && g.guestPriceType === 'utia')
+        .length,
+      externalAdults: guestNames.filter(
+        (g) => g.personType === 'adult' && g.guestPriceType === 'external'
+      ).length,
+      utiaChildren: guestNames.filter(
+        (g) => g.personType === 'child' && g.guestPriceType === 'utia'
+      ).length,
+      externalChildren: guestNames.filter(
+        (g) => g.personType === 'child' && g.guestPriceType === 'external'
+      ).length,
+    };
+
+    const hasGuestBreakdown =
+      derivedBreakdown.utiaAdults +
+        derivedBreakdown.externalAdults +
+        derivedBreakdown.utiaChildren +
+        derivedBreakdown.externalChildren >
+      0;
+
+    if (hasGuestBreakdown) {
+      const { utiaAdults, externalAdults, utiaChildren, externalChildren } = derivedBreakdown;
+      // SSOT: Use PriceCalculator for mixed guest type pricing
+      totalPrice = PriceCalculator.calculateMixedBulkPrice({
+        utiaAdults,
+        externalAdults,
+        utiaChildren,
+        externalChildren,
+        nights,
+        settings,
+      });
+      logger.info(
+        'Bulk booking price calculated with mixed guest types (derived from guestNames)',
+        {
+          guestTypeBreakdown: derivedBreakdown,
+          nights,
+          totalPrice,
+        }
+      );
+    } else {
+      // Fallback: Use single guestType pricing
+      totalPrice = PriceCalculator.calculateBulkPrice({
+        guestType: actualGuestType,
+        adults: bookingData.adults,
+        children: bookingData.children || 0,
+        toddlers: bookingData.toddlers || 0,
+        nights,
+        settings,
+      });
+    }
+  } else if (
+    // Individual room booking: Use per-guest pricing if guest names available
+    bookingData.guestNames &&
+    Array.isArray(bookingData.guestNames) &&
+    bookingData.guestNames.length > 0
+  ) {
+    // NEW: Per-guest pricing - correctly handles mixed ÚTIA/external guests
+    totalPrice = PriceCalculator.calculatePerGuestPrice({
+      rooms: bookingData.rooms,
+      guestNames: bookingData.guestNames,
+      perRoomGuests: bookingData.perRoomGuests, // FIX #4: Pass per-room guest type data
+      perRoomDates: bookingData.perRoomDates || null, // NEW 2025-11-14: Pass per-room dates
+      nights, // Fallback if no per-room dates
+      settings,
+      fallbackGuestType: actualGuestType,
+    });
+  } else {
+    // FALLBACK: Legacy pricing for bookings without guest names
+    totalPrice = PriceCalculator.calculatePriceFromRooms({
+      rooms: bookingData.rooms,
+      guestType: actualGuestType,
+      adults: bookingData.adults,
+      children: bookingData.children || 0,
+      toddlers: bookingData.toddlers || 0,
+      nights,
+      settings,
+    });
+  }
+
+  return { totalPrice, guestType: actualGuestType };
+}
+
 app.post('/api/booking', bookingLimiter, async (req, res) => {
   try {
     const bookingData = req.body;
@@ -927,107 +1038,12 @@ app.post('/api/booking', bookingLimiter, async (req, res) => {
         }
       }
 
-      // Calculate price using shared PriceCalculator
-      // NEW 2025-11-14: Use booking-level nights only as fallback (for bulk or non-composite bookings)
-      const nights = DateUtils.getDaysBetween(bookingData.startDate, bookingData.endDate);
-
-      // CRITICAL FIX: Determine correct guestType based on actual guest names
-      // If at least ONE guest has guestPriceType 'utia', use ÚTIA pricing for empty room
-      // Otherwise (all external), use external pricing
-      const hasUtiaGuest =
-        bookingData.guestNames && Array.isArray(bookingData.guestNames)
-          ? bookingData.guestNames.some((guest) => guest.guestPriceType === 'utia')
-          : false;
-      const actualGuestType = hasUtiaGuest ? 'utia' : 'external';
-
-      // CRITICAL FIX: Use correct price calculation based on booking type
-      if (bookingData.isBulkBooking) {
-        // Bulk booking: Use bulk pricing structure (flat base + per-person charges)
-        // FIX 2025-12-06: Derive guestTypeBreakdown from guestNames (SSOT) instead of trusting frontend
-        const guestNames = bookingData.guestNames || [];
-        const derivedBreakdown = {
-          utiaAdults: guestNames.filter(
-            (g) => g.personType === 'adult' && g.guestPriceType === 'utia'
-          ).length,
-          externalAdults: guestNames.filter(
-            (g) => g.personType === 'adult' && g.guestPriceType === 'external'
-          ).length,
-          utiaChildren: guestNames.filter(
-            (g) => g.personType === 'child' && g.guestPriceType === 'utia'
-          ).length,
-          externalChildren: guestNames.filter(
-            (g) => g.personType === 'child' && g.guestPriceType === 'external'
-          ).length,
-        };
-
-        const hasGuestBreakdown =
-          derivedBreakdown.utiaAdults +
-            derivedBreakdown.externalAdults +
-            derivedBreakdown.utiaChildren +
-            derivedBreakdown.externalChildren >
-          0;
-
-        if (hasGuestBreakdown) {
-          const { utiaAdults, externalAdults, utiaChildren, externalChildren } = derivedBreakdown;
-          // SSOT: Use PriceCalculator for mixed guest type pricing
-          bookingData.totalPrice = PriceCalculator.calculateMixedBulkPrice({
-            utiaAdults,
-            externalAdults,
-            utiaChildren,
-            externalChildren,
-            nights,
-            settings,
-          });
-          logger.info(
-            'Bulk booking price calculated with mixed guest types (derived from guestNames)',
-            {
-              guestTypeBreakdown: derivedBreakdown,
-              nights,
-              totalPrice: bookingData.totalPrice,
-            }
-          );
-        } else {
-          // Fallback: Use single guestType pricing
-          bookingData.totalPrice = PriceCalculator.calculateBulkPrice({
-            guestType: actualGuestType,
-            adults: bookingData.adults,
-            children: bookingData.children || 0,
-            toddlers: bookingData.toddlers || 0,
-            nights,
-            settings,
-          });
-        }
-      } else if (
-        // Individual room booking: Use per-guest pricing if guest names available
-        bookingData.guestNames &&
-        Array.isArray(bookingData.guestNames) &&
-        bookingData.guestNames.length > 0
-      ) {
-        // NEW: Per-guest pricing - correctly handles mixed ÚTIA/external guests
-        bookingData.totalPrice = PriceCalculator.calculatePerGuestPrice({
-          rooms: bookingData.rooms,
-          guestNames: bookingData.guestNames,
-          perRoomGuests: bookingData.perRoomGuests, // FIX #4: Pass per-room guest type data
-          perRoomDates: bookingData.perRoomDates || null, // NEW 2025-11-14: Pass per-room dates
-          nights, // Fallback if no per-room dates
-          settings,
-          fallbackGuestType: actualGuestType,
-        });
-      } else {
-        // FALLBACK: Legacy pricing for bookings without guest names
-        bookingData.totalPrice = PriceCalculator.calculatePriceFromRooms({
-          rooms: bookingData.rooms,
-          guestType: actualGuestType,
-          adults: bookingData.adults,
-          children: bookingData.children || 0,
-          toddlers: bookingData.toddlers || 0,
-          nights,
-          settings,
-        });
-      }
+      // Calculate price using shared PriceCalculator (server-side, never the client's value)
+      const calculated = calculateNewBookingPrice(bookingData, settings);
+      bookingData.totalPrice = calculated.totalPrice;
 
       // Store the actual guest type (not the one from client request)
-      bookingData.guestType = actualGuestType;
+      bookingData.guestType = calculated.guestType;
 
       // Generate secure IDs
       bookingData.id = IdGenerator.generateBookingId();
@@ -1241,6 +1257,23 @@ app.post('/api/booking/group', bookingLimiter, async (req, res) => {
           }
         }
       }
+    }
+
+    // FIX 2026-09-19: Price every reservation on the server. The client's totalPrice was
+    // stored as-is, so anyone calling the API could book a group at any price.
+    for (const reservation of reservations) {
+      const clientPrice = reservation.totalPrice;
+      const calculated = calculateNewBookingPrice(reservation, settings);
+      if (clientPrice !== calculated.totalPrice) {
+        logger.warn('Grouped reservation price differs from client - using server price', {
+          rooms: reservation.rooms,
+          startDate: reservation.startDate,
+          endDate: reservation.endDate,
+          clientPrice,
+          serverPrice: calculated.totalPrice,
+        });
+      }
+      reservation.totalPrice = calculated.totalPrice;
     }
 
     // Create grouped booking in database transaction
